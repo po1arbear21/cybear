@@ -9,6 +9,10 @@ module vector_m
 #define TT logical
 #include "src/util/vector_def.f90.inc"
 
+#define T char
+#define TT character(len=64)
+#include "src/util/vector_def.f90.inc"
+
 #define T real
 #define TT real
 #include "src/util/vector_def.f90.inc"
@@ -25,6 +29,10 @@ contains
 
 #define T log
 #define TT logical
+#include "src/util/vector_imp.f90.inc"
+
+#define T char
+#define TT character(len=64)
 #include "src/util/vector_imp.f90.inc"
 
 #define T real
