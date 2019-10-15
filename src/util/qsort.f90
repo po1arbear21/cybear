@@ -9,10 +9,10 @@ contains
 
 #define T int
 #define TT integer
-#include "src/util/qsort_imp.f90.inc"
+#include "qsort_imp.f90.inc"
 
 #define T real
 #define TT real
-#include "src/util/qsort_imp.f90.inc"
+#include "qsort_imp.f90.inc"
 
 end module

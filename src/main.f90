@@ -1,11 +1,11 @@
-#include "src/util/assert.f90.inc"
+#include "util/assert.f90.inc"
 
 program main
   use error_m
+  use matrix_m
+  use input_m
+  !use arpack_m
   implicit none
-  integer :: x
 
-  x = 8
-
-  ASSERT(x == 7)
+  write(*,*) "asdf"
 end program main

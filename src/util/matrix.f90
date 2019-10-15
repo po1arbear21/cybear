@@ -1,5 +1,5 @@
-#include "src/util/assert.f90.inc"
-#include "src/util/macro.f90.inc"
+#include "assert.f90.inc"
+#include "macro.f90.inc"
 
 module matrix_m
   use blas95
@@ -12,22 +12,22 @@ module matrix_m
 
 #define T real
 #define TT real
-#include "src/util/matrix_def.f90.inc"
+#include "matrix_def.f90.inc"
 
 #define T cmplx
 #define TT complex
 #define TCMPLX
-#include "src/util/matrix_def.f90.inc"
+#include "matrix_def.f90.inc"
 
 contains
 
 #define T real
 #define TT real
-#include "src/util/matrix_imp.f90.inc"
+#include "matrix_imp.f90.inc"
 
 #define T cmplx
 #define TT complex
 #define TCMPLX
-#include "src/util/matrix_imp.f90.inc"
+#include "matrix_imp.f90.inc"
 
 end module

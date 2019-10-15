@@ -42,16 +42,9 @@ f.write("program test\n")
 for t in test_modules:
   f.write("  use test_"+t+"_m\n")
 f.write("  implicit none\n\n")
-f.write("#define all 1\n\n")
 
 for i in range(0, len(test_modules)):
   t = test_modules[i]
-  f.write("#define "+t+" "+str(i+2)+"\n")
-  f.write("#if ((USE_TEST=="+t+") .or. (USE_TEST==all))\n")
   f.write("  call test_"+t+"()\n")
-  f.write("#endif\n")
-  f.write("#undef "+t+"\n\n")
-
-f.write("#undef all\n\n")
 
 f.write("end program test\n")

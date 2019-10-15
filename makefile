@@ -1,49 +1,57 @@
-FC             = ifort
-FFLAGS0        = -march=native -real-size 64 -i8 -fpp -module build/ -warn all -qopenmp
-FFLAGS_DEBUG   = -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG
-FFLAGS_RELEASE = -O2 -mkl
-LIBS           = ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
+FC        := ifort
+FFLAGS    := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp
+FDEBUG    := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG
+FRELEASE  := -O2 -mkl -ftz
+LIBS      := ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
+BUILD     := debug
+BUILD_DIR := build/${BUILD}/
+TRASH_DIR := build/trash/
 
-TARGET  = main
-DIRS    = $(shell find src/ -type d)
+ifeq ($(BUILD),debug)
+	FFLAGS := $(FFLAGS) $(FDEBUG)
+endif
+ifeq ($(BUILD),release)
+	FFLAGS := $(FFLAGS) $(FRELEASE)
+endif
+
 SOURCES = $(shell find src/ -name '*.f90')
-OBJECTS = $(addprefix build/, $(notdir $(SOURCES:.f90=.o)))
 
-TEST_TARGET  = test_main
-TEST_DIRS    = $(DIRS) $(shell find test/ -type d)
-TEST_SOURCES = $(SOURCES) $(shell find test/ -name '*.f90')
-TEST_OBJECTS = $(filter-out build/$(TARGET).o, $(addprefix build/, $(notdir $(TEST_SOURCES:.f90=.o))))
+all:
 
-# convert spaces in $(DIRS) to colons for makedepf90
-TEST_DIRS_COLON = $(subst $() $(),:,$(TEST_DIRS))
+depend: $(BUILD_DIR).depend
 
-# set default test to all
-USE_TEST := $(if $(USE_TEST),$(USE_TEST),all)
+$(BUILD_DIR).depend: $(SOURCES)
+	./depend/depend $(SOURCES) -b $(BUILD_DIR) > $(BUILD_DIR).depend || rm -f $(BUILD_DIR).depend
 
-.PHONY: debug release test clean depend
+include $(BUILD_DIR).depend
 
-debug: FFLAGS = $(FFLAGS0) $(FFLAGS_DEBUG)
-debug: $(TARGET)
+all: $(TARGETS)
 
-release: FFLAGS = $(FFLAGS0) $(FFLAGS_RELEASE)
-release: $(TARGET)
+$(BUILD_DIR)%.anc:
+	$(FC) $(FFLAGS) -module $(BUILD_DIR) -syntax-only -c $<
+	@mv $(notdir $(<:.f90=.i90)) $(BUILD_DIR) 2>/dev/null || true
+	@touch $@
 
-test: FFLAGS = $(FFLAGS0) $(FFLAGS_DEBUG) -D USE_TEST=$(USE_TEST)
-test: $(TEST_TARGET)
-
-include .depend
-
-$(TARGET): $(OBJECTS)
-	$(FC) $(FFLAGS) -o $(TARGET) $(OBJECTS) $(LIBS)
-
-$(TEST_TARGET): $(TEST_OBJECTS)
-	$(FC) $(FFLAGS) -o $(TEST_TARGET) $(TEST_OBJECTS) $(LIBS)
-
-build/%.o:
-	$(FC) $(FFLAGS) -c $< -o $@
+$(BUILD_DIR)%.o:
+	$(FC) $(FFLAGS) -I$(BUILD_DIR) -module $(TRASH_DIR) -c $< -o $@
 
 clean:
-	rm -f build/*.o build/*.mod $(TARGET) .depend
+	rm -f $(TRASH_DIR)*.mod $(BUILD_DIR)*.anc $(BUILD_DIR)*.i90 $(BUILD_DIR)*.mod $(BUILD_DIR)*.o $(BUILD_DIR).depend $(TARGETS)
 
-depend .depend:
-	./makedepf90 $(TEST_SOURCES) -b build/ -I $(TEST_DIRS_COLON) > .depend
+.PHONY : clean all
+
+# #-----------------------------------------------------------------------------------------------------------------------
+# # Additional LIBRARIES
+# #-----------------------------------------------------------------------------------------------------------------------
+
+# # arpack
+# LIBS := $(LIBS) lib/arpack/libarpack.a
+# INCLUDE := $(INCLUDE) -Ilib/arpack/
+
+# # expokit
+# LIBS := $(LIBS) lib/expokit/libexpokit.a
+# INCLUDE := $(INCLUDE) -Ilib/expokit/
+
+# # feast
+
+# #-----------------------------------------------------------------------------------------------------------------------
