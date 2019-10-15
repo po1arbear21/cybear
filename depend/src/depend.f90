@@ -183,10 +183,22 @@ program depend
   end do
   write(output_unit,*)
 
+  ! output anchor list for each target
+  do i = 1, programs%n
+    write(output_unit, "(1A)", advance = "no") "ANCHORS_"//trim(programs%d(i)%name)//" ="
+    do j = 1, size(files)
+      if ((files(j)%program_name == "") .or. (files(j)%program_name == programs%d(i)%name)) then
+        write(output_unit, "(1A)", advance = "no") " "//trim(buildfolder)//trim(files(j)%ancname)
+      end if
+    end do
+    write(output_unit,*)
+  end do
+  write(output_unit,*)
+
   ! output targets
   do i = 1, programs%n
     write(output_unit, "(1A)") ".PHONY: "//trim(programs%d(i)%name)
-    write(output_unit, "(1A)") trim(buildfolder)//trim(programs%d(i)%name)//": $(OBJECTS_"//trim(programs%d(i)%name)//")"
+    write(output_unit, "(1A)") trim(buildfolder)//trim(programs%d(i)%name)//": $(ANCHORS_"//trim(programs%d(i)%name)//") $(OBJECTS_"//trim(programs%d(i)%name)//")"
     write(output_unit, "(1A)") char(9)//"$(FC) $(FFLAGS) -I"//trim(buildfolder)//" -o "//trim(buildfolder)//trim(programs%d(i)%name)//" $(OBJECTS_"//trim(programs%d(i)%name)//") $(LIBS)"
     write(output_unit,*)
   end do

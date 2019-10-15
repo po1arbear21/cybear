@@ -4,9 +4,9 @@ module normalization_m
   implicit none
 
   type normalization
-    type(vector_char) :: unit
+    type(vector_string) :: unit
       !! phyiscal unit tokens (e.g. "eV" or "kV/cm")
-    type(vector_real) :: const
+    type(vector_real)   :: const
       !! corresponding normalization constants
   contains
     procedure :: init        => normalization_init
@@ -59,11 +59,17 @@ contains
     ! search for unit and normalize value
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalue = value / n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalue = value / normconst%const%d(i)
     end if
   end function
@@ -88,11 +94,17 @@ contains
     ! search for unit and denormalize value
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalue = value * n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalue = value * normconst%const%d(i)
     end if
   end function
@@ -117,11 +129,17 @@ contains
     ! search for unit and normalize values
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values / n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values / normconst%const%d(i)
     end if
   end function
@@ -146,11 +164,17 @@ contains
     ! search for unit and normalize values
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values * n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values * normconst%const%d(i)
     end if
   end function
@@ -175,11 +199,17 @@ contains
     ! search for unit and normalize values
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values / n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values / normconst%const%d(i)
     end if
   end function
@@ -204,11 +234,17 @@ contains
     ! search for unit and normalize values
     if (present(n)) then
       i = n%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values * n%const%d(i)
     else
       i = normconst%search_unit(unit)
-      if (i < 1) call program_error("Unit not found in normalization object!")
+      if (i < 1) then
+        print *, trim(unit)
+        call program_error("Unit not found in normalization object!")
+      end if
       nvalues = values * normconst%const%d(i)
     end if
   end function
@@ -304,8 +340,11 @@ contains
     subroutine insert(unit, const)
       character(len=*), intent(in) :: unit
       real,             intent(in) :: const
+      type(string)                 :: s
 
-      call this%unit%push(unit)
+      s%s = unit
+
+      call this%unit%push(s)
       call this%const%push(const)
     end subroutine
   end subroutine
@@ -320,7 +359,7 @@ contains
       !! if found: return index; if not found: return -1
 
     do i = 1, this%unit%n
-      if (this%unit%d(i) == unit) return
+      if (this%unit%d(i)%s == unit) return
     end do
 
     ! not found

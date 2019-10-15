@@ -1,0 +1,35 @@
+temperature = 300.0 : K
+
+[grid]
+  x0 = -0.5 : um
+  x1 = +0.5 : um
+  Nx = 100
+  y  = 0.0, 0.1, 0.2, 0.3, 0.4, &
+       0.5, 0.6, 0.7, 0.8, 0.9 : um
+
+! comment lol
+[transport]
+  x_width = 1 : um
+! comment lel
+  y_dir = true
+
+[region]
+  poisson = true
+  x0 = -0.5 : um
+  x1 = -0.1 : um
+  y0 =  0.0 : um
+  y1 =  0.3 : um
+  eps = 3.9 : eps0
+
+[region]
+  transport = true
+  y0 = 6e2 : um
+  y1 = 0.9 : um
+
+[contact]
+  name = "GAT"
+  gate = true
+  x0 = -0.5 : um
+  x1 = -0.5 : um
+  y0 =  0.2 : um
+  y1 =  0.5 : um

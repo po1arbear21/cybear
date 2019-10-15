@@ -1,4 +1,5 @@
 module vector_m
+  use string_m
   implicit none
 
 #define T int
@@ -9,8 +10,8 @@ module vector_m
 #define TT logical
 #include "vector_def.f90.inc"
 
-#define T char
-#define TT character(len=64)
+#define T string
+#define TT type(string)
 #include "vector_def.f90.inc"
 
 #define T real
@@ -31,8 +32,8 @@ contains
 #define TT logical
 #include "vector_imp.f90.inc"
 
-#define T char
-#define TT character(len=64)
+#define T string
+#define TT type(string)
 #include "vector_imp.f90.inc"
 
 #define T real

@@ -1,48 +1,40 @@
+#include "macro.f90.inc"
+
 module input_m
   use error_m
+  use normalization_m
+  use vector_m
   implicit none
 
+  ! maximum line length
+  integer, parameter :: MAX_LINE_LEN = 4096
+
   ! variable types
-  integer, parameter :: INPUT_TYPE_UNKNOWN = 0
   integer, parameter :: INPUT_TYPE_INTEGER = 1
   integer, parameter :: INPUT_TYPE_REAL    = 2
   integer, parameter :: INPUT_TYPE_STRING  = 3
   integer, parameter :: INPUT_TYPE_LOGIC   = 4
   integer, parameter :: INPUT_NUM_TYPES    = 4
 
-  ! string lengths
-  integer, parameter :: NAME_LEN = 64
-  integer, parameter :: STR_LEN  = 256
-
   type input_var
-    character(len=NAME_LEN) :: name
+    character(len=:), allocatable :: name
       !! Variable name
-    integer                 :: type
+    integer                       :: type
       !! Variable type
-    integer                 :: size
+    integer                       :: size
       !! Size of variable, 1 means scalar, > 1 means array
-    integer                 :: default_size
-      !! Default size of variable
-    character(len=STR_LEN)  :: data
-      !! Unprocessed data
-    character(len=STR_LEN)  :: default_data
-      !! Unprocessed default data
-
-    ! data
-    integer,                allocatable :: int_data(:)
-    real,                   allocatable :: real_data(:)
-    character(len=STR_LEN), allocatable :: str_data(:)
-    logical,                allocatable :: logic_data(:)
-    character(len=NAME_LEN)             :: unit
+    integer,          allocatable :: int_data(:)
+      !! integer data
+    real,             allocatable :: real_data(:)
+      !! real data
+    type(string),     allocatable :: str_data(:)
+      !! string data
+    logical,          allocatable :: logic_data(:)
+      !! logical data
+    character(len=:), allocatable :: unit
       !! Physical unit token (for real variables)
-
-    ! default data
-    integer,                allocatable :: default_int_data(:)
-    real,                   allocatable :: default_real_data(:)
-    character(len=STR_LEN), allocatable :: default_str_data(:)
-    logical,                allocatable :: default_logic_data(:)
-    character(len=NAME_LEN)             :: default_unit
-      !! Default physical unit token (for real variables)
+  contains
+    procedure :: init => input_var_init
   end type
 
 #define T input_var
@@ -50,10 +42,13 @@ module input_m
 #include "vector_def.f90.inc"
 
   type input_section
-    character(len=NAME_LEN) :: name
+    character(len=:), allocatable :: name
       !! Section name
-    type(vector_input_var) :: vars
+    type(vector_input_var)        :: vars
       !! variables in this section
+  contains
+    procedure :: init    => input_section_init
+    procedure :: add_var => input_section_add_var
   end type
 
 #define T input_section
@@ -61,15 +56,52 @@ module input_m
 #include "vector_def.f90.inc"
 
   type input_file
-    character(len=NAME_LEN)    :: name
+    character(len=:), allocatable :: name
       !! File name
-    type(input_section)        :: unnamed
-      !! Variables without named section
-    type(vector_input_section) :: sections
+    character(len=:), allocatable :: default
+      !! default file name
+    type(vector_input_section)    :: sections
       !! Sections in this file
+    type(vector_input_section)    :: default_sections
+      !! Default values for sections
   contains
-    procedure :: init       => input_file_init
-    procedure :: parse_line => input_file_parse_line
+    procedure :: init         => input_file_init
+    procedure :: load         => input_file_load
+    procedure :: parse_line   => input_file_parse_line
+    procedure :: get_sections => input_file_get_sections
+
+    procedure :: input_file_get_int
+    procedure :: input_file_get_int_arr
+    procedure :: input_file_get_name_int
+    procedure :: input_file_get_name_int_arr
+    procedure :: input_file_get_real
+    procedure :: input_file_get_real_arr
+    procedure :: input_file_get_name_real
+    procedure :: input_file_get_name_real_arr
+    procedure :: input_file_get_string
+    procedure :: input_file_get_string_arr
+    procedure :: input_file_get_name_string
+    procedure :: input_file_get_name_string_arr
+    procedure :: input_file_get_logical
+    procedure :: input_file_get_logical_arr
+    procedure :: input_file_get_name_logical
+    procedure :: input_file_get_name_logical_arr
+    generic   :: get => input_file_get_int,             &
+                        input_file_get_int_arr,         &
+                        input_file_get_name_int,        &
+                        input_file_get_name_int_arr,    &
+                        input_file_get_real,            &
+                        input_file_get_real_arr,        &
+                        input_file_get_name_real,       &
+                        input_file_get_name_real_arr,   &
+                        input_file_get_string,          &
+                        input_file_get_string_arr,      &
+                        input_file_get_name_string,     &
+                        input_file_get_name_string_arr, &
+                        input_file_get_logical,         &
+                        input_file_get_logical_arr,     &
+                        input_file_get_name_logical,    &
+                        input_file_get_name_logical_arr
   end type
 
 contains
@@ -82,30 +114,339 @@ contains
 #define TT type(input_section)
 #include "vector_imp.f90.inc"
 
-  subroutine input_file_init(this, name)
-    !! load file
+  subroutine input_var_init(this, data0, valid, err)
+    !! initialize variable from data string
 
-    class(input_file), intent(out) :: this
-    character(len=*),  intent(in)  :: name
-      !! filename
+    class(input_var), intent(out) :: this
+    character(len=*), intent(in)  :: data0
+      !! data string
+    logical,          intent(out) :: valid
+      !! valid flag
+    character(len=*), intent(out) :: err
+      !! Error string
 
     ! local variables
-    integer                 :: funit, curr_sect, line_number, status
-    logical                 :: valid
-    character(len=NAME_LEN) :: lfmt
-    character(len=STR_LEN)  :: line, err
+    integer                   :: i, j, k, status
+    real                      :: r
+    character(len=1)          :: quote
+    character(len=len(data0)) :: data, item
 
-    ! save filename
+    ! assume no error
+    valid = .true.
+    err   = ""
+
+    ! work on copy of data string
+    data = data0
+
+    ! search for equals sign
+    i = scan(data, '=')
+    if (i == 0) then
+      valid = .false.
+      err   = "Variable definition error"
+      return
+    end if
+
+    ! split var name and data
+    this%name = trim(adjustl(data(1:i-1)))
+    data      = trim(adjustl(data(i+1:len_trim(data))))
+    if (this%name == "") then
+      valid = .false.
+      err   = "Empty variable name"
+      return
+    end if
+    if (data == "") then
+      valid = .false.
+      err   = "Empty variable data"
+      return
+    end if
+
+    ! search for unit
+    i = scan(data, ':')
+    if (i /= 0) then
+      ! implicit real
+      this%type = INPUT_TYPE_REAL
+
+      this%unit = trim(adjustl(data(i+1:len_trim(data))))
+      data = trim(adjustl(data(1:i-1)))
+      if (this%unit == "") then
+        valid = .false.
+        err   = "Empty variable unit"
+        return
+      end if
+      if (data == "") then
+        valid = .false.
+        err   = "Empty variable data"
+        return
+      end if
+    else
+      this%type = 0
+      this%unit = "1"
+    end if
+
+    ! get size
+    quote = ""
+    this%size = 1
+    do i = 1, len_trim(data)
+      ! check if inside of quote
+      if (quote == "") then ! not inside of quote
+        ! check for beginning of quote or comment
+        if ((data(i:i) == "'") .or. (data(i:i) == '"')) then
+          quote = data(i:i)
+        elseif (data(i:i) == ",") then
+          ! count comma
+          this%size = this%size + 1
+        end if
+      elseif (data(i:i) == quote) then ! end of quote
+        quote = ""
+      end if
+    end do
+
+    ! get type from first item (if not already set)
+    if (this%type == 0) then
+      i = scan(data, ',')
+      if (i == 0) then
+        item = data
+      else
+        item = trim(adjustl(data(1:i-1)))
+      end if
+      if (item == "") then
+        valid = .false.
+        err   = "First data item is empty"
+        return
+      end if
+
+      ! search for quotes
+      i = scan(item, '"')
+      if (i == 0) then
+        i = scan(item, "'")
+      end if
+      if (i /= 0) then
+        ! string
+        this%type = INPUT_TYPE_STRING
+      else
+        ! try to read as integer
+        read (item, *, iostat = status) i
+        if (status == 0) then
+          this%type = INPUT_TYPE_INTEGER
+        else
+          ! try to read as real
+          read (item, *, iostat = status) r
+          if (status == 0) then
+            this%type = INPUT_TYPE_REAL
+          else
+            if ((trim(item) == "true") .or. (trim(item) == "false")) then
+              this%type = INPUT_TYPE_LOGIC
+            else
+              valid = .false.
+              err   = "Can not deduce type of variable"
+              return
+            end if
+          end if
+        end if
+      end if
+    end if
+
+    ! read in data
+    select case (this%type)
+    case (INPUT_TYPE_INTEGER)
+      allocate (this%int_data(this%size))
+
+      do i = 1, this%size
+        j = scan(data(1:len_trim(data)), ',')
+        if (j == 0) then
+          item = data
+          data = ""
+        else
+          item = trim(adjustl(data(1:j-1)))
+          data = trim(adjustl(data(j+1:len_trim(data))))
+        end if
+
+        ! convert to integer
+        read (item, *, iostat = status) this%int_data(i)
+        if (status /= 0) then
+          valid = .false.
+          err   = "invalid integer data"
+          return
+        end if
+      end do
+
+    case (INPUT_TYPE_REAL)
+      allocate (this%real_data(this%size))
+
+      do i = 1, this%size
+        j = scan(data(1:len_trim(data)), ',')
+        if (j == 0) then
+          item = data
+          data = ""
+        else
+          item = trim(adjustl(data(1:j-1)))
+          data = trim(adjustl(data(j+1:len_trim(data))))
+        end if
+
+        ! convert to real
+        read (item, *, iostat = status) this%real_data(i)
+        if (status /= 0) then
+          valid = .false.
+          err   = "invalid real data"
+          return
+        end if
+      end do
+
+    case (INPUT_TYPE_STRING)
+      allocate (this%str_data(this%size))
+
+      quote = ""
+      j = 0
+      k = 1
+      do i = 1, len_trim(data)
+        ! check if inside of quote
+        if (quote == "") then ! not inside of quote
+          ! only quote, comma and space allowed
+          if ((data(i:i) == "'") .or. (data(i:i) == '"')) then
+            if (j == -1) then
+              valid = .false.
+              err   = "comma needed between two strings"
+              return
+            end if
+
+            ! beginning of quote
+            quote = data(i:i)
+            j = i
+          elseif (data(i:i) == ",") then
+            ! next variable
+            k = k + 1
+            j = 0
+          elseif (data(i:i) /= " ") then
+            valid = .false.
+            err   = "invalid string data"
+            return
+          end if
+        elseif (data(i:i) == quote) then ! end of quote
+          ! string finished
+          quote = ""
+          this%str_data(k)%s = data(j+1:i-1)
+          j = -1
+        end if
+      end do
+
+    case (INPUT_TYPE_LOGIC)
+      allocate (this%logic_data(this%size))
+
+      do i = 1, this%size
+        j = scan(data(1:len_trim(data)), ',')
+        if (j == 0) then
+          item = data
+          data = ""
+        else
+          item = trim(adjustl(data(1:j-1)))
+          data = trim(adjustl(data(j+1:len_trim(data))))
+        end if
+
+        ! convert to logical
+        if (item == "true") then
+          this%logic_data(i) = .true.
+        elseif (item == "false") then
+          this%logic_data(i) = .false.
+        else
+          valid = .false.
+          err   = "invalid logical data"
+          return
+        end if
+      end do
+    end select
+  end subroutine
+
+  subroutine input_section_init(this, name)
+    !! initialize input section
+
+    class(input_section), intent(out) :: this
+    character(len=*),     intent(in)  :: name
+      !! section name
+
+    ! init members
     this%name = name
+    call this%vars%init(0, c = 8)
+  end subroutine
+
+  subroutine input_section_add_var(this, v)
+    !! add/replace variable in section
+
+    class(input_section), intent(inout) :: this
+    type(input_var),      intent(in)    :: v
+      !! variable to be added/replaced
+
+    ! local variables
+    integer :: i
+
+    ! search for existing var
+    do i = 1, this%vars%n
+      if (this%vars%d(i)%name == v%name) then
+        this%vars%d(i) = v
+        return
+      end if
+    end do
+
+    ! add new var
+    call this%vars%push(v)
+  end subroutine
+
+  subroutine input_file_init(this, name, default)
+    !! initialize input file
+
+    class(input_file),          intent(out) :: this
+    character(len=*),           intent(in)  :: name
+      !! filename
+    character(len=*), optional, intent(in)  :: default
+      !! filename for default sections
+
+    ! save names
+    this%name    = name
+    this%default = ""
+    if (present(default)) this%default = default
+
+    ! load default file
+    if (present(default)) then
+      call this%load(this%default_sections, default)
+    else
+      call this%default_sections%init(0, c = 8)
+    end if
+
+    ! load file
+    call this%load(this%sections, name, default_sections = this%default_sections)
+  end subroutine
+
+  subroutine input_file_load(this, sections, name, default_sections)
+    !! load file and setup sections
+
+    class(input_file),                    intent(inout) :: this
+    type(vector_input_section),           intent(out)   :: sections
+      !! setup sections
+    character(len=*),                     intent(in)    :: name
+      !! filename to load
+    type(vector_input_section), optional, intent(in)    :: default_sections
+      !! sections with default values
+
+    ! local variables
+    integer                       :: funit, line_number, status
+    logical                       :: valid
+    character(len=10)             :: lfmt
+    character(len=:), allocatable :: line, err
+    type(vector_string)           :: cont_lines
 
     ! line format
-    write(lfmt, "(A,I0,A)") "(A", STR_LEN, ")"
+    write(lfmt, "(A,I0,A)") "(A", MAX_LINE_LEN, ")"
+
+    ! continuation lines vector
+    call cont_lines%init(0, c = 8)
+
+    ! init section vector
+    call sections%init(0, c = 8)
+
+    ! allocate memory for line
+    allocate (character(len=MAX_LINE_LEN) :: line)
 
     ! open file
     open(newunit = funit, file = trim(name), status = "old", action = "read")
-
-    ! unnamed section in beginning
-    curr_sect = 0
 
     ! start at the top
     line_number = 0
@@ -125,1501 +466,767 @@ contains
       end if
       line_number = line_number + 1
 
-      ! parse line, may update current section
-      call this%parse_line(line, curr_sect, valid, err)
+      ! parse line
+      call this%parse_line(sections, trim(line), cont_lines, valid, err, default_sections = default_sections)
 
-      ! make sure line parsing was successful
+      ! check if line was valid
       if (.not. valid) then
         close(funit)
-        print *, "Error in line number: ", line_number
+        print "(1A, 1I0)", "Input error in line number ", line_number
         call program_error(err)
       end if
     end do
+
   end subroutine
 
-  subroutine input_file_parse_line(this, line0, curr_sect, valid, err)
-    !! Parse a single line from input file
+  subroutine input_file_parse_line(this, sections, line0, cont_lines, valid, err, default_sections)
+    !! Parse a single line from input file, update sections
 
-    class(input_file),      intent(inout) :: this
-    character(len=STR_LEN), intent(in)    :: line0
+    class(input_file),                    intent(inout) :: this
+    type(vector_input_section),           intent(inout) :: sections
+      !! Input sections
+    character(len=*),                     intent(in)    :: line0
       !! Line from input file
-    integer,                intent(inout) :: curr_sect
-      !! Current section index; can be updated by this line
-    logical,                intent(out)   :: valid
+    type(vector_string),                  intent(inout) :: cont_lines
+      !! Collection of lines belonging together
+    logical,                              intent(out)   :: valid
       !! Output if parsing was successful (valid syntax)
-    character(len=STR_LEN), intent(out)   :: err
+    character(len=:), allocatable,        intent(out)   :: err
       !! Error string
+    type(vector_input_section), optional, intent(in)    :: default_sections
+      !! Input sections
 
     ! local variables
-    character(len=STR_LEN)  :: line
-    character(len=NAME_LEN) :: var_name
-    integer                 :: i, equal_sign_idx
-    logical                 :: append
+    character(len=:), allocatable  :: line, name
+    character(len=1)               :: quote
+    type(string)                   :: str
+    integer                        :: i, j, line_len
+
+    IGNORE(this)
 
     ! assume valid syntax; change later if invalid
     valid = .true.
     err   = ""
 
-    ! work on copy
-    line = line0
+    ! work on copy; remove leading and trailing spaces
+    line     = trim(adjustl(line0))
+    line_len = len_trim(line)
 
     ! remove comments
     block
-      character :: quote, c
-
       quote = ""
 
-      ! got through line and search for comment character
-      do i = 1, len(line)
-        ! get current character
-        c = line(i:i)
-
-        ! check if inside of quoted string
-        if (quote == "") then ! not inside quoted string
-          ! check for beginning of quoted string or comment
-          if ((c == "'") .or. (c == '"')) then
-            quote = c
-          elseif ((c == "#") .or. (c == ";")) then
+      ! go through line and search for comment character
+      do i = 1, line_len
+        ! check if inside of quote
+        if (quote == "") then ! not inside of quote
+          ! check for beginning of quote or comment
+          if ((line(i:i) == "'") .or. (line(i:i) == '"')) then
+            quote = line(i:i)
+          elseif (line(i:i) == "!") then
             ! trim line up to comment character
-            line = trim(line(1:i-1))
+            line     = trim(line(1:i-1))
+            line_len = len_trim(line)
             exit
           end if
-        elseif (c == quote) then
-          ! end of quoted string
+        elseif (line(i:i) == quote) then ! end of quote
           quote = ""
         end if
       end do
+
+      ! make sure line does not end inside quote
+      if (quote /= "") then
+        valid = .false.
+        err   = "quote must be contained in single line"
+        return
+      end if
     end block
 
-    ! skip empty lines
-    if (line == "") return
-
-    ! search for '=' sign
-    equal_sign_idx = scan(line, '=')
-
-    ! if there is no '=' sign then maybe this is a new section
-    if (equal_sign_idx == 0) then
-      ! remove leading spaces
-      line = adjustl(line)
-
-      ! section names are expected to be in square brackets: [section_name]
-      i = scan(line, ']')
-      if (line(1:1) /= '[' .or. i == 0) then
-        valid = .false.
-        err   = "Expected variable assign or section [name] in square brackets"
-        return
-      else
-        ! add new section or return index of existing one
-        !call this%add_section(line(2:i-1), curr_sect)
+    ! check for line continuation symbol
+    if (line_len > 0) then
+      if (line(line_len:line_len) == '&') then
+        line = trim(adjustl(line(1:line_len-1)))
+        if (line /= "") then
+          str%s = trim(line)
+          call cont_lines%push(str)
+        end if
         return
       end if
     end if
 
-    ! make sure that a variable name is given
-    if (equal_sign_idx < 2) then
-      valid = .false.
-      err   = "No variable name given for assignment"
+    ! check for previous line continuation
+    if (cont_lines%n > 0) then ! concat lines in single giant string
+      block
+        character(len=:), allocatable :: concat_line
+        type(input_var)  :: v
+
+        ! add current line
+        str%s = trim(line)
+        call cont_lines%push(str)
+
+        ! count length and allocate concat line
+        j = 0
+        do i = 1, cont_lines%n
+          j = j + len_trim(cont_lines%d(i)%s)
+        end do
+        allocate (character(len=j) :: concat_line)
+
+        j = 0
+        do i = 1, cont_lines%n
+          concat_line(j+1:j+len_trim(cont_lines%d(i)%s)) = trim(cont_lines%d(i)%s)
+          j = j + len_trim(cont_lines%d(i)%s)
+        end do
+
+        call v%init(concat_line, valid, err)
+        if (valid) then
+          ! if no sections, add one without name
+          if (sections%n == 0) then
+            call sections%resize(1)
+            name = ""
+            call sections%d(1)%init(name)
+          end if
+
+          ! add variable to current section
+          call sections%d(sections%n)%add_var(v)
+        end if
+      end block
+
+      ! remove lines
+      call cont_lines%resize(0)
       return
     end if
 
-    ! set or append
-    if (line(equal_sign_idx-1:equal_sign_idx) == '+=') then
-      append = .true.
-      var_name = line(1:equal_sign_idx-2)
-    else
-      append = .false.
-      var_name = line(1:equal_sign_idx-1)
+    ! skip empty lines
+    if (line == "") return
+
+    ! check for new section
+    block
+      character(len=:), allocatable :: section_name
+      type(input_section)           :: sect
+
+      if (line(1:1) == '[') then ! new section
+        ! line must end with ]
+        if (line(line_len:line_len) /= ']') then
+          valid = .false.
+          err   = "Section name must end with square bracket"
+          return
+        end if
+
+        ! get name of section
+        section_name = trim(adjustl(line(2:line_len-1)))
+
+        ! create new section
+        if (present(default_sections)) then
+          ! search for section name
+          do i = 1, default_sections%n
+            if (default_sections%d(i)%name == section_name) then
+              ! set section values to default
+              sect = default_sections%d(i)
+              exit
+            end if
+          end do
+          if (i == default_sections%n + 1) call sect%init(section_name)
+        else
+          call sect%init(section_name)
+        end if
+        call sections%push(sect)
+        return
+      end if
+    end block
+
+    ! variable definition (in one line)
+    block
+      type(input_var) :: v
+
+      call v%init(line, valid, err)
+      if (valid) then
+        ! if no sections, add one without name
+        if (sections%n == 0) then
+          call sections%resize(1)
+          name = ""
+          call sections%d(1)%init(name)
+        end if
+
+        ! add variable to current section
+        call sections%d(sections%n)%add_var(v)
+      end if
+    end block
+  end subroutine
+
+  subroutine input_file_get_sections(this, section_name, section_ids)
+    !! get all section indices with this name
+
+    class(input_file),    intent(in)  :: this
+    character(len=*),     intent(in)  :: section_name
+      !! name of section to search
+    integer, allocatable, intent(out) :: section_ids(:)
+      !! output indices
+
+    ! local variables
+    integer :: i
+    type(vector_int) :: sv
+
+    ! collect sections with this name
+    call sv%init(0, c = this%sections%n)
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        call sv%push(i)
+      end if
+    end do
+
+    ! output section ids
+    allocate (section_ids(sv%n), source = sv%d(1:sv%n))
+  end subroutine
+
+  subroutine input_file_get_int(this, section_id, name, value)
+    !! get scalar integer value
+
+    class(input_file), intent(in)  :: this
+    integer,           intent(in)  :: section_id
+      !! section index
+    character(len=*),  intent(in)  :: name
+      !! variable name
+    integer,           intent(out) :: value
+      !! output value
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%size /= 1) call program_error("variable is not scalar")
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
+            value = var%int_data(1)
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_int_arr(this, section_id, name, values)
+    !! get array of integers
+
+    class(input_file),    intent(in)  :: this
+    integer,              intent(in)  :: section_id
+      !! section index
+    character(len=*),     intent(in)  :: name
+      !! variable name
+    integer, allocatable, intent(out) :: values(:)
+      !! output values
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
+            allocate (values(size(var%int_data)), source = var%int_data)
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_name_int(this, section_name, name, value)
+    !! get scalar integer value, provide section name instead of index
+
+    class(input_file), intent(in)  :: this
+    character(len=*),  intent(in)  :: section_name
+      !! section name
+    character(len=*),  intent(in)  :: name
+      !! variable name
+    integer,           intent(out) :: value
+      !! output value
+
+    ! local variables
+    integer :: i
+    logical :: found
+
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, value)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
     end if
+  end subroutine
 
-    ! reset to unnamed section if less than two spaces or a tab
-    if ((var_name(1:2) /= "  ") .and. var_name(1:1) /= char(9)) then
-      curr_sect = 0
+  subroutine input_file_get_name_int_arr(this, section_name, name, values)
+    !! get array of integers, provide section name instead of index
+
+    class(input_file),    intent(in)  :: this
+    character(len=*),     intent(in)  :: section_name
+      !! section name
+    character(len=*),     intent(in)  :: name
+      !! variable name
+    integer, allocatable, intent(out) :: values(:)
+      !! output values
+
+    ! local variables
+    integer :: i
+    logical :: found
+
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, values)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
     end if
+  end subroutine
 
-    ! remove leading spaces from variable name
-    var_name = adjustl(var_name)
+  subroutine input_file_get_real(this, section_id, name, value, normalize, norm_object)
+    !! get scalar real value
 
-    ! set line to everything after equal sign and remove leading spaces
-    line = adjustl(line(equal_sign_idx+1:))
+    class(input_file),             intent(in)  :: this
+    integer,                       intent(in)  :: section_id
+      !! section index
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    real,                          intent(out) :: value
+      !! output value
+    logical,             optional, intent(in)  :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in)  :: norm_object
+      !! optional normalization object (default: use global normconst)
 
-    ! check if data is present
-    if (line == "") then
-      valid = .false.
-      err   = "Expected values to the right of equal sign"
-      return
+    ! local variables
+    integer :: i
+    logical :: normalize_
+
+    ! optional values
+    normalize_ = .true.
+    if (present(normalize)) normalize_ = normalize
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%size /= 1) call program_error("variable is not scalar")
+            if (var%type /= INPUT_TYPE_REAL) call program_error("variable is not real")
+            if (normalize_) then
+              value = norm(var%real_data(1), var%unit, n = norm_object)
+            else
+              value = var%real_data(1)
+            end if
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object)
+    !! get array of reals
+
+    class(input_file),             intent(in)  :: this
+    integer,                       intent(in)  :: section_id
+      !! section index
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    real, allocatable,             intent(out) :: values(:)
+      !! output values
+    logical,             optional, intent(in)  :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in)  :: norm_object
+      !! optional normalization object (default: use global normconst)
+
+    ! local variables
+    integer :: i
+    logical :: normalize_
+
+    ! optional values
+    normalize_ = .true.
+    if (present(normalize)) normalize_ = normalize
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%type /= INPUT_TYPE_REAL) call program_error("variable is not real")
+            if (normalize_) then
+              allocate (values(size(var%real_data)))
+              values = norm(var%real_data, var%unit, n = norm_object)
+            else
+              allocate (values(size(var%real_data)), source = var%real_data)
+            end if
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object)
+    !! get scalar real value, provide section name instead of index
+
+    class(input_file),             intent(in)  :: this
+    character(len=*),              intent(in)  :: section_name
+      !! section name
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    real,                          intent(out) :: value
+      !! output value
+    logical,             optional, intent(in)  :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in)  :: norm_object
+      !! optional normalization object (default: use global normconst)
+
+    ! local variables
+    integer :: i
+    logical :: found
+
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, value, normalize = normalize, norm_object = norm_object)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
     end if
+  end subroutine
 
-    ! find or add new variable
-    !call this%sections%d(curr_sect)%add_var(var_name)
+  subroutine input_file_get_name_real_arr(this, section_name, name, values, normalize, norm_object)
+    !! get array of reals, provide section name instead of index
 
-          !     ! Find variable corresponding to name in file
-      !     call get_var_index(cfg, var_name, ix)
+    class(input_file),             intent(in)  :: this
+    character(len=*),              intent(in)  :: section_name
+      !! section name
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    real, allocatable,             intent(out) :: values(:)
+      !! output values
+    logical,             optional, intent(in)  :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in)  :: norm_object
+      !! optional normalization object (default: use global normconst)
 
-      !     if (ix <= 0) then
-      !        ! Variable still needs to be created, for now store data as a string
-      !        call prepare_store_var(cfg, trim(var_name), CFG_unknown_type, 1, &
-      !             "Not yet created", ix, .false.)
-      !        cfg%vars(ix)%stored_data = line
-      !     else
-      !        if (append) then
-      !           cfg%vars(ix)%stored_data = &
-      !                trim(cfg%vars(ix)%stored_data) // ', ' // trim(line)
-      !        else
-      !           cfg%vars(ix)%stored_data = line
-      !        end if
+    ! local variables
+    integer :: i
+    logical :: found
 
-      !        ! If type is known, read in values
-      !        if (cfg%vars(ix)%var_type /= CFG_unknown_type) then
-      !           call read_variable(cfg%vars(ix))
-      !        end if
-      !     end if
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, values, normalize = normalize, norm_object = norm_object)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
+    end if
+  end subroutine
 
+  subroutine input_file_get_string(this, section_id, name, value)
+    !! get scalar string value
 
-    !subroutine parse_line(cfg, line_arg, valid_syntax, category_arg)
-      !     type(CFG_t), intent(inout)                           :: cfg
-      !     character(len=*), intent(in)                         :: line_arg
-      !     logical, intent(out)                                 :: valid_syntax
-      !     character(len=CFG_name_len), intent(inout), optional :: category_arg
-      !     character(len=CFG_name_len)                          :: var_name, category
-      !     integer                                              :: ix, equal_sign_ix
-      !     logical                                              :: append
-      !     character(len=CFG_string_len)                        :: line
+    class(input_file),             intent(in)  :: this
+    integer,                       intent(in)  :: section_id
+      !! section index
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    character(len=:), allocatable, intent(out) :: value
+      !! output value
 
-      !     valid_syntax = .true.
+    ! local variables
+    integer :: i
 
-      !     ! Work on a copy
-      !     line = line_arg
-      !     category = ""
-      !     if (present(category_arg)) category = category_arg
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%size /= 1) call program_error("variable is not scalar")
+            if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
+            value = var%str_data(1)%s
+            return
+          end if
+        end associate
+      end do
+    end associate
 
-      !     call trim_comment(line, '#;')
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
 
-      !     ! Skip empty lines
-      !     if (line == "") return
+  subroutine input_file_get_string_arr(this, section_id, name, values)
+    !! get array of strings
 
-      !     ! Locate the '=' sign
-      !     equal_sign_ix = scan(line, '=')
+    class(input_file),         intent(in)  :: this
+    integer,                   intent(in)  :: section_id
+      !! section index
+    character(len=*),          intent(in)  :: name
+      !! variable name
+    type(string), allocatable, intent(out) :: values(:)
+      !! output values
 
-      !     ! if there is no '='-sign then a category is indicated
-      !     if (equal_sign_ix == 0) then
-      !        line = adjustl(line)
+    ! local variables
+    integer :: i
 
-      !        ! The category name should appear like this: [category_name]
-      !        ix = scan(line, ']')
-      !        if (line(1:1) /= '[' .or. ix == 0) then
-      !           valid_syntax = .false.
-      !           return
-      !        else
-      !           if (present(category_arg)) category_arg = line(2:ix-1)
-      !           return
-      !        end if
-      !     end if
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
+            allocate (values(size(var%str_data)), source = var%str_data)
+            return
+          end if
+        end associate
+      end do
+    end associate
 
-      !     if (line(equal_sign_ix-1:equal_sign_ix) == '+=') then
-      !        append = .true.
-      !        var_name = line(1 : equal_sign_ix - 2) ! Set variable name
-      !     else
-      !        append = .false.
-      !        var_name = line(1 : equal_sign_ix - 1) ! Set variable name
-      !     end if
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
 
-      !     ! If there are less than two spaces or a tab, reset to no category
-      !     if (var_name(1:2) /= " " .and. var_name(1:1) /= char(9)) then
-      !        category = ""
-      !     end if
+  subroutine input_file_get_name_string(this, section_name, name, value)
+    !! get scalar string value, provide section name instead of index
 
-      !     ! Remove leading blanks
-      !     var_name = adjustl(var_name)
+    class(input_file),             intent(in)  :: this
+    character(len=*),              intent(in)  :: section_name
+      !! section name
+    character(len=*),              intent(in)  :: name
+      !! variable name
+    character(len=:), allocatable, intent(out) :: value
+      !! output value
 
-      !     ! Add category if it is defined
-      !     if (category /= "") then
-      !        var_name = trim(category) // CFG_category_separator // var_name
-      !     end if
+    ! local variables
+    integer :: i
+    logical :: found
 
-      !     line     = line(equal_sign_ix + 1:)    ! Set line to the values behind the '=' sign
-      !     line     = adjustl(line)               ! Remove leading blanks
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, value)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
+    end if
+  end subroutine
 
-      !     if (line == "") then
-      !        ! Cannot assign empty value
-      !        valid_syntax = .false.
-      !        return
-      !     end if
+  subroutine input_file_get_name_string_arr(this, section_name, name, values)
+    !! get array of strings, provide section name instead of index
 
-      !     ! Find variable corresponding to name in file
-      !     call get_var_index(cfg, var_name, ix)
+    class(input_file),         intent(in)  :: this
+    character(len=*),          intent(in)  :: section_name
+      !! section name
+    character(len=*),          intent(in)  :: name
+      !! variable name
+    type(string), allocatable, intent(out) :: values(:)
+      !! output values
 
-      !     if (ix <= 0) then
-      !        ! Variable still needs to be created, for now store data as a string
-      !        call prepare_store_var(cfg, trim(var_name), CFG_unknown_type, 1, &
-      !             "Not yet created", ix, .false.)
-      !        cfg%vars(ix)%stored_data = line
-      !     else
-      !        if (append) then
-      !           cfg%vars(ix)%stored_data = &
-      !                trim(cfg%vars(ix)%stored_data) // ', ' // trim(line)
-      !        else
-      !           cfg%vars(ix)%stored_data = line
-      !        end if
+    ! local variables
+    integer :: i
+    logical :: found
 
-      !        ! If type is known, read in values
-      !        if (cfg%vars(ix)%var_type /= CFG_unknown_type) then
-      !           call read_variable(cfg%vars(ix))
-      !        end if
-      !     end if
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, values)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
+    end if
+  end subroutine
 
-      !   end subroutine parse_line
+  subroutine input_file_get_logical(this, section_id, name, value)
+    !! get scalar logical value
+
+    class(input_file), intent(in)  :: this
+    integer,           intent(in)  :: section_id
+      !! section index
+    character(len=*),  intent(in)  :: name
+      !! variable name
+    logical,           intent(out) :: value
+      !! output value
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%size /= 1) call program_error("variable is not scalar")
+            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
+            value = var%logic_data(1)
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_logical_arr(this, section_id, name, values)
+    !! get array of reals
+
+    class(input_file),    intent(in)  :: this
+    integer,              intent(in)  :: section_id
+      !! section index
+    character(len=*),     intent(in)  :: name
+      !! variable name
+    logical, allocatable, intent(out) :: values(:)
+      !! output values
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
+            allocate (values(size(var%logic_data)), source = var%logic_data)
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    print *, name
+    call program_error("variable name not found")
+  end subroutine
+
+  subroutine input_file_get_name_logical(this, section_name, name, value)
+    !! get scalar logical value, provide section name instead of index
+
+    class(input_file), intent(in)  :: this
+    character(len=*),  intent(in)  :: section_name
+      !! section name
+    character(len=*),  intent(in)  :: name
+      !! variable name
+    logical,           intent(out) :: value
+      !! output value
+
+    ! local variables
+    integer :: i
+    logical :: found
+
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, value)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
+    end if
+  end subroutine
+
+  subroutine input_file_get_name_logical_arr(this, section_name, name, values)
+    !! get array of logicals, provide section name instead of index
+
+    class(input_file),    intent(in)  :: this
+    character(len=*),     intent(in)  :: section_name
+      !! section name
+    character(len=*),     intent(in)  :: name
+      !! variable name
+    logical, allocatable, intent(out) :: values(:)
+      !! output values
+
+    ! local variables
+    integer :: i
+    logical :: found
+
+    ! search section
+    found = .false.
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        if (.not. found) then
+          found = .true.
+        else
+          print *, section_name
+          call program_error("multiple sections with this name")
+        end if
+        call this%get(i, name, values)
+      end if
+    end do
+    if (.not. found) then
+      print *, section_name
+      call program_error("section name not found")
+    end if
   end subroutine
 
 end module
-
-! !> Module that allows working with a configuration file
-! module config_m
-!   implicit none
-!   private
-
-!   ! Public types
-!   public :: CFG_t
-!   public :: CFG_integer_type
-!   public :: CFG_real_type
-!   public :: CFG_string_type
-!   public :: CFG_logic_type
-!   public :: CFG_type_names
-
-!   ! Constants
-!   public :: CFG_name_len
-!   public :: CFG_string_len
-!   public :: CFG_max_array_size
-
-!   ! Public methods
-!   public :: CFG_add
-!   public :: CFG_get
-!   public :: CFG_add_get
-!   public :: CFG_get_size
-!   public :: CFG_get_type
-!   public :: CFG_check
-!   public :: CFG_sort
-!   public :: CFG_write
-!   public :: CFG_write_markdown
-!   public :: CFG_read_file
-!   public :: CFG_update_from_arguments
-!   public :: CFG_clear
-
-!   !> The double precision kind-parameter
-!   integer, parameter :: dp               = kind(0.0d0)
-
-!   integer, parameter :: CFG_num_types    = 4 !< Number of variable types
-!   integer, parameter :: CFG_integer_type = 1 !< Integer type
-!   integer, parameter :: CFG_real_type    = 2 !< Real number type
-!   integer, parameter :: CFG_string_type  = 3 !< String type
-!   integer, parameter :: CFG_logic_type   = 4 !< Boolean/logical type
-!   integer, parameter :: CFG_unknown_type = 0 !< Used before a variable is created
-
-!   !> Names of the types
-!   character(len=10), parameter :: CFG_type_names(0:CFG_num_types) = &
-!        [character(len=10) :: "storage", "integer", "real", "string", "logical"]
-
-!   integer, parameter :: CFG_name_len   = 80  !< Maximum length of variable names
-!   integer, parameter :: CFG_string_len = 200 !< Fixed length of string type
-
-!   !> Maximum number of entries in a variable (if it's an array)
-!   integer, parameter :: CFG_max_array_size = 20
-
-!   !> The separator(s) for array-like variables (space, comma, ', ", and tab)
-!   character(len=*), parameter :: CFG_separators = " ,'"""//char(9)
-
-!   !> The separator for categories (stored in var_name)
-!   character(len=*), parameter :: CFG_category_separator = "%"
-
-!   !> The type of a configuration variable
-!   type CFG_var_t
-!      private
-!      !> Name of the variable
-!      character(len=CFG_name_len)   :: var_name
-!      !> Description of variable
-!      character(len=CFG_string_len) :: description
-!      !> Type of variable
-!      integer                       :: var_type
-!      !> Size of variable, 1 means scalar, > 1 means array
-!      integer                       :: var_size
-!      !> Whether the variable size is flexible
-!      logical                       :: dynamic_size
-!      !> Whether the variable's value has been requested
-!      logical                       :: used
-!      !> Data that has been read in for this variable
-!      character(len=CFG_string_len) :: stored_data
-
-!      ! These are the arrays used for storage. In the future, a "pointer" based
-!      ! approach could be used.
-!      real(dp), allocatable                      :: real_data(:)
-!      integer, allocatable                       :: int_data(:)
-!      character(len=CFG_string_len), allocatable :: char_data(:)
-!      logical, allocatable                       :: logic_data(:)
-!   end type CFG_var_t
-
-!   !> The configuration that contains all the variables
-!   type CFG_t
-!      logical                      :: sorted = .false.
-!      integer                      :: num_vars = 0
-!      type(CFG_var_t), allocatable :: vars(:)
-!   end type CFG_t
-
-!   !> Interface to add variables to the configuration
-!   interface CFG_add
-!      module procedure  add_real, add_real_array
-!      module procedure  add_int, add_int_array
-!      module procedure  add_string, add_string_array
-!      module procedure  add_logic, add_logic_array
-!   end interface CFG_add
-
-!   !> Interface to get variables from the configuration
-!   interface CFG_get
-!      module procedure  get_real, get_real_array
-!      module procedure  get_int, get_int_array
-!      module procedure  get_logic, get_logic_array
-!      module procedure  get_string, get_string_array
-!   end interface CFG_get
-
-!   !> Interface to get variables from the configuration
-!   interface CFG_add_get
-!      module procedure  add_get_real, add_get_real_array
-!      module procedure  add_get_int, add_get_int_array
-!      module procedure  add_get_logic, add_get_logic_array
-!      module procedure  add_get_string, add_get_string_array
-!   end interface CFG_add_get
-
-! contains
-
-!   !> Read command line arguments. Both files and variables can be specified, for
-!   !> example as: ./my_program config.cfg -n_runs=3
-!   subroutine CFG_update_from_arguments(cfg)
-!     type(CFG_t),intent(inout)     :: cfg
-!     character(len=CFG_string_len) :: arg
-!     integer                       :: ix
-!     logical                       :: valid_syntax
-
-!     do ix = 1, command_argument_count()
-!        call get_command_argument(ix, arg)
-
-!        if (arg(1:1) == '-') then
-!           ! This sets a variable
-!           call parse_line(cfg, arg(2:), valid_syntax)
-!           if (.not. valid_syntax) then
-!              call handle_error("Invalid variable specified on command line")
-!           end if
-!        else
-!           ! This is a configuration files
-!           call CFG_read_file(cfg, trim(arg))
-!        end if
-!     end do
-!   end subroutine CFG_update_from_arguments
-
-!   !> This routine will be called if an error occurs in one of the subroutines of
-!   !> this module.
-!   subroutine handle_error(err_string)
-!     character(len=*), intent(in) :: err_string
-
-!     print *, "The following error occured in m_config:"
-!     print *, trim(err_string)
-
-!     ! It is usually best to quit after an error, to make sure the error message
-!     ! is not overlooked in the program's output
-!     error stop
-!   end subroutine handle_error
-
-!   !> Return the index of the variable with name 'var_name', or -1 if not found.
-!   subroutine get_var_index(cfg, var_name, ix)
-!     type(CFG_t), intent(in)      :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(out)         :: ix
-!     integer                      :: i
-
-!     if (cfg%sorted) then
-!        call binary_search_variable(cfg, var_name, ix)
-!     else
-!        ! Linear search
-!        do i = 1, cfg%num_vars
-!           if (cfg%vars(i)%var_name == var_name) exit
-!        end do
-
-!        ! If not found, set i to -1
-!        if (i == cfg%num_vars + 1) i = -1
-!        ix = i
-!     end if
-
-!   end subroutine get_var_index
-
-!   !> Update the variables in the configartion with the values found in 'filename'
-!   subroutine CFG_read_file(cfg, filename)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: filename
-
-!     integer, parameter            :: my_unit = 123
-!     integer                       :: io_state
-!     integer                       :: line_number
-!     logical :: valid_syntax
-!     character(len=CFG_name_len)   :: line_fmt
-!     character(len=CFG_string_len) :: err_string
-!     character(len=CFG_string_len) :: line
-!     character(len=CFG_name_len)   :: category
-
-!     open(my_unit, file=trim(filename), status="old", action="read")
-!     write(line_fmt, "(A,I0,A)") "(A", CFG_string_len, ")"
-
-!     category    = "" ! Default category is empty
-!     line_number = 0
-
-!     do
-!        read(my_unit, FMT=trim(line_fmt), ERR=998, end=999) line
-!        line_number = line_number + 1
-
-!        call parse_line(cfg, line, valid_syntax, category)
-
-!        if (.not. valid_syntax) then
-!           write(err_string, *) "Cannot read line ", line_number, &
-!                " from ", trim(filename)
-!           call handle_error(err_string)
-!        end if
-!     end do
-
-!     ! Error handling
-! 998 write(err_string, "(A,I0,A,I0)") " IOSTAT = ", io_state, &
-!          " while reading from " // trim(filename) // " at line ", &
-!          line_number
-!     call handle_error("CFG_read_file:" // err_string)
-
-!     ! Routine ends here if the end of "filename" is reached
-! 999 close(my_unit, iostat=io_state)
-
-!   end subroutine CFG_read_file
-
-!   !> Update the cfg by parsing one line
-!   subroutine parse_line(cfg, line_arg, valid_syntax, category_arg)
-!     type(CFG_t), intent(inout)                           :: cfg
-!     character(len=*), intent(in)                         :: line_arg
-!     logical, intent(out)                                 :: valid_syntax
-!     character(len=CFG_name_len), intent(inout), optional :: category_arg
-!     character(len=CFG_name_len)                          :: var_name, category
-!     integer                                              :: ix, equal_sign_ix
-!     logical                                              :: append
-!     character(len=CFG_string_len)                        :: line
-
-!     valid_syntax = .true.
-
-!     ! Work on a copy
-!     line = line_arg
-!     category = ""
-!     if (present(category_arg)) category = category_arg
-
-!     call trim_comment(line, '#;')
-
-!     ! Skip empty lines
-!     if (line == "") return
-
-!     ! Locate the '=' sign
-!     equal_sign_ix = scan(line, '=')
-
-!     ! if there is no '='-sign then a category is indicated
-!     if (equal_sign_ix == 0) then
-!        line = adjustl(line)
-
-!        ! The category name should appear like this: [category_name]
-!        ix = scan(line, ']')
-!        if (line(1:1) /= '[' .or. ix == 0) then
-!           valid_syntax = .false.
-!           return
-!        else
-!           if (present(category_arg)) category_arg = line(2:ix-1)
-!           return
-!        end if
-!     end if
-
-!     if (line(equal_sign_ix-1:equal_sign_ix) == '+=') then
-!        append = .true.
-!        var_name = line(1 : equal_sign_ix - 2) ! Set variable name
-!     else
-!        append = .false.
-!        var_name = line(1 : equal_sign_ix - 1) ! Set variable name
-!     end if
-
-!     ! If there are less than two spaces or a tab, reset to no category
-!     if (var_name(1:2) /= " " .and. var_name(1:1) /= char(9)) then
-!        category = ""
-!     end if
-
-!     ! Remove leading blanks
-!     var_name = adjustl(var_name)
-
-!     ! Add category if it is defined
-!     if (category /= "") then
-!        var_name = trim(category) // CFG_category_separator // var_name
-!     end if
-
-!     line     = line(equal_sign_ix + 1:)    ! Set line to the values behind the '=' sign
-!     line     = adjustl(line)               ! Remove leading blanks
-
-!     if (line == "") then
-!        ! Cannot assign empty value
-!        valid_syntax = .false.
-!        return
-!     end if
-
-!     ! Find variable corresponding to name in file
-!     call get_var_index(cfg, var_name, ix)
-
-!     if (ix <= 0) then
-!        ! Variable still needs to be created, for now store data as a string
-!        call prepare_store_var(cfg, trim(var_name), CFG_unknown_type, 1, &
-!             "Not yet created", ix, .false.)
-!        cfg%vars(ix)%stored_data = line
-!     else
-!        if (append) then
-!           cfg%vars(ix)%stored_data = &
-!                trim(cfg%vars(ix)%stored_data) // ', ' // trim(line)
-!        else
-!           cfg%vars(ix)%stored_data = line
-!        end if
-
-!        ! If type is known, read in values
-!        if (cfg%vars(ix)%var_type /= CFG_unknown_type) then
-!           call read_variable(cfg%vars(ix))
-!        end if
-!     end if
-
-!   end subroutine parse_line
-
-!   subroutine read_variable(var)
-!     type(CFG_var_t), intent(inout)            :: var
-!     integer                                   :: n, n_entries
-!     integer                                   :: ix_start(CFG_max_array_size)
-!     integer                                   :: ix_end(CFG_max_array_size), stat
-
-!     ! Get the start and end positions of the line content, and the number of entries
-!     call get_fields_string(var%stored_data, CFG_separators, &
-!          CFG_max_array_size, n_entries, ix_start, ix_end)
-
-!     if (var%var_size /= n_entries) then
-
-!        if (.not. var%dynamic_size) then
-!           ! Allow strings of length 1 to be automatically concatenated
-!           if (var%var_type == CFG_string_type .and. var%var_size == 1) then
-!              var%char_data(1) = trim(var%stored_data(ix_start(1):ix_end(1)))
-!              do n = 2, n_entries
-!                 var%char_data(1) = trim(var%char_data(1)) // &
-!                      trim(var%stored_data(ix_start(n):ix_end(n)))
-!              end do
-!              return                ! Leave routine
-!           else
-!              call handle_error("read_variable: variable [" // &
-!                   & trim(var%var_name) // "] has the wrong size")
-!           end if
-!        else
-!           var%var_size = n_entries
-!           call resize_storage(var)
-!        end if
-!     end if
-
-!     do n = 1, n_entries
-!        stat = 0
-!        select case (var%var_type)
-!        case (CFG_integer_type)
-!           read(var%stored_data(ix_start(n):ix_end(n)), *, iostat=stat) var%int_data(n)
-!        case (CFG_real_type)
-!           read(var%stored_data(ix_start(n):ix_end(n)), *, iostat=stat) var%real_data(n)
-!        case (CFG_string_type)
-!           var%char_data(n) = trim(var%stored_data(ix_start(n):ix_end(n)))
-!        case (CFG_logic_type)
-!           read(var%stored_data(ix_start(n):ix_end(n)), *, iostat=stat) var%logic_data(n)
-!        end select
-
-!        if(stat /= 0) then
-!           write (*, *) "** m_config error **"
-!           write (*, *) "reading variable: ", trim(var%var_name)
-!           write (*, *) "variable type:    ", trim(CFG_type_names(var%var_type))
-!           write (*, *) "parsing value:    ", var%stored_data(ix_start(n):ix_end(n))
-!           write (*, "(A,I0)") " iostat value:     ", stat
-!           stop
-!        endif
-!     end do
-!   end subroutine read_variable
-
-!   subroutine trim_comment(line, comment_chars)
-!     character(len=*), intent(inout) :: line
-!     character(len=*), intent(in)    :: comment_chars
-!     character                       :: current_char, need_char
-!     integer                         :: n
-
-!     ! Strip comments, but only outside quoted strings (so that var = '#yolo' is
-!     ! valid when # is a comment char)
-!     need_char = ""
-
-!     do n = 1, len(line)
-!        current_char = line(n:n)
-
-!        if (need_char == "") then
-!           if (current_char == "'") then
-!              need_char = "'"    ! Open string
-!           else if (current_char == '"') then
-!              need_char = '"'    ! Open string
-!           else if (index(comment_chars, current_char) /= 0) then
-!              line = line(1:n-1) ! Trim line up to comment character
-!              exit
-!           end if
-!        else if (current_char == need_char) then
-!           need_char = ""        ! Close string
-!        end if
-
-!     end do
-
-!   end subroutine trim_comment
-
-!   subroutine CFG_check(cfg)
-!     type(CFG_t), intent(in)       :: cfg
-!     integer                       :: n
-!     character(len=CFG_string_len) :: err_string
-
-!     do n = 1, cfg%num_vars
-!        if (cfg%vars(n)%var_type == CFG_unknown_type) then
-!           write(err_string, *) "CFG_check: unknown variable ", &
-!                trim(cfg%vars(n)%var_name), " specified"
-!           call handle_error(err_string)
-!        end if
-!     end do
-!   end subroutine CFG_check
-
-!   !> This routine writes the current configuration to a file with descriptions
-!   subroutine CFG_write(cfg_in, filename, hide_unused)
-!     use iso_fortran_env
-!     type(CFG_t), intent(in)       :: cfg_in
-!     character(len=*), intent(in)  :: filename
-!     logical, intent(in), optional :: hide_unused
-!     logical                       :: hide_not_used
-!     type(CFG_t)                   :: cfg
-!     integer                       :: i, j, io_state, myUnit
-!     character(len=CFG_name_len)   :: name_format, var_name
-!     character(len=CFG_name_len)   :: category, prev_category
-!     character(len=CFG_string_len) :: err_string
-
-!     hide_not_used = .false.
-!     if (present(hide_unused)) hide_not_used = hide_unused
-
-!     ! Always print a sorted configuration
-!     cfg = cfg_in
-!     if (.not. cfg%sorted) call CFG_sort(cfg)
-
-!     write(name_format, FMT="(A,I0,A)") "(A,A", CFG_name_len, ",A)"
-
-!     if (filename == "stdout") then
-!        myUnit = output_unit
-!     else
-!        myUnit = 333
-!        open(myUnit, FILE=filename, ACTION="WRITE")
-!     end if
-
-!     category      = ""
-!     prev_category = ""
-
-!     do i = 1, cfg%num_vars
-!        if (.not. cfg%vars(i)%used .and. hide_not_used) cycle
-!        if (cfg%vars(i)%var_type == CFG_unknown_type) cycle
-
-!        ! Write category when it changes
-!        call split_category(cfg%vars(i), category, var_name)
-
-!        if (category /= prev_category .and. category /= '') then
-!           write(myUnit, ERR=998, FMT="(A)") '[' // trim(category) // ']'
-!           prev_category = category
-!        end if
-
-!        ! Indent if inside category
-!        if (category /= "") then
-!           write(myUnit, ERR=998, FMT="(A,A,A)") "    # ", &
-!                trim(cfg%vars(i)%description), ":"
-!           write(myUnit, ADVANCE="NO", ERR=998, FMT="(A)") &
-!                "    " // trim(var_name) // " ="
-!        else
-!           write(myUnit, ERR=998, FMT="(A,A,A)") "# ", &
-!                trim(cfg%vars(i)%description), ":"
-!           write(myUnit, ADVANCE="NO", ERR=998, FMT="(A)") &
-!                trim(var_name) // " ="
-!        end if
-
-!        select case(cfg%vars(i)%var_type)
-!        case (CFG_integer_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,I0)") &
-!                   " ", cfg%vars(i)%int_data(j)
-!           end do
-!        case (CFG_real_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,E11.4)") &
-!                   " ", cfg%vars(i)%real_data(j)
-!           end do
-!        case (CFG_string_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A)") &
-!                   " '" // trim(cfg%vars(i)%char_data(j)) // "'"
-!           end do
-!        case (CFG_logic_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,L1)") &
-!                   " ", cfg%vars(i)%logic_data(j)
-!           end do
-!        end select
-!        write(myUnit, ERR=998, FMT="(A)") ""
-!        write(myUnit, ERR=998, FMT="(A)") ""
-!     end do
-
-!     if (myUnit /= output_unit) close(myUnit, ERR=999, IOSTAT=io_state)
-!     call CFG_check(cfg_in)
-!     return
-
-! 998 continue
-!     write(err_string, *) "CFG_write error: io_state = ", io_state, &
-!          " while writing ", trim(var_name), " to ", filename
-!     call handle_error(err_string)
-
-! 999 continue ! If there was an error, the routine will end here
-!     write(err_string, *) "CFG_write error: io_state = ", io_state, &
-!          " while writing to ", filename
-!     call handle_error(err_string)
-
-!   end subroutine CFG_write
-
-!   !> This routine writes the current configuration to a markdown file
-!   subroutine CFG_write_markdown(cfg_in, filename, hide_unused)
-!     use iso_fortran_env
-!     type(CFG_t), intent(in)       :: cfg_in
-!     character(len=*), intent(in)  :: filename
-!     logical, intent(in), optional :: hide_unused
-!     logical                       :: hide_not_used
-!     integer                       :: i, j, io_state, myUnit
-!     type(CFG_t)                   :: cfg
-!     character(len=CFG_name_len)   :: name_format, var_name
-!     character(len=CFG_name_len)   :: category, prev_category
-!     character(len=CFG_string_len) :: err_string
-
-!     hide_not_used = .false.
-!     if (present(hide_unused)) hide_not_used = hide_unused
-
-!     ! Always print a sorted configuration
-!     cfg = cfg_in
-!     if (.not. cfg%sorted) call CFG_sort(cfg)
-
-!     write(name_format, FMT="(A,I0,A)") "(A,A", CFG_name_len, ",A)"
-
-!     if (filename == "stdout") then
-!        myUnit = output_unit
-!     else
-!        myUnit = 333
-!        open(myUnit, FILE=filename, ACTION="WRITE")
-!     end if
-
-!     category      = ""
-!     prev_category = "X"
-!     write(myUnit, ERR=998, FMT="(A)") "# Configuration file (markdown format)"
-!     write(myUnit, ERR=998, FMT="(A)") ""
-
-!     do i = 1, cfg%num_vars
-
-!        if (.not. cfg%vars(i)%used .and. hide_not_used) cycle
-!        if (cfg%vars(i)%var_type == CFG_unknown_type) cycle
-
-!        ! Write category when it changes
-!        call split_category(cfg%vars(i), category, var_name)
-
-!        if (category /= prev_category) then
-!           if (category == "") category = "No category"
-!           write(myUnit, ERR=998, FMT="(A)") '## ' // trim(category)
-!           write(myUnit, ERR=998, FMT="(A)") ""
-!           prev_category = category
-!        end if
-
-!        write(myUnit, ERR=998, FMT="(A)") "* " // trim(cfg%vars(i)%description)
-!        write(myUnit, ERR=998, FMT="(A)") ""
-!        write(myUnit, ADVANCE="NO", ERR=998, FMT="(A)") &
-!             '        ' // trim(var_name) // " ="
-
-!        select case(cfg%vars(i)%var_type)
-!        case (CFG_integer_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,I0)") &
-!                   " ", cfg%vars(i)%int_data(j)
-!           end do
-!        case (CFG_real_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,E11.4)") &
-!                   " ", cfg%vars(i)%real_data(j)
-!           end do
-!        case (CFG_string_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A)") &
-!                   " '" // trim(cfg%vars(i)%char_data(j)) // "'"
-!           end do
-!        case (CFG_logic_type)
-!           do j = 1, cfg%vars(i)%var_size
-!              write(myUnit, ADVANCE="NO", ERR=998, FMT="(A,L1)") &
-!                   " ", cfg%vars(i)%logic_data(j)
-!           end do
-!        end select
-!        write(myUnit, ERR=998, FMT="(A)") ""
-!        write(myUnit, ERR=998, FMT="(A)") ""
-!     end do
-
-!     if (myUnit /= output_unit) close(myUnit, ERR=999, IOSTAT=io_state)
-!     call CFG_check(cfg_in)
-!     return
-
-! 998 continue
-!     write(err_string, *) "CFG_write_markdown error: io_state = ", io_state, &
-!          " while writing ", trim(var_name), " to ", filename
-!     call handle_error(err_string)
-
-! 999 continue ! If there was an error, the routine will end here
-!     write(err_string, *) "CFG_write_markdown error: io_state = ", io_state, &
-!          " while writing to ", filename
-!     call handle_error(err_string)
-
-!   end subroutine CFG_write_markdown
-
-!   subroutine split_category(variable, category, var_name)
-!     type(CFG_var_t), intent(in)          :: variable
-!     character(CFG_name_len), intent(out) :: category
-!     character(CFG_name_len), intent(out) :: var_name
-!     integer                              :: ix
-
-!     ix = index(variable%var_name, CFG_category_separator)
-
-!     if (ix == 0) then
-!        category = ""
-!        var_name = variable%var_name
-!     else
-!        category = variable%var_name(1:ix-1)
-!        var_name = variable%var_name(ix+1:)
-!     end if
-
-!   end subroutine split_category
-
-!   !> Resize the storage size of variable, which can be of type integer, logical,
-!   !> real or character
-!   subroutine resize_storage(variable)
-!     type(CFG_var_t), intent(inout) :: variable
-
-!     select case (variable%var_type)
-!     case (CFG_integer_type)
-!        deallocate( variable%int_data )
-!        allocate( variable%int_data(variable%var_size) )
-!     case (CFG_logic_type)
-!        deallocate( variable%logic_data )
-!        allocate( variable%logic_data(variable%var_size) )
-!     case (CFG_real_type)
-!        deallocate( variable%real_data )
-!        allocate( variable%real_data(variable%var_size) )
-!     case (CFG_string_type)
-!        deallocate( variable%char_data )
-!        allocate( variable%char_data(variable%var_size) )
-!     end select
-!   end subroutine resize_storage
-
-!   !> Helper routine to store variables. This is useful because a lot of the same
-!   !> code is executed for the different types of variables.
-!   subroutine prepare_store_var(cfg, var_name, var_type, var_size, &
-!        description, ix, dynamic_size)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name, description
-!     integer, intent(in)           :: var_type, var_size
-!     integer, intent(out)          :: ix !< Index of variable
-!     logical, intent(in), optional :: dynamic_size
-
-!     ! Check if variable already exists
-!     call get_var_index(cfg, var_name, ix)
-
-!     if (ix == -1) then ! Create a new variable
-!        call ensure_free_storage(cfg)
-!        cfg%sorted               = .false.
-!        ix                       = cfg%num_vars + 1
-!        cfg%num_vars             = cfg%num_vars + 1
-!        cfg%vars(ix)%used        = .false.
-!        cfg%vars(ix)%stored_data = ""
-!     else
-!        ! Only allowed when the variable is not yet created
-!        if (cfg%vars(ix)%var_type /= CFG_unknown_type) then
-!           call handle_error("prepare_store_var: variable [" // &
-!                & trim(var_name) // "] already exists")
-!        end if
-!     end if
-
-!     cfg%vars(ix)%var_name    = var_name
-!     cfg%vars(ix)%description = description
-!     cfg%vars(ix)%var_type    = var_type
-!     cfg%vars(ix)%var_size    = var_size
-
-!     if (present(dynamic_size)) then
-!        cfg%vars(ix)%dynamic_size = dynamic_size
-!     else
-!        cfg%vars(ix)%dynamic_size = .false.
-!     end if
-
-!     select case (var_type)
-!     case (CFG_integer_type)
-!        allocate( cfg%vars(ix)%int_data(var_size) )
-!     case (CFG_real_type)
-!        allocate( cfg%vars(ix)%real_data(var_size) )
-!     case (CFG_string_type)
-!        allocate( cfg%vars(ix)%char_data(var_size) )
-!     case (CFG_logic_type)
-!        allocate( cfg%vars(ix)%logic_data(var_size) )
-!     end select
-
-!   end subroutine prepare_store_var
-
-!   !> Helper routine to get variables. This is useful because a lot of the same
-!   !> code is executed for the different types of variables.
-!   subroutine prepare_get_var(cfg, var_name, var_type, var_size, ix)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name
-!     integer, intent(in)           :: var_type, var_size
-!     integer, intent(out)          :: ix
-!     character(len=CFG_string_len) :: err_string
-
-!     call get_var_index(cfg, var_name, ix)
-
-!     if (ix == -1) then
-!        call handle_error("CFG_get: variable ["//var_name//"] not found")
-!     else if (cfg%vars(ix)%var_type /= var_type) then
-!        write(err_string, fmt="(A)") "CFG_get: variable [" &
-!             // var_name // "] has different type (" // &
-!             trim(CFG_type_names(cfg%vars(ix)%var_type)) // &
-!             ") than requested (" // trim(CFG_type_names(var_type)) // ")"
-!        call handle_error(err_string)
-!     else if (cfg%vars(ix)%var_size /= var_size) then
-!        write(err_string, fmt="(A,I0,A,I0,A)") "CFG_get: variable [" &
-!             // var_name // "] has different size (", cfg%vars(ix)%var_size, &
-!             ") than requested (", var_size, ")"
-!        call handle_error(err_string)
-!     else                        ! All good, variable will be used
-!        cfg%vars(ix)%used = .true.
-!     end if
-!   end subroutine prepare_get_var
-
-!   !> Add a configuration variable with a real value
-!   subroutine add_real(cfg, var_name, real_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     real(dp), intent(in)         :: real_data
-!     integer                      :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_real_type, 1, comment, ix)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%real_data(1) = real_data
-!     end if
-!   end subroutine add_real
-
-!   !> Add a configuration variable with an array of type
-!   !  real
-!   subroutine add_real_array(cfg, var_name, real_data, comment, dynamic_size)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name, comment
-!     real(dp), intent(in)          :: real_data(:)
-!     logical, intent(in), optional :: dynamic_size
-!     integer                       :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_real_type, &
-!          size(real_data), comment, ix, dynamic_size)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%real_data = real_data
-!     end if
-!   end subroutine add_real_array
-
-!   !> Add a configuration variable with an integer value
-!   subroutine add_int(cfg, var_name, int_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     integer, intent(in)          :: int_data
-!     integer                      :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_integer_type, 1, comment, ix)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%int_data(1) = int_data
-!     end if
-!   end subroutine add_int
-
-!   !> Add a configuration variable with an array of type integer
-!   subroutine add_int_array(cfg, var_name, int_data, comment, dynamic_size)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name, comment
-!     integer, intent(in)           :: int_data(:)
-!     logical, intent(in), optional :: dynamic_size
-!     integer                       :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_integer_type, &
-!          size(int_data), comment, ix, dynamic_size)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%int_data = int_data
-!     end if
-!   end subroutine add_int_array
-
-!   !> Add a configuration variable with an character value
-!   subroutine add_string(cfg, var_name, char_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment, char_data
-!     integer                      :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_string_type, 1, comment, ix)
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%char_data(1) = char_data
-!     end if
-!   end subroutine add_string
-
-!   !> Add a configuration variable with an array of type character
-!   subroutine add_string_array(cfg, var_name, char_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name, comment, char_data(:)
-!     logical, intent(in), optional :: dynamic_size
-!     integer                       :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_string_type, &
-!          size(char_data), comment, ix, dynamic_size)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%char_data = char_data
-!     end if
-!   end subroutine add_string_array
-
-!   !> Add a configuration variable with an logical value
-!   subroutine add_logic(cfg, var_name, logic_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     logical, intent(in)          :: logic_data
-!     integer                      :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_logic_type, 1, comment, ix)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%logic_data(1) = logic_data
-!     end if
-!   end subroutine add_logic
-
-!   !> Add a configuration variable with an array of type logical
-!   subroutine add_logic_array(cfg, var_name, logic_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name, comment
-!     logical, intent(in)           :: logic_data(:)
-!     logical, intent(in), optional :: dynamic_size
-!     integer                       :: ix
-
-!     call prepare_store_var(cfg, var_name, CFG_logic_type, &
-!          size(logic_data), comment, ix, dynamic_size)
-
-!     if (cfg%vars(ix)%stored_data /= "") then
-!        call read_variable(cfg%vars(ix))
-!     else
-!        cfg%vars(ix)%logic_data = logic_data
-!     end if
-!   end subroutine add_logic_array
-
-!   !> Get a real array of a given name
-!   subroutine get_real_array(cfg, var_name, real_data)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     real(dp), intent(inout)      :: real_data(:)
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_real_type, &
-!          size(real_data), ix)
-!     real_data = cfg%vars(ix)%real_data
-!   end subroutine get_real_array
-
-!   !> Get a integer array of a given name
-!   subroutine get_int_array(cfg, var_name, int_data)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(inout)       :: int_data(:)
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_integer_type, &
-!          size(int_data), ix)
-!     int_data    = cfg%vars(ix)%int_data
-!   end subroutine get_int_array
-
-!   !> Get a character array of a given name
-!   subroutine get_string_array(cfg, var_name, char_data)
-!     type(CFG_t), intent(inout)      :: cfg
-!     character(len=*), intent(in)    :: var_name
-!     character(len=*), intent(inout) :: char_data(:)
-!     integer                         :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_string_type, &
-!          size(char_data), ix)
-!     char_data = cfg%vars(ix)%char_data
-!   end subroutine get_string_array
-
-!   !> Get a logical array of a given name
-!   subroutine get_logic_array(cfg, var_name, logic_data)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     logical, intent(inout)       :: logic_data(:)
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_logic_type, &
-!          size(logic_data), ix)
-!     logic_data = cfg%vars(ix)%logic_data
-!   end subroutine get_logic_array
-
-!   !> Get a real value of a given name
-!   subroutine get_real(cfg, var_name, res)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     real(dp), intent(out)        :: res
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_real_type, 1, ix)
-!     res = cfg%vars(ix)%real_data(1)
-!   end subroutine get_real
-
-!   !> Get a integer value of a given name
-!   subroutine get_int(cfg, var_name, res)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(inout)       :: res
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_integer_type, 1, ix)
-!     res = cfg%vars(ix)%int_data(1)
-!   end subroutine get_int
-
-!   !> Get a logical value of a given name
-!   subroutine get_logic(cfg, var_name, res)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name
-!     logical, intent(out)         :: res
-!     integer                      :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_logic_type, 1, ix)
-!     res = cfg%vars(ix)%logic_data(1)
-!   end subroutine get_logic
-
-!   !> Get a character value of a given name
-!   subroutine get_string(cfg, var_name, res)
-!     type(CFG_t), intent(inout)    :: cfg
-!     character(len=*), intent(in)  :: var_name
-!     character(len=*), intent(out) :: res
-!     integer                       :: ix
-
-!     call prepare_get_var(cfg, var_name, CFG_string_type, 1, ix)
-!     res = cfg%vars(ix)%char_data(1)
-!   end subroutine get_string
-
-!   !> Get or add a real array of a given name
-!   subroutine add_get_real_array(cfg, var_name, real_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     real(dp), intent(inout)      :: real_data(:)
-!     logical, intent(in), optional :: dynamic_size
-
-!     call add_real_array(cfg, var_name, real_data, comment, dynamic_size)
-!     call get_real_array(cfg, var_name, real_data)
-!   end subroutine add_get_real_array
-
-!   !> Get or add a integer array of a given name
-!   subroutine add_get_int_array(cfg, var_name, int_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     integer, intent(inout)       :: int_data(:)
-!     logical, intent(in), optional :: dynamic_size
-
-!     call add_int_array(cfg, var_name, int_data, comment, dynamic_size)
-!     call get_int_array(cfg, var_name, int_data)
-!   end subroutine add_get_int_array
-
-!   !> Get or add a character array of a given name
-!   subroutine add_get_string_array(cfg, var_name, char_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)      :: cfg
-!     character(len=*), intent(in)    :: var_name, comment
-!     character(len=*), intent(inout) :: char_data(:)
-!     logical, intent(in), optional :: dynamic_size
-
-!     call add_string_array(cfg, var_name, char_data, comment, dynamic_size)
-!     call get_string_array(cfg, var_name, char_data)
-!   end subroutine add_get_string_array
-
-!   !> Get or add a logical array of a given name
-!   subroutine add_get_logic_array(cfg, var_name, logic_data, &
-!        comment, dynamic_size)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     logical, intent(inout)       :: logic_data(:)
-!     logical, intent(in), optional :: dynamic_size
-
-!     call add_logic_array(cfg, var_name, logic_data, comment, dynamic_size)
-!     call get_logic_array(cfg, var_name, logic_data)
-!   end subroutine add_get_logic_array
-
-!   !> Get or add a real value of a given name
-!   subroutine add_get_real(cfg, var_name, real_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     real(dp), intent(inout)      :: real_data
-
-!     call add_real(cfg, var_name, real_data, comment)
-!     call get_real(cfg, var_name, real_data)
-!   end subroutine add_get_real
-
-!   !> Get or add a integer value of a given name
-!   subroutine add_get_int(cfg, var_name, int_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     integer, intent(inout)       :: int_data
-
-!     call add_int(cfg, var_name, int_data, comment)
-!     call get_int(cfg, var_name, int_data)
-!   end subroutine add_get_int
-
-!   !> Get or add a logical value of a given name
-!   subroutine add_get_logic(cfg, var_name, logical_data, comment)
-!     type(CFG_t), intent(inout)   :: cfg
-!     character(len=*), intent(in) :: var_name, comment
-!     logical, intent(inout)       :: logical_data
-
-!     call add_logic(cfg, var_name, logical_data, comment)
-!     call get_logic(cfg, var_name, logical_data)
-!   end subroutine add_get_logic
-
-!   !> Get a character value of a given name
-!   subroutine add_get_string(cfg, var_name, string_data, comment)
-!     type(CFG_t), intent(inout)       :: cfg
-!     character(len=*), intent(in)     :: var_name, comment
-!     character(len=*), intent(inout)  :: string_data
-
-!     call add_string(cfg, var_name, string_data, comment)
-!     call get_string(cfg, var_name, string_data)
-!   end subroutine add_get_string
-
-!   !> Get the size of a variable
-!   subroutine CFG_get_size(cfg, var_name, res)
-!     type(CFG_t), intent(in)      :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(out)         :: res
-!     integer                      :: ix
-
-!     call get_var_index(cfg, var_name, ix)
-!     if (ix /= -1) then
-!        res = cfg%vars(ix)%var_size
-!     else
-!        res = -1
-!        call handle_error("CFG_get_size: variable ["//var_name//"] not found")
-!     end if
-!   end subroutine CFG_get_size
-
-!   !> Get the type of a given variable of a configuration type
-!   subroutine CFG_get_type(cfg, var_name, res)
-!     type(CFG_t), intent(in)      :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(out)         :: res
-!     integer                      :: ix
-
-!     call get_var_index(cfg, var_name, ix)
-
-!     if (ix /= -1) then
-!        res = cfg%vars(ix)%var_type
-!     else
-!        res = -1
-!        call handle_error("CFG_get_type: variable ["//var_name//"] not found")
-!     end if
-!   end subroutine CFG_get_type
-
-!   !> Routine to ensure that enough storage is allocated for the configuration
-!   !> type. If not the new size will be twice as much as the current size. If no
-!   !> storage is allocated yet a minumum amount of starage is allocated.
-!   subroutine ensure_free_storage(cfg)
-!     type(CFG_t), intent(inout)   :: cfg
-!     type(CFG_var_t), allocatable :: cfg_copy(:)
-!     integer, parameter           :: min_dyn_size = 100
-!     integer                      :: cur_size, new_size
-
-!     if (allocated(cfg%vars)) then
-!        cur_size = size(cfg%vars)
-
-!        if (cur_size < cfg%num_vars + 1) then
-!           new_size = 2 * cur_size
-!           allocate(cfg_copy(cur_size))
-!           cfg_copy = cfg%vars
-!           deallocate(cfg%vars)
-!           allocate(cfg%vars(new_size))
-!           cfg%vars(1:cur_size) = cfg_copy
-!        end if
-!     else
-!        allocate(cfg%vars(min_dyn_size))
-!     end if
-
-!   end subroutine ensure_free_storage
-
-!   !> Routine to find the indices of entries in a string
-!   subroutine get_fields_string(line, delims, n_max, n_found, ixs_start, ixs_end)
-!     !> The line from which we want to read
-!     character(len=*), intent(in)  :: line
-!     !> A string with delimiters. For example delims = " ,'"""//char(9)
-!     character(len=*), intent(in)  :: delims
-!     !> Maximum number of entries to read in
-!     integer, intent(in)           :: n_max
-!     !> Number of entries found
-!     integer, intent(inout)        :: n_found
-!     !> On return, ix_start(i) holds the starting point of entry i
-!     integer, intent(inout)        :: ixs_start(n_max)
-!     !> On return, ix_end(i) holds the end point of entry i
-!     integer, intent(inout)        :: ixs_end(n_max)
-
-!     integer                       :: ix, ix_prev
-
-!     ix_prev = 0
-!     n_found = 0
-
-!     do while (n_found < n_max)
-
-!        ! Find the starting point of the next entry (a non-delimiter value)
-!        ix = verify(line(ix_prev+1:), delims)
-!        if (ix == 0) exit
-
-!        n_found            = n_found + 1
-!        ixs_start(n_found) = ix_prev + ix ! This is the absolute position in 'line'
-
-!        ! Get the end point of the current entry (next delimiter index minus one)
-!        ix = scan(line(ixs_start(n_found)+1:), delims) - 1
-
-!        if (ix == -1) then              ! If there is no last delimiter,
-!           ixs_end(n_found) = len(line) ! the end of the line is the endpoint
-!        else
-!           ixs_end(n_found) = ixs_start(n_found) + ix
-!        end if
-
-!        ix_prev = ixs_end(n_found) ! We continue to search from here
-!     end do
-
-!   end subroutine get_fields_string
-
-!   !> Performa a binary search for the variable 'var_name'
-!   subroutine binary_search_variable(cfg, var_name, ix)
-!     type(CFG_t), intent(in)      :: cfg
-!     character(len=*), intent(in) :: var_name
-!     integer, intent(out)         :: ix
-!     integer                      :: i_min, i_max, i_mid
-
-!     i_min = 1
-!     i_max = cfg%num_vars
-!     ix    = - 1
-
-!     do while (i_min < i_max)
-!        i_mid = i_min + (i_max - i_min) / 2
-!        if ( llt(cfg%vars(i_mid)%var_name, var_name) ) then
-!           i_min = i_mid + 1
-!        else
-!           i_max = i_mid
-!        end if
-!     end do
-
-!     ! If not found, binary_search_variable is not set here, and stays -1
-!     if (i_max == i_min .and. cfg%vars(i_min)%var_name == var_name) then
-!        ix = i_min
-!     else
-!        ix = -1
-!     end if
-!   end subroutine binary_search_variable
-
-!   !> Sort the variables for faster lookup
-!   subroutine CFG_sort(cfg)
-!     type(CFG_t), intent(inout) :: cfg
-
-!     call qsort_config(cfg%vars(1:cfg%num_vars))
-!     cfg%sorted = .true.
-!   end subroutine CFG_sort
-
-!   !> Simple implementation of quicksort algorithm to sort the variable list alphabetically.
-!   recursive subroutine qsort_config(list)
-!     type(CFG_var_t), intent(inout) :: list(:)
-!     integer                        :: split_pos
-
-!     if (size(list) > 1) then
-!        call parition_var_list(list, split_pos)
-!        call qsort_config( list(:split_pos-1) )
-!        call qsort_config( list(split_pos:) )
-!     end if
-!   end subroutine qsort_config
-
-!   !> Helper routine for quicksort, to perform partitioning
-!   subroutine parition_var_list(list, marker)
-!     type(CFG_var_t), intent(inout) :: list(:)
-!     integer, intent(out)           :: marker
-!     integer                        :: left, right, pivot_ix
-!     type(CFG_var_t)                :: temp
-!     character(len=CFG_name_len)    :: pivot_value
-
-!     left        = 0
-!     right       = size(list) + 1
-
-!     ! Take the middle element as pivot
-!     pivot_ix    = size(list) / 2
-!     pivot_value = list(pivot_ix)%var_name
-
-!     do while (left < right)
-
-!        right = right - 1
-!        do while (lgt(list(right)%var_name, pivot_value))
-!           right = right - 1
-!        end do
-
-!        left = left + 1
-!        do while (lgt(pivot_value, list(left)%var_name))
-!           left = left + 1
-!        end do
-
-!        if (left < right) then
-!           temp = list(left)
-!           list(left) = list(right)
-!           list(right) = temp
-!        end if
-!     end do
-
-!     if (left == right) then
-!        marker = left + 1
-!     else
-!        marker = left
-!     end if
-!   end subroutine parition_var_list
-
-!   !> Clear all data from a CFG_t object, so that it can be reused. Note that
-!   !> this also happens automatically when such an object goes out of scope.
-!   subroutine CFG_clear(cfg)
-!     implicit none
-!     type(CFG_t) :: cfg
-
-!     cfg%sorted   = .false.
-!     cfg%num_vars = 0
-!     if(allocated(cfg%vars)) then
-!        deallocate(cfg%vars)
-!     endif
-!   end subroutine CFG_clear
-
-! end module config_m
-! #endif
