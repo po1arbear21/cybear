@@ -45,6 +45,7 @@
 #define DENSE_ADD_BAND       CONCAT3(dense,T,add_band)
 #define DENSE_ADD_BAND3      CONCAT3(dense,T,add_band3)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
+#define DENSE_OUTPUT         CONCAT3(dense,T,output)
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
@@ -73,6 +74,7 @@
 #define SPARSE_DESTRUCT_CSR  CONCAT3(sparse,T,destruct_csr)
 #define SPARSE_SET_MV_HINT   CONCAT3(sparse,T,set_mv_hint)
 #define SPARSE_SET_MM_HINT   CONCAT3(sparse,T,set_mm_hint)
+#define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
@@ -104,6 +106,7 @@
 #endif
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
+#define BAND_OUTPUT          CONCAT3(band,T,output)
 
 #define BLOCK_TYPE           CONCAT(block,T)
 #define BLOCK_INIT           CONCAT3(block,T,init)
@@ -184,6 +187,7 @@ contains
   procedure :: DENSE_ADD_BAND3
   generic   :: add_band   => DENSE_ADD_BAND, DENSE_ADD_BAND3
   procedure :: mul_dense  => DENSE_MUL_DENSE
+  procedure :: output     => DENSE_OUTPUT
 end type
 
 type, extends(MATRIX_TYPE) :: SPARSE_TYPE
@@ -223,6 +227,7 @@ contains
   procedure :: destruct_csr => SPARSE_DESTRUCT_CSR
   procedure :: set_mv_hint  => SPARSE_SET_MV_HINT
   procedure :: set_mm_hint  => SPARSE_SET_MM_HINT
+  procedure :: output       => SPARSE_OUTPUT
 end type
 
 type SPBUILD_TYPE
@@ -289,6 +294,7 @@ contains
   procedure :: BAND_ADD_BAND
   procedure :: BAND_ADD_BAND3
   generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
+  procedure :: output    => BAND_OUTPUT
 end type
 
 type, extends(MATRIX_TYPE) :: BLOCK_TYPE
@@ -455,6 +461,7 @@ end interface
 #undef DENSE_ADD_BAND
 #undef DENSE_ADD_BAND3
 #undef DENSE_MUL_DENSE
+#undef DENSE_OUTPUT
 
 #undef SPARSE_TYPE
 #undef SPARSE_INIT
@@ -480,6 +487,7 @@ end interface
 #undef SPARSE_DESTRUCT_CSR
 #undef SPARSE_SET_MV_HINT
 #undef SPARSE_SET_MM_HINT
+#undef SPARSE_OUTPUT
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT
@@ -508,6 +516,7 @@ end interface
 #undef BAND_TO_CMPLX
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
+#undef BAND_OUTPUT
 
 #undef BLOCK_TYPE
 #undef BLOCK_INIT

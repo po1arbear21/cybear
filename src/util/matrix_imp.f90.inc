@@ -45,6 +45,7 @@
 #define DENSE_ADD_BAND       CONCAT3(dense,T,add_band)
 #define DENSE_ADD_BAND3      CONCAT3(dense,T,add_band3)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
+#define DENSE_OUTPUT         CONCAT3(dense,T,output)
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
@@ -73,6 +74,7 @@
 #define SPARSE_DESTRUCT_CSR  CONCAT3(sparse,T,destruct_csr)
 #define SPARSE_SET_MV_HINT   CONCAT3(sparse,T,set_mv_hint)
 #define SPARSE_SET_MM_HINT   CONCAT3(sparse,T,set_mm_hint)
+#define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
@@ -104,6 +106,7 @@
 #endif
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
+#define BAND_OUTPUT          CONCAT3(band,T,output)
 
 #define BLOCK_TYPE           CONCAT(block,T)
 #define BLOCK_INIT           CONCAT3(block,T,init)
@@ -605,6 +608,59 @@ subroutine DENSE_MUL_DENSE(this, d2, d3)
 
   ! multiply matrices
   call gemm(this%d, d2%d, d3%d)
+end subroutine
+
+subroutine DENSE_OUTPUT(this, file, funit, fmt)
+  !! write dense matrix to file or stream
+
+  class(DENSE_TYPE),          intent(in) :: this
+  character(len=*), optional, intent(in) :: file
+    !! filename (alternative: provide funit)
+  integer,          optional, intent(in) :: funit
+    !! file unit (alternative: provide file name)
+  character(len=*), optional, intent(in) :: fmt
+    !! value format string
+
+  ! local variables
+  integer                       :: i, j, funit_, status
+  character(len=:), allocatable :: fmt_
+
+  if (present(fmt)) then
+    fmt_ = fmt
+  else
+#ifdef TCMPLX
+    ! FIXME: check this
+    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+#else
+    fmt_ = "(1A,1F0.0)"
+#endif
+  end if
+
+  ! open file if needed
+  ASSERT(.not. (present(file) .and. present(funit)))
+  ASSERT(present(file) .or. present(funit))
+  if (present(file)) then
+    open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
+    if (status /= 0) call program_error("File could not be opened")
+  else
+    funit_ = funit
+  end if
+
+  do i = 1, this%nrows
+    do j = 1, this%ncols
+      if (j > 1) then
+        write(funit_, fmt_, advance = "no") ", ", this%d(i,j)
+      else
+        write(funit_, fmt_, advance = "no") "", this%d(i,j)
+      end if
+    end do
+
+    ! next line
+    write(funit_,*)
+  end do
+
+  ! close file if openend here
+  if (present(file)) close(funit_)
 end subroutine
 
 subroutine SPARSE_INIT(this, nrows, ncols)
@@ -1334,6 +1390,60 @@ subroutine SPARSE_SET_MM_HINT(this, expected_calls, ncols, trans)
   if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix optimize error", code = info)
 end subroutine
 
+subroutine SPARSE_OUTPUT(this, file, funit, fmt)
+  !! write sparse matrix to file or stream
+
+  class(SPARSE_TYPE),         intent(in) :: this
+  character(len=*), optional, intent(in) :: file
+    !! filename (alternative: provide funit)
+  integer,          optional, intent(in) :: funit
+    !! file unit (alternative: provide file name)
+  character(len=*), optional, intent(in) :: fmt
+    !! value format string
+
+  ! local variables
+  integer                       :: i, j, status, funit_
+  integer, pointer              :: ia0(:), ia1(:), ja(:)
+  TT,      pointer              :: a(:)
+  character(len=:), allocatable :: fmt_
+
+  if (present(fmt)) then
+    fmt_ = fmt
+  else
+#ifdef TCMPLX
+    ! FIXME: check this
+    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+#else
+    fmt_ = "(1A,1F0.0)"
+#endif
+  end if
+
+  ! open file if needed
+  ASSERT(.not. (present(file) .and. present(funit)))
+  ASSERT(present(file) .or. present(funit))
+  if (present(file)) then
+    open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
+    if (status /= 0) call program_error("File could not be opened")
+  else
+    funit_ = funit
+  end if
+
+  ! output csr
+  call this%get_csr(ia0, ia1, ja, a)
+  do i = 1, this%nrows
+    do j = ia0(i), ia1(i)-1
+      ! write row and column
+      write(funit_, "(1I0,1A,1I0,1A)", advance = "no") i, " ", ja(j), " "
+
+      ! write value
+      write(funit_, fmt_) a(j)
+    end do
+  end do
+
+  ! close file if openend here
+  if (present(file)) close(funit_)
+end subroutine
+
 subroutine SPBUILD_INIT(this, s)
   !! initialize sparse builder
 
@@ -1975,7 +2085,7 @@ subroutine BAND_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
 
   ! insert values
   do i = 1, this%nrows
-    do j = i + this%i0, i + this%i0
+    do j = i + this%i0, i + this%i1
       if ((j < 1) .or. (j > this%ncols)) cycle
 
       ! check structure
@@ -2084,6 +2194,59 @@ subroutine BAND_ADD_BAND3(this, b2, b3, fact1, fact2)
     call b3%init(b2%nrows, b2%ndiags, d0 = fact2_ * b2%d)
     b3%d(this%i0:this%i1,1:this%ncols) = b3%d(this%i0:this%i1,1:this%ncols) + fact1_ * this%d
   end if
+end subroutine
+
+subroutine BAND_OUTPUT(this, file, funit, fmt)
+  !! write band matrix to file or stream
+
+  class(BAND_TYPE),           intent(in) :: this
+  character(len=*), optional, intent(in) :: file
+    !! filename (alternative: provide funit)
+  integer,          optional, intent(in) :: funit
+    !! file unit (alternative: provide file name)
+  character(len=*), optional, intent(in) :: fmt
+    !! value format string
+
+  ! local variables
+  integer                       :: i, j, status, funit_
+  character(len=:), allocatable :: fmt_
+
+  if (present(fmt)) then
+    fmt_ = fmt
+  else
+#ifdef TCMPLX
+    ! FIXME: check this
+    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+#else
+    fmt_ = "(1A,1F0.0)"
+#endif
+  end if
+
+  ! open file if needed
+  ASSERT(.not. (present(file) .and. present(funit)))
+  ASSERT(present(file) .or. present(funit))
+  if (present(file)) then
+    open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
+    if (status /= 0) call program_error("File could not be opened")
+  else
+    funit_ = funit
+  end if
+
+  ! output values
+  do i = 1, this%nrows
+    do j = i + this%i0, i + this%i1
+      if ((j < 1) .or. (j > this%ncols)) cycle
+
+      ! write row and column
+      write(funit_, "(1I0,1A,1I0,1A)", advance = "no") i, " ", j, " "
+
+      ! write value
+      write(funit_, fmt_) this%d(i-j,j)
+    end do
+  end do
+
+  ! close file if openend here
+  if (present(file)) close(funit_)
 end subroutine
 
 subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
@@ -2712,6 +2875,7 @@ end subroutine
 #undef DENSE_ADD_BAND
 #undef DENSE_ADD_BAND3
 #undef DENSE_MUL_DENSE
+#undef DENSE_OUTPUT
 
 #undef SPARSE_TYPE
 #undef SPARSE_INIT
@@ -2737,6 +2901,7 @@ end subroutine
 #undef SPARSE_DESTRUCT_CSR
 #undef SPARSE_SET_MV_HINT
 #undef SPARSE_SET_MM_HINT
+#undef SPARSE_OUTPUT
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT
@@ -2765,6 +2930,7 @@ end subroutine
 #undef BAND_TO_CMPLX
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
+#undef BAND_OUTPUT
 
 #undef BLOCK_TYPE
 #undef BLOCK_INIT
