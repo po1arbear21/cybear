@@ -1,4 +1,5 @@
 module qsort_m
+  use string_m
   implicit none
 
   interface qsort
@@ -13,6 +14,10 @@ contains
 
 #define T real
 #define TT real
+#include "qsort_imp.f90.inc"
+
+#define T string
+#define TT type(string)
 #include "qsort_imp.f90.inc"
 
 end module
