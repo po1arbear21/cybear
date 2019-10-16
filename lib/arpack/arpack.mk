@@ -8,13 +8,15 @@ LIBS             := $(LIBS) $(ARPACK_LIB)
 
 dirs: $(ARPACK_BUILD_DIR)
 $(ARPACK_BUILD_DIR):
-	mkdir -p $(ARPACK_BUILD_DIR)
+	@mkdir -p $(ARPACK_BUILD_DIR)
 
 $(ARPACK_LIB): $(ARPACK_OBJECTS)
-	$(AR) rcs $(ARPACK_LIB) $(ARPACK_OBJECTS)
+	@printf "%b" "$(FC_COL)$(AR)$(NO_COL) rcs $(OU_COL)$(ARPACK_LIB)$(NO_COL) $(IN_COL)$(ARPACK_OBJECTS)$(NO_COL)\n\n"
+	@$(AR) rcs $(ARPACK_LIB) $(ARPACK_OBJECTS)
 
 $(ARPACK_BUILD_DIR)%.o: $(ARPACK_SRC_DIR)%.f
-	$(FC) $(ARPACK_FFLAGS) -c $< -o $@
+	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(ARPACK_FFLAGS) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
+	@$(FC) $(ARPACK_FFLAGS) -c $< -o $@
 
 arpack: $(ARPACK_LIB)
 
