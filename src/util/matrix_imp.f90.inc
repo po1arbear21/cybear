@@ -129,36 +129,48 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 
-subroutine MATRIX_INIT(this, dum, nrows, ncols)
+subroutine MATRIX_INIT(this, dum, nrows, ncols, symm)
+  !! Initialize matrix.
+
   class(MATRIX_TYPE), intent(out) :: this
+    !! Matrix
   character(len=*),   intent(in)  :: dum
-    !! dummy, unused
+    !! Dummy, unused
   integer,            intent(in)  :: nrows
-    !! number of rows
+    !! Number of rows
   integer, optional,  intent(in)  :: ncols
-    !! optional number of columns (default: ncols = nrows)
+    !! Optional number of columns (default: ncols = nrows)
+  logical, optional,  intent(in)  :: symm
+    !! Optional symmetry flag (default: false)
 
   IGNORE(dum)
 
   this%nrows = nrows
   this%ncols = nrows
   if (present(ncols)) this%ncols = ncols
+  this%symm = .false.
+  if (present(symm)) this%symm = symm
 
   ASSERT(this%nrows > 0)
   ASSERT(this%ncols > 0)
 end subroutine
 
-subroutine DENSE_INIT(this, nrows, ncols, d0)
+subroutine DENSE_INIT(this, nrows, ncols, d0, symm)
+  !! Initialize dense matrix.
+
   class(DENSE_TYPE), intent(out) :: this
+    !! Dense matrix
   integer,           intent(in)  :: nrows
     !! Number of rows
   integer, optional, intent(in)  :: ncols
     !! Optional: Number of columns. (Default: ncols = nrows)
   TT,      optional, intent(in)  :: d0(:,:)
     !! Optional: Provide initial data. (Default: d0 = 0)
+  logical, optional,  intent(in)  :: symm
+    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", nrows, ncols = ncols)
+  call this%MATRIX_INIT("", nrows, ncols = ncols, symm = symm)
 
   ! allocate data
   if (present(d0)) then
@@ -170,7 +182,10 @@ subroutine DENSE_INIT(this, nrows, ncols, d0)
 end subroutine
 
 subroutine DENSE_DESTRUCT(this)
+  !! Destruct dense matrix; i.e. deallocate its members.
+
   class(DENSE_TYPE), intent(inout) :: this
+    !! Dense matrix
 
   if (allocated(this%d   )) deallocate(this%d   )
   if (allocated(this%lu  )) deallocate(this%lu  )
@@ -178,9 +193,12 @@ subroutine DENSE_DESTRUCT(this)
 end subroutine
 
 subroutine DENSE_RESET(this, only_factorization)
+  !! Reset dense matrix to zero (optionally only the factorization).
+
   class(DENSE_TYPE), intent(inout) :: this
+    !! Dense matrix
   logical, optional, intent(in)    :: only_factorization
-    !! reset only factorization data (default: false)
+    !! Reset only factorization data (default: false)
 
   ! local variables
   logical :: only_fact
@@ -199,11 +217,12 @@ subroutine DENSE_RESET(this, only_factorization)
 end subroutine
 
 subroutine DENSE_SCALE(this, fact)
-  !! Scale Dense matrix by a factor.
+  !! Scale dense matrix by a factor.
 
   class(DENSE_TYPE), intent(inout) :: this
+    !! Dense matrix
   TT,                intent(in)    :: fact
-    !! scaling factor
+    !! Scaling factor
 
   ASSERT(.not. allocated(this%lu))
   ASSERT(.not. allocated(this%ipiv))
@@ -213,44 +232,52 @@ subroutine DENSE_SCALE(this, fact)
 end subroutine
 
 subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply dense matrix by a raw vector.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(DENSE_TYPE),          intent(in)    :: this
+    !! Dense matrix
   TT,                         intent(in)    :: x(:)
-    !! vector to multiply by
+    !! Raw vector to multiply by
   TT,                         intent(inout) :: y(:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! Ff present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   call gemv(this%d, x, y, beta = fact_y, trans = trans)
 end subroutine
 
 subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply dense matrix by a raw matrix.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(DENSE_TYPE),          intent(in)    :: this
+    !! Dense matrix
   TT,                         intent(in)    :: x(:,:)
-    !! matrix to multiply by
+    !! Raw matrix to multiply by
   TT,                         intent(inout) :: y(:,:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! scale existing data in y and add result to it (default: 0)
+    !! Scale existing data in y and add result to it (default: 0)
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag for this matrix, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag for this matrix, must be 'N', 'C' or 'T' (default: 'N')
 
   call gemm(this%d, x, y, transa = trans, beta = fact_y)
 end subroutine
 
 subroutine DENSE_FACTORIZE(this)
-  !! Calculate LU decomposition. Call this subroutine before solving.
+  !! Calculate LU decomposition.
+  !! Call this subroutine before solving!
 
   class(DENSE_TYPE), intent(inout) :: this
+    !! Dense matrix
 
+  ! local variables
   integer :: info
 
+  ! allocate memory for factorization
   if (.not. allocated(this%lu  )) allocate(this%lu(  this%nrows,this%ncols))
   if (.not. allocated(this%ipiv)) allocate(this%ipiv(this%nrows))
 
@@ -261,18 +288,21 @@ subroutine DENSE_FACTORIZE(this)
 end subroutine
 
 subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-  !! Solve system: this * x = rhs. Call this%factorize() first.
+  !! Solve linear equation system for a single right-hand side.
+  !! Solves: this * x = rhs, where x and rhs are raw vectors. Call this%factorize() first!
 
   class(DENSE_TYPE),          intent(in)  :: this
+    !! Dense matrix
   TT,                         intent(in)  :: rhs(:)
-    !! right hand side of equation system
+    !! Right hand side of equation system
   TT,                         intent(out) :: x(:)
-    !! store result in x
+    !! Store result in x
   character(len=1), optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,          optional, intent(in)  :: iter_refine
-    !! perform iterative refinement (default: true)
+    !! Perform iterative refinement (default: true)
 
+  ! local variables
   TT :: rhs_(size(rhs),1), x_(size(x),1)
 
   ! solve with matrix routine
@@ -282,18 +312,21 @@ subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 end subroutine
 
 subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
-  !! Solve system: this * x = rhs. Call this%factorize() first.
+  !! Solve linear equation system for multiple right-hand sides.
+  !! Solves: this * x = rhs, where x and rhs are raw matrices. Call this%factorize() first!
 
   class(DENSE_TYPE),          intent(in)  :: this
+    !! Dense matrix
   TT,                         intent(in)  :: rhs(:,:)
-    !! right hand sides of equation system
+    !! Right hand sides of equation system
   TT,                         intent(out) :: x(:,:)
-    !! store results in x
+    !! Store results in x
   character(len=1), optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,          optional, intent(in)  :: iter_refine
-    !! perform iterative refinement (default: true)
+    !! Perform iterative refinement (default: true)
 
+  ! local variables
   integer :: info
   logical :: iter_refine_
 
@@ -321,9 +354,9 @@ subroutine DENSE_TO_DENSE(this, d, i0, j0)
   type(DENSE_TYPE),  intent(inout) :: d
     !! Second dense matrix (updated)
   integer, optional, intent(in)    :: i0
-    !! optional: row offset in second matrix (default 1)
+    !! Optional: row offset in second matrix (default 1)
   integer, optional, intent(in)    :: j0
-    !! optional: col offset in second matrix (default 1)
+    !! Optional: col offset in second matrix (default 1)
 
   ! local variables
   integer :: i0_, j0_, i1, j1
@@ -349,13 +382,13 @@ subroutine DENSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   type(SPBUILD_TYPE), intent(inout) :: sb
     !! Sparse matrix represented by sparse matrix builder (updated)
   integer, optional,  intent(in)    :: i0
-    !! optional: row offset in sparse matrix
+    !! Optional: row offset in sparse matrix
   integer, optional,  intent(in)    :: j0
-    !! optional: col offset in sparse matrix
+    !! Optional: col offset in sparse matrix
   logical, optional,  intent(in)    :: struct(:,:)
-    !! optional: use sparsity structure (true means an element exists; false means it does not)
+    !! Optional: use sparsity structure (true means an element exists; false means it does not)
   logical, optional,  intent(in)    :: drop_zeros
-    !! optional: determine sparsity structure by checking for zero entries
+    !! Optional: determine sparsity structure by checking for zero entries
 
   ! local variables
   integer :: i0_, j0_, i, j
@@ -392,37 +425,37 @@ end subroutine
 
 #ifdef TCMPLX
 subroutine DENSE_TO_REAL(this, d)
-  !! convert dense complex matrix to real by ignoring imaginary part
+  !! Convert dense complex matrix to real by ignoring imaginary part.
 
   class(dense_cmplx), intent(in)  :: this
-    !! dense complex matrix
+    !! Dense complex matrix
   class(dense_real),  intent(out) :: d
-    !! output real(this)
+    !! Output real(this)
 
   call d%init(this%nrows, ncols = this%ncols, d0 = real(this%d))
 end subroutine
 #else
 subroutine DENSE_TO_CMPLX(this, d)
-  !! convert dense real matrix to complex
+  !! Convert dense real matrix to complex with zero imaginary part.
 
-  class(dense_real), intent(in)  :: this
-    !! dense real matrix
-  class(dense_cmplx),  intent(out) :: d
-    !! output cmplx(this)
+  class(dense_real),  intent(in)  :: this
+    !! Dense real matrix
+  class(dense_cmplx), intent(out) :: d
+    !! Output cmplx(this)
 
   call d%init(this%nrows, ncols = this%ncols, d0 = cmplx(this%d))
 end subroutine
 #endif
 
 subroutine DENSE_ADD_DENSE(this, d, fact)
-  !! Add two dense matrices, store the result in first matrix
+  !! Add two dense matrices, store the result in first matrix.
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! first dense matrix (updated)
-  type(DENSE_TYPE), intent(in)    :: d
-    !! second dense matrix (unchanged)
+    !! First dense matrix (updated)
+  type(DENSE_TYPE),  intent(in)    :: d
+    !! Second dense matrix (unchanged)
   TT, optional,      intent(in)    :: fact
-    !! second dense matrix scaling factor (default: 1)
+    !! Second dense matrix scaling factor (default: 1)
 
   ASSERT(.not. allocated(this%lu))
   ASSERT(.not. allocated(this%ipiv))
@@ -435,18 +468,18 @@ subroutine DENSE_ADD_DENSE(this, d, fact)
 end subroutine
 
 subroutine DENSE_ADD_DENSE3(this, d2, d3, fact1, fact2)
-  !! Add two dense matrices, store the result in third dense matrix
+  !! Add two dense matrices, store the result in third dense matrix.
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! dense first matrix (unchanged)
+    !! Dense first matrix (unchanged)
   type(DENSE_TYPE),  intent(in)  :: d2
-    !! dense second matrix (unchanged)
+    !! Dense second matrix (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! output dense third matrix
+    !! Output dense third matrix
   TT, optional,      intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,      intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   TT :: fact1_, fact2_
@@ -462,14 +495,14 @@ subroutine DENSE_ADD_DENSE3(this, d2, d3, fact1, fact2)
 end subroutine
 
 subroutine DENSE_ADD_SPARSE(this, s, fact)
-  !! Add dense and sparse matrix, store result in dense matrix
+  !! Add dense and sparse matrix, store result in dense matrix.
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! dense matrix (updated)
+    !! Dense matrix (updated)
   type(SPARSE_TYPE), intent(in)    :: s
-    !! sparse matrix (unchanged)
+    !! Sparse matrix (unchanged)
   TT, optional,      intent(in)    :: fact
-    !! sparse matrix scaling factor (default: 1)
+    !! Sparse matrix scaling factor (default: 1)
 
   ! local variables
   integer          :: i, j
@@ -498,18 +531,18 @@ subroutine DENSE_ADD_SPARSE(this, s, fact)
 end subroutine
 
 subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
-  !! Add dense and sparse matrix, store result in another dense matrix
+  !! Add dense and sparse matrix, store result in another dense matrix.
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! dense first matrix (unchanged)
+    !! Dense first matrix (unchanged)
   type(SPARSE_TYPE), intent(in)  :: s2
-    !! sparse second matrix (unchanged)
+    !! Sparse second matrix (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! output dense third matrix
+    !! Output dense third matrix
   TT, optional,      intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,      intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   TT :: fact1_
@@ -529,14 +562,14 @@ subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
 end subroutine
 
 subroutine DENSE_ADD_BAND(this, b, fact)
-  !! Add dense and band matrix, store result in dense matrix
+  !! Add dense and band matrix, store result in dense matrix.
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! dense matrix (updated)
+    !! Dense matrix (updated)
   type(BAND_TYPE),   intent(in)    :: b
-    !! band matrix (unchanged)
+    !! Band matrix (unchanged)
   TT, optional,      intent(in)    :: fact
-    !! band matrix scaling factor (default: 1)
+    !! Band matrix scaling factor (default: 1)
 
   ! local variables
   integer :: i, j, k
@@ -564,18 +597,18 @@ subroutine DENSE_ADD_BAND(this, b, fact)
 end subroutine
 
 subroutine DENSE_ADD_BAND3(this, b2, d3, fact1, fact2)
-  !! Add dense and band matrix, store result in a third dense matrix
+  !! Add dense and band matrix, store result in a third dense matrix.
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! dense first matrix (unchanged)
+    !! Dense first matrix (unchanged)
   type(BAND_TYPE),   intent(in)  :: b2
-    !! band second matrix (unchanged)
+    !! Band second matrix (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! output dense third matrix
+    !! Output dense third matrix
   TT, optional,      intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,      intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   TT :: fact1_
@@ -595,14 +628,14 @@ subroutine DENSE_ADD_BAND3(this, b2, d3, fact1, fact2)
 end subroutine
 
 subroutine DENSE_MUL_DENSE(this, d2, d3)
-  !! Multiply two dense matrices, store result in a third dense matrix
+  !! Multiply two dense matrices, store result in a third dense matrix.
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! dense first matrix (unchanged)
+    !! Dense first matrix (unchanged)
   type(DENSE_TYPE),  intent(in)  :: d2
-    !! dense second matrix (unchanged)
+    !! Dense second matrix (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! output dense third matrix
+    !! Output dense third matrix
 
   ! init output matrix
   call d3%init(this%nrows, ncols = d2%ncols)
@@ -612,17 +645,18 @@ subroutine DENSE_MUL_DENSE(this, d2, d3)
 end subroutine
 
 subroutine DENSE_EIG(this, e, R, L, sort)
-  !! Eigenvalue decomposition
+  !! Perform a dense eigenvalue decomposition.
 
   class(DENSE_TYPE), intent(in)  :: this
+    !! Dense matrix
   complex,           intent(out) :: e(:)
-    !! output eigenvalues (complex in general)
+    !! Output eigenvalues (complex in general)
   complex, optional, intent(out) :: R(:,:)
-    !! output right eigenvectors in columns (complex in general)
+    !! Output right eigenvectors in columns (complex in general)
   complex, optional, intent(out) :: L(:,:)
-    !! output left  eigenvectors in columns (complex in general)
+    !! Output left  eigenvectors in columns (complex in general)
   logical, optional, intent(in)  :: sort
-    !! sort by magnitude of eigenvalues (default: false)
+    !! Sort by magnitude of eigenvalues (default: false)
 
   ! local variables
   integer :: info
@@ -708,15 +742,16 @@ subroutine DENSE_EIG(this, e, R, L, sort)
 end subroutine
 
 subroutine DENSE_OUTPUT(this, file, funit, fmt)
-  !! write dense matrix to file or stream
+  !! Write dense matrix to file or stream.
 
   class(DENSE_TYPE),          intent(in) :: this
+    !! Dense matrix
   character(len=*), optional, intent(in) :: file
-    !! filename (alternative: provide funit)
+    !! Filename (alternative: provide funit)
   integer,          optional, intent(in) :: funit
-    !! file unit (alternative: provide file name)
+    !! File unit (alternative: provide file name)
   character(len=*), optional, intent(in) :: fmt
-    !! value format string
+    !! Value format string
 
   ! local variables
   integer                       :: i, j, funit_, status
@@ -760,15 +795,20 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine SPARSE_INIT(this, nrows, ncols)
+subroutine SPARSE_INIT(this, nrows, ncols, symm)
+  !! Initialize sparse matrix.
+
   class(SPARSE_TYPE), intent(out) :: this
+    !! Sparse matrix
   integer,            intent(in)  :: nrows
     !! Number of rows
   integer, optional,  intent(in)  :: ncols
-    !! Optional: Number of columns. (Default: ncols = nrows)
+    !! Optional: Number of columns (default: ncols = nrows)
+  logical, optional,  intent(in)  :: symm
+    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", nrows, ncols = ncols)
+  call this%MATRIX_INIT("", nrows, ncols = ncols, symm = symm)
 
   ! empty mkl handle
   this%mkl_spmat%ptr = 0
@@ -778,7 +818,10 @@ subroutine SPARSE_INIT(this, nrows, ncols)
 end subroutine
 
 subroutine SPARSE_DESTRUCT(this)
+  !! Destruct sparse matrix by deallocating memory and deleting factorization.
+
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
 
   ! free mkl handle
   call this%destruct_csr()
@@ -788,9 +831,12 @@ subroutine SPARSE_DESTRUCT(this)
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
+  !! Reset dense matrix to zero (optionally only the factorization).
+
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
   logical, optional,  intent(in)    :: only_factorization
-    !! reset only factorization data (default: false)
+    !! Reset only factorization data (default: false)
 
   ! local variables
   logical :: only_fact
@@ -811,6 +857,7 @@ subroutine SPARSE_SCALE(this, fact)
   !! Scale sparse matrix by a factor.
 
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
   TT,                 intent(in)    :: fact
     !! Scaling factor
 
@@ -831,17 +878,19 @@ subroutine SPARSE_SCALE(this, fact)
 end subroutine
 
 subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply sparse matrix by a raw vector.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(SPARSE_TYPE),         intent(in)    :: this
+    !! Sparse matrix
   TT,                         intent(in)    :: x(:)
-    !! vector to multiply by
+    !! Raw vector to multiply by
   TT,                         intent(inout) :: y(:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   TT                  :: fact_y_
@@ -876,17 +925,19 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
 end subroutine
 
 subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply sparse matrix by a raw matrix.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(SPARSE_TYPE),         intent(in)    :: this
+    !! Sparse matrix
   TT,                         intent(in)    :: x(:,:)
-    !! vector to multiply by
+    !! Raw matrix to multiply by
   TT,                         intent(inout) :: y(:,:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   TT                  :: fact_y_
@@ -926,6 +977,7 @@ subroutine SPARSE_FACTORIZE(this)
   !! Factorize Matrix using PARDISO.
 
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
 
   ! local variables
   integer, pointer :: ia0(:), ia1(:), ja(:)
@@ -949,9 +1001,10 @@ end subroutine
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve Linear equation system this * x = rhs using PARDISO.
   !!
-  !! Call this%factorize() first.
+  !! Call this%factorize() first!
 
   class(SPARSE_TYPE),         intent(in)  :: this
+    !! Sparse matrix
   TT,                         intent(in)  :: rhs(:)
     !! Right hand side
   TT,                         intent(out) :: x(:)
@@ -979,6 +1032,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Call this%factorize() first.
 
   class(SPARSE_TYPE),         intent(in)  :: this
+    !! Sparse matrix
   TT,                         intent(in)  :: rhs(:,:)
     !! Right hand side
   TT,                         intent(out) :: x(:,:)
@@ -1095,12 +1149,12 @@ end subroutine
 
 #ifdef TCMPLX
 subroutine SPARSE_TO_REAL(this, s)
-  !! convert sparse complex matrix to real by ignoring imaginary part
+  !! Convert sparse complex matrix to real by ignoring imaginary part
 
   class(sparse_cmplx), intent(in)  :: this
-    !! sparse complex matrix
+    !! Sparse complex matrix
   class(sparse_real),  intent(out) :: s
-    !! output real(this)
+    !! Output real(this)
 
   ! local variables
   integer, pointer     :: ia0(:), ia1(:), ja(:)
@@ -1119,12 +1173,12 @@ subroutine SPARSE_TO_REAL(this, s)
 end subroutine
 #else
 subroutine SPARSE_TO_CMPLX(this, s)
-  !! convert sparse real matrix to complex
+  !! Convert sparse real matrix to complex
 
   class(sparse_real),  intent(in)  :: this
-    !! sparse real matrix
+    !! Sparse real matrix
   class(sparse_cmplx), intent(out) :: s
-    !! output cmplx(this)
+    !! Output cmplx(this)
 
   ! local variables
   integer, pointer     :: ia0(:), ia1(:), ja(:)
@@ -1144,14 +1198,14 @@ end subroutine
 #endif
 
 subroutine SPARSE_ADD_SPARSE(this, s, fact)
-    !! Add two sparse matrices, store result in first matrix
+    !! Add two sparse matrices, store result in first matrix.
 
   class(SPARSE_TYPE), intent(inout) :: this
-    !! first sparse matrix (updated)
+    !! First sparse matrix (updated)
   type(SPARSE_TYPE),  intent(in)    :: s
-    !! second sparse matrix (unchanged)
+    !! Second sparse matrix (unchanged)
   TT, optional,       intent(in)    :: fact
-    !! second sparse matrix scaling factor (default: 1)
+    !! Second sparse matrix scaling factor (default: 1)
 
   ! local variables
   integer               :: info
@@ -1179,18 +1233,18 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
 end subroutine
 
 subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
-  !! Add two sparse matrices, store result in sparse third matrix
+  !! Add two sparse matrices, store result in sparse third matrix.
 
   class(SPARSE_TYPE), intent(in)  :: this
-    !! sparse first matrix (unchanged)
+    !! Sparse first matrix (unchanged)
   type(SPARSE_TYPE),  intent(in)  :: s2
-    !! sparse second matrix (unchanged)
+    !! Sparse second matrix (unchanged)
   type(SPARSE_TYPE),  intent(out) :: s3
-    !! output sparse third matrix
+    !! Output sparse third matrix
   TT, optional,       intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,       intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   integer :: info
@@ -1212,14 +1266,14 @@ subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
 end subroutine
 
 subroutine SPARSE_ADD_BAND(this, b, fact)
-  !! Add sparse and band matrix, store result in sparse matrix
+  !! Add sparse and band matrix, store result in sparse matrix.
 
   class(SPARSE_TYPE), intent(inout) :: this
-    !! sparse matrix (updated)
+    !! Sparse matrix (updated)
   type(BAND_TYPE),    intent(in)    :: b
-    !! band matrix (unchanged)
+    !! Band matrix (unchanged)
   TT, optional,       intent(in)    :: fact
-    !! band matrix scaling factor (default: 1)
+    !! Band matrix scaling factor (default: 1)
 
   ! local variables
   integer               :: i, j, k, n, info
@@ -1280,18 +1334,18 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
 end subroutine
 
 subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
-  !! Add sparse and band matrix, store result in sparse third matrix
+  !! Add sparse and band matrix, store result in sparse third matrix.
 
   class(SPARSE_TYPE), intent(in)  :: this
-    !! sparse first matrix (unchanged)
+    !! Sparse first matrix (unchanged)
   type(BAND_TYPE),    intent(in)  :: b2
-    !! band second matrix (unchanged)
+    !! Band second matrix (unchanged)
   type(SPARSE_TYPE),  intent(out) :: s3
-    !! output sparse third matrix
+    !! Output sparse third matrix
   TT, optional,       intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,       intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   integer :: info
@@ -1313,14 +1367,14 @@ subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
 end subroutine
 
 subroutine SPARSE_MUL_SPARSE(this, s2, s3)
-  !! Multiply two sparse matrices, store result in sparse third matrix
+  !! Multiply two sparse matrices, store result in sparse third matrix.
 
   class(SPARSE_TYPE), intent(in)  :: this
-    !! sparse first matrix (unchanged)
+    !! Sparse first matrix (unchanged)
   type(SPARSE_TYPE),  intent(in)  :: s2
-    !! sparse second matrix (unchanged)
+    !! Sparse second matrix (unchanged)
   type(SPARSE_TYPE),  intent(out) :: s3
-    !! output sparse third matrix
+    !! Output sparse third matrix
 
   ! local variables
   integer :: info
@@ -1334,17 +1388,18 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
 end subroutine
 
 subroutine SPARSE_GET_CSR(this, ia0, ia1, ja, a)
-  !! Get pointers to CSR
+  !! Get pointers to CSR.
 
   class(SPARSE_TYPE), intent(in)  :: this
+    !! Sparse matrix
   integer, pointer,   intent(out) :: ia0(:)
-    !! output pointer to row start pointers
+    !! Output pointer to row start pointers
   integer, pointer,   intent(out) :: ia1(:)
-    !! output pointer to row end pointers (exclusive)
+    !! Output pointer to row end pointers (exclusive)
   integer, pointer,   intent(out) :: ja(:)
-    !! output pointer to column indices
+    !! Output pointer to column indices
   TT,      pointer,   intent(out) :: a(:)
-    !! output pointer to values
+    !! Output pointer to values
 
   ! local variables
   integer             :: info
@@ -1368,17 +1423,18 @@ subroutine SPARSE_GET_CSR(this, ia0, ia1, ja, a)
 end subroutine
 
 subroutine SPARSE_SET_CSR(this, ia0, ia1, ja, a)
-  !! Set CSR data
+  !! Set CSR data.
 
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
   integer,            intent(in)    :: ia0(:)
-    !! row start pointers
+    !! Row start pointers
   integer,            intent(in)    :: ia1(:)
-    !! row end pointers (exclusive)
+    !! Row end pointers (exclusive)
   integer,            intent(in)    :: ja(:)
-    !! column indices
+    !! Column indices
   TT,                 intent(in)    :: a(:)
-    !! values
+    !! Values
 
   ! local variables
   integer :: info
@@ -1396,9 +1452,10 @@ subroutine SPARSE_SET_CSR(this, ia0, ia1, ja, a)
 end subroutine
 
 subroutine SPARSE_DESTRUCT_CSR(this)
-  !! Free memory of MKL handle
+  !! Free memory of MKL handle.
 
   class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
 
   ! local variables
   integer :: info
@@ -1414,10 +1471,11 @@ subroutine SPARSE_SET_MV_HINT(this, expected_calls, trans)
   !! provide hint to MKL about matrix vector multiplications
 
   class(SPARSE_TYPE),         intent(inout) :: this
+    !! Sparse matrix
   integer,                    intent(in)    :: expected_calls
-    !! expected number of matrix vector multiplications
+    !! Expected number of matrix vector multiplications
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   integer             :: info
@@ -1448,15 +1506,16 @@ subroutine SPARSE_SET_MV_HINT(this, expected_calls, trans)
 end subroutine
 
 subroutine SPARSE_SET_MM_HINT(this, expected_calls, ncols, trans)
-  !! provide hint to MKL about matrix matrix multiplications
+  !! Provide hint to MKL about matrix matrix multiplications
 
   class(SPARSE_TYPE),         intent(inout) :: this
+    !! Sparse matrix
   integer,                    intent(in)    :: expected_calls
-    !! expected number of matrix vector multiplications
+    !! Expected number of matrix vector multiplications
   integer,                    intent(in)    :: ncols
-    !! number of columns of second matrix
+    !! Number of columns of second matrix
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   integer             :: info
@@ -1488,15 +1547,16 @@ subroutine SPARSE_SET_MM_HINT(this, expected_calls, ncols, trans)
 end subroutine
 
 subroutine SPARSE_OUTPUT(this, file, funit, fmt)
-  !! write sparse matrix to file or stream
+  !! Write sparse matrix to file or stream
 
   class(SPARSE_TYPE),         intent(in) :: this
+    !! Sparse matrix
   character(len=*), optional, intent(in) :: file
-    !! filename (alternative: provide funit)
+    !! Filename (alternative: provide funit)
   integer,          optional, intent(in) :: funit
-    !! file unit (alternative: provide file name)
+    !! File unit (alternative: provide file name)
   character(len=*), optional, intent(in) :: fmt
-    !! value format string
+    !! Value format string
 
   ! local variables
   integer                       :: i, j, status, funit_
@@ -1542,11 +1602,12 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
 end subroutine
 
 subroutine SPBUILD_INIT(this, s)
-  !! initialize sparse builder
+  !! Initialize sparse matrix builder.
 
   class(SPBUILD_TYPE),       intent(out) :: this
+    !! Sparse matrix builder
   type(SPARSE_TYPE), target, intent(in)  :: s
-    !! sparse matrix this builder is tied to
+    !! Sparse matrix this builder is tied to
 
   ! local variables
   integer :: i
@@ -1576,9 +1637,10 @@ subroutine SPBUILD_INIT(this, s)
 end subroutine
 
 subroutine SPBUILD_DESTRUCT(this)
-  !! Deallocate memory
+  !! Deallocate memory.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
 
   nullify(this%sp)
   if (allocated(this%cols)) deallocate(this%cols)
@@ -1589,9 +1651,10 @@ subroutine SPBUILD_DESTRUCT(this)
 end subroutine
 
 subroutine SPBUILD_LOAD(this)
-  !! Load existing values from sparse matrix
+  !! Load existing values from sparse matrix into builder.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
 
   ! local variables
   integer          :: i, j
@@ -1627,9 +1690,10 @@ subroutine SPBUILD_LOAD(this)
 end subroutine
 
 subroutine SPBUILD_SET(this, row, col, val, fact, search)
-  !! Insert/Update value
+  !! Insert/Update value.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
   integer,             intent(in)    :: row
     !! Row index
   integer,             intent(in)    :: col
@@ -1720,17 +1784,18 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
 end subroutine
 
 subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
-  !! Insert continuous block of values
+  !! Insert continuous block of values.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
   integer,             intent(in)    :: row
-    !! row index
+    !! Row index
   TT,                  intent(in)    :: vals(:)
-    !! values to insert (j1 - j0 + 1 elements)
+    !! Values to insert (j1 - j0 + 1 elements)
   integer, optional,   intent(in)    :: j0
-    !! start column index (default: 1)
+    !! Start column index (default: 1)
   integer, optional,   intent(in)    :: j1
-    !! end column index (default: this%sp%ncols)
+    !! End column index (default: this%sp%ncols)
 
   ! local variables
   integer :: j, j0_, j1_
@@ -1755,9 +1820,10 @@ subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
 end subroutine
 
 subroutine SPBUILD_ADD(this, row, col, val)
-  !! Insert or add to existing value
+  !! Insert new element or add to existing value.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
   integer,             intent(in)    :: row
     !! Row index
   integer,             intent(in)    :: col
@@ -1779,9 +1845,10 @@ subroutine SPBUILD_ADD(this, row, col, val)
 end subroutine
 
 subroutine SPBUILD_SORT(this)
-  !! Sort column indices
+  !! Sort column indices.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
 
   ! local variables
   integer              :: i, n
@@ -1817,9 +1884,10 @@ subroutine SPBUILD_SORT(this)
 end subroutine
 
 subroutine SPBUILD_FINISH(this)
-  !! Create sparse matrix
+  !! Create sparse matrix.
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
 
   ! local variables
   integer              :: i, j
@@ -1863,6 +1931,7 @@ subroutine SPBUILD_RESET(this)
   !! Delete all values
 
   class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
 
   ! local variables
   integer :: i
@@ -1887,14 +1956,22 @@ subroutine SPBUILD_RESET(this)
   this%finished = .false.
 end subroutine
 
-subroutine BAND_INIT(this, ncols, ndiags, d0)
-  class(BAND_TYPE), intent(out) :: this
-  integer,          intent(in)  :: ncols  ! == nrows
-  integer,          intent(in)  :: ndiags ! must be uneven
-  TT, optional,     intent(in)  :: d0(-(ndiags-1)/2:,:)
+subroutine BAND_INIT(this, ncols, ndiags, d0, symm)
+  !! Initialize band matrix
+
+  class(BAND_TYPE),  intent(out) :: this
+    !! Band matrix
+  integer,           intent(in)  :: ncols
+    !! Number of columns = Number of rows
+  integer,           intent(in)  :: ndiags
+    !! Total number of diagonals. Must be positive uneven integer.
+  TT, optional,      intent(in)  :: d0(-(ndiags-1)/2:,:)
+    !! Initial data.
+  logical, optional, intent(in)  :: symm
+    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", ncols, ncols = ncols)
+  call this%MATRIX_INIT("", ncols, ncols = ncols, symm = symm)
 
   ! set number of diagonals
   ASSERT(ndiags > 0)
@@ -1915,7 +1992,10 @@ subroutine BAND_INIT(this, ncols, ndiags, d0)
 end subroutine
 
 subroutine BAND_DESTRUCT(this)
+  !! Destruct band matrix by deallocating its memory.
+
   class(BAND_TYPE), intent(inout) :: this
+    !! Band matrix
 
   if (allocated(this%d   )) deallocate(this%d   )
   if (allocated(this%f   )) deallocate(this%f   )
@@ -1923,9 +2003,12 @@ subroutine BAND_DESTRUCT(this)
 end subroutine
 
 subroutine BAND_RESET(this, only_factorization)
+  !! Reset band matrix to zero (optionally only the factorization).
+
   class(BAND_TYPE),  intent(inout) :: this
+    !! Band matrix
   logical, optional, intent(in)    :: only_factorization
-    !! reset only factorization data (default: false)
+    !! Reset only factorization data (default: false)
 
   ! local variables
   logical :: only_fact
@@ -1946,6 +2029,7 @@ subroutine BAND_SCALE(this, fact)
   !! Scale band matrix by a factor.
 
   class(BAND_TYPE), intent(inout) :: this
+    !! Band matrix
   TT,               intent(in)    :: fact
     !! Scaling factor
 
@@ -1956,17 +2040,19 @@ subroutine BAND_SCALE(this, fact)
 end subroutine
 
 subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply band matrix by a raw vector.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(BAND_TYPE),           intent(in)    :: this
+    !! Band matrix
   TT,                         intent(in)    :: x(:)
-    !! vector to multiply by
+    !! Raw vector to multiply by
   TT,                         intent(inout) :: y(:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   if (this%ndiags == 1) then
     if (present(fact_y)) then
@@ -1980,17 +2066,19 @@ subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
 end subroutine
 
 subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
-  !! Perform operation: y = this * x + fact_y * y
+  !! Multiply band matrix by a raw matrix.
+  !! Performs operation: y = this * x + fact_y * y
 
   class(BAND_TYPE),           intent(in)    :: this
+    !! Band matrix
   TT,                         intent(in)    :: x(:,:)
-    !! matrix to multiply by
+    !! Raw matrix to multiply by
   TT,                         intent(inout) :: y(:,:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   integer :: i
@@ -2013,9 +2101,10 @@ subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
 end subroutine BAND_MUL_MAT
 
 subroutine BAND_FACTORIZE(this)
-  !! Factorize band matrix prior to solving.
+  !! Factorize band matrix. Call this before solving!
 
   class(BAND_TYPE), intent(inout) :: this
+    !! Band matrix
 
   ! local variables
   integer :: info
@@ -2051,17 +2140,18 @@ subroutine BAND_FACTORIZE(this)
 end subroutine
 
 subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-  !! Solve system: this * x = rhs. Call this%factorize() first.
+  !! Solve system: this * x = rhs. Call this%factorize() first!
 
   class(BAND_TYPE),           intent(in)  :: this
+    !! Band matrix.
   TT,                         intent(in)  :: rhs(:)
-    !! right hand side of equation system
+    !! Right hand side of equation system
   TT,                         intent(out) :: x(:)
-    !! store result in x
+    !! Store result in x
   character(len=1), optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,          optional, intent(in)  :: iter_refine
-    !! perform iterative refinement (default: true)
+    !! Perform iterative refinement (default: true)
 
   ! local variables
   TT :: rhs_(size(rhs),1), x_(size(x),1)
@@ -2076,14 +2166,15 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
   class(BAND_TYPE),           intent(in)  :: this
+    !! Band matrix
   TT,                         intent(in)  :: rhs(:,:)
-    !! right hand sides of equation system
+    !! Right hand sides of equation system
   TT,                         intent(out) :: x(:,:)
-    !! store results in x
+    !! Store results in x
   character(len=1), optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,          optional, intent(in)  :: iter_refine
-    !! perform iterative refinement (default: true)
+    !! Perform iterative refinement (default: true)
 
   ! local variables
   integer :: i, info
@@ -2127,9 +2218,9 @@ subroutine BAND_TO_DENSE(this, d, i0, j0)
   type(DENSE_TYPE),  intent(inout) :: d
     !! Dense matrix (updated)
   integer, optional, intent(in)    :: i0
-    !! optional: row offset in second matrix (default 1)
+    !! Optional: row offset in second matrix (default 1)
   integer, optional, intent(in)    :: j0
-    !! optional: col offset in second matrix (default 1)
+    !! Optional: col offset in second matrix (default 1)
 
   ! local variables
   integer :: i0_, j0_, i, j, k
@@ -2159,13 +2250,13 @@ subroutine BAND_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   type(SPBUILD_TYPE), intent(inout) :: sb
     !! Sparse matrix represented by sparse matrix builder (updated)
   integer, optional,  intent(in)    :: i0
-    !! optional: row offset in sparse matrix
+    !! Optional: row offset in sparse matrix
   integer, optional,  intent(in)    :: j0
-    !! optional: col offset in sparse matrix
+    !! Optional: col offset in sparse matrix
   logical, optional,  intent(in)    :: struct(:,:)
-    !! optional: use sparsity structure (true means an element exists; false means it does not)
+    !! Optional: use sparsity structure (true means an element exists; false means it does not)
   logical, optional,  intent(in)    :: drop_zeros
-    !! optional: determine sparsity structure by checking for zero entries
+    !! Optional: determine sparsity structure by checking for zero entries
 
   ! local variables
   integer :: i0_, j0_, i, j
@@ -2200,37 +2291,37 @@ end subroutine
 
 #ifdef TCMPLX
 subroutine BAND_TO_REAL(this, b)
-  !! convert band complex matrix to real by ignoring imaginary part
+  !! Convert band complex matrix to real by ignoring imaginary part.
 
   class(band_cmplx), intent(in)  :: this
-    !! band complex matrix
+    !! Band complex matrix
   class(band_real),  intent(out) :: b
-    !! output real(this)
+    !! Output real(this)
 
   call b%init(this%nrows, this%ndiags, d0 = real(this%d))
 end subroutine
 #else
 subroutine BAND_TO_CMPLX(this, b)
-  !! convert band real matrix to complex
+  !! Convert band real matrix to complex.
 
   class(band_real), intent(in)  :: this
-    !! band real matrix
+    !! Band real matrix
   class(band_cmplx),  intent(out) :: b
-    !! output cmplx(this)
+    !! Output cmplx(this)
 
   call b%init(this%nrows, this%ndiags, d0 = cmplx(this%d))
 end subroutine
 #endif
 
 subroutine BAND_ADD_BAND(this, b, fact)
-  !! Add two band matrices, store result in first band matrix
+  !! Add two band matrices, store result in first band matrix.
 
   class(BAND_TYPE), intent(inout) :: this
-    !! first band matrix (updated)
+    !! First band matrix (updated)
   type(BAND_TYPE),  intent(in)    :: b
-    !! second band matrix (unchanged)
+    !! Second band matrix (unchanged)
   TT, optional,     intent(in)    :: fact
-    !! second band matrix scaling factor (default: 1)
+    !! Second band matrix scaling factor (default: 1)
 
   ! local variables
   integer         :: i
@@ -2262,18 +2353,18 @@ subroutine BAND_ADD_BAND(this, b, fact)
 end subroutine
 
 subroutine BAND_ADD_BAND3(this, b2, b3, fact1, fact2)
-  !! Add two band matrices, store result in third band matrix
+  !! Add two band matrices, store result in third band matrix.
 
   class(BAND_TYPE), intent(in)  :: this
-    !! band first matrix (unchanged)
+    !! Band first matrix (unchanged)
   type(BAND_TYPE),  intent(in)  :: b2
-    !! band second matrix (unchanged)
+    !! Band second matrix (unchanged)
   type(BAND_TYPE),  intent(out) :: b3
-    !! output band third matrix
+    !! Output band third matrix
   TT, optional,     intent(in)  :: fact1
-    !! first matrix scaling factor (default: 1)
+    !! First matrix scaling factor (default: 1)
   TT, optional,     intent(in)  :: fact2
-    !! second matrix scaling factor (default: 1)
+    !! Second matrix scaling factor (default: 1)
 
   ! local variables
   TT :: fact1_, fact2_
@@ -2294,15 +2385,16 @@ subroutine BAND_ADD_BAND3(this, b2, b3, fact1, fact2)
 end subroutine
 
 subroutine BAND_OUTPUT(this, file, funit, fmt)
-  !! write band matrix to file or stream
+  !! Write band matrix to file or stream.
 
   class(BAND_TYPE),           intent(in) :: this
+    !! Band matrix
   character(len=*), optional, intent(in) :: file
-    !! filename (alternative: provide funit)
+    !! Filename (alternative: provide funit)
   integer,          optional, intent(in) :: funit
-    !! file unit (alternative: provide file name)
+    !! File unit (alternative: provide file name)
   character(len=*), optional, intent(in) :: fmt
-    !! value format string
+    !! Value format string
 
   ! local variables
   integer                       :: i, j, status, funit_
@@ -2346,10 +2438,11 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
-  !! Initialize Block matrix
+subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag, symm)
+  !! Initialize Block matrix.
 
   class(BLOCK_TYPE), intent(out) :: this
+    !! Block matrix
   integer,           intent(in)  :: row_dim(:)
     !! Number of Rows for each block
   integer, optional, intent(in)  :: col_dim(:)
@@ -2358,6 +2451,8 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
     !! diagonal block matrix flag (default: false)
   logical, optional, intent(in)  :: tridiag
     !! tridiagonal block matrix flag (default: false)
+  logical, optional, intent(in)  :: symm
+    !! Optional symmetry flag (default: false)
 
   ! local variables
   integer, allocatable :: col_dim_(:)
@@ -2365,10 +2460,10 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
 
   ! init base
   if (present(col_dim)) then
-    call this%MATRIX_INIT("", sum(row_dim), ncols = sum(col_dim))
+    call this%MATRIX_INIT("", sum(row_dim), ncols = sum(col_dim), symm = symm)
     allocate (col_dim_(size(col_dim)), source = col_dim)
   else
-    call this%MATRIX_INIT("", sum(row_dim))
+    call this%MATRIX_INIT("", sum(row_dim), symm = symm)
     allocate (col_dim_(size(row_dim)), source = row_dim)
   end if
 
@@ -2415,7 +2510,10 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
 end subroutine
 
 subroutine BLOCK_DESTRUCT(this)
+  !! Destruct block matrix.
+
   class(BLOCK_TYPE), intent(inout) :: this
+    !! Block matrix
 
   ! local variables
   integer :: ib, jb
@@ -2438,7 +2536,10 @@ subroutine BLOCK_DESTRUCT(this)
 end subroutine
 
 subroutine BLOCK_RESET(this, only_factorization)
+  !! Reset block matrix to zero (optionally only factorization).
+
   class(BLOCK_TYPE), intent(inout) :: this
+    !! Block matrix
   logical, optional, intent(in)    :: only_factorization
     !! reset only factorization data (default: false)
 
@@ -2454,9 +2555,10 @@ subroutine BLOCK_RESET(this, only_factorization)
 end subroutine
 
 subroutine BLOCK_SCALE(this, fact)
-  !! Scale block matrix by factor
+  !! Scale block matrix by factor.
 
   class(BLOCK_TYPE), intent(inout) :: this
+    !! Block matrix
   TT,                intent(in)    :: fact
     !! Scaling factor
 
@@ -2477,14 +2579,15 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
   class(BLOCK_TYPE),          intent(in)    :: this
+    !! Block matrix
   TT,                         intent(in)    :: x(:)
-    !! vector to multiply by
+    !! Raw vector to multiply by
   TT,                         intent(inout) :: y(:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   character(len=1) :: trans_
@@ -2548,14 +2651,15 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
   class(BLOCK_TYPE),          intent(in)    :: this
+    !! Block matrix
   TT,                         intent(in)    :: x(:,:)
-    !! matrix to multiply by
+    !! Raw matrix to multiply by
   TT,                         intent(inout) :: y(:,:)
-    !! store result in y
+    !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! if present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
   character(len=1) :: trans_
@@ -2619,6 +2723,7 @@ subroutine BLOCK_FACTORIZE(this)
   !! Factorize diagonal Block Matrix.
 
   class(BLOCK_TYPE), intent(inout) :: this
+    !! Block matrix
 
   ! local variables
   integer :: ib
@@ -2638,17 +2743,18 @@ subroutine BLOCK_FACTORIZE(this)
 end subroutine
 
 subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-  !! Solve system: this * x = rhs. Call this%factorize() first.
+  !! Solve block diagonal system: this * x = rhs. Call this%factorize() first.
 
-  class(BLOCK_TYPE), intent(in) :: this
+  class(BLOCK_TYPE),          intent(in)  :: this
+    !! Block matrix
   TT,                         intent(in)  :: rhs(:)
-    !! right hand side of equation system
+    !! Right hand side of equation system
   TT,                         intent(out) :: x(:)
-    !! store result in x
+    !! Store result in x
   character(len=1), optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,          optional, intent(in)  :: iter_refine
-    !! perform iterative refinement
+    !! Perform iterative refinement
 
   ! local variables
   integer :: ib
@@ -2665,7 +2771,8 @@ end subroutine
 subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
-  class(BLOCK_TYPE), intent(in) :: this
+  class(BLOCK_TYPE),          intent(in)  :: this
+    !! Block matrix
   TT,                         intent(in)  :: rhs(:,:)
     !! right hand side of equation system
   TT,                         intent(out) :: x(:,:)
@@ -2738,13 +2845,13 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   type(SPBUILD_TYPE), intent(inout) :: sb
     !! Sparse matrix represented by sparse matrix builder (updated)
   integer, optional, intent(in)     :: i0
-    !! optional: row offset in sparse matrix
+    !! Optional: row offset in sparse matrix
   integer, optional, intent(in)     :: j0
-    !! optional: col offset in sparse matrix
+    !! Optional: col offset in sparse matrix
   logical, optional, intent(in)     :: struct(:,:)
-    !! optional: use sparsity structure (true means an element exists; false means it does not)
+    !! Optional: use sparsity structure (true means an element exists; false means it does not)
   logical, optional, intent(in)     :: drop_zeros
-    !! optional: determine sparsity structure by checking for zero entries
+    !! Optional: determine sparsity structure by checking for zero entries
 
   ! local variables
   integer :: i0_, j0_, ib, jb
@@ -2794,42 +2901,44 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
 end subroutine
 
 subroutine BLOCK_GET_GLOBAL_IDX(this, ib, jb, il, jl, ig, jg)
-  !! get global index from block and local index
+  !! Get global index from block and local index.
 
   class(BLOCK_TYPE), intent(in)  :: this
+    !! Block matrix
   integer,           intent(in)  :: ib
-    !! block row
+    !! Block row
   integer,           intent(in)  :: jb
-    !! block col
+    !! Block col
   integer,           intent(in)  :: il
-    !! local row
+    !! Local row
   integer,           intent(in)  :: jl
-    !! local col
+    !! Local col
   integer,           intent(out) :: ig
-    !! output global row
+    !! Output global row
   integer,           intent(out) :: jg
-    !! output global col
+    !! Output global col
 
   ig = this%i0(ib) + il - 1
   jg = this%j0(jb) + jl - 1
 end subroutine
 
 subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
-  !! get block and local index from global index
+  !! Get block and local index from global index.
 
   class(BLOCK_TYPE), intent(in)  :: this
+    !! Block matrix
   integer,           intent(in)  :: ig
-    !! global row
+    !! Global row
   integer,           intent(in)  :: jg
-    !! global col
+    !! Global col
   integer,           intent(out) :: ib
-    !! output block row
+    !! Output block row
   integer,           intent(out) :: jb
-    !! output block col
+    !! Output block col
   integer,           intent(out) :: il
-    !! output local row
+    !! Output local row
   integer,           intent(out) :: jl
-    !! output local col
+    !! Output local col
 
   ! find block row
   do ib = 1, this%nbrows
@@ -2845,15 +2954,16 @@ subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
 end subroutine
 
 subroutine BLOCK_GET_DENSE(this, ib, jb, p)
-  !! return pointer to dense block
+  !! Return pointer to dense block.
 
   class(BLOCK_TYPE), target, intent(in)  :: this
+    !! Block matrix
   integer,                   intent(in)  :: ib
-    !! block row
+    !! Block row
   integer,                   intent(in)  :: jb
-    !! block col
+    !! Block col
   type(DENSE_TYPE), pointer, intent(out) :: p
-    !! output pointer to dense block or null() if not dense
+    !! Output pointer to dense block or null() if not dense
 
   nullify(p)
   if (allocated(this%b(ib,jb)%p)) then
@@ -2865,15 +2975,16 @@ subroutine BLOCK_GET_DENSE(this, ib, jb, p)
 end subroutine
 
 subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
-  !! return pointer to sparse block
+  !! Return pointer to sparse block.
 
   class(BLOCK_TYPE), target,  intent(in)  :: this
+    !! Block matrix
   integer,                    intent(in)  :: ib
-    !! block row
+    !! Block row
   integer,                    intent(in)  :: jb
-    !! block col
+    !! Block col
   type(SPARSE_TYPE), pointer, intent(out) :: p
-    !! output pointer to sparse block or null() if not dense
+    !! Output pointer to sparse block or null() if not dense
 
   nullify(p)
   if (allocated(this%b(ib,jb)%p)) then
@@ -2885,15 +2996,16 @@ subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
 end subroutine
 
 subroutine BLOCK_GET_BAND(this, ib, jb, p)
-  !! return pointer to band block
+  !! Return pointer to band block.
 
   class(BLOCK_TYPE), target, intent(in)  :: this
+    !! Block matrix
   integer,                   intent(in)  :: ib
-    !! block row
+    !! Block row
   integer,                   intent(in)  :: jb
-    !! block col
+    !! Block col
   type(BAND_TYPE), pointer,  intent(out) :: p
-    !! output pointer to band block or null() if not dense
+    !! Output pointer to band block or null() if not dense
 
   nullify(p)
   if (allocated(this%b(ib,jb)%p)) then
@@ -2905,15 +3017,16 @@ subroutine BLOCK_GET_BAND(this, ib, jb, p)
 end subroutine
 
 subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
-  !! return pointer to block block
+  !! Return pointer to block block.
 
   class(BLOCK_TYPE), target, intent(in)  :: this
+    !! Block matrix
   integer,                   intent(in)  :: ib
-    !! block row
+    !! Block row
   integer,                   intent(in)  :: jb
-    !! block col
+    !! Block col
   type(BLOCK_TYPE), pointer, intent(out) :: p
-    !! output pointer to block block or null() if not dense
+    !! Output pointer to block block or null() if not dense
 
   nullify(p)
   if (allocated(this%b(ib,jb)%p)) then

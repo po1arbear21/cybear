@@ -130,9 +130,16 @@
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 
 type, abstract :: MATRIX_TYPE
-  ! dimensions
+  !! Base type for matrices.
+  !! Can be extended if more specialized matrices are needed besides the built-in types.
+
   integer :: nrows
+    !! Number of rows
   integer :: ncols
+    !! Number of columns
+
+  logical :: symm
+    !! Symmetry flag
 contains
   procedure :: MATRIX_INIT
   generic   :: init => MATRIX_INIT
