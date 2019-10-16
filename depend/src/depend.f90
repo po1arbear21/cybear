@@ -198,7 +198,7 @@ program depend
   ! output targets
   do i = 1, programs%n
     write(output_unit, "(1A)") ".PHONY: "//trim(programs%d(i)%name)
-    write(output_unit, "(1A)") trim(buildfolder)//trim(programs%d(i)%name)//": $(ANCHORS_"//trim(programs%d(i)%name)//") $(OBJECTS_"//trim(programs%d(i)%name)//")"
+    write(output_unit, "(1A)") trim(buildfolder)//trim(programs%d(i)%name)//": $(ANCHORS_"//trim(programs%d(i)%name)//") $(OBJECTS_"//trim(programs%d(i)%name)//") $(LIBS)"
     write(output_unit, "(1A)") char(9)//"$(FC) $(FFLAGS) -I"//trim(buildfolder)//" -o "//trim(buildfolder)//trim(programs%d(i)%name)//" $(OBJECTS_"//trim(programs%d(i)%name)//") $(LIBS)"
     write(output_unit,*)
   end do
