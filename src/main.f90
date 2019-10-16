@@ -4,7 +4,8 @@ program main
   use error_m
   use matrix_m
   use input_m
-  !use arpack_m
+  use arpack_m
+  use dual_m
   implicit none
 
   type(input_file)              :: f
@@ -13,6 +14,7 @@ program main
   real,             allocatable :: y(:)
   real                          :: y0, T
   character(len=:), allocatable :: ctname
+  type(dual)                    :: dl
 
   call f%init("run/example.inp")
 
@@ -38,5 +40,18 @@ program main
     write(*,"(1A, 1I0)") "contact ", i
     write(*,*) "name = ", ctname
   end do
+
+  call dl%init(3, -1.0, i = 1)
+  dl = abs(dl)
+  dl = cos(dl)
+
+  print *, dl%x
+  print *, dl%dx
+
+  print *, abs(dl%x)
+
+  dl = dl ** dl
+  print *, dl%x
+  print *, dl%dx
 
 end program main
