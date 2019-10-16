@@ -40,9 +40,8 @@ SOURCES := $(shell find src/ -name '*.f90')
 # libraries
 LIBS := ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
 include lib/arpack/arpack.mk
-#include lib/expokit/expokit.mk
+include lib/expokit/expokit.mk
 #include lib/feast/feast.mk
-#include lib/ilupack/ilupack.mk
 #include lib/quadpack/quadpack.mk
 
 # generate targets and their dependencies (one target per program found in sources)
