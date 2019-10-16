@@ -45,6 +45,7 @@
 #define DENSE_ADD_BAND       CONCAT3(dense,T,add_band)
 #define DENSE_ADD_BAND3      CONCAT3(dense,T,add_band3)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
+#define DENSE_EIG            CONCAT3(dense,T,eig)
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
@@ -608,6 +609,102 @@ subroutine DENSE_MUL_DENSE(this, d2, d3)
 
   ! multiply matrices
   call gemm(this%d, d2%d, d3%d)
+end subroutine
+
+subroutine DENSE_EIG(this, e, R, L, sort)
+  !! Eigenvalue decomposition
+
+  class(DENSE_TYPE), intent(in)  :: this
+  complex,           intent(out) :: e(:)
+    !! output eigenvalues (complex in general)
+  complex, optional, intent(out) :: R(:,:)
+    !! output right eigenvectors in columns (complex in general)
+  complex, optional, intent(out) :: L(:,:)
+    !! output left  eigenvectors in columns (complex in general)
+  logical, optional, intent(in)  :: sort
+    !! sort by magnitude of eigenvalues (default: false)
+
+  ! local variables
+  integer :: info
+  logical :: sort_
+#ifdef TCMPLX
+  complex, allocatable :: a(:,:)
+
+  ! allocate memory
+  allocate (a(this%nrows,this%nrows), source = this%d)
+
+  ! get eigenvalue decomposition
+  call geev(a, e, vl = L, vr = R, info = info)
+  if (info /= 0) call program_error("error in complex LAPACK geev", code = info)
+
+#else
+  integer           :: i
+  real, allocatable :: ar(:,:), wr(:), wi(:), vl(:,:), vr(:,:)
+
+  ! allocate memory
+  allocate (ar(this%nrows,this%nrows), source = this%d)
+  allocate (wr(this%nrows))
+  allocate (wi(this%nrows))
+
+  if (present(L) .and. present(R)) then
+    allocate (vl(this%nrows,this%nrows))
+    allocate (vr(this%nrows,this%nrows))
+    call geev(ar, wr, wi, vl = vl, vr = vr, info = info)
+  elseif (present(L)) then
+    allocate (vl(this%nrows,this%nrows))
+    call geev(ar, wr, wi, vl = vl, info = info)
+  elseif (present(R)) then
+    allocate (vr(this%nrows,this%nrows))
+    call geev(ar, wr, wi, vr = vr, info = info)
+  else
+    call geev(ar, wr, wi, info = info)
+  end if
+  if (info /= 0) call program_error("error in real LAPACK geev", code = info)
+
+  ! construct eigenvalues and eigenvectors
+  i = 1
+  do while (i <= this%nrows)
+    if (wi(i) == 0) then
+      e(i) = wr(i)
+      if (present(L)) L(:,i) = vl(:,i)
+      if (present(R)) R(:,i) = vr(:,i)
+      i = i + 1
+    else
+      e(i  ) = cmplx(wr(i  ), wi(i  ))
+      e(i+1) = cmplx(wr(i+1), wi(i+1))
+      if (present(L)) then
+        L(:,i  ) = cmplx(vl(:,i), + vl(:,i+1))
+        L(:,i+1) = cmplx(vl(:,i), - vl(:,i+1))
+      end if
+      if (present(R)) then
+        R(:,i  ) = cmplx(vr(:,i), + vr(:,i+1))
+        R(:,i+1) = cmplx(vr(:,i), - vr(:,i+1))
+      end if
+      i = i + 2
+    end if
+  end do
+
+#endif
+
+  ! sort
+  sort_ = .false.
+  if (present(sort)) sort_ = sort
+  if (sort) then
+    block
+      real,    allocatable :: abs_e(:)
+      integer, allocatable :: perm(:)
+
+      allocate (abs_e(this%nrows), source = abs(e))
+      allocate (perm(this%nrows))
+
+      ! sort eigenvalues
+      call qsort(abs_e, perm = perm)
+
+      e = e(perm)
+      if (present(L)) L = L(:,perm)
+      if (present(R)) R = R(:,perm)
+    end block
+  end if
 end subroutine
 
 subroutine DENSE_OUTPUT(this, file, funit, fmt)
@@ -2875,6 +2972,7 @@ end subroutine
 #undef DENSE_ADD_BAND
 #undef DENSE_ADD_BAND3
 #undef DENSE_MUL_DENSE
+#undef DENSE_EIG
 #undef DENSE_OUTPUT
 
 #undef SPARSE_TYPE

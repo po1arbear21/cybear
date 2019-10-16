@@ -45,6 +45,7 @@
 #define DENSE_ADD_BAND       CONCAT3(dense,T,add_band)
 #define DENSE_ADD_BAND3      CONCAT3(dense,T,add_band3)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
+#define DENSE_EIG            CONCAT3(dense,T,eig)
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
@@ -187,6 +188,7 @@ contains
   procedure :: DENSE_ADD_BAND3
   generic   :: add_band   => DENSE_ADD_BAND, DENSE_ADD_BAND3
   procedure :: mul_dense  => DENSE_MUL_DENSE
+  procedure :: eig        => DENSE_EIG
   procedure :: output     => DENSE_OUTPUT
 end type
 
@@ -461,6 +463,7 @@ end interface
 #undef DENSE_ADD_BAND
 #undef DENSE_ADD_BAND3
 #undef DENSE_MUL_DENSE
+#undef DENSE_EIG
 #undef DENSE_OUTPUT
 
 #undef SPARSE_TYPE
