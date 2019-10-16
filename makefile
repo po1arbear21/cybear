@@ -70,6 +70,9 @@ $(BUILD_DIR)%.o:
 clean:
 	rm -f $(TRASH_DIR)*.mod $(BUILD_DIR)*.anc $(BUILD_DIR)*.i90 $(BUILD_DIR)*.mod $(BUILD_DIR)*.o $(BUILD_DIR).depend $(TARGETS)
 
+doc: all
+	ford -e i90 -d $(BUILD_DIR) README.md
+
 clean_all: clean
 
-.PHONY: all dirs clean clean_all
+.PHONY: all dirs doc clean clean_all

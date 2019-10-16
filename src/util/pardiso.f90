@@ -5,7 +5,7 @@ module pardiso_m
   implicit none
 
   ! include pardiso interface
-  include 'mkl_pardiso.fi'
+#include 'mkl_pardiso.fi'
 
   character(len=*), parameter :: PARDISO_ERROR(-12:0) = (/                   &
     & "pardiso_64 called from 32-bit library                              ", &
