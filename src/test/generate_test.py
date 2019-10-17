@@ -31,7 +31,9 @@ for i in range(1, len(sys.argv)):
   f.close()
 
 print("generating test.f90")
-test_modules = [t.replace("test_","").replace(".f90","") for t in os.listdir("modules/") if os.path.isfile(os.path.join("modules/", t))]
+test_modules = [t.replace("test_","").replace(".f90","") for t in os.listdir("modules/")
+  if os.path.isfile(os.path.join("modules/", t)) and t.startswith("test_")]
+quit
 
 if os.path.exists("test.f90"):
   os.remove("test.f90")

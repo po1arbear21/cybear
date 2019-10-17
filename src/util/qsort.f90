@@ -3,7 +3,7 @@ module qsort_m
   implicit none
 
   interface qsort
-    module procedure :: qsort_int, qsort_real
+    module procedure :: qsort_int, qsort_real, qsort_string
   end interface
 
 contains

@@ -125,6 +125,25 @@ contains
       call tc%assert_eq(e, ar, 1e-16, "sort 37 real elements")
     end block
 
+    ! 17 strings
+    block
+      integer      :: perm(17)
+      type(string) :: s(17), e(17)
+
+      s = [ string("nsthemzb"), string("nezlbflp"), string("shjfsiix"), string("jsmyblzt"), &
+            string("adghtypa"), string("tquyqeyp"), string("okepmhsw"), string("oxuplhxq"), &
+            string("fgityclt"), string("rowvqngo"), string("fqnfgoau"), string("tiewijrx"), &
+            string("oyfvgytz"), string("ymutpqwx"), string("gwisvfyc"), string("odhwtxgg"), &
+            string("ugpwhttk") ]
+      call qsort(s)
+      e = [ string("adghtypa"), string("fgityclt"), string("fqnfgoau"), string("gwisvfyc"), &
+            string("jsmyblzt"), string("nezlbflp"), string("nsthemzb"), string("odhwtxgg"), &
+            string("okepmhsw"), string("oxuplhxq"), string("oyfvgytz"), string("rowvqngo"), &
+            string("shjfsiix"), string("tiewijrx"), string("tquyqeyp"), string("ugpwhttk"), &
+            string("ymutpqwx") ]
+      call tc%assert_eq(e, s, "sort 17 strings")
+    end block
+
     call tc%finish()
   end subroutine test_qsort
 
