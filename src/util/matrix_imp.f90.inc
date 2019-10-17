@@ -5,6 +5,7 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
+#define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 
 #define MATRIX_TYPE          CONCAT(matrix,T)
@@ -70,23 +71,18 @@
 #define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
-#define SPARSE_GET_CSR       CONCAT3(sparse,T,get_csr)
-#define SPARSE_SET_CSR       CONCAT3(sparse,T,set_csr)
-#define SPARSE_DESTRUCT_CSR  CONCAT3(sparse,T,destruct_csr)
-#define SPARSE_SET_MV_HINT   CONCAT3(sparse,T,set_mv_hint)
-#define SPARSE_SET_MM_HINT   CONCAT3(sparse,T,set_mm_hint)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
-#define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
+#define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
 #define SPBUILD_SET          CONCAT3(spbuild,T,set)
 #define SPBUILD_SET_ROW      CONCAT3(spbuild,T,set_row)
 #define SPBUILD_ADD          CONCAT3(spbuild,T,add)
 #define SPBUILD_SORT         CONCAT3(spbuild,T,sort)
-#define SPBUILD_FINISH       CONCAT3(spbuild,T,finish)
-#define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
+#define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
+#define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
 #define BAND_TYPE            CONCAT(band,T)
 #define BAND_INIT            CONCAT3(band,T,init)
@@ -129,7 +125,7 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 
-subroutine MATRIX_INIT(this, dum, nrows, ncols, symm)
+subroutine MATRIX_INIT(this, dum, nrows, ncols)
   !! Initialize matrix.
 
   class(MATRIX_TYPE), intent(out) :: this
@@ -140,22 +136,18 @@ subroutine MATRIX_INIT(this, dum, nrows, ncols, symm)
     !! Number of rows
   integer, optional,  intent(in)  :: ncols
     !! Optional number of columns (default: ncols = nrows)
-  logical, optional,  intent(in)  :: symm
-    !! Optional symmetry flag (default: false)
 
   IGNORE(dum)
 
   this%nrows = nrows
   this%ncols = nrows
   if (present(ncols)) this%ncols = ncols
-  this%symm = .false.
-  if (present(symm)) this%symm = symm
 
   ASSERT(this%nrows > 0)
   ASSERT(this%ncols > 0)
 end subroutine
 
-subroutine DENSE_INIT(this, nrows, ncols, d0, symm)
+subroutine DENSE_INIT(this, nrows, ncols, d0)
   !! Initialize dense matrix.
 
   class(DENSE_TYPE), intent(out) :: this
@@ -166,11 +158,9 @@ subroutine DENSE_INIT(this, nrows, ncols, d0, symm)
     !! Optional: Number of columns. (Default: ncols = nrows)
   TT,      optional, intent(in)  :: d0(:,:)
     !! Optional: Provide initial data. (Default: d0 = 0)
-  logical, optional,  intent(in)  :: symm
-    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", nrows, ncols = ncols, symm = symm)
+  call this%MATRIX_INIT("", nrows, ncols = ncols)
 
   ! allocate data
   if (present(d0)) then
@@ -505,10 +495,8 @@ subroutine DENSE_ADD_SPARSE(this, s, fact)
     !! Sparse matrix scaling factor (default: 1)
 
   ! local variables
-  integer          :: i, j
-  TT               :: fact_
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
+  integer :: i, j
+  TT      :: fact_
 
   ASSERT(this%nrows == s%nrows)
   ASSERT(this%ncols == s%ncols)
@@ -519,13 +507,10 @@ subroutine DENSE_ADD_SPARSE(this, s, fact)
   fact_ = 1
   if (present(fact)) fact_ = fact
 
-  ! get csr
-  call s%get_csr(ia0, ia1, ja, a)
-
   ! add contents of sparse matrix
   do i = 1, s%nrows
-    do j = ia0(i), ia1(i)-1
-      this%d(i,ja(j)) = this%d(i,ja(j)) + fact_ * a(j)
+    do j = s%ia(i), s%ia(i+1)-1
+      this%d(i,s%ja(j)) = this%d(i,s%ja(j)) + fact_ * s%a(j)
     end do
   end do
 end subroutine
@@ -795,7 +780,7 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine SPARSE_INIT(this, nrows, ncols, symm)
+subroutine SPARSE_INIT(this, nrows, ncols)
   !! Initialize sparse matrix.
 
   class(SPARSE_TYPE), intent(out) :: this
@@ -804,17 +789,9 @@ subroutine SPARSE_INIT(this, nrows, ncols, symm)
     !! Number of rows
   integer, optional,  intent(in)  :: ncols
     !! Optional: Number of columns (default: ncols = nrows)
-  logical, optional,  intent(in)  :: symm
-    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", nrows, ncols = ncols, symm = symm)
-
-  ! empty mkl handle
-  this%mkl_spmat%ptr = 0
-
-  ! set matrix descriptor type
-  this%mkl_descr%type = SPARSE_MATRIX_TYPE_GENERAL
+  call this%MATRIX_INIT("", nrows, ncols = ncols)
 end subroutine
 
 subroutine SPARSE_DESTRUCT(this)
@@ -823,8 +800,10 @@ subroutine SPARSE_DESTRUCT(this)
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
 
-  ! free mkl handle
-  call this%destruct_csr()
+  ! deallocate CSR data
+  if (allocated(this%ia)) deallocate(this%ia)
+  if (allocated(this%ja)) deallocate(this%ja)
+  if (allocated(this%a )) deallocate(this%a )
 
   ! destruct pardiso handle
   call this%pard%destruct()
@@ -844,9 +823,11 @@ subroutine SPARSE_RESET(this, only_factorization)
   only_fact = .false.
   if (present(only_factorization)) only_fact = only_factorization
 
-  ! free mkl handle
+  ! deallocate CSR data
   if (.not. only_fact) then
-    call this%destruct_csr()
+    if (allocated(this%ia)) deallocate(this%ia)
+    if (allocated(this%ja)) deallocate(this%ja)
+    if (allocated(this%a )) deallocate(this%a )
   end if
 
   ! destruct factorization
@@ -861,20 +842,10 @@ subroutine SPARSE_SCALE(this, fact)
   TT,                 intent(in)    :: fact
     !! Scaling factor
 
-  ! local variables
-  integer          :: i
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
-
   ASSERT(.not. this%pard%factorized)
 
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, a)
-
   ! scale values
-  do i = 1, this%nrows
-    a(ia0(i):ia1(i)-1) = fact * a(ia0(i):ia1(i)-1)
-  end do
+  this%a = fact * this%a
 end subroutine
 
 subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
@@ -890,38 +861,61 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   TT,               optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transpose flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  TT                  :: fact_y_
-  integer             :: info
-  integer(kind=c_int) :: mkl_trans
+  integer          :: i, j
+  TT               :: fact_y_
+  character(len=1) :: trans_
 
   ! y scaling factor
   fact_y_ = 0
   if (present(fact_y)) fact_y_ = fact_y
+  y = fact_y_ * y
 
-  ! matrix operation
-  mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-  if (present(trans)) then
-    if (trans == 'N') then
-      mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-    elseif (trans == 'T') then
-      mkl_trans = SPARSE_OPERATION_TRANSPOSE
-    elseif (trans == 'C') then
-      mkl_trans = SPARSE_OPERATION_CONJUGATE_TRANSPOSE
-    else
-      print *, trans
-      call program_error("trans must be 'N', 'T' or 'C'")
-    end if
-  end if
-
+  ! transpose flag
+  trans_ = 'N'
+  if (present(trans)) trans_ = trans
 #ifdef TCMPLX
-  info = mkl_sparse_z_mv(mkl_trans, (1.0,0.0), this%mkl_spmat, this%mkl_descr, x, fact_y_, y)
+  ASSERT((trans_ == 'N') .or. (trans_ == 'T') .or. (trans_ == 'C'))
 #else
-  info = mkl_sparse_d_mv(mkl_trans, 1.0, this%mkl_spmat, this%mkl_descr, x, fact_y_, y)
+  ASSERT((trans_ == 'N') .or. (trans_ == 'T'))
 #endif
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix vector multiplication error", code = info)
+
+  if (trans_ == 'N') then
+    ! matrix vector multiplication
+    !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+    do i = 1, this%nrows
+      do j = this%ia(i), this%ia(i+1)-1
+        y(i) = fact_y_ * y(i) + this%a(j) * x(this%ja(j))
+      end do
+    end do
+    !$omp end parallel do
+  else
+#ifdef TCMPLX
+    if (trans_ == 'C') then
+      ! matrix vector multiplication with complex conjugated transposed matrix
+      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      do i = 1, this%nrows
+        do j = this%ia(i), this%ia(i+1)-1
+          y(this%ja(j)) = y(this%ja(j)) + conjg(this%a(j)) * x(i)
+        end do
+      end do
+      !$omp end parallel do
+    else
+#endif
+      ! matrix vector multiplication with transposed matrix
+      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      do i = 1, this%nrows
+        do j = this%ia(i), this%ia(i+1)-1
+          y(this%ja(j)) = y(this%ja(j)) + this%a(j) * x(i)
+        end do
+      end do
+      !$omp end parallel do
+#ifdef TCMPLX
+    end if
+#endif
+  end if
 end subroutine
 
 subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
@@ -937,40 +931,61 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   TT,               optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
-    !! Transposed flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transpose flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  TT                  :: fact_y_
-  integer             :: info
-  integer(kind=c_int) :: mkl_trans
+  integer          :: i, j
+  TT               :: fact_y_
+  character(len=1) :: trans_
 
   ! y scaling factor
   fact_y_ = 0
   if (present(fact_y)) fact_y_ = fact_y
+  y = fact_y_ * y
 
-  ! matrix operation
-  mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-  if (present(trans)) then
-    if (trans == 'N') then
-      mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-    elseif (trans == 'T') then
-      mkl_trans = SPARSE_OPERATION_TRANSPOSE
-    elseif (trans == 'C') then
-      mkl_trans = SPARSE_OPERATION_CONJUGATE_TRANSPOSE
-    else
-      print *, trans
-      call program_error("trans must be 'N', 'T' or 'C'")
-    end if
-  end if
-
+  ! transpose flag
+  trans_ = 'N'
+  if (present(trans)) trans_ = trans
 #ifdef TCMPLX
-  info = mkl_sparse_z_mm(mkl_trans, (1.0,0.0), this%mkl_spmat, this%mkl_descr, SPARSE_LAYOUT_COLUMN_MAJOR, &
-                         x, size(y,2), size(x,1), fact_y_, y, size(y,1))
+  ASSERT((trans_ == 'N') .or. (trans_ == 'T') .or. (trans_ == 'C'))
 #else
-  info = mkl_sparse_d_mm(mkl_trans, 1.0, this%mkl_spmat, this%mkl_descr, SPARSE_LAYOUT_COLUMN_MAJOR, &
-                         x, size(y,2), size(x,1), fact_y_, y, size(y,1))
+  ASSERT((trans_ == 'N') .or. (trans_ == 'T'))
 #endif
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix matrix multiplication error", code = info)
+
+  if (trans_ == 'N') then
+    ! matrix matrix multiplication
+    !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+    do i = 1, this%nrows
+      do j = this%ia(i), this%ia(i+1)-1
+        y(i,:) = y(i,:) + this%a(j) * x(this%ja(j),:)
+      end do
+    end do
+    !$omp end parallel do
+  else
+#ifdef TCMPLX
+    if (trans_ == 'C') then
+      ! matrix matrix multiplication with complex conjugated transposed matrix
+      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      do i = 1, this%nrows
+        do j = this%ia(i), this%ia(i+1)-1
+          y(this%ja(j),:) = y(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
+        end do
+      end do
+      !$omp end parallel do
+    else
+#endif
+      ! matrix matrix multiplication with transposed matrix
+      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      do i = 1, this%nrows
+        do j = this%ia(i), this%ia(i+1)-1
+          y(this%ja(j),:) = y(this%ja(j),:) + this%a(j) * x(i,:)
+        end do
+      end do
+      !$omp end parallel do
+#ifdef TCMPLX
+    end if
+#endif
+  end if
 end subroutine
 
 subroutine SPARSE_FACTORIZE(this)
@@ -978,10 +993,6 @@ subroutine SPARSE_FACTORIZE(this)
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
-
-  ! local variables
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
 
   ASSERT(.not. this%pard%factorized)
 
@@ -991,11 +1002,8 @@ subroutine SPARSE_FACTORIZE(this)
   call this%pard%init(this%nrows, .false.)
 #endif
 
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, a)
-
   ! factorize with pardiso
-  call this%pard%factorize(ia0, ia1, ja, a)
+  call this%pard%factorize(this%ia, this%ja, this%a)
 end subroutine
 
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -1023,7 +1031,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   end if
 
   ! solve system with pardiso
-  call this%pard%solve(rhs, x)
+  call this%pard%solve(this%ia, this%ja, this%a, rhs, x)
 end subroutine
 
 subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
@@ -1059,7 +1067,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   ! solve with pardiso, pass right-hand sides one after another in 1D array
   rhs_ = reshape(rhs, [size(rhs,1) * size(rhs,2)])
-  call this%pard%solve(rhs_, x_)
+  call this%pard%solve(this%ia, this%ja, this%a, rhs_, x_)
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine
 
@@ -1077,8 +1085,6 @@ subroutine SPARSE_TO_DENSE(this, d, i0, j0)
 
   ! local variables
   integer          :: i, j, i0_, j0_
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
 
   ! optional arguments
   i0_ = 1
@@ -1086,13 +1092,10 @@ subroutine SPARSE_TO_DENSE(this, d, i0, j0)
   j0_ = 1
   if (present(j0)) j0_ = j0
 
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, a)
-
   ! insert values into dense matrix
   do i = 1, this%nrows
-    do j = ia0(i), ia1(i)-1
-      d%d(i0_+i-1,j0_+ja(j)-1) = a(j)
+    do j = this%ia(i), this%ia(i+1)-1
+      d%d(i0_+i-1,j0_+this%ja(j)-1) = this%a(j)
     end do
   end do
 end subroutine
@@ -1115,8 +1118,6 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
 
   ! local variables
   integer          :: i, j, i0_, j0_
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
   logical          :: drop_zeros_
 
   ! optional arguments
@@ -1128,21 +1129,18 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   j0_ = 1
   if (present(j0)) j0_ = j0
 
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, a)
-
   ! insert values into second sparse matrix
   do i = 1, this%nrows
-    do j = ia0(i), ia1(i)-1
+    do j = this%ia(i), this%ia(i+1)-1
       ! check structure
       if (present(struct)) then
-        if (.not. struct(i,ja(j))) cycle
+        if (.not. struct(i,this%ja(j))) cycle
       elseif (drop_zeros_) then
-        if (a(j) == 0) cycle
+        if (this%a(j) == 0) cycle
       end if
 
       ! insert value without searching (append to rows)
-      call sb%set(i0_+i-1, j0_+ja(j)-1, a(j), search = .false.)
+      call sb%set(i0_+i-1, j0_+this%ja(j)-1, this%a(j), search = .false.)
     end do
   end do
 end subroutine
@@ -1156,20 +1154,13 @@ subroutine SPARSE_TO_REAL(this, s)
   class(sparse_real),  intent(out) :: s
     !! Output real(this)
 
-  ! local variables
-  integer, pointer     :: ia0(:), ia1(:), ja(:)
-  complex, pointer     :: ac(:)
-  real,    allocatable :: a(:)
-
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, ac)
-
-  ! convert values to real
-  allocate (a(size(ac)), source = real(ac))
-
   ! init s
   call s%init(this%nrows, ncols = this%ncols)
-  call s%set_csr(ia0, ia1, ja, a)
+
+  ! copy csr
+  allocate (s%ia(size(this%ia)), source = this%ia     )
+  allocate (s%ja(size(this%ja)), source = this%ja     )
+  allocate (s%a( size(this%a )), source = real(this%a))
 end subroutine
 #else
 subroutine SPARSE_TO_CMPLX(this, s)
@@ -1180,20 +1171,13 @@ subroutine SPARSE_TO_CMPLX(this, s)
   class(sparse_cmplx), intent(out) :: s
     !! Output cmplx(this)
 
-  ! local variables
-  integer, pointer     :: ia0(:), ia1(:), ja(:)
-  real,    pointer     :: a(:)
-  complex, allocatable :: ac(:)
-
-  ! get csr
-  call this%get_csr(ia0, ia1, ja, a)
-
-  ! convert values to complex
-  allocate (ac(size(a)), source = cmplx(a))
-
   ! init s
   call s%init(this%nrows, ncols = this%ncols)
-  call s%set_csr(ia0, ia1, ja, ac)
+
+  ! copy csr
+  allocate (s%ia(size(this%ia)), source = this%ia      )
+  allocate (s%ja(size(this%ja)), source = this%ja      )
+  allocate (s%a( size(this%a )), source = cmplx(this%a))
 end subroutine
 #endif
 
@@ -1208,28 +1192,65 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
     !! Second sparse matrix scaling factor (default: 1)
 
   ! local variables
-  integer               :: info
-  TT                    :: fact_
-  type(sparse_matrix_t) :: mkl_c
+  integer              :: i, j1, j2
+  TT                   :: fact_
+  integer, allocatable :: ia(:)
+  type(vector_int)     :: ja
+  type(VECTOR_TYPE)    :: a
 
+  ASSERT(this%nrows == s%nrows)
+  ASSERT(this%ncols == s%ncols)
   ASSERT(.not. this%pard%factorized)
 
   ! optional arguments
   fact_ = 1
   if (present(fact)) fact_ = fact
 
-#ifdef TCMPLX
-  info = mkl_sparse_z_add(SPARSE_OPERATION_NON_TRANSPOSE, s%mkl_spmat, fact_, this%mkl_spmat, mkl_c)
-#else
-  info = mkl_sparse_d_add(SPARSE_OPERATION_NON_TRANSPOSE, s%mkl_spmat, fact_, this%mkl_spmat, mkl_c)
-#endif
-  if (info /= 0) call program_error("MKL sparse matrix addition error", code = info)
+  ! allocate memory
+  allocate (ia(this%nrows + 1))
+  call ja%init(0, c = size(this%ja) + size(s%ja))
+  call a%init( 0, c = size(this%ja) + size(s%ja))
 
-  ! delete old matrix
-  call this%destruct_csr()
+  ! add matrices
+  ia(1) = 1
+  do i = 1, this%nrows
+    j1 = this%ia(i)
+    j2 = s%ia(i)
+    do while ((j1 < this%ia(i+1)) .and. (j2 < s%ia(i+1)))
+      if (this%ja(j1) < s%ja(j2)) then
+        call ja%push(this%ja(j1))
+        call a%push(this%a(j1))
+        j1 = j1 + 1
+      elseif (this%ja(j1) > s%ja(j2)) then
+        call ja%push(s%ja(j2))
+        call a%push(s%a(j2))
+        j2 = j2 + 1
+      else
+        call ja%push(this%ja(j1))
+        call a%push(this%a(j1) + fact_ * s%a(j2))
+        j1 = j1 + 1
+        j2 = j2 + 1
+      end if
+    end do
+    do while (j1 < this%ia(i+1))
+      call ja%push(this%ja(j1))
+      call a%push(this%a(j1))
+      j1 = j1 + 1
+    end do
+    do while (j2 < s%ia(i+1))
+      call ja%push(s%ja(j2))
+      call a%push(s%a(j2))
+      j2 = j2 + 1
+    end do
+    ia(i+1) = ja%n
+  end do
 
-  ! save result
-  this%mkl_spmat = mkl_c
+  ! delete old csr data and replace it
+  call move_alloc(ia, this%ia)
+  deallocate (this%ja)
+  deallocate (this%a )
+  allocate (this%ja(ja%n), source = ja%d(1:ja%n))
+  allocate (this%a(  a%n), source =  a%d(1: a%n))
 end subroutine
 
 subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
@@ -1246,22 +1267,18 @@ subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
   TT, optional,       intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  ! local variables
-  integer :: info
+  ASSERT(this%nrows == s2%nrows)
+  ASSERT(this%ncols == s2%ncols)
 
-  ! init s3
+  ! s3 = fact1 * this + fact2 * s2
   call s3%init(this%nrows, ncols = this%ncols)
-
-  ! copy this matrix to s3
-  info = mkl_sparse_copy(this%mkl_spmat, this%mkl_descr, s3%mkl_spmat)
-  if (info /= 0) call program_error("MKL sparse matrix copy error", code = info)
-
-  ! scale
+  s3%ia = this%ia
+  s3%ja = this%ja
   if (present(fact1)) then
-    call s3%scale(fact1)
+    s3%a = fact1 * this%a
+  else
+    s3%a = this%a
   end if
-
-  ! add s2 to s3
   call s3%add_sparse(s2, fact = fact2)
 end subroutine
 
@@ -1276,61 +1293,59 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
     !! Band matrix scaling factor (default: 1)
 
   ! local variables
-  integer               :: i, j, k, n, info
-  TT                    :: fact_
-  integer, allocatable  :: ia0(:), ia1(:), ja(:)
-  TT,      allocatable  :: a(:)
-  type(sparse_matrix_t) :: mkl_b, mkl_c
+  integer              :: i, j1, j2
+  integer, allocatable :: ia(:)
+  TT                   :: fact_
+  type(vector_int)     :: ja
+  type(VECTOR_TYPE)    :: a
 
+  ASSERT(this%nrows == b%nrows)
+  ASSERT(this%ncols == b%ncols)
   ASSERT(.not. this%pard%factorized)
 
   ! optional arguments
   fact_ = 1
   if (present(fact)) fact_ = fact
 
-  ! total number of elements in band matrix
-  n = b%ndiags * b%nrows - (b%ndiags * b%ndiags - 1) / 4
-
-  ! convert band matrix to csr
-  allocate (ia0(b%nrows))
-  allocate (ia1(b%nrows))
-  allocate (ja(n))
-  allocate (a( n))
-  k = 0
-  do i = 1, b%nrows
-    ia0(i) = k + 1
-    do j = i + b%i0, i + b%i1
-      if ((j < 1) .or. (j > b%ncols)) cycle
-      k     = k + 1
-      ja(k) = j
-      a( k) = b%d(i-j,j)
+  ! add matrices
+  do i = 1, this%nrows
+    j1 = this%ia(i)
+    j2 = max(i + b%i0, 1)
+    do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%i1, b%ncols)))
+      if (this%ja(j1) < j2) then
+        call ja%push(this%ja(j1))
+        call a%push(this%a(j1))
+        j1 = j1 + 1
+      elseif (this%ja(j1) > j2) then
+        call ja%push(j2)
+        call a%push(b%d(i-j2,j2))
+        j2 = j2 + 1
+      else
+        call ja%push(j2)
+        call a%push(this%a(j1) + fact_ * b%d(i-j2,j2))
+        j1 = j1 + 1
+        j2 = j2 + 1
+      end if
     end do
-    ia1(i) = k + 1
+    do while (j1 < this%ia(i+1))
+      call ja%push(this%ja(j1))
+      call a%push(this%a(j1))
+      j1 = j1 + 1
+    end do
+    do while (j2 <= min(i + b%i1, b%ncols))
+      call ja%push(j2)
+      call a%push(b%d(i-j2,j2))
+      j2 = j2 + 1
+    end do
+    ia(i+1) = ja%n
   end do
 
-  ! create MKL handle for band matrix
-#ifdef TCMPLX
-  info = mkl_sparse_z_create_csr(mkl_b, SPARSE_INDEX_BASE_ONE, b%nrows, b%ncols, ia0, ia1, ja, a)
-#else
-  info = mkl_sparse_d_create_csr(mkl_b, SPARSE_INDEX_BASE_ONE, b%nrows, b%ncols, ia0, ia1, ja, a)
-#endif
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix create error", code = info)
-
-  ! add this and b
-#ifdef TCMPLX
-  info = mkl_sparse_z_add(SPARSE_OPERATION_NON_TRANSPOSE, mkl_b, fact_, this%mkl_spmat, mkl_c)
-#else
-  info = mkl_sparse_d_add(SPARSE_OPERATION_NON_TRANSPOSE, mkl_b, fact_, this%mkl_spmat, mkl_c)
-#endif
-  if (info /= 0) call program_error("MKL sparse matrix addition error", code = info)
-
-  ! delete old matrix and b MKL handle
-  call this%destruct_csr()
-  info = mkl_sparse_destroy(mkl_b)
-  if (info /= 0) call program_error("MKL sparse matrix destroy error", code = info)
-
-  ! save result
-  this%mkl_spmat = mkl_c
+  ! delete old csr data and replace it
+  call move_alloc(ia, this%ia)
+  deallocate (this%ja)
+  deallocate (this%a )
+  allocate (this%ja(ja%n), source = ja%d(1:ja%n))
+  allocate (this%a(  a%n), source =  a%d(1: a%n))
 end subroutine
 
 subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
@@ -1347,22 +1362,18 @@ subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
   TT, optional,       intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  ! local variables
-  integer :: info
+  ASSERT(this%nrows == b2%nrows)
+  ASSERT(this%ncols == b2%ncols)
 
-  ! init s3
+  ! s3 = fact1 * this + fact2 * s2
   call s3%init(this%nrows, ncols = this%ncols)
-
-  ! copy this matrix to s3
-  info = mkl_sparse_copy(this%mkl_spmat, this%mkl_descr, s3%mkl_spmat)
-  if (info /= 0) call program_error("MKL sparse matrix copy error", code = info)
-
-  ! scale
+  s3%ia = this%ia
+  s3%ja = this%ja
   if (present(fact1)) then
-    call s3%scale(fact1)
+    s3%a = fact1 * this%a
+  else
+    s3%a = this%a
   end if
-
-  ! add b2 to s3
   call s3%add_band(b2, fact = fact2)
 end subroutine
 
@@ -1377,173 +1388,136 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
     !! Output sparse third matrix
 
   ! local variables
-  integer :: info
+  integer              :: i, j, k, num_threads, thread_i, icol0, icol1
+  TT                   :: next_val
+  integer, allocatable :: ia0(:), ia1(:), ja(:), thread_n(:), thread_i0(:), thread_i1(:)
+  TT,      allocatable :: a(:), row(:)
+  logical, allocatable :: fil(:)
+  type(vector_int)     :: col, row_idx, colptr0, colptr1
+  type(VECTOR_TYPE)    :: val
+
+  ! check dimensions
+  ASSERT(this%ncols == s2%nrows)
 
   ! init s3
   call s3%init(this%nrows, ncols = s2%ncols)
 
-  ! s3 = this * s2
-  info = mkl_sparse_spmm(SPARSE_OPERATION_NON_TRANSPOSE, this%mkl_spmat, s2%mkl_spmat, s3%mkl_spmat)
-  if (info /= 0) call program_error("MKL sparse matrix multiplication error", code = info)
-end subroutine
+  ! allocate memory for global 4-array csr row pointers
+  allocate (ia0(s3%nrows))
+  allocate (ia1(s3%nrows))
 
-subroutine SPARSE_GET_CSR(this, ia0, ia1, ja, a)
-  !! Get pointers to CSR.
+  ! allocate memory for thread element counters and start stop indices
+  num_threads = omp_get_max_threads()
+  allocate (thread_n( num_threads), source = 0)
+  allocate (thread_i0(num_threads), source = 0)
+  allocate (thread_i1(num_threads), source = 0)
 
-  class(SPARSE_TYPE), intent(in)  :: this
-    !! Sparse matrix
-  integer, pointer,   intent(out) :: ia0(:)
-    !! Output pointer to row start pointers
-  integer, pointer,   intent(out) :: ia1(:)
-    !! Output pointer to row end pointers (exclusive)
-  integer, pointer,   intent(out) :: ja(:)
-    !! Output pointer to column indices
-  TT,      pointer,   intent(out) :: a(:)
-    !! Output pointer to values
+  ! work in parallel
+  !$omp parallel private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
+                 shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
 
-  ! local variables
-  integer             :: info
-  integer(kind=c_int) :: nrows, ncols, indexing
+  ! get current thread id
+  thread_i = omp_get_thread_num() + 1
 
-  ! init pointers
-  nullify(ia0, ia1, ja, a)
+  ! allocate thread local memory
+  call col%init(    0, c = 8*(s3%nrows+s3%ncols)) ! hopefully overallocated
+  call val%init(    0, c = 8*(s3%nrows+s3%ncols))
+  call row_idx%init(0, c =    s3%nrows          )
+  call colptr0%init(0, c =    s3%nrows          )
+  call colptr1%init(0, c =    s3%nrows          )
+  allocate (row(s2%ncols)                  )
+  allocate (fil(s2%ncols), source = .false.)
 
-  ! return null pointers if empty
-  if (this%mkl_spmat%ptr == 0) return
+  ! init first column pointer
+  icol1 = 0
 
-#ifdef TCMPLX
-  info = mkl_sparse_z_export_csr(this%mkl_spmat, indexing, nrows, ncols, ia0, ia1, ja, a)
-#else
-  info = mkl_sparse_d_export_csr(this%mkl_spmat, indexing, nrows, ncols, ia0, ia1, ja, a)
-#endif
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix get CSR error", code = info)
+  ! loop in parallel over rows of the first matrix
+  !$omp do schedule(dynamic)
+  do i = 1, this%nrows
+    ! loop over columns of first matrix
+    do j = this%ia(i), this%ia(i+1)-1
+      ! loop over columns of second matrix where the row is equal to column of the first matrix
+      do k = s2%ia(this%ja(j)), s2%ia(this%ja(j)+1)-1
+        ! calculate new value
+        next_val = this%a(j) * s2%a(k)
+        if (next_val == 0) cycle
 
-  ! FIXME: Remove if not necessary
-  ASSERT(indexing == SPARSE_INDEX_BASE_ONE)
-end subroutine
+        ! check whether element already exists
+        if (fil(s2%ja(k))) then
+          ! update value
+          row(s2%ja(k)) = row(s2%ja(k)) + next_val
+        else
+          ! set new value and fill flag, save column index
+          row(s2%ja(k)) = next_val
+          fil(s2%ja(k)) = .true.
+          call col%push(s2%ja(k))
+        end if
+      end do
+    end do
 
-subroutine SPARSE_SET_CSR(this, ia0, ia1, ja, a)
-  !! Set CSR data.
+    ! update column pointers and thread element counter
+    icol0 = icol1 + 1
+    icol1 = col%n
 
-  class(SPARSE_TYPE), intent(inout) :: this
-    !! Sparse matrix
-  integer,            intent(in)    :: ia0(:)
-    !! Row start pointers
-  integer,            intent(in)    :: ia1(:)
-    !! Row end pointers (exclusive)
-  integer,            intent(in)    :: ja(:)
-    !! Column indices
-  TT,                 intent(in)    :: a(:)
-    !! Values
+    ! save row index and column pointers
+    call row_idx%push(i)
+    call colptr0%push(icol0)
+    call colptr1%push(icol1)
 
-  ! local variables
-  integer :: info
+    ! sort newly added column indices
+    call qsort(col%d(icol0:icol1))
 
-  ! delete old values
-  call this%destruct_csr()
+    ! save values
+    call val%reserve(col%c)
+    call val%resize( col%n)
+    val%d(icol0:icol1) = row(col%d(icol0:icol1))
 
-  ! create MKL handle
-#ifdef TCMPLX
-  info = mkl_sparse_z_create_csr(this%mkl_spmat, SPARSE_INDEX_BASE_ONE, this%nrows, this%ncols, ia0, ia1, ja, a)
-#else
-  info = mkl_sparse_d_create_csr(this%mkl_spmat, SPARSE_INDEX_BASE_ONE, this%nrows, this%ncols, ia0, ia1, ja, a)
-#endif
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix create error", code = info)
-end subroutine
+    ! reset fill flag where it was set
+    fil(col%d(icol0:icol1)) = .false.
+  end do
+  !$omp end do nowait
 
-subroutine SPARSE_DESTRUCT_CSR(this)
-  !! Free memory of MKL handle.
+  ! set thread element counter in global array
+  thread_n(thread_i) = col%n
+  !$omp barrier
 
-  class(SPARSE_TYPE), intent(inout) :: this
-    !! Sparse matrix
+  !$omp single
+  ! set thread start/stop indices in global csr memory
+  j = 0
+  do i = 1, num_threads
+    thread_i0(i) = j + 1
+    thread_i1(i) = j + thread_n(i)
+    j            = thread_i1(i)
+  end do
 
-  ! local variables
-  integer :: info
+  ! allocate global 4-array csr memory
+  allocate (ja(thread_i1(num_threads)))
+  allocate (a( thread_i1(num_threads)))
+  !$omp end single
 
-  if (this%mkl_spmat%ptr /= 0) then
-    info = mkl_sparse_destroy(this%mkl_spmat)
-    if (info /= 0) call program_error("MKL sparse matrix destroy error", code = info)
-    this%mkl_spmat%ptr = 0 ! FIXME: check if unnecessary
-  end if
-end subroutine
+  ! copy data from each thread to global 4-array csr
+  ja(thread_i0(thread_i):thread_i1(thread_i)) = col%d(1:col%n)
+  a (thread_i0(thread_i):thread_i1(thread_i)) = val%d(1:val%n)
 
-subroutine SPARSE_SET_MV_HINT(this, expected_calls, trans)
-  !! provide hint to MKL about matrix vector multiplications
+  ! set row pointers
+  ia0(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr0%d(1:row_idx%n) - 1
+  ia1(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr1%d(1:row_idx%n)
 
-  class(SPARSE_TYPE),         intent(inout) :: this
-    !! Sparse matrix
-  integer,                    intent(in)    :: expected_calls
-    !! Expected number of matrix vector multiplications
-  character(len=1), optional, intent(in)    :: trans
-    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+  !$omp end parallel
 
-  ! local variables
-  integer             :: info
-  integer(kind=c_int) :: mkl_trans
-
-  ! matrix operation
-  mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-  if (present(trans)) then
-    if (trans == 'N') then
-      mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-    elseif (trans == 'T') then
-      mkl_trans = SPARSE_OPERATION_TRANSPOSE
-    elseif (trans == 'C') then
-      mkl_trans = SPARSE_OPERATION_CONJUGATE_TRANSPOSE
-    else
-      print *, trans
-      call program_error("trans must be 'N', 'T' or 'C'")
-    end if
-  end if
-
-  ! provide hint
-  info = mkl_sparse_set_mv_hint(this%mkl_spmat, mkl_trans, this%mkl_descr, expected_calls)
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix set mv hint error", code = info)
-
-  ! optimize sparse matrix
-  info = mkl_sparse_optimize(this%mkl_spmat)
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix optimize error", code = info)
-end subroutine
-
-subroutine SPARSE_SET_MM_HINT(this, expected_calls, ncols, trans)
-  !! Provide hint to MKL about matrix matrix multiplications
-
-  class(SPARSE_TYPE),         intent(inout) :: this
-    !! Sparse matrix
-  integer,                    intent(in)    :: expected_calls
-    !! Expected number of matrix vector multiplications
-  integer,                    intent(in)    :: ncols
-    !! Number of columns of second matrix
-  character(len=1), optional, intent(in)    :: trans
-    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
-
-  ! local variables
-  integer             :: info
-  integer(kind=c_int) :: mkl_trans
-
-  ! matrix operation
-  mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-  if (present(trans)) then
-    if (trans == 'N') then
-      mkl_trans = SPARSE_OPERATION_NON_TRANSPOSE
-    elseif (trans == 'T') then
-      mkl_trans = SPARSE_OPERATION_TRANSPOSE
-    elseif (trans == 'C') then
-      mkl_trans = SPARSE_OPERATION_CONJUGATE_TRANSPOSE
-    else
-      print *, trans
-      call program_error("trans must be 'N', 'T' or 'C'")
-    end if
-  end if
-
-  ! provide hint
-  info = mkl_sparse_set_mm_hint(this%mkl_spmat, mkl_trans, this%mkl_descr, SPARSE_LAYOUT_COLUMN_MAJOR, &
-                                ncols, expected_calls)
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix set mm hint error", code = info)
-
-  ! optimize sparse matrix
-  info = mkl_sparse_optimize(this%mkl_spmat)
-  if (info /= SPARSE_STATUS_SUCCESS) call program_error("MKL sparse matrix optimize error", code = info)
+  ! convert 4-array csr to 3-array csr
+  allocate (s3%ia(s3%nrows + 1))
+  allocate (s3%ja(size(ja)))
+  allocate (s3%a( size(a)))
+  j = 0
+  do i = 1, s3%nrows
+    k = j + 1
+    j = j + ia1(i) - ia0(i)
+    s3%ja(k:j) = ja(ia0(i):ia1(i)-1)
+    s3%a( k:j) = a( ia0(i):ia1(i)-1)
+    s3%ia(  i) = k
+  end do
+  s3%ia(s3%nrows+1) = j + 1
 end subroutine
 
 subroutine SPARSE_OUTPUT(this, file, funit, fmt)
@@ -1560,8 +1534,6 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
 
   ! local variables
   integer                       :: i, j, status, funit_
-  integer, pointer              :: ia0(:), ia1(:), ja(:)
-  TT,      pointer              :: a(:)
   character(len=:), allocatable :: fmt_
 
   if (present(fmt)) then
@@ -1586,14 +1558,13 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   end if
 
   ! output csr
-  call this%get_csr(ia0, ia1, ja, a)
   do i = 1, this%nrows
-    do j = ia0(i), ia1(i)-1
+    do j = this%ia(i), this%ia(i+1)-1
       ! write row and column
-      write(funit_, "(1I0,1A,1I0,1A)", advance = "no") i, " ", ja(j), " "
+      write(funit_, "(1I0,1A,1I0,1A)", advance = "no") i, " ", this%ja(j), " "
 
       ! write value
-      write(funit_, fmt_) a(j)
+      write(funit_, fmt_) this%a(j)
     end do
   end do
 
@@ -1601,16 +1572,22 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine SPBUILD_INIT(this, s)
+subroutine SPBUILD_INIT(this, s, n_per_row)
   !! Initialize sparse matrix builder.
 
   class(SPBUILD_TYPE),       intent(out) :: this
     !! Sparse matrix builder
   type(SPARSE_TYPE), target, intent(in)  :: s
     !! Sparse matrix this builder is tied to
+  integer, optional,         intent(in)  :: n_per_row
+    !! Optional: provide hint for number of elements per row (default: 8)
 
   ! local variables
-  integer :: i
+  integer :: i, c
+
+  ! number of elements per row
+  c = 8
+  if (present(n_per_row)) c = n_per_row
 
   ! save pointer to matrix
   this%sp => s
@@ -1620,9 +1597,9 @@ subroutine SPBUILD_INIT(this, s)
   allocate(this%vals(  s%nrows))
   allocate(this%filled(s%nrows))
   do i = 1, s%nrows
-    call this%cols(i)%init(n = 0, c = 8)
-    call this%vals(i)%init(n = 0, c = 8)
-    call this%filled(i)%init(n = 0, c = 8)
+    call this%cols(i)%init(n = 0, c = c)
+    call this%vals(i)%init(n = 0, c = c)
+    call this%filled(i)%init(n = 0, c = c)
   end do
 
   ! allocate row flags
@@ -1631,9 +1608,6 @@ subroutine SPBUILD_INIT(this, s)
 
   ! load existing data from sparse matrix
   call this%load()
-
-  ! not finished
-  this%finished = .false.
 end subroutine
 
 subroutine SPBUILD_DESTRUCT(this)
@@ -1650,41 +1624,28 @@ subroutine SPBUILD_DESTRUCT(this)
   if (allocated(this%keep_struct)) deallocate(this%keep_struct)
 end subroutine
 
-subroutine SPBUILD_LOAD(this)
-  !! Load existing values from sparse matrix into builder.
+subroutine SPBUILD_RESET(this)
+  !! Delete all values
 
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
   ! local variables
-  integer          :: i, j
-  integer, pointer :: ia0(:), ia1(:), ja(:)
-  TT,      pointer :: a(:)
+  integer :: i
 
-  ! make sure reset was called after finish
-  ASSERT(.not. this%finished)
-
-  ! get csr representation of matrix (null() if empty)
-  call this%sp%get_csr(ia0, ia1, ja, a)
-
-  ! load all rows
+  ! reset all rows
   do i = 1, this%sp%nrows
-    ! delete values
-    call this%cols(i)%resize(0)
-    call this%vals(i)%resize(0)
-    call this%filled(i)%resize(0)
-
-    ! reset row flags
-    this%sorted(i)      = .true.
-    this%keep_struct(i) = .true.
-
-    ! add values from csr (if not empty)
-    if (associated(ia0)) then
-      do j = ia0(i), ia1(i)-1
-        call this%cols(i)%push(ja(j))
-        call this%vals(i)%push(a(j))
-        call this%filled(i)%push(.true.)
-      end do
+    if (this%keep_struct(i)) then
+      ! reset data while keeping structure
+      this%vals(  i)%d(1:this%vals(  i)%n) = 0
+      this%filled(i)%d(1:this%filled(i)%n) = .false.
+    else
+      ! reset data without keeping structure
+      call this%cols(i)%resize(0)
+      call this%vals(i)%resize(0)
+      call this%filled(i)%resize(0)
+      this%sorted(i)      = .true.
+      this%keep_struct(i) = .true.
     end if
   end do
 end subroutine
@@ -1710,7 +1671,6 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
   logical :: search_
   integer :: i, l, r, m
 
-  ASSERT(.not. this%finished)
   ASSERT(row > 0)
   ASSERT(row <= this%sp%nrows)
   ASSERT(col > 0)
@@ -1800,9 +1760,6 @@ subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   ! local variables
   integer :: j, j0_, j1_
 
-  ! make sure reset was called after finish
-  ASSERT(.not. this%finished)
-
   ! optional arguments
   j0_ = 1
   if (present(j0)) j0_ = j0
@@ -1834,9 +1791,6 @@ subroutine SPBUILD_ADD(this, row, col, val)
   ! local variables
   TT :: fact
 
-  ! make sure reset was called after finish
-  ASSERT(.not. this%finished)
-
   ! set scaling factor to 1 both for real and complex values
   fact = 1
 
@@ -1853,9 +1807,6 @@ subroutine SPBUILD_SORT(this)
   ! local variables
   integer              :: i, n
   integer, allocatable :: perm(:)
-
-  ! make sure reset was called after finish
-  ASSERT(.not. this%finished)
 
   ! sort rows in parallel
   !$omp parallel private(i, n, perm) shared(this)
@@ -1883,80 +1834,80 @@ subroutine SPBUILD_SORT(this)
   !$omp end parallel
 end subroutine
 
-subroutine SPBUILD_FINISH(this)
-  !! Create sparse matrix.
+subroutine SPBUILD_LOAD(this)
+  !! Load existing values from sparse matrix into builder.
 
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
   ! local variables
-  integer              :: i, j
-  integer, allocatable :: ia0(:), ia1(:)
-  type(vector_int)     :: ja
-  type(VECTOR_TYPE)    :: a
+  integer :: i, j
+
+  ! load all rows
+  do i = 1, this%sp%nrows
+    ! delete values
+    call this%cols(i)%resize(0)
+    call this%vals(i)%resize(0)
+    call this%filled(i)%resize(0)
+
+    ! reset row flags
+    this%sorted(i)      = .true.
+    this%keep_struct(i) = .true.
+
+    ! add values from csr (if not empty)
+    if (allocated(this%sp%ia)) then
+      do j = this%sp%ia(i), this%sp%ia(i+1)-1
+        call this%cols(i)%push(this%sp%ja(j))
+        call this%vals(i)%push(this%sp%a(j))
+        call this%filled(i)%push(.true.)
+      end do
+    end if
+  end do
+end subroutine
+
+subroutine SPBUILD_SAVE(this)
+  !! Save values in sparse matrix.
+
+  class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
+
+  ! local variables
+  integer           :: i, j, k
 
   ! sort column indices
   call this%sort()
 
-  ! allocate csr
-  allocate (ia0(this%sp%nrows))
-  allocate (ia1(this%sp%nrows))
-  call ja%init(n = 0, c = sum(this%cols%n))
-  call a%init( n = 0, c = sum(this%cols%n))
-
-  ! init csr
+  ! get total number of elements
+  k = 0
   do i = 1, this%sp%nrows
-    ! row start pointer
-    ia0(i) = ja%n + 1
-
-    ! add values to csr (consider only filled elements)
     do j = 1, this%cols(i)%n
       if (.not. this%filled(i)%d(j)) cycle
-      call ja%push(this%cols(i)%d(j))
-      call a%push( this%vals(i)%d(j))
+      k = k + 1
+    end do
+  end do
+
+  ! allocate memory
+  allocate (this%sp%ia(this%sp%nrows + 1))
+  allocate (this%sp%ja(k))
+  allocate (this%sp%a( k))
+
+  ! init csr
+  this%sp%ia(1) = 1
+  k = 0
+  do i = 1, this%sp%nrows
+    do j = 1, this%cols(i)%n
+      if (.not. this%filled(i)%d(j)) cycle
+      k             = k + 1
+      this%sp%ja(k) = this%cols(i)%d(j)
+      this%sp%a( k) = this%vals(i)%d(j)
     end do
 
-    ! row end pointer
-    ia1(i) = ja%n + 1
+    ! next row pointer
+    this%sp%ia(i+1) = k + 1
   end do
-
-  ! save csr in sparse matrix
-  call this%sp%set_csr(ia0, ia1, ja%d(1:ja%n), a%d(1:a%n))
-
-  ! set flag to indicate csr was built
-  this%finished = .true.
-end subroutine SPBUILD_FINISH
-
-subroutine SPBUILD_RESET(this)
-  !! Delete all values
-
-  class(SPBUILD_TYPE), intent(inout) :: this
-    !! Sparse matrix builder
-
-  ! local variables
-  integer :: i
-
-  ! reset all rows
-  do i = 1, this%sp%nrows
-    if (this%keep_struct(i)) then
-      ! reset data while keeping structure
-      this%vals(  i)%d(1:this%vals(  i)%n) = 0
-      this%filled(i)%d(1:this%filled(i)%n) = .false.
-    else
-      ! reset data without keeping structure
-      call this%cols(i)%resize(0)
-      call this%vals(i)%resize(0)
-      call this%filled(i)%resize(0)
-      this%sorted(i)      = .true.
-      this%keep_struct(i) = .true.
-    end if
-  end do
-
-  ! not finished, enable rebuilding
-  this%finished = .false.
 end subroutine
 
-subroutine BAND_INIT(this, ncols, ndiags, d0, symm)
+subroutine BAND_INIT(this, ncols, ndiags, d0)
   !! Initialize band matrix
 
   class(BAND_TYPE),  intent(out) :: this
@@ -1967,11 +1918,9 @@ subroutine BAND_INIT(this, ncols, ndiags, d0, symm)
     !! Total number of diagonals. Must be positive uneven integer.
   TT, optional,      intent(in)  :: d0(-(ndiags-1)/2:,:)
     !! Initial data.
-  logical, optional, intent(in)  :: symm
-    !! Optional symmetry flag (default: false)
 
   ! init base
-  call this%MATRIX_INIT("", ncols, ncols = ncols, symm = symm)
+  call this%MATRIX_INIT("", ncols, ncols = ncols)
 
   ! set number of diagonals
   ASSERT(ndiags > 0)
@@ -2098,7 +2047,7 @@ subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
       call gbmv(this%d(this%i0:this%i1,:), x(:,i), y(:,i), beta = fact_y, trans = trans)
     end do
   end if
-end subroutine BAND_MUL_MAT
+end subroutine
 
 subroutine BAND_FACTORIZE(this)
   !! Factorize band matrix. Call this before solving!
@@ -2438,7 +2387,7 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag, symm)
+subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   !! Initialize Block matrix.
 
   class(BLOCK_TYPE), intent(out) :: this
@@ -2451,8 +2400,6 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag, symm)
     !! diagonal block matrix flag (default: false)
   logical, optional, intent(in)  :: tridiag
     !! tridiagonal block matrix flag (default: false)
-  logical, optional, intent(in)  :: symm
-    !! Optional symmetry flag (default: false)
 
   ! local variables
   integer, allocatable :: col_dim_(:)
@@ -2460,10 +2407,10 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag, symm)
 
   ! init base
   if (present(col_dim)) then
-    call this%MATRIX_INIT("", sum(row_dim), ncols = sum(col_dim), symm = symm)
+    call this%MATRIX_INIT("", sum(row_dim), ncols = sum(col_dim))
     allocate (col_dim_(size(col_dim)), source = col_dim)
   else
-    call this%MATRIX_INIT("", sum(row_dim), symm = symm)
+    call this%MATRIX_INIT("", sum(row_dim))
     allocate (col_dim_(size(row_dim)), source = row_dim)
   end if
 
@@ -3048,6 +2995,7 @@ end subroutine
 #undef CONCATHELP3
 #undef CONCAT3
 
+#undef ARRAY_TYPE
 #undef VECTOR_TYPE
 
 #undef MATRIX_TYPE
@@ -3107,23 +3055,18 @@ end subroutine
 #undef SPARSE_ADD_BAND
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
-#undef SPARSE_GET_CSR
-#undef SPARSE_SET_CSR
-#undef SPARSE_DESTRUCT_CSR
-#undef SPARSE_SET_MV_HINT
-#undef SPARSE_SET_MM_HINT
 #undef SPARSE_OUTPUT
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
-#undef SPBUILD_LOAD
+#undef SPBUILD_RESET
 #undef SPBUILD_SET
 #undef SPBUILD_SET_ROW
 #undef SPBUILD_ADD
 #undef SPBUILD_SORT
-#undef SPBUILD_FINISH
-#undef SPBUILD_RESET
+#undef SPBUILD_LOAD
+#undef SPBUILD_SAVE
 
 #undef BAND_TYPE
 #undef BAND_INIT

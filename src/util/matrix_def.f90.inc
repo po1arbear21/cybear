@@ -5,6 +5,7 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
+#define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 
 #define MATRIX_TYPE          CONCAT(matrix,T)
@@ -70,23 +71,18 @@
 #define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
-#define SPARSE_GET_CSR       CONCAT3(sparse,T,get_csr)
-#define SPARSE_SET_CSR       CONCAT3(sparse,T,set_csr)
-#define SPARSE_DESTRUCT_CSR  CONCAT3(sparse,T,destruct_csr)
-#define SPARSE_SET_MV_HINT   CONCAT3(sparse,T,set_mv_hint)
-#define SPARSE_SET_MM_HINT   CONCAT3(sparse,T,set_mm_hint)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
-#define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
+#define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
 #define SPBUILD_SET          CONCAT3(spbuild,T,set)
 #define SPBUILD_SET_ROW      CONCAT3(spbuild,T,set_row)
 #define SPBUILD_ADD          CONCAT3(spbuild,T,add)
 #define SPBUILD_SORT         CONCAT3(spbuild,T,sort)
-#define SPBUILD_FINISH       CONCAT3(spbuild,T,finish)
-#define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
+#define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
+#define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
 #define BAND_TYPE            CONCAT(band,T)
 #define BAND_INIT            CONCAT3(band,T,init)
@@ -137,9 +133,6 @@ type, abstract :: MATRIX_TYPE
     !! Number of rows
   integer :: ncols
     !! Number of columns
-
-  logical :: symm
-    !! Symmetry flag
 contains
   procedure :: MATRIX_INIT
   generic   :: init => MATRIX_INIT
@@ -161,12 +154,14 @@ type MATRIX_ALC_TYPE
 end type
 
 type, extends(MATRIX_TYPE) :: DENSE_TYPE
-  ! data
-  TT, allocatable :: d(:,:)
+  !! Dense matrix type.
 
-  ! factorization data
+  TT, allocatable :: d(:,:)
+    !! Raw matrix data
   TT,      allocatable :: lu(:,:)
+    !! LU decomposition data
   integer, allocatable :: ipiv(:)
+    !! Permutation used in conjunction with lu
 contains
   procedure :: DENSE_INIT
   generic   :: init       => DENSE_INIT
@@ -200,12 +195,14 @@ contains
 end type
 
 type, extends(MATRIX_TYPE) :: SPARSE_TYPE
-  ! mkl sparse matrix handle and description
-  type(sparse_matrix_t) :: mkl_spmat
-  type(matrix_descr)    :: mkl_descr
+  !! Sparse matrix type in CSR format.
 
-  ! factorization data
+  integer, allocatable :: ia(:)
+  integer, allocatable :: ja(:)
+  TT,      allocatable :: a(:)
+
   type(pardiso_handle) :: pard
+    !! Handle to pardiso for solving
 contains
   procedure :: SPARSE_INIT
   generic   :: init         => SPARSE_INIT
@@ -231,41 +228,34 @@ contains
   procedure :: SPARSE_ADD_BAND3
   generic   :: add_band     => SPARSE_ADD_BAND, SPARSE_ADD_BAND3
   procedure :: mul_sparse   => SPARSE_MUL_SPARSE
-  procedure :: get_csr      => SPARSE_GET_CSR
-  procedure :: set_csr      => SPARSE_SET_CSR
-  procedure :: destruct_csr => SPARSE_DESTRUCT_CSR
-  procedure :: set_mv_hint  => SPARSE_SET_MV_HINT
-  procedure :: set_mm_hint  => SPARSE_SET_MM_HINT
   procedure :: output       => SPARSE_OUTPUT
 end type
 
 type SPBUILD_TYPE
-  !! Build sparse matrices with this type
+  !! Sparse matrix builder which is more flexible than simple CSR.
 
-  ! pointer to sparse matrix (non-owning)
-  type(SPARSE_TYPE), pointer :: sp
-
-  ! data
+  type(SPARSE_TYPE), pointer     :: sp
+    !! Non-owning pointer to sparse matrix this builder is tied to
   type(vector_int),  allocatable :: cols(:)
+    !! Column indices of non-zero elements in each row
   type(VECTOR_TYPE), allocatable :: vals(:)
+    !! Values of non-zero elements in each row
   type(vector_log),  allocatable :: filled(:)
-
-  ! row flags
-  logical, allocatable :: sorted(:)
-  logical, allocatable :: keep_struct(:)
-
-  ! indicate finish status
-  logical :: finished
+    !! Indicates whether a value is actually used (keep structure after reset)
+  logical, allocatable           :: sorted(:)
+    !! Indicates whether a row is sorted or not
+  logical, allocatable           :: keep_struct(:)
+    !! Indicates whether a row should be deleted completely on reset, or structure should be kept
 contains
   procedure :: init     => SPBUILD_INIT
   procedure :: destruct => SPBUILD_DESTRUCT
-  procedure :: load     => SPBUILD_LOAD
+  procedure :: reset    => SPBUILD_RESET
   procedure :: set      => SPBUILD_SET
   procedure :: set_row  => SPBUILD_SET_ROW
   procedure :: add      => SPBUILD_ADD
   procedure :: sort     => SPBUILD_SORT
-  procedure :: finish   => SPBUILD_FINISH
-  procedure :: reset    => SPBUILD_RESET
+  procedure :: load     => SPBUILD_LOAD
+  procedure :: save     => SPBUILD_SAVE
 end type
 
 type, extends(MATRIX_TYPE) :: BAND_TYPE
@@ -433,6 +423,7 @@ end interface
 #undef CONCATHELP3
 #undef CONCAT3
 
+#undef ARRAY_TYPE
 #undef VECTOR_TYPE
 
 #undef MATRIX_TYPE
@@ -492,23 +483,18 @@ end interface
 #undef SPARSE_ADD_BAND
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
-#undef SPARSE_GET_CSR
-#undef SPARSE_SET_CSR
-#undef SPARSE_DESTRUCT_CSR
-#undef SPARSE_SET_MV_HINT
-#undef SPARSE_SET_MM_HINT
 #undef SPARSE_OUTPUT
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
-#undef SPBUILD_LOAD
+#undef SPBUILD_RESET
 #undef SPBUILD_SET
 #undef SPBUILD_SET_ROW
 #undef SPBUILD_ADD
 #undef SPBUILD_SORT
-#undef SPBUILD_FINISH
-#undef SPBUILD_RESET
+#undef SPBUILD_LOAD
+#undef SPBUILD_SAVE
 
 #undef BAND_TYPE
 #undef BAND_INIT

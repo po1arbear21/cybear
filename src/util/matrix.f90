@@ -2,9 +2,10 @@
 #include "macro.f90.inc"
 
 module matrix_m
+  use array_m
   use blas95
   use lapack95
-  use mkl_spblas
+  use omp_lib
   use pardiso_m
   use qsort_m
   use vector_m

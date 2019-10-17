@@ -40,12 +40,6 @@ module pardiso_m
       !! PARDISO parameters
     logical                  :: factorized = .false.
       !! factorization complete flag
-
-    ! 3 array csr
-    integer, allocatable :: ia(:)
-    integer, allocatable :: ja(:)
-    real,    allocatable :: a(:)
-    complex, allocatable :: ac(:)
   contains
     procedure :: init          => pardiso_init
     procedure :: destruct      => pardiso_destruct
@@ -151,116 +145,71 @@ contains
     this%factorized = .false.
   end subroutine
 
-  subroutine pardiso_factorize_r(this, ia0, ia1, ja, a)
+  subroutine pardiso_factorize_r(this, ia, ja, a)
     !! Factorize real matrix with PARDISO.
 
     class(pardiso_handle), intent(inout) :: this
-    integer,               intent(in)    :: ia0(:)
-    integer,               intent(in)    :: ia1(:)
+    integer,               intent(in)    :: ia(:)
     integer,               intent(in)    :: ja(:)
     real,                  intent(in)    :: a(:)
 
     ! local variables
-    integer :: i, j, k, n, error, phase, perm(0)
+    integer :: error, phase, perm(0)
     real    :: dum(0)
 
     ! make sure the matrix type is real
     ASSERT(this%mtype == 11)
 
-    ! total number of elements
-    n = 0
-    do i = 1, this%nrows
-      n = n + ia1(i) - ia0(i)
-    end do
-
-    ! allocate 3 array csr
-    allocate (this%ia(this%nrows+1))
-    allocate (this%ja(n))
-    allocate (this%a(n))
-
-    ! convert 4 array csr to 3 array csr
-    k = 0
-    do i = 1, this%nrows
-      this%ia(i) = k + 1
-      do j = ia0(i), ia1(i)-1
-        k = k + 1
-        this%ja(k) = ja(k)
-        this%a( k) = a( k)
-      end do
-    end do
-    this%ia(this%nrows+1) = k + 1
-
     ! reordering and symbolic factorization
     phase = 11 ! analysis
     call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%a, this%ia, this%ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
+                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
     ! factorization
     phase = 22 ! numerical factorization
     call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%a, this%ia, this%ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
+                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
     this%factorized = .true.
   end subroutine
 
-  subroutine pardiso_factorize_c(this, ia0, ia1, ja, a)
+  subroutine pardiso_factorize_c(this, ia, ja, a)
     !! Factorize complex matrix with PARDISO.
 
     class(pardiso_handle), intent(inout) :: this
-    integer,               intent(in)    :: ia0(:)
-    integer,               intent(in)    :: ia1(:)
+    integer,               intent(in)    :: ia(:)
     integer,               intent(in)    :: ja(:)
     complex,               intent(in)    :: a(:)
 
     ! local variables
-    integer :: i, j, k, n, error, phase, perm(0)
+    integer :: error, phase, perm(0)
     complex :: dum(0)
 
     ! make sure matrix type is complex
     ASSERT(this%mtype == 13)
 
-    ! total number of elements
-    n = 0
-    do i = 1, this%nrows
-      n = n + ia1(i) - ia0(i)
-    end do
-
-    ! allocate 3 array csr
-    allocate (this%ia(this%nrows+1))
-    allocate (this%ja(n))
-    allocate (this%ac(n))
-
-    ! convert 4 array csr to 3 array csr
-    k = 0
-    do i = 1, this%nrows
-      this%ia(i) = k + 1
-      do j = ia0(i), ia1(i)-1
-        k = k + 1
-        this%ja(k) = ja(k)
-        this%ac(k) = a( k)
-      end do
-    end do
-    this%ia(this%nrows+1) = k + 1
-
     ! reordering and symbolic factorization
     phase = 11 ! analysis
     call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%ac, this%ia, this%ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
+                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
     ! factorization
     phase = 22 ! numerical factorization
     call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%ac, this%ia, this%ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
+                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
     this%factorized = .true.
   end subroutine
 
-  subroutine pardiso_solve_r(this, b, x)
+  subroutine pardiso_solve_r(this, ia, ja, a, b, x)
     !! Solve real system with PARDISO.
 
     class(pardiso_handle), intent(in)  :: this
+    integer,               intent(in)  :: ia(:)
+    integer,               intent(in)  :: ja(:)
+    real,                  intent(in)  :: a(:)
     real,                  intent(in)  :: b(:)
     real,                  intent(out) :: x(:)
 
@@ -281,17 +230,20 @@ contains
     ! back substitution and iterative refinement
     phase = 33 ! solve, iterative refinement
     call pardiso(pt_, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%a, this%ia, this%ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
+                 a, ia, ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
     ! make sure pardiso does not change the handle
     ASSERT(all(this%pt%dummy == pt_%dummy))
   end subroutine
 
-  subroutine pardiso_solve_c(this, b, x)
+  subroutine pardiso_solve_c(this, ia, ja, a, b, x)
     !! Solve complex system with PARDISO.
 
     class(pardiso_handle), intent(in)  :: this
+    integer,               intent(in)  :: ia(:)
+    integer,               intent(in)  :: ja(:)
+    complex,               intent(in)  :: a(:)
     complex,               intent(in)  :: b(:)
     complex,               intent(out) :: x(:)
 
@@ -312,7 +264,7 @@ contains
     ! back substitution and iterative refinement
     phase = 33 ! solve, iterative refinement
     call pardiso(pt_, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 this%ac, this%ia, this%ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
+                 a, ia, ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
     if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
     ! make sure pardiso does not change the handle
