@@ -31,7 +31,7 @@ contains
     ! 0 or 1 element
     if (i0 >= i1) return
 
-    ! quicksort with optimal sorting networks as base cases
+    ! quicksort with optimal sorting networks and insertion sort as base cases
     select case (i1 - i0)
     case (1) ! 2 elements
       call swap_cmp(i0, i1)
@@ -55,7 +55,20 @@ contains
       call swap_cmp(i0+1, i1  )
       call swap_cmp(i0+1, i1-1)
       call swap_cmp(i0+1, i0+2)
-    case default ! > 5 elements
+    case (5:15) ! 6 - 16 elements : insertion sort
+      do r = i0 + 1, i1
+        pivot = x(r)
+        if (present(perm)) mid = perm(r)
+
+        do l = r - 1, i0, -1
+          if (x(l) <= pivot) exit
+          x(l+1) = x(l)
+          if (present(perm)) perm(l+1) = perm(l)
+        end do
+        x(l+1) = pivot
+        if (present(perm)) perm(l+1) = mid
+      end do
+    case default ! > 16 elements : quick sort
       ! set pivot to median of three (sort them in the process)
       mid = (i0 + i1) / 2
       call swap_cmp(mid, i1 )

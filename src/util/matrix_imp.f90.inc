@@ -39,6 +39,8 @@
 #else
 #define DENSE_TO_CMPLX       CONCAT3(dense,T,to_cmplx)
 #endif
+#define DENSE_TRANSPOSE      CONCAT3(dense,T,transpose)
+#define DENSE_TRANSPOSE2     CONCAT3(dense,T,transpose2)
 #define DENSE_ADD_DENSE      CONCAT3(dense,T,add_dense)
 #define DENSE_ADD_DENSE3     CONCAT3(dense,T,add_dense3)
 #define DENSE_ADD_SPARSE     CONCAT3(dense,T,add_sparse)
@@ -66,6 +68,8 @@
 #else
 #define SPARSE_TO_CMPLX      CONCAT3(sparse,T,to_cmplx)
 #endif
+#define SPARSE_TRANSPOSE     CONCAT3(sparse,T,transpose)
+#define SPARSE_TRANSPOSE2    CONCAT3(sparse,T,transpose2)
 #define SPARSE_ADD_SPARSE    CONCAT3(sparse,T,add_sparse)
 #define SPARSE_ADD_SPARSE3   CONCAT3(sparse,T,add_sparse3)
 #define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
@@ -436,6 +440,36 @@ subroutine DENSE_TO_CMPLX(this, d)
   call d%init(this%nrows, ncols = this%ncols, d0 = cmplx(this%d))
 end subroutine
 #endif
+
+subroutine DENSE_TRANSPOSE(this)
+  !! Transpose dense matrix
+
+  class(DENSE_TYPE), intent(inout) :: this
+    !! Dense matrix
+
+  ! local variables
+  TT, allocatable :: d(:,:)
+
+  ASSERT(.not. allocated(this%lu))
+  ASSERT(.not. allocated(this%ipiv))
+
+  ! transpose matrix
+  allocate (d(this%ncols,this%nrows), source = transpose(this%d))
+  call move_alloc(d, this%d)
+  this%nrows = size(this%d,1)
+  this%ncols = size(this%d,2)
+end subroutine
+
+subroutine DENSE_TRANSPOSE2(this, d2)
+  !! Transpose matrix and store result in second matrix
+
+  class(DENSE_TYPE), intent(in) :: this
+    !! First dense matrix (unchanged)
+  type(DENSE_TYPE), intent(out) :: d2
+    !! Output transposed matrix
+
+  call d2%init(this%ncols, ncols = this%nrows, d0 = transpose(this%d))
+end subroutine
 
 subroutine DENSE_ADD_DENSE(this, d, fact)
   !! Add two dense matrices, store the result in first matrix.
@@ -1181,6 +1215,78 @@ subroutine SPARSE_TO_CMPLX(this, s)
 end subroutine
 #endif
 
+subroutine SPARSE_TRANSPOSE(this)
+  !! Transpose sparse matrix.
+
+  class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
+
+  ! local variables
+  type(SPARSE_TYPE) :: s2
+
+  ASSERT(.not. this%pard%factorized)
+
+  ! transpose matrix
+  call this%transpose(s2)
+
+  ! copy transposed matrix
+  this%nrows = s2%nrows
+  this%ncols = s2%ncols
+  this%ia    = s2%ia
+  this%ja    = s2%ja
+  this%a     = s2%a
+end subroutine
+
+subroutine SPARSE_TRANSPOSE2(this, s2)
+  !! Transpose sparse matrix, store result in second matrix.
+
+  class(SPARSE_TYPE), intent(in)  :: this
+    !! First sparse matrix
+  type(SPARSE_TYPE),  intent(out) :: s2
+    !! Output transposed sparse matrix
+
+  ! local variables
+  integer                        :: i, j, k
+  type(vector_int),  allocatable :: col(:)
+  type(VECTOR_TYPE), allocatable :: val(:)
+
+  ! allocate memory
+  allocate (col(this%ncols))
+  allocate (val(this%ncols))
+  do i = 1, this%ncols
+    call col(i)%init(n = 0, c = 8)
+    call val(i)%init(n = 0, c = 8)
+  end do
+
+  ! transpose matrix
+  do i = 1, this%nrows
+    do j = this%ia(i), this%ia(i+1)-1
+      call col(this%ja(j))%push(i)
+      call val(this%ja(j))%push(this%a(j))
+    end do
+  end do
+
+  ! init s2
+  call s2%init(this%ncols, ncols = this%nrows)
+
+  ! allocate memory for csr
+  allocate (s2%ia(s2%nrows + 1))
+  allocate (s2%ja(size(this%ja)))
+  allocate (s2%a( size(this%a)))
+
+  ! construct csr
+  s2%ia(1) = 1
+  k = 0
+  do i = 1, size(col)
+    do j = 1, col(i)%n
+      k = k + 1
+      s2%ja(k) = col(i)%d(j)
+      s2%a( k) = val(i)%d(j)
+    end do
+    s2%ia(i+1) = k + 1
+  end do
+end subroutine
+
 subroutine SPARSE_ADD_SPARSE(this, s, fact)
     !! Add two sparse matrices, store result in first matrix.
 
@@ -1440,7 +1546,6 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
       do k = s2%ia(this%ja(j)), s2%ia(this%ja(j)+1)-1
         ! calculate new value
         next_val = this%a(j) * s2%a(k)
-        if (next_val == 0) cycle
 
         ! check whether element already exists
         if (fil(s2%ja(k))) then
@@ -3026,6 +3131,8 @@ end subroutine
 #undef DENSE_TO_SPARSE
 #undef DENSE_TO_REAL
 #undef DENSE_TO_CMPLX
+#undef DENSE_TRANSPOSE
+#undef DENSE_TRANSPOSE2
 #undef DENSE_ADD_DENSE
 #undef DENSE_ADD_DENSE3
 #undef DENSE_ADD_SPARSE
@@ -3050,6 +3157,8 @@ end subroutine
 #undef SPARSE_TO_SPARSE
 #undef SPARSE_TO_REAL
 #undef SPARSE_TO_CMPLX
+#undef SPARSE_TRANSPOSE
+#undef SPARSE_TRANSPOSE2
 #undef SPARSE_ADD_SPARSE
 #undef SPARSE_ADD_SPARSE3
 #undef SPARSE_ADD_BAND

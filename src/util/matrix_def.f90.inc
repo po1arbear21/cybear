@@ -39,6 +39,8 @@
 #else
 #define DENSE_TO_CMPLX       CONCAT3(dense,T,to_cmplx)
 #endif
+#define DENSE_TRANSPOSE      CONCAT3(dense,T,transpose)
+#define DENSE_TRANSPOSE2     CONCAT3(dense,T,transpose2)
 #define DENSE_ADD_DENSE      CONCAT3(dense,T,add_dense)
 #define DENSE_ADD_DENSE3     CONCAT3(dense,T,add_dense3)
 #define DENSE_ADD_SPARSE     CONCAT3(dense,T,add_sparse)
@@ -66,6 +68,8 @@
 #else
 #define SPARSE_TO_CMPLX      CONCAT3(sparse,T,to_cmplx)
 #endif
+#define SPARSE_TRANSPOSE     CONCAT3(sparse,T,transpose)
+#define SPARSE_TRANSPOSE2    CONCAT3(sparse,T,transpose2)
 #define SPARSE_ADD_SPARSE    CONCAT3(sparse,T,add_sparse)
 #define SPARSE_ADD_SPARSE3   CONCAT3(sparse,T,add_sparse3)
 #define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
@@ -180,6 +184,9 @@ contains
 #else
   procedure :: to_cmplx   => DENSE_TO_CMPLX
 #endif
+  procedure :: DENSE_TRANSPOSE
+  procedure :: DENSE_TRANSPOSE2
+  generic   :: transpose  => DENSE_TRANSPOSE, DENSE_TRANSPOSE2
   procedure :: DENSE_ADD_DENSE
   procedure :: DENSE_ADD_DENSE3
   generic   :: add_dense  => DENSE_ADD_DENSE, DENSE_ADD_DENSE3
@@ -221,6 +228,9 @@ contains
 #else
   procedure :: to_cmplx     => SPARSE_TO_CMPLX
 #endif
+  procedure :: SPARSE_TRANSPOSE
+  procedure :: SPARSE_TRANSPOSE2
+  generic   :: transpose    => SPARSE_TRANSPOSE, SPARSE_TRANSPOSE2
   procedure :: SPARSE_ADD_SPARSE
   procedure :: SPARSE_ADD_SPARSE3
   generic   :: add_sparse   => SPARSE_ADD_SPARSE, SPARSE_ADD_SPARSE3
@@ -454,6 +464,8 @@ end interface
 #undef DENSE_TO_SPARSE
 #undef DENSE_TO_REAL
 #undef DENSE_TO_CMPLX
+#undef DENSE_TRANSPOSE
+#undef DENSE_TRANSPOSE2
 #undef DENSE_ADD_DENSE
 #undef DENSE_ADD_DENSE3
 #undef DENSE_ADD_SPARSE
@@ -478,6 +490,8 @@ end interface
 #undef SPARSE_TO_SPARSE
 #undef SPARSE_TO_REAL
 #undef SPARSE_TO_CMPLX
+#undef SPARSE_TRANSPOSE
+#undef SPARSE_TRANSPOSE2
 #undef SPARSE_ADD_SPARSE
 #undef SPARSE_ADD_SPARSE3
 #undef SPARSE_ADD_BAND

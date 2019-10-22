@@ -23,6 +23,7 @@ module test_matrix_m
 contains
 
   subroutine test_matrix()
+    call test_dense()
     call test_sparse()
   end subroutine test_matrix
 

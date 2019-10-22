@@ -111,9 +111,10 @@ contains
     ! this%iparm(21) = 1  ! Pivoting for symmetric indefinite matrices (default: Bunch-Kaufman)
     ! this%iparm(22)      ! output: Inertia, number of positive eigenvalues for symmetric indefinite matrices
     ! this%iparm(23)      ! output: Inertia, number of negative eigenvalues for symmetric indefinite matrices
-    ! this%iparm(24) = 0  ! Parallel factorization control (default: classic)
-    ! this%iparm(25) = 0  ! Parallel forward/backward solve control (default: sequential)
+      this%iparm(24) = 1  ! Parallel factorization control (default: classic)
+      this%iparm(25) = 2  ! Parallel forward/backward solve control (default: sequential)
     ! this%iparm(27) = 0  ! Matrix checker (default: off)
+    ! this%iparm(28) = 0  ! Single or double precision (default: double precision)
     ! ....
 
     this%factorized = .false.

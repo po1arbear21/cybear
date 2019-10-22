@@ -6,8 +6,8 @@ contains
   module subroutine test_sparse()
     type(test_case) :: tc
 
-    print "(1A)", "test_matrix"
-    call tc%init("matrix")
+    print "(1A)", "test_sparse"
+    call tc%init("sparse")
 
     ! sparse builder
     block

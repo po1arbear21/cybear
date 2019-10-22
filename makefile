@@ -2,7 +2,7 @@
 FC       := ifort
 FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp
 FDEBUG   := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG
-FRELEASE := -O2 -mkl -ftz
+FRELEASE := -O2 -mkl -ftz -ipo
 
 # colors
 FC_COL = \e[1;37;40m

@@ -1,6 +1,5 @@
 module arpack_m
-  !! interface for arpack
-
+  use matrix_m
   implicit none
 
   interface
@@ -139,5 +138,34 @@ module arpack_m
     end subroutine
 
   end interface
+
+contains
+
+  subroutine arpack_eigs(A, e, R, L, which, tol)
+    !! Use arpack to calculate a few eigenvalues of a matrix.
+
+    class(matrix_real),         intent(in)  :: A
+      !! Matrix
+    complex,                    intent(out) :: e(:)
+      !! Output size(e) eigenvalues
+    complex,          optional, intent(out) :: R(:,:)
+      !! Output right eigenvectors in columns.
+    complex,          optional, intent(out) :: L(:,:)
+      !! Output left  eigenvectors in columns.
+    character(len=2), optional, intent(in)  :: which
+      !! 'LA': largest  algebraic eigenvalues (symmetric only)
+      !! 'SA': smallest algebraic eigenvalues (symmetric only)
+      !! 'BE': large and small    eigenvalues (symmetric only)
+      !! 'LM': largest  magnitude eigenvalues
+      !! 'SM': smallest magnitude eigenvalues
+      !! 'LR': largest  real part eigenvalues (unsymmetric only)
+      !! 'SR': smallest real part eigenvalues (unsymmetric only)
+      !! 'LI': largest  imag part eigenvalues (unsymmetric only)
+      !! 'SI': smallest imag part eigenvalues (unsymmetric only)
+      !! default: 'LM'
+    real,             optional, intent(in)  :: tol
+      !! relative tolerance (default: 1e-12)
+
+  end subroutine
 
 end module

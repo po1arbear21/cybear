@@ -1,8 +1,16 @@
 program test
+  use test_high_precision_m
+  use test_normalization_m
+  use test_dual_m
   use test_matrix_m
   use test_qsort_m
+  use test_vector_m
   implicit none
 
+  call test_high_precision()
+  call test_normalization()
+  call test_dual()
   call test_matrix()
   call test_qsort()
+  call test_vector()
 end program test
