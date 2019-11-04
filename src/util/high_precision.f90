@@ -23,7 +23,65 @@ module high_precision_m
     module procedure :: hp_real_sub_dh
   end interface
 
+  interface operator (*)
+    module procedure :: hp_real_mul_hh
+    module procedure :: hp_real_mul_hd
+    module procedure :: hp_real_mul_dh
+  end interface
+
+  interface operator (/)
+    module procedure :: hp_real_div_hh
+    module procedure :: hp_real_div_hd
+    module procedure :: hp_real_div_dh
+  end interface
+
 contains
+
+  elemental function hp_two_sum(r1, r2) result(h)
+    !! add two real numbers with high precision (error free sum)
+
+    real, intent(in) :: r1
+    real, intent(in) :: r2
+    type(hp_real)    :: h
+    real             :: z
+
+    ! principal
+    h%x = r1 + r2
+
+    ! correction
+    z = h%x - r1
+    h%c = (r1 - (h%x - z)) + (r2 - z)
+  end function
+
+  elemental function hp_split(r) result(h)
+    !! split real number in two real numbers, store in high precision real
+
+    real, intent(in) :: r
+    type(hp_real)    :: h
+    real, parameter  :: factor = real(2**27 - 1)
+    real             :: z
+
+    z   = factor * r
+    h%x = (z - (z - r))
+    h%c = (r - h%x)
+  end function
+
+  elemental function hp_two_product(r1, r2) result(h)
+    !! multiply two real numbers with high precision (error free product)
+
+    real, intent(in) :: r1
+    real, intent(in) :: r2
+    type(hp_real)    :: h
+    type(hp_real)    :: h1, h2
+
+    ! principal
+    h%x = r1 * r2
+
+    ! correction
+    h1 = split(r1)
+    h2 = split(r2)
+    h%c = h1%c * h2%c - (((h%x - h1%x*h2%x) - h1%c * h2%x) - h1%x * h2%c)
+  end function
 
   elemental function real_to_hp(r) result(h)
     !! convert real to high precision real
@@ -125,6 +183,9 @@ contains
 
     h3 = r1 + (-h2)
   end function
+
+
+
 
   function hp_sum(a) result(s)
     !! compute sum with high precision
