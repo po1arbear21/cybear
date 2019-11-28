@@ -23,7 +23,8 @@
 #define MATRIX_TO_SPARSE     CONCAT3(matrix,T,to_sparse)
 
 #define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_INIT           CONCAT3(dense,T,init)
+#define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
+#define DENSE_INIT_BY_SIZE   CONCAT3(dense,T,init_by_size)
 #define DENSE_DESTRUCT       CONCAT3(dense,T,destruct)
 #define DENSE_RESET          CONCAT3(dense,T,reset)
 #define DENSE_SCALE          CONCAT3(dense,T,scale)
@@ -129,6 +130,33 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 
+#define EYE_TYPE             CONCAT(eye,T)
+
+
+function EYE_TYPE(nrows, ncols) result(eye)
+  !! dense identity matrix
+
+  integer,            intent(in)  :: nrows
+    !! Number of rows
+  integer, optional,  intent(in)  :: ncols
+    !! Optional number of columns (default: ncols = nrows)
+  type(DENSE_TYPE)                :: eye
+
+  integer         :: ncols_, i
+  TT, allocatable :: d(:,:)
+
+  ncols_ = nrows
+  if (present(ncols)) ncols_ = ncols
+
+  allocate(d(nrows,ncols_))
+  d = 0
+  do i = 1, min(nrows, ncols_)
+    d(i,i) = 1
+  end do
+
+  call eye%init(d)
+end function
+
 subroutine MATRIX_INIT(this, dum, nrows, ncols)
   !! Initialize matrix.
 
@@ -151,28 +179,41 @@ subroutine MATRIX_INIT(this, dum, nrows, ncols)
   ASSERT(this%ncols > 0)
 end subroutine
 
-subroutine DENSE_INIT(this, nrows, ncols, d0)
+subroutine DENSE_INIT_BY_DATA(this, d)
+  !! Initialize dense matrix.
+
+  class(DENSE_TYPE), intent(out) :: this
+    !! Dense matrix
+  TT,                intent(in)  :: d(:,:)
+    !! Provide initial data.
+
+  ! init base
+  call this%MATRIX_INIT("", size(d, 1), ncols=size(d, 2))
+
+  this%d = d
+end subroutine
+
+subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
   !! Initialize dense matrix.
 
   class(DENSE_TYPE), intent(out) :: this
     !! Dense matrix
   integer,           intent(in)  :: nrows
-    !! Number of rows
+    !! Number of rows (Default: d0rows)
   integer, optional, intent(in)  :: ncols
     !! Optional: Number of columns. (Default: ncols = nrows)
-  TT,      optional, intent(in)  :: d0(:,:)
-    !! Optional: Provide initial data. (Default: d0 = 0)
+
+  integer :: ncols_
+
+  ncols_ = nrows
+  if (present(ncols)) ncols_ = ncols
 
   ! init base
-  call this%MATRIX_INIT("", nrows, ncols = ncols)
+  call this%MATRIX_INIT("", nrows, ncols=ncols_)
 
   ! allocate data
-  if (present(d0)) then
-    allocate(this%d(this%nrows,this%ncols), source = d0)
-  else
-    allocate(this%d(this%nrows,this%ncols))
+  allocate(this%d(nrows,ncols_))
     this%d = 0
-  end if
 end subroutine
 
 subroutine DENSE_DESTRUCT(this)
@@ -236,7 +277,7 @@ subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
   TT,                         intent(inout) :: y(:)
     !! Store result in y
   TT,               optional, intent(in)    :: fact_y
-    !! Ff present, scale existing data in y and add result of multiplication
+    !! If present, scale existing data in y and add result of multiplication
   character(len=1), optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
@@ -400,6 +441,9 @@ subroutine DENSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   if (present(j0)) j0_ = j0
   ASSERT(j0_ > 0)
   ASSERT(j0_ + this%ncols -1 <= sb%sp%ncols)
+  if (present(struct)) then
+    ASSERT(size(this%d, 1) == size(struct, 1) .and. size(this%d, 2) == size(struct, 2))
+  end if
 
   ! insert values
   do i = 1, this%nrows
@@ -426,7 +470,7 @@ subroutine DENSE_TO_REAL(this, d)
   class(dense_real),  intent(out) :: d
     !! Output real(this)
 
-  call d%init(this%nrows, ncols = this%ncols, d0 = real(this%d))
+  call d%init(real(this%d))
 end subroutine
 #else
 subroutine DENSE_TO_CMPLX(this, d)
@@ -437,7 +481,7 @@ subroutine DENSE_TO_CMPLX(this, d)
   class(dense_cmplx), intent(out) :: d
     !! Output cmplx(this)
 
-  call d%init(this%nrows, ncols = this%ncols, d0 = cmplx(this%d))
+  call d%init(cmplx(this%d))
 end subroutine
 #endif
 
@@ -468,16 +512,18 @@ subroutine DENSE_TRANSPOSE2(this, d2)
   type(DENSE_TYPE), intent(out) :: d2
     !! Output transposed matrix
 
-  call d2%init(this%ncols, ncols = this%nrows, d0 = transpose(this%d))
+  call d2%init(transpose(this%d))
 end subroutine
 
 subroutine DENSE_ADD_DENSE(this, d, fact)
   !! Add two dense matrices, store the result in first matrix.
+  !!
+  !! operatrion:  M1 <- M1 + fact*M2
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! First dense matrix (updated)
+    !! First dense matrix M1 (updated)
   type(DENSE_TYPE),  intent(in)    :: d
-    !! Second dense matrix (unchanged)
+    !! Second dense matrix M2 (unchanged)
   TT, optional,      intent(in)    :: fact
     !! Second dense matrix scaling factor (default: 1)
 
@@ -493,13 +539,15 @@ end subroutine
 
 subroutine DENSE_ADD_DENSE3(this, d2, d3, fact1, fact2)
   !! Add two dense matrices, store the result in third dense matrix.
+  !!
+  !! operatrion:  d3 <- fact1 d1 + fact2 d2
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! Dense first matrix (unchanged)
+    !! Dense first matrix d1 (unchanged)
   type(DENSE_TYPE),  intent(in)  :: d2
-    !! Dense second matrix (unchanged)
+    !! Dense second matrix d2 (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! Output dense third matrix
+    !! Output dense third matrix d3
   TT, optional,      intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
   TT, optional,      intent(in)  :: fact2
@@ -515,16 +563,18 @@ subroutine DENSE_ADD_DENSE3(this, d2, d3, fact1, fact2)
   if (present(fact2)) fact2_ = fact2
 
   ! init output matrix
-  call d3%init(this%nrows, ncols = this%ncols, d0 = fact1_ * this%d + fact2_ * d2%d)
+  call d3%init(fact1_ * this%d + fact2_ * d2%d)
 end subroutine
 
 subroutine DENSE_ADD_SPARSE(this, s, fact)
   !! Add dense and sparse matrix, store result in dense matrix.
+  !!
+  !! operatrion:  D <- D + fact S
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! Dense matrix (updated)
+    !! Dense matrix D (updated)
   type(SPARSE_TYPE), intent(in)    :: s
-    !! Sparse matrix (unchanged)
+    !! Sparse matrix S (unchanged)
   TT, optional,      intent(in)    :: fact
     !! Sparse matrix scaling factor (default: 1)
 
@@ -551,11 +601,13 @@ end subroutine
 
 subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
   !! Add dense and sparse matrix, store result in another dense matrix.
+  !!
+  !! operatrion:  d3 <- fact1 d1 + fact2 s2
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! Dense first matrix (unchanged)
+    !! Dense first matrix d1 (unchanged)
   type(SPARSE_TYPE), intent(in)  :: s2
-    !! Sparse second matrix (unchanged)
+    !! Sparse second matrix s2 (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
     !! Output dense third matrix
   TT, optional,      intent(in)  :: fact1
@@ -574,7 +626,7 @@ subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
   if (present(fact1)) fact1_ = fact1
 
   ! init output matrix
-  call d3%init(this%nrows, ncols = this%ncols, d0 = fact1_ * this%d)
+  call d3%init(fact1_ * this%d)
 
   ! add sparse matrix to d3
   call d3%add_sparse(s2, fact = fact2)
@@ -582,11 +634,13 @@ end subroutine
 
 subroutine DENSE_ADD_BAND(this, b, fact)
   !! Add dense and band matrix, store result in dense matrix.
+  !!
+  !! operatrion:  d <- d + fact b
 
   class(DENSE_TYPE), intent(inout) :: this
-    !! Dense matrix (updated)
+    !! Dense matrix d (updated)
   type(BAND_TYPE),   intent(in)    :: b
-    !! Band matrix (unchanged)
+    !! Band matrix b (unchanged)
   TT, optional,      intent(in)    :: fact
     !! Band matrix scaling factor (default: 1)
 
@@ -617,13 +671,15 @@ end subroutine
 
 subroutine DENSE_ADD_BAND3(this, b2, d3, fact1, fact2)
   !! Add dense and band matrix, store result in a third dense matrix.
+  !!
+  !! operatrion:  d3 <- fact1 d1 + fact2 b2
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! Dense first matrix (unchanged)
+    !! Dense first matrix d1 (unchanged)
   type(BAND_TYPE),   intent(in)  :: b2
-    !! Band second matrix (unchanged)
+    !! Band second matrix b2 (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! Output dense third matrix
+    !! Output dense third matrix d3
   TT, optional,      intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
   TT, optional,      intent(in)  :: fact2
@@ -640,7 +696,7 @@ subroutine DENSE_ADD_BAND3(this, b2, d3, fact1, fact2)
   if (present(fact1)) fact1_ = fact1
 
   ! init output matrix
-  call d3%init(this%nrows, ncols = this%ncols, d0 = fact1_ * this%d)
+  call d3%init(fact1_ * this%d)
 
   ! add band matrix to d3
   call d3%add_band(b2, fact = fact2)
@@ -650,11 +706,11 @@ subroutine DENSE_MUL_DENSE(this, d2, d3)
   !! Multiply two dense matrices, store result in a third dense matrix.
 
   class(DENSE_TYPE), intent(in)  :: this
-    !! Dense first matrix (unchanged)
+    !! Dense first matrix d1 (unchanged)
   type(DENSE_TYPE),  intent(in)  :: d2
-    !! Dense second matrix (unchanged)
+    !! Dense second matrix d2 (unchanged)
   type(DENSE_TYPE),  intent(out) :: d3
-    !! Output dense third matrix
+    !! Output dense third matrix d3
 
   ! init output matrix
   call d3%init(this%nrows, ncols = d2%ncols)
@@ -921,7 +977,7 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
     !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
     do i = 1, this%nrows
       do j = this%ia(i), this%ia(i+1)-1
-        y(i) = fact_y_ * y(i) + this%a(j) * x(this%ja(j))
+      y(i) = y(i) + this%a(j) * x(this%ja(j))
       end do
     end do
     !$omp end parallel do
@@ -3118,7 +3174,8 @@ end subroutine
 #undef MATRIX_TO_SPARSE
 
 #undef DENSE_TYPE
-#undef DENSE_INIT
+#undef DENSE_INIT_BY_DATA
+#undef DENSE_INIT_BY_SIZE
 #undef DENSE_DESTRUCT
 #undef DENSE_RESET
 #undef DENSE_SCALE
@@ -3214,3 +3271,5 @@ end subroutine
 #undef BLOCK_GET_SPARSE
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
+
+#undef EYE_TYPE

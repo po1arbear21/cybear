@@ -23,7 +23,8 @@
 #define MATRIX_TO_SPARSE     CONCAT3(matrix,T,to_sparse)
 
 #define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_INIT           CONCAT3(dense,T,init)
+#define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
+#define DENSE_INIT_BY_SIZE   CONCAT3(dense,T,init_by_size)
 #define DENSE_DESTRUCT       CONCAT3(dense,T,destruct)
 #define DENSE_RESET          CONCAT3(dense,T,reset)
 #define DENSE_SCALE          CONCAT3(dense,T,scale)
@@ -167,8 +168,8 @@ type, extends(MATRIX_TYPE) :: DENSE_TYPE
   integer, allocatable :: ipiv(:)
     !! Permutation used in conjunction with lu
 contains
-  procedure :: DENSE_INIT
-  generic   :: init       => DENSE_INIT
+  procedure :: DENSE_INIT_BY_SIZE, DENSE_INIT_BY_DATA
+  generic   :: init       => DENSE_INIT_BY_SIZE, DENSE_INIT_BY_DATA
   procedure :: destruct   => DENSE_DESTRUCT
   procedure :: reset      => DENSE_RESET
   procedure :: scale      => DENSE_SCALE
@@ -177,18 +178,18 @@ contains
   procedure :: factorize  => DENSE_FACTORIZE
   procedure :: solve_vec  => DENSE_SOLVE_VEC
   procedure :: solve_mat  => DENSE_SOLVE_MAT
-  procedure :: to_dense   => DENSE_TO_DENSE
-  procedure :: to_sparse  => DENSE_TO_SPARSE
+  procedure :: to_dense   => DENSE_TO_DENSE           ! insert this matrix into another dense matrix
+  procedure :: to_sparse  => DENSE_TO_SPARSE          ! insert this matrix into a sparse matrix
 #ifdef TCMPLX
   procedure :: to_real    => DENSE_TO_REAL
 #else
   procedure :: to_cmplx   => DENSE_TO_CMPLX
 #endif
-  procedure :: DENSE_TRANSPOSE
-  procedure :: DENSE_TRANSPOSE2
+  procedure :: DENSE_TRANSPOSE                        ! transposes this matrix inplace
+  procedure :: DENSE_TRANSPOSE2                       ! transpose this matrix into another
   generic   :: transpose  => DENSE_TRANSPOSE, DENSE_TRANSPOSE2
-  procedure :: DENSE_ADD_DENSE
-  procedure :: DENSE_ADD_DENSE3
+  procedure :: DENSE_ADD_DENSE                        ! adds matrix to this one
+  procedure :: DENSE_ADD_DENSE3                       ! adds this and a second into a third matrix
   generic   :: add_dense  => DENSE_ADD_DENSE, DENSE_ADD_DENSE3
   procedure :: DENSE_ADD_SPARSE
   procedure :: DENSE_ADD_SPARSE3
@@ -451,7 +452,8 @@ end interface
 #undef MATRIX_TO_SPARSE
 
 #undef DENSE_TYPE
-#undef DENSE_INIT
+#undef DENSE_INIT_BY_DATA
+#undef DENSE_INIT_BY_SIZE
 #undef DENSE_DESTRUCT
 #undef DENSE_RESET
 #undef DENSE_SCALE

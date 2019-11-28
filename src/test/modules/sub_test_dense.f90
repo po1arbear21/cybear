@@ -1,9 +1,11 @@
+#include "../../util/assert.f90.inc"
+
 submodule(test_matrix_m) test_dense_m
   use matrix_m
   implicit none
 
 contains
-  module subroutine test_dense()
+  module subroutine test_dense
     type(test_case) :: tc
     print "(1A)", "test_dense"
     call tc%init("dense")
@@ -104,14 +106,318 @@ contains
       call tc%assert_eq(e, x, 1e-12, "solve_mat")
     end block
 
-    ! ! to_dense, to_sparse
-    ! block
-    !   integer          :: i, j
-    !   type(dense_real) :: d1, d2
+    ! to_dense
+    block
+      integer           :: i, j
+      type(dense_real)  :: d1, d2
+      real              :: val
 
+      call d1%init(3)
+      call d2%init(5)
+      do i = 1, 5
+        do j = 1, 5
+          if (i <= 3 .and. j <= 3) d1%d(i,j) = 1.0
+          d2%d(i,j) = 2.0
+        end do
+      end do
 
-    ! end block
+      call d1%to_dense(d2, i0=1, j0=3)
 
-    call tc%finish()
+      do i = 1, 5
+        do j = 1, 5
+          val = 2.0
+          if (i <= 3 .and. j >= 3) val = 1.0
+          call tc%assert_eq(d2%d(i,j), val, 1e-12, "to_dense")
+        end do
+      end do
+    end block
+
+    ! to_sparse
+    block
+      integer           :: i, j
+      type(dense_real)  :: d
+      real              :: val, mat(5,5), e(5), v(5), v_exp(5)
+      real, allocatable :: tmp(:,:)
+      logical, allocatable :: sparsity(:,:)
+      type(sparse_real)  :: s
+      type(spbuild_real) :: sb
+
+      ! test 1: add dense to empty sparse
+      call s%init(5)
+      call sb%init(s)
+
+      call d%init(3)
+      mat = 0.0
+      do i = 1, 3
+        do j = 1, 3
+          d%d(i,j)    = i-2*j
+          mat(i, j+2) = i-2*j
+        end do
+      end do
+
+      call d%to_sparse(sb, i0=1, j0=3)
+      call sb%save
+
+      ! test 2: add dense to partially filled sparse
+      do i = 1, 5
+        e     = 0.0
+        e(i)  = 1.0
+        v_exp = matmul(mat, e)
+        call s%mul_vec(e, v)
+        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
+      end do
+
+      tmp = reshape([1,3,5,7],[2,2],order=[2,1])
+      call d%init(tmp)
+
+      call d%to_sparse(sb, i0=4, j0=2)
+      call s%init(5)
+      call sb%save
+      mat(4:5,2:3) = tmp
+
+      do i = 1, 5
+        e     = 0.0
+        e(i)  = 1.0
+        v_exp = matmul(mat, e)
+        call s%mul_vec(e, v)
+        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
+      end do
+
+      ! test 3: use sparsity struct
+      tmp = reshape([4,1,0,2, &
+                    &8,5,2,0, &
+                    &0,9,6,3, &
+                    &1,0,10,7 ], [4, 4], order=[2, 1])
+      call d%init(tmp)
+
+      allocate(sparsity(4,4), source=.true.)
+      sparsity(1,2) = .false.
+      sparsity(2,2) = .false.
+      sparsity(4,3) = .false.
+
+      mat = 0.0
+      mat(1:4,2:5) = tmp
+      mat(1,2+1) = 0.0
+      mat(2,2+1) = 0.0
+      mat(4,3+1) = 0.0
+
+      call s%init(5)
+      call sb%init(s)
+      call d%to_sparse(sb, i0=1, j0=2, struct=sparsity)
+      call sb%save
+
+      do i = 1, 5
+        e     = 0.0
+        e(i)  = 1.0
+        v_exp = matmul(mat, e)
+        call s%mul_vec(e, v)
+        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: sparsity")
+      end do
+
+      ! test 4: use drop_zeros
+      mat = 0.0
+      mat(2:5,1:4) = tmp
+
+      call s%init(5)
+      call sb%init(s)
+      call d%to_sparse(sb, i0=2, j0=1, drop_zeros=.true.)
+      call sb%save
+
+      do i = 1, 5
+        e     = 0.0
+        e(i)  = 1.0
+        v_exp = matmul(mat, e)
+        call s%mul_vec(e, v)
+        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: drop zeros")
+      end do
+      call tc%assert_eq(count(s%a == 0.0), 0, "to_sparse: drop zeros")
+    end block
+
+    ! transpose
+    block
+      integer           :: i, j
+      type(dense_real)  :: d, d2
+      real              :: val, mat(3,3), e(3), v(3), v_exp(3)
+
+      call d%init(3)
+      do i = 1, 3
+        do j = 1, 3
+          d%d(i,j) = i-2*j
+          mat(i,j) = i-2*j
+        end do
+      end do
+
+      call d%transpose
+      mat = transpose(mat)
+      call tc%assert_eq(d%d, mat, 1e-12, "transpose")
+
+      call d%transpose(d2)
+      mat = transpose(mat)
+      call tc%assert_eq(d2%d, mat, 1e-12, "transpose")
+    end block
+
+    ! add dense
+    block
+      integer           :: i, j
+      type(dense_real)  :: d1, d2, d3
+      real              :: val, mat1(3,3), mat2(3,3), mat3(3,3), e(3), v(3), v_exp(3)
+
+      call d1%init(3)
+      do i = 1, 3
+        do j = 1, 3
+          d1%d(i,j) = i-2*j
+          mat1(i,j) = i-2*j
+        end do
+      end do
+
+      call d2%init(3)
+      do i = 1, 3
+        do j = 1, 3
+          d2%d(i,j) = 5*j
+          mat2(i,j) = 5*j
+        end do
+      end do
+
+      call d1%add_dense(d2, fact=2.0)
+      mat1 = mat1 + 2*mat2
+      call tc%assert_eq(d1%d, mat1, 1e-12, "add dense")
+
+      call d1%add_dense(d2, d3, fact1=3.0, fact2=2.0)
+      mat3 = 3*mat1 + 2*mat2
+      call tc%assert_eq(d3%d, mat3, 1e-12, "add dense3")
+    end block
+
+    ! add sparse
+    block
+      integer           :: i, j
+      type(dense_real)  :: d1, d2, d3
+      real              :: val, mat1(3,3), mat2(3,3), mat3(3,3)
+      type(sparse_real)  :: s1
+      type(spbuild_real) :: sb1
+
+      ! build sparse s1, mat1
+      call s1%init(3)
+      call sb1%init(s1)
+
+      call d1%init(3)
+      do i = 1, 3
+        do j = 1, 3
+          d1%d(i,j) = i-2*j
+        end do
+      end do
+      mat1 = d1%d
+
+      call d1%to_sparse(sb1)
+      call sb1%save
+
+      ! build dense d2, mat2
+      call d2%init(3)
+      do i = 1, 3
+        do j = 1, 3
+          d2%d(i,j) = i*i-3*j
+        end do
+      end do
+      mat2 = d2%d
+
+      ! test adding
+      call d2%add_sparse(s1, fact=3.0)
+      mat2 = mat2 + 3*mat1
+      call tc%assert_eq(d2%d, mat2, 1e-12, "add sparse")
+
+      call d3%init(3)
+      call d2%add_sparse(s1, d3, fact1=3.0, fact2=2.0)
+      mat3 = 3*mat2 + 2*mat1
+      call tc%assert_eq(d3%d, mat3, 1e-12, "add sparse3")
+    end block
+
+    ! add band
+    block
+      integer           :: i, j
+      real              :: mat1(4,4), mat2(4,4), diags(3,4), mat_b(4,4)
+      type(band_real)   :: b
+      type(dense_real)  :: d1, d2
+
+      ! build band
+      diags = reshape([0,1,2,3, &
+                      &4,5,6,7, &
+                      &8,9,10,0 ], [3,4], order=[2,1])
+      mat_b = reshape([4,1,0,0, &
+                      &8,5,2,0, &
+                      &0,9,6,3, &
+                      &0,0,10,7 ], [4, 4], order=[2, 1])
+      call b%init(4, 3, diags)
+
+      ! dense d1
+      call d1%init(4)
+      do i = 1, 4
+        do j = 1, 4
+          d1%d(i,j) = i-2*j
+        end do
+      end do
+      mat1 = d1%d
+
+      ! add band
+      call d1%add_band(b, fact=2.0)
+      mat1 = mat1 + 2*mat_b
+      call tc%assert_eq(d1%d, mat1, 1e-12, "add band")
+
+      call d1%add_band(b, d2, fact1=3.0, fact2=2.0)
+      mat2 = 3*mat1 + 2*mat_b
+      call tc%assert_eq(d2%d, mat2, 1e-12, "add band3")
+    end block
+
+    ! mul dense
+    block
+      integer :: i, j
+      real    :: mat1(3,4), mat2(4,2), mat3(3,2)
+      type(dense_real) :: d1, d2, d3
+
+      do i = 1, 4
+        do j = 1, 4
+          if (i < 4) mat1(i,j) = i-2*j
+          if (j < 3) mat2(i,j) = i*i + j
+        end do
+      end do
+      call d1%init(mat1)
+      call d2%init(mat2)
+
+      call d1%mul_dense(d2, d3)
+      mat3 = matmul(mat1, mat2)
+      call tc%assert_eq(d3%d, mat3, 1e-12, "mul dense")
+    end block
+
+    ! eig
+    block
+      type(dense_real)  :: d
+      real :: mat(3,3)
+      complex, dimension(3,3) :: R, R_exp, L, L_exp
+      complex, dimension(3) :: e, e_exp
+      integer :: i
+
+      mat = 0.0
+      mat(1,1) = 1.0
+      mat(2,2) = 2.0
+      mat(3,3) = 3.0
+
+      e_exp = [1,2,3]
+      d = eye_real(3)
+      R_exp = d%d
+      L_exp = d%d
+
+      call d%init(mat)
+      call d%eig(e, R=R, L=L, sort=.true.)
+
+      ! scale Evecs
+      do i = 1, 3
+        R(:,i) = R_exp(i,i) / R(i,i) * R(:,i)
+        L(i,:) = L_exp(i,i) / L(i,i) * L(i,:)
+      end do
+
+      call tc%assert_eq(e_exp, e, 1e-12, "eig eval")
+      call tc%assert_eq(R_exp, R, 1e-12, "eig R")
+      call tc%assert_eq(L_exp, L, 1e-12, "eig L")
+    end block
+
+    call tc%finish
   end subroutine
 end submodule
