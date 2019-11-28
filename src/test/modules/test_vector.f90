@@ -3,17 +3,32 @@ module test_vector_m
   use vector_m
   implicit none
 
+  private
+  public :: test_vector
+
+  type(test_case) :: tc
+
 contains
 
-  subroutine test_vector()
-    type(test_case) :: tc
+  subroutine test_vector
+    type(vector_int) :: vec
+    integer, allocatable :: arr_exp(:), arr(:)
 
     print "(1A)", "test_vector"
     call tc%init("vector")
 
+    ! test1: set/get array
+    arr_exp = [2, 4, 5, 2, 1]
+    call vec%init(size(arr_exp))
+    call vec%set(arr_exp)
+    arr = vec%get()
+    call tc%assert_eq(arr_exp, arr, "get/set array")
 
+    ! test2: first/last
+    call tc%assert_eq(arr_exp(1), vec%first(), "first")
+    call tc%assert_eq(arr_exp(5), vec%last(), "last")
 
-    call tc%finish()
-  end subroutine test_vector
+    call tc%finish
+  end subroutine
 
-end module test_vector_m
+end module

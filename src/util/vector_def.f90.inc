@@ -28,15 +28,15 @@ type VECTOR_TYPE
     !! capacity (size of data array)
 contains
   procedure :: init     => VECTOR_INIT
-  procedure :: destruct => VECTOR_DESTRUCT
+  procedure :: destruct => VECTOR_DESTRUCT        ! fixme warum?? ist doch eh allocatable?
   procedure :: reset    => VECTOR_RESET
   procedure :: reserve  => VECTOR_RESERVE
   procedure :: resize   => VECTOR_RESIZE
-  procedure :: push     => VECTOR_PUSH
-  procedure :: pop      => VECTOR_POP
+  procedure :: push     => VECTOR_PUSH            ! append element to end of vector
+  procedure :: pop      => VECTOR_POP             ! removes last element
   procedure :: shrink   => VECTOR_SHRINK
-  procedure :: get      => VECTOR_GET
-  procedure :: set      => VECTOR_SET
+  procedure :: get      => VECTOR_GET             ! returns all data
+  procedure :: set      => VECTOR_SET             ! sets all data. reserve before
   procedure :: first    => VECTOR_FIRST
   procedure :: last     => VECTOR_LAST
 end type
