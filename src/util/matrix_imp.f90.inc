@@ -518,7 +518,7 @@ end subroutine
 subroutine DENSE_ADD_DENSE(this, d, fact)
   !! Add two dense matrices, store the result in first matrix.
   !!
-  !! operatrion:  M1 <- M1 + fact*M2
+  !! operation:  M1 <- M1 + fact*M2
 
   class(DENSE_TYPE), intent(inout) :: this
     !! First dense matrix M1 (updated)
@@ -540,7 +540,7 @@ end subroutine
 subroutine DENSE_ADD_DENSE3(this, d2, d3, fact1, fact2)
   !! Add two dense matrices, store the result in third dense matrix.
   !!
-  !! operatrion:  d3 <- fact1 d1 + fact2 d2
+  !! operation:  d3 <- fact1 d1 + fact2 d2
 
   class(DENSE_TYPE), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)
@@ -569,7 +569,7 @@ end subroutine
 subroutine DENSE_ADD_SPARSE(this, s, fact)
   !! Add dense and sparse matrix, store result in dense matrix.
   !!
-  !! operatrion:  D <- D + fact S
+  !! operation:  D <- D + fact S
 
   class(DENSE_TYPE), intent(inout) :: this
     !! Dense matrix D (updated)
@@ -602,7 +602,7 @@ end subroutine
 subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
   !! Add dense and sparse matrix, store result in another dense matrix.
   !!
-  !! operatrion:  d3 <- fact1 d1 + fact2 s2
+  !! operation:  d3 <- fact1 d1 + fact2 s2
 
   class(DENSE_TYPE), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)
@@ -635,7 +635,7 @@ end subroutine
 subroutine DENSE_ADD_BAND(this, b, fact)
   !! Add dense and band matrix, store result in dense matrix.
   !!
-  !! operatrion:  d <- d + fact b
+  !! operation:  d <- d + fact b
 
   class(DENSE_TYPE), intent(inout) :: this
     !! Dense matrix d (updated)
@@ -672,7 +672,7 @@ end subroutine
 subroutine DENSE_ADD_BAND3(this, b2, d3, fact1, fact2)
   !! Add dense and band matrix, store result in a third dense matrix.
   !!
-  !! operatrion:  d3 <- fact1 d1 + fact2 b2
+  !! operation:  d3 <- fact1 d1 + fact2 b2
 
   class(DENSE_TYPE), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)
