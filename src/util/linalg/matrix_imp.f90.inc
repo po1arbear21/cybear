@@ -10,6 +10,7 @@
 
 #define MATRIX_TYPE          CONCAT(matrix,T)
 #define MATRIX_ALC_TYPE      CONCAT(matrix_alc,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
 #define MATRIX_INIT          CONCAT3(matrix,T,init)
 #define MATRIX_DESTRUCT      CONCAT3(matrix,T,destruct)
 #define MATRIX_RESET         CONCAT3(matrix,T,reset)
