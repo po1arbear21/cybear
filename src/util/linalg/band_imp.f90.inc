@@ -8,9 +8,10 @@
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 #define DENSE_TYPE           CONCAT(dense,T)
-#define BAND_TYPE            CONCAT(band,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define BAND_TYPE            CONCAT(band,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define BAND_INIT            CONCAT3(band,T,init)
@@ -380,9 +381,9 @@ end subroutine
 subroutine BAND_TO_CMPLX(this, b)
   !! Convert band real matrix to complex.
 
-  class(band_real), intent(in)  :: this
+  class(band_real),  intent(in)  :: this
     !! Band real matrix
-  class(band_cmplx),  intent(out) :: b
+  class(band_cmplx), intent(out) :: b
     !! Output cmplx(this)
 
   call b%init(this%nrows, this%ndiags, d0 = cmplx(this%d))
@@ -539,12 +540,12 @@ end function
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
 #undef DENSE_TYPE
-#undef BAND_TYPE
 #undef SPARSE_TYPE
 #undef SPBUILD_TYPE
+#undef BAND_TYPE
+#undef HESSENBERG_TYPE
 #undef BLOCK_TYPE
 
-#undef BAND_TYPE
 #undef BAND_INIT
 #undef BAND_DESTRUCT
 #undef BAND_RESET

@@ -4,6 +4,7 @@
 module matrix_m
   use array_m
   use blas95
+  use high_precision_m
   use lapack95
   use omp_lib
   use pardiso_m
@@ -40,6 +41,10 @@ contains
 
 #define T real
 #define TT real
+#include "hessenberg_imp.f90.inc"
+
+#define T real
+#define TT real
 #include "block_imp.f90.inc"
 
 #define T cmplx
@@ -61,6 +66,11 @@ contains
 #define TT complex
 #define TCMPLX
 #include "band_imp.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "hessenberg_imp.f90.inc"
 
 #define T cmplx
 #define TT complex

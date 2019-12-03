@@ -8,9 +8,10 @@
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 #define DENSE_TYPE           CONCAT(dense,T)
-#define BAND_TYPE            CONCAT(band,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define BAND_TYPE            CONCAT(band,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define BLOCK_INIT           CONCAT3(block,T,init)
@@ -643,12 +644,12 @@ end subroutine
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
 #undef DENSE_TYPE
-#undef BAND_TYPE
 #undef SPARSE_TYPE
 #undef SPBUILD_TYPE
+#undef BAND_TYPE
+#undef HESSENBERG_TYPE
 #undef BLOCK_TYPE
 
-#undef BLOCK_TYPE
 #undef BLOCK_INIT
 #undef BLOCK_DESTRUCT
 #undef BLOCK_RESET

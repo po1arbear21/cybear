@@ -111,6 +111,24 @@
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_INIT      CONCAT3(hessenberg,T,init)
+#define HESSENBERG_DESTRUCT  CONCAT3(hessenberg,T,destruct)
+#define HESSENBERG_RESET     CONCAT3(hessenberg,T,reset)
+#define HESSENBERG_SCALE     CONCAT3(hessenberg,T,scale)
+#define HESSENBERG_MUL_VEC   CONCAT3(hessenberg,T,mul_vec)
+#define HESSENBERG_MUL_MAT   CONCAT3(hessenberg,T,mul_mat)
+#define HESSENBERG_FACTORIZE CONCAT3(hessenberg,T,factorize)
+#define HESSENBERG_SOLVE_VEC CONCAT3(hessenberg,T,solve_vec)
+#define HESSENBERG_SOLVE_MAT CONCAT3(hessenberg,T,solve_mat)
+#define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
+#define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
+#ifdef TCMPLX
+#define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
+#else
+#define HESSENBERG_TO_CMPLX  CONCAT3(hessenberg,T,to_cmplx)
+#endif
+
 #define BLOCK_TYPE           CONCAT(block,T)
 #define BLOCK_INIT           CONCAT3(block,T,init)
 #define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
@@ -310,6 +328,36 @@ contains
   procedure :: BAND_ADD_BAND3
   generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
   procedure :: output    => BAND_OUTPUT
+end type
+
+type, extends(MATRIX_TYPE) :: HESSENBERG_TYPE
+  ! upper or lower hessenberg matrix
+  logical :: upper
+
+  ! unpacked data
+  TT, allocatable :: d(:,:)
+
+  ! factorization
+  TT,      allocatable :: f(:,:)
+  integer, allocatable :: ipiv(:)
+contains
+  procedure :: HESSENBERG_INIT
+  generic   :: init      => HESSENBERG_INIT
+  procedure :: destruct  => HESSENBERG_DESTRUCT
+  procedure :: reset     => HESSENBERG_RESET
+  procedure :: scale     => HESSENBERG_SCALE
+  procedure :: mul_vec   => HESSENBERG_MUL_VEC
+  procedure :: mul_mat   => HESSENBERG_MUL_MAT
+  procedure :: factorize => HESSENBERG_FACTORIZE
+  procedure :: solve_vec => HESSENBERG_SOLVE_VEC
+  procedure :: solve_mat => HESSENBERG_SOLVE_MAT
+  procedure :: to_dense  => HESSENBERG_TO_DENSE
+  procedure :: to_sparse => HESSENBERG_TO_SPARSE
+#ifdef TCMPLX
+  procedure :: to_real   => HESSENBERG_TO_REAL
+#else
+  procedure :: to_cmplx  => HESSENBERG_TO_CMPLX
+#endif
 end type
 
 type, extends(MATRIX_TYPE) :: BLOCK_TYPE
@@ -534,6 +582,21 @@ end interface
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
 #undef BAND_OUTPUT
+
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_INIT
+#undef HESSENBERG_DESTRUCT
+#undef HESSENBERG_RESET
+#undef HESSENBERG_SCALE
+#undef HESSENBERG_MUL_VEC
+#undef HESSENBERG_MUL_MAT
+#undef HESSENBERG_FACTORIZE
+#undef HESSENBERG_SOLVE_VEC
+#undef HESSENBERG_SOLVE_MAT
+#undef HESSENBERG_TO_DENSE
+#undef HESSENBERG_TO_SPARSE
+#undef HESSENBERG_TO_REAL
+#undef HESSENBERG_TO_CMPLX
 
 #undef BLOCK_TYPE
 #undef BLOCK_INIT

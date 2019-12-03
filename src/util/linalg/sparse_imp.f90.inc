@@ -8,12 +8,12 @@
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 #define DENSE_TYPE           CONCAT(dense,T)
-#define BAND_TYPE            CONCAT(band,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define BAND_TYPE            CONCAT(band,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
-#define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
 #define SPARSE_DESTRUCT      CONCAT3(sparse,T,destruct)
 #define SPARSE_RESET         CONCAT3(sparse,T,reset)
@@ -1293,12 +1293,12 @@ end subroutine
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
 #undef DENSE_TYPE
-#undef BAND_TYPE
 #undef SPARSE_TYPE
 #undef SPBUILD_TYPE
+#undef BAND_TYPE
+#undef HESSENBERG_TYPE
 #undef BLOCK_TYPE
 
-#undef SPARSE_TYPE
 #undef SPARSE_INIT
 #undef SPARSE_DESTRUCT
 #undef SPARSE_RESET
@@ -1322,7 +1322,6 @@ end subroutine
 #undef SPARSE_OUTPUT
 #undef SPARSE_EYE
 
-#undef SPBUILD_TYPE
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
 #undef SPBUILD_RESET
