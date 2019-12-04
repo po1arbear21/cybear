@@ -67,7 +67,7 @@ $(BUILD_DIR)%.o:
 	@$(FC) $(FFLAGS) -I$(BUILD_DIR) -module $(TRASH_DIR) -c $< -o $@
 
 clean:
-	rm -f $(TRASH_DIR)*.mod $(BUILD_DIR)*.anc $(BUILD_DIR)*.i90 $(BUILD_DIR)*.mod $(BUILD_DIR)*.o $(BUILD_DIR).depend $(TARGETS)
+	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.anc $(BUILD_DIR)*.i90 $(BUILD_DIR)*.{s,}mod $(BUILD_DIR)*.o $(BUILD_DIR).depend $(TARGETS)
 
 doc: all
 	ford -e i90 -d $(BUILD_DIR) README.md
