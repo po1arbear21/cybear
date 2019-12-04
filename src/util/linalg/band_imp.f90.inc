@@ -133,9 +133,9 @@ subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
 
   if (this%ndiags == 1) then
     if (present(fact_y)) then
-      y = this%d(:,0) * x + fact_y * y
+      y = this%d(0,:) * x + fact_y * y
     else
-      y = this%d(:,0) * x
+      y = this%d(0,:) * x
     end if
   else
     call gbmv(this%d(this%i0:this%i1,:), x, y, beta = fact_y, trans = trans)
@@ -163,11 +163,11 @@ subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
   if (this%ndiags == 1) then
     if (present(fact_y)) then
       do i = 1, size(x, 2)
-        y(:,i) = this%d(:,0) * x(:,i) + fact_y * y(:,i)
+        y(:,i) = this%d(0,:) * x(:,i) + fact_y * y(:,i)
       end do
     else
       do i = 1, size(x, 2)
-        y(:,i) = this%d(:,0) * x(:,i)
+        y(:,i) = this%d(0,:) * x(:,i)
       end do
     end if
   else
