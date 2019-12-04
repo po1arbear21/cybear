@@ -1,4 +1,4 @@
-#include "assert.f90.inc"
+#include "../assert.f90.inc"
 
 module pardiso_m
   use error_m
