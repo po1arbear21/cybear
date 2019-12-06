@@ -1,3 +1,5 @@
+#include "../assert.f90.inc"
+
 module schur_m
   use matrix_m
   implicit none

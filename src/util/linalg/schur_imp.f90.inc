@@ -1,5 +1,3 @@
-#include "../assert.f90.inc"
-
 #define PASTE(X)             X
 #define PASTE2(X)            PASTE(X)_
 #define CONCATHELP(X, Y)     PASTE2(X)Y
