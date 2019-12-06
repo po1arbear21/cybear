@@ -12,6 +12,7 @@
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define BAND_TYPE            CONCAT(band,T)
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define BLOCK_INIT           CONCAT3(block,T,init)
@@ -648,6 +649,7 @@ end subroutine
 #undef SPBUILD_TYPE
 #undef BAND_TYPE
 #undef HESSENBERG_TYPE
+#undef TRIANG_TYPE
 #undef BLOCK_TYPE
 
 #undef BLOCK_INIT

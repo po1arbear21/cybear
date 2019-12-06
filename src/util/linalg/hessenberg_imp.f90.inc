@@ -12,6 +12,7 @@
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define BAND_TYPE            CONCAT(band,T)
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define HESSENBERG_INIT      CONCAT3(hessenberg,T,init)
@@ -25,6 +26,7 @@
 #define HESSENBERG_SOLVE_MAT CONCAT3(hessenberg,T,solve_mat)
 #define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
 #define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
+#define HESSENBERG_TO_TRIANG CONCAT3(hessenberg,T,to_triang)
 #ifdef TCMPLX
 #define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
 #else
@@ -58,7 +60,9 @@ subroutine HESSENBERG_DESTRUCT(this)
   class(HESSENBERG_TYPE), intent(inout) :: this
     !! Hessenberg matrix
 
-  if (allocated(this%d)) deallocate(this%d)
+  if (allocated(this%d   )) deallocate(this%d   )
+  if (allocated(this%f   )) deallocate(this%f   )
+  if (allocated(this%ipiv)) deallocate(this%ipiv)
 end subroutine
 
 subroutine HESSENBERG_RESET(this, only_factorization)
@@ -97,8 +101,6 @@ subroutine HESSENBERG_SCALE(this, fact)
 
   ASSERT(.not. allocated(this%f))
   ASSERT(.not. allocated(this%ipiv))
-
-  this%d = this%d * fact
 
   if (this%upper) then
     do i = 1, this%nrows
@@ -617,13 +619,24 @@ subroutine HESSENBERG_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   end if
 end subroutine
 
+subroutine HESSENBERG_TO_TRIANG(this, t)
+  !! Convert hessenberg matrix to triangular matrix (copy triangular part)
+
+  class(HESSENBERG_TYPE), intent(in) :: this
+    !! Hessenberg matrix
+  type(TRIANG_TYPE),      intent(out) :: t
+    !! Output triangular matrix
+
+  ....
+end subroutine
+
 #ifdef TCMPLX
 subroutine HESSENBERG_TO_REAL(this, h)
   !! Convert hessenberg complex matrix to real by ignoring imaginary part.
 
   class(hessenberg_cmplx), intent(in)  :: this
     !! Hessenberg complex matrix
-  class(hessenberg_real),  intent(out) :: h
+  type(hessenberg_real),   intent(out) :: h
     !! Output real(this)
 
   ! local variables
@@ -647,9 +660,9 @@ end subroutine
 subroutine HESSENBERG_TO_CMPLX(this, h)
   !! Convert hessenberg real matrix to complex.
 
-  class(hessenberg_real),  intent(in)  :: this
+  class(hessenberg_real), intent(in)  :: this
     !! Hessenberg real matrix
-  class(hessenberg_cmplx), intent(out) :: h
+  type(hessenberg_cmplx), intent(out) :: h
     !! Output cmplx(this)
 
   ! local variables
@@ -689,6 +702,7 @@ end subroutine
 #undef SPBUILD_TYPE
 #undef BAND_TYPE
 #undef HESSENBERG_TYPE
+#undef TRIANG_TYPE
 #undef BLOCK_TYPE
 
 #undef HESSENBERG_INIT
@@ -702,5 +716,6 @@ end subroutine
 #undef HESSENBERG_SOLVE_MAT
 #undef HESSENBERG_TO_DENSE
 #undef HESSENBERG_TO_SPARSE
+#undef HESSENBERG_TO_TRIANG
 #undef HESSENBERG_TO_REAL
 #undef HESSENBERG_TO_CMPLX

@@ -123,10 +123,29 @@
 #define HESSENBERG_SOLVE_MAT CONCAT3(hessenberg,T,solve_mat)
 #define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
 #define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
+#define HESSENBERG_TO_TRIANG CONCAT3(hessenberg,T,to_triang)
 #ifdef TCMPLX
 #define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
 #else
 #define HESSENBERG_TO_CMPLX  CONCAT3(hessenberg,T,to_cmplx)
+#endif
+
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_INIT          CONCAT3(triang,T,init)
+#define TRIANG_DESTRUCT      CONCAT3(triang,T,destruct)
+#define TRIANG_RESET         CONCAT3(triang,T,reset)
+#define TRIANG_SCALE         CONCAT3(triang,T,scale)
+#define TRIANG_MUL_VEC       CONCAT3(triang,T,mul_vec)
+#define TRIANG_MUL_MAT       CONCAT3(triang,T,mul_mat)
+#define TRIANG_FACTORIZE     CONCAT3(triang,T,factorize)
+#define TRIANG_SOLVE_VEC     CONCAT3(triang,T,solve_vec)
+#define TRIANG_SOLVE_MAT     CONCAT3(triang,T,solve_mat)
+#define TRIANG_TO_DENSE      CONCAT3(triang,T,to_dense)
+#define TRIANG_TO_SPARSE     CONCAT3(triang,T,to_sparse)
+#ifdef TCMPLX
+#define TRIANG_TO_REAL       CONCAT3(triang,T,to_real)
+#else
+#define TRIANG_TO_CMPLX      CONCAT3(triang,T,to_cmplx)
 #endif
 
 #define BLOCK_TYPE           CONCAT(block,T)
@@ -353,10 +372,37 @@ contains
   procedure :: solve_mat => HESSENBERG_SOLVE_MAT
   procedure :: to_dense  => HESSENBERG_TO_DENSE
   procedure :: to_sparse => HESSENBERG_TO_SPARSE
+  procedure :: to_triang => HESSENBERG_TO_TRIANG
 #ifdef TCMPLX
   procedure :: to_real   => HESSENBERG_TO_REAL
 #else
   procedure :: to_cmplx  => HESSENBERG_TO_CMPLX
+#endif
+end type
+
+type, extends(MATRIX_TYPE) :: TRIANG_TYPE
+  ! upper or lower triangular matrix
+  logical :: upper
+
+  ! unpacked data
+  TT, allocatable :: d(:,:)
+contains
+  procedure :: TRIANG_INIT
+  generic   :: init      => TRIANG_INIT
+  procedure :: destruct  => TRIANG_DESTRUCT
+  procedure :: reset     => TRIANG_RESET
+  procedure :: scale     => TRIANG_SCALE
+  procedure :: mul_vec   => TRIANG_MUL_VEC
+  procedure :: mul_mat   => TRIANG_MUL_MAT
+  procedure :: factorize => TRIANG_FACTORIZE
+  procedure :: solve_vec => TRIANG_SOLVE_VEC
+  procedure :: solve_mat => TRIANG_SOLVE_MAT
+  procedure :: to_dense  => TRIANG_TO_DENSE
+  procedure :: to_sparse => TRIANG_TO_SPARSE
+#ifdef TCMPLX
+  procedure :: to_real   => TRIANG_TO_REAL
+#else
+  procedure :: to_cmplx  => TRIANG_TO_CMPLX
 #endif
 end type
 
@@ -595,8 +641,24 @@ end interface
 #undef HESSENBERG_SOLVE_MAT
 #undef HESSENBERG_TO_DENSE
 #undef HESSENBERG_TO_SPARSE
+#undef HESSENBERG_TO_TRIANG
 #undef HESSENBERG_TO_REAL
 #undef HESSENBERG_TO_CMPLX
+
+#undef TRIANG_TYPE
+#undef TRIANG_INIT
+#undef TRIANG_DESTRUCT
+#undef TRIANG_RESET
+#undef TRIANG_SCALE
+#undef TRIANG_MUL_VEC
+#undef TRIANG_MUL_MAT
+#undef TRIANG_FACTORIZE
+#undef TRIANG_SOLVE_VEC
+#undef TRIANG_SOLVE_MAT
+#undef TRIANG_TO_DENSE
+#undef TRIANG_TO_SPARSE
+#undef TRIANG_TO_REAL
+#undef TRIANG_TO_CMPLX
 
 #undef BLOCK_TYPE
 #undef BLOCK_INIT

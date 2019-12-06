@@ -12,6 +12,7 @@
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define BAND_TYPE            CONCAT(band,T)
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
@@ -771,6 +772,7 @@ end function
 #undef SPBUILD_TYPE
 #undef BAND_TYPE
 #undef HESSENBERG_TYPE
+#undef TRIANG_TYPE
 #undef BLOCK_TYPE
 
 #undef DENSE_INIT_BY_DATA
