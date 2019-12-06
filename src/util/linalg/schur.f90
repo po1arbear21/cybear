@@ -5,10 +5,10 @@ module schur_m
   implicit none
 
   interface schur
-    module procedure :: schur_hessenberg_real
-    module procedure :: schur_hessenberg_cmplx
     module procedure :: schur_dense_real
     module procedure :: schur_dense_cmplx
+    module procedure :: schur_hessenberg_real
+    module procedure :: schur_hessenberg_cmplx
   end interface
 
 contains
