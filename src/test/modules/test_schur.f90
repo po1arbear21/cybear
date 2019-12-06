@@ -6,9 +6,10 @@ module test_schur_m
 
 contains
   subroutine test_schur
-    type(test_case) :: tc
-    real, allocatable, dimension(:,:) :: d0, Q_exp, U_exp
-    type(dense_real) :: A, U, Q
+    type(test_case)       :: tc
+    real, allocatable     :: d0(:,:), Q_exp(:,:), U_exp(:,:)
+    type(dense_real)      :: A, Q
+    type(hessenberg_real) :: U
 
     print "(1A)", "test_schur"
     call tc%init("schur")

@@ -14,11 +14,11 @@ subroutine SCHUR_DENSE(A, V, U)
   !!
   !!  A = V U V^H
 
-  type(DENSE_TYPE), intent(in)  :: A
-  type(DENSE_TYPE), intent(out) :: V
+  type(DENSE_TYPE),      intent(in)  :: A
+  type(DENSE_TYPE),      intent(out) :: V
     !! unitary matrix: V^-1 = V^H. for real: V^-1 = V^T.
-  type(DENSE_TYPE), intent(out) :: U     ! fixme change to triangular
-    !! upper tridiag matrix
+  type(HESSENBERG_TYPE), intent(out) :: U
+    !! upper quasi-triangular matrix
 
   integer               :: n, info
   type(HESSENBERG_TYPE) :: H
@@ -63,7 +63,7 @@ subroutine SCHUR_HESSENBERG(H, Z, U, nonHessenberg)
   !! Computes Schur decomposition for a Hessenberg matrices
   !!
   !!  H = Z U Z^H
-  !!  U: upper triangular
+  !!  U: upper quasi-triangular
   !!  Z: unitary
   !!  A = Q H Q^H
 
@@ -72,8 +72,8 @@ subroutine SCHUR_HESSENBERG(H, Z, U, nonHessenberg)
   type(DENSE_TYPE),      intent(inout) :: Z
     !! unitary matrix: Z^-1 = Z'. for real: Z^-1 = Z^T.
     !! might store Q on input if nonHessenberg is set
-  type(DENSE_TYPE),      intent(out)   :: U     ! fixme change to triangular. no: for real: quasi-triangular (hessenberg?)
-    !! upper tridiag matrix
+  type(HESSENBERG_TYPE), intent(out)   :: U
+    !! upper quasi-triangular matrix
   logical, optional,     intent(in)    :: nonHessenberg
     !! Does input Z store the transformation of general A to Hessenberg H?
     !! default: false
@@ -98,7 +98,7 @@ subroutine SCHUR_HESSENBERG(H, Z, U, nonHessenberg)
     compz = 'I'
     call Z%init(n)
   end if
-  call U%init(n)
+  call U%init(n, .true.)
 
   U%d = H%d
 #ifdef TCMPLX
