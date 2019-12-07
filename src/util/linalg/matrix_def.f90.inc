@@ -136,7 +136,8 @@
 #define TRIANG_RESET         CONCAT3(triang,T,reset)
 #define TRIANG_SCALE         CONCAT3(triang,T,scale)
 #define TRIANG_MUL_VEC       CONCAT3(triang,T,mul_vec)
-#define TRIANG_MUL_MAT       CONCAT3(triang,T,mul_mat)
+#define TRIANG_MUL_MAT_ADD   CONCAT3(triang,T,mul_mat_add)
+#define TRIANG_MUL_MAT_SIDES CONCAT3(triang,T,mul_mat_sides)
 #define TRIANG_FACTORIZE     CONCAT3(triang,T,factorize)
 #define TRIANG_SOLVE_VEC     CONCAT3(triang,T,solve_vec)
 #define TRIANG_SOLVE_MAT     CONCAT3(triang,T,solve_mat)
@@ -381,11 +382,11 @@ contains
 end type
 
 type, extends(MATRIX_TYPE) :: TRIANG_TYPE
-  ! upper or lower triangular matrix
-  logical :: upper
+  logical         :: upper
+    !! upper or lower triangular matrix
 
-  ! unpacked data
   TT, allocatable :: d(:,:)
+    !! unpacked data
 contains
   procedure :: TRIANG_INIT
   generic   :: init      => TRIANG_INIT
@@ -393,17 +394,17 @@ contains
   procedure :: reset     => TRIANG_RESET
   procedure :: scale     => TRIANG_SCALE
   procedure :: mul_vec   => TRIANG_MUL_VEC
-  procedure :: mul_mat   => TRIANG_MUL_MAT
+  procedure :: mul_mat   => TRIANG_MUL_MAT_ADD, TRIANG_MUL_MAT_SIDES
   procedure :: factorize => TRIANG_FACTORIZE
   procedure :: solve_vec => TRIANG_SOLVE_VEC
   procedure :: solve_mat => TRIANG_SOLVE_MAT
   procedure :: to_dense  => TRIANG_TO_DENSE
   procedure :: to_sparse => TRIANG_TO_SPARSE
-#ifdef TCMPLX
-  procedure :: to_real   => TRIANG_TO_REAL
-#else
-  procedure :: to_cmplx  => TRIANG_TO_CMPLX
-#endif
+! #ifdef TCMPLX
+!   procedure :: to_real   => TRIANG_TO_REAL
+! #else
+!   procedure :: to_cmplx  => TRIANG_TO_CMPLX
+! #endif
 end type
 
 type, extends(MATRIX_TYPE) :: BLOCK_TYPE
@@ -651,7 +652,8 @@ end interface
 #undef TRIANG_RESET
 #undef TRIANG_SCALE
 #undef TRIANG_MUL_VEC
-#undef TRIANG_MUL_MAT
+#undef TRIANG_MUL_MAT_ADD
+#undef TRIANG_MUL_MAT_SIDES
 #undef TRIANG_FACTORIZE
 #undef TRIANG_SOLVE_VEC
 #undef TRIANG_SOLVE_MAT
