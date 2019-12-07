@@ -62,6 +62,8 @@ subroutine TRIANG_RESET(this, only_factorization)
   logical, optional,  intent(in)    :: only_factorization
     !! ignored
 
+  IGNORE(only_factorization)
+
   this%d = 0
 end subroutine
 
@@ -178,6 +180,7 @@ subroutine TRIANG_FACTORIZE(this)
     !! Triangular matrix
 
   ASSERT(.false.)   ! already triangular
+  IGNORE(this)
 end subroutine
 
 subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
