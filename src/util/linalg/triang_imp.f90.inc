@@ -122,7 +122,7 @@ subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
   !! Inefficient: does not make use of triangular structure.
 
   class(TRIANG_TYPE),  intent(in)    :: this
-    !! TRIANG matrix
+    !! Triangular matrix
   TT,                  intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
   TT,                  intent(inout) :: y(:,:)
@@ -132,7 +132,7 @@ subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
   character, optional, intent(in)    :: trans
     !! Transposed flag for this matrix, must be 'N', 'C' or 'T' (default: 'N')
 
-  call gemm(this%d, x, y, transa = trans, beta = fact_y)
+  call gemm(this%d, x, y, transa=trans, beta=fact_y)
 end subroutine
 
 subroutine TRIANG_MUL_MAT_SIDES(this, y, fact, trans, right)
@@ -307,6 +307,32 @@ subroutine TRIANG_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
     end do
   end do
 end subroutine
+
+#ifdef TCMPLX
+subroutine TRIANG_TO_REAL(this, a)
+  !! Convert triangular complex matrix to real by ignoring imaginary part.
+
+  class(TRIANG_cmplx), intent(in)  :: this
+    !! TRIANG complex matrix
+  type(TRIANG_real),   intent(out) :: a
+    !! Output real(this)
+
+  call a%init(this%nrows, this%upper)
+  a%d = real(this%d)
+end subroutine
+#else
+subroutine TRIANG_TO_CMPLX(this, a)
+  !! Convert triangular real matrix to complex.
+
+  class(TRIANG_real), intent(in)  :: this
+    !! Triangular real matrix
+  type(TRIANG_cmplx), intent(out) :: a
+    !! Output cmplx(this)
+
+  call a%init(this%nrows, this%upper)
+  a%d = this%d
+end subroutine
+#endif
 
 #undef T
 #undef TT
