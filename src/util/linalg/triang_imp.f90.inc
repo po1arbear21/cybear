@@ -119,7 +119,7 @@ end subroutine
 
 subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
   !! Multiply triangular matrix by a raw matrix.
-  !! Performs operation: y = this * x + fact_y * y
+  !! Performs operation: y <- this * x + fact_y * y
   !!
   !! Inefficient: does not make use of triangular structure.
 
@@ -141,12 +141,12 @@ subroutine TRIANG_MUL_MAT_SIDES(this, y, fact, trans, right)
   !! Multiply triangular matrix by a raw matrix.
   !! Performs operation:
   !!
-  !!        y = { fact * op(x) * y    if right=false
-  !!            { fact * y * op(x)    if right=true
+  !!        y <- { fact * op(x) * y    if right=false
+  !!             { fact * y * op(x)    if right=true
   !!
-  !!    op(x) = { x                   if trans=N
-  !!            { x^T                 if trans=T
-  !!            { x^H                 if trans=C
+  !!     op(x) = { x                   if trans=N
+  !!             { x^T                 if trans=T
+  !!             { x^H                 if trans=C
 
   class(TRIANG_TYPE),  intent(in)    :: this
     !! triangular matrix x
@@ -200,7 +200,7 @@ subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 
   character :: uplo
 
-  ASSERT(present(iter_refine))
+  ASSERT(.not. present(iter_refine))
 
   uplo = 'L'
   if (this%upper) uplo = 'U'
@@ -226,7 +226,7 @@ subroutine TRIANG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   character :: uplo
 
-  ASSERT(present(iter_refine))
+  ASSERT(.not. present(iter_refine))
 
   uplo = 'L'
   if (this%upper) uplo = 'U'

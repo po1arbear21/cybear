@@ -396,7 +396,7 @@ contains
   procedure :: mul_vec   => TRIANG_MUL_VEC
   procedure :: mul_mat   => TRIANG_MUL_MAT_ADD          ! mat2 <- thisMat * mat1 + fact * mat2
   procedure :: mul_mat2  => TRIANG_MUL_MAT_SIDES        ! mat2 <- fact * thisMat * mat1
-  procedure :: factorize => TRIANG_FACTORIZE
+  procedure :: factorize => TRIANG_FACTORIZE            ! unneeded => throws error
   procedure :: solve_vec => TRIANG_SOLVE_VEC
   procedure :: solve_mat => TRIANG_SOLVE_MAT
   procedure :: to_dense  => TRIANG_TO_DENSE
