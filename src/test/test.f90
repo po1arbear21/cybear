@@ -5,6 +5,7 @@ program test
   use test_matrix_m
   use test_qsort_m
   use test_vector_m
+  use test_sqrtm_m
   use test_arnoldi_m
   use test_schur_m
   implicit none
@@ -15,6 +16,7 @@ program test
   call test_matrix()
   call test_qsort()
   call test_vector()
+  call test_sqrtm()
   call test_arnoldi()
   call test_schur()
 end program test

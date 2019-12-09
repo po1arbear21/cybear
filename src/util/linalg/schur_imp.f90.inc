@@ -73,7 +73,10 @@ subroutine SCHUR_HESSENBERG(H, Z, U, nonHessenberg)
     !! unitary matrix: Z^-1 = Z'. for real: Z^-1 = Z^T.
     !! might store Q on input if nonHessenberg is set
   type(HESSENBERG_TYPE), intent(out)   :: U
-    !! upper quasi-triangular matrix
+    !! upper quasi-triangular matrix.
+    !! quasi: 2x2 blocks on diagonal representing EVals.
+    !!    for TYPE=cmplx: always triangular
+    !!    for TYPE=real:  triangular iff real diagonalizable
   logical, optional,     intent(in)    :: nonHessenberg
     !! Does input Z store the transformation of general A to Hessenberg H?
     !! default: false

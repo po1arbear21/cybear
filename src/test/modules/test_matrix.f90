@@ -18,13 +18,17 @@ module test_matrix_m
 
     module subroutine test_block()
     end subroutine
+
+    module subroutine test_triang()
+    end subroutine
   end interface
 
 contains
 
-  subroutine test_matrix()
-    call test_dense()
-    call test_sparse()
-  end subroutine test_matrix
+  subroutine test_matrix
+    call test_dense
+    call test_sparse
+    call test_triang
+  end subroutine
 
-end module test_matrix_m
+end module
