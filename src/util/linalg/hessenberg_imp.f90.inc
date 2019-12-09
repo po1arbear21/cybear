@@ -27,6 +27,7 @@
 #define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
 #define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
 #define HESSENBERG_TO_TRIANG CONCAT3(hessenberg,T,to_triang)
+#define HESSENBERG_IS_TRIANG CONCAT3(hessenberg,T,is_triang)
 #ifdef TCMPLX
 #define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
 #else
@@ -620,15 +621,51 @@ subroutine HESSENBERG_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
 end subroutine
 
 subroutine HESSENBERG_TO_TRIANG(this, t)
-  !! Convert hessenberg matrix to triangular matrix (copy triangular part)
+  !! Convert Hessenberg matrix to triangular matrix (copy triangular part and neglect offdiagonal part)
+
+  class(HESSENBERG_TYPE), intent(in)  :: this
+    !! Hessenberg matrix
+  type(TRIANG_TYPE),      intent(out) :: t
+    !! Output triangular matrix. Same upper/lower format as Hessenberg
+
+  integer :: i
+
+  call t%init(this%nrows, this%upper)
+  t%d = this%d
+
+  ! neglect offdiag part, not part of triangular
+  do i = 1, this%nrows
+    if (this%upper) then
+      if (i == 1) cycle
+      t%d(i,i-1) = 0
+    else
+      if (i == this%nrows) cycle
+      t%d(i,i+1) = 0
+    end if
+  end do
+end subroutine
+
+logical function HESSENBERG_IS_TRIANG(this, abs_tol)
+  !! Checks if Hessenberg matrix is a triangular matrix.
+  !! Only checks if offdiagonal part across Hessenerg's triangular part is zero.
 
   class(HESSENBERG_TYPE), intent(in) :: this
     !! Hessenberg matrix
-  type(TRIANG_TYPE),      intent(out) :: t
-    !! Output triangular matrix
+  real, optional,         intent(in) :: abs_tol
+    !! Absolute value's threshold (default: 0.0).
 
-  ....
-end subroutine
+  integer :: i
+  real    :: abs_tol_
+
+  abs_tol_ = 0.0
+  if (present(abs_tol)) abs_tol_ = abs_tol
+
+  if (this%upper) then
+    HESSENBERG_IS_TRIANG = all([(abs(this%d(i,i-1)) <= abs_tol_, i=2, this%nrows)])
+  else
+    HESSENBERG_IS_TRIANG = all([(abs(this%d(i,i+1)) <= abs_tol_, i=1, this%nrows-1)])
+  end if
+end function
 
 #ifdef TCMPLX
 subroutine HESSENBERG_TO_REAL(this, h)
@@ -717,5 +754,6 @@ end subroutine
 #undef HESSENBERG_TO_DENSE
 #undef HESSENBERG_TO_SPARSE
 #undef HESSENBERG_TO_TRIANG
+#undef HESSENBERG_IS_TRIANG
 #undef HESSENBERG_TO_REAL
 #undef HESSENBERG_TO_CMPLX

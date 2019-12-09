@@ -124,6 +124,7 @@
 #define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
 #define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
 #define HESSENBERG_TO_TRIANG CONCAT3(hessenberg,T,to_triang)
+#define HESSENBERG_IS_TRIANG CONCAT3(hessenberg,T,is_triang)
 #ifdef TCMPLX
 #define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
 #else
@@ -379,6 +380,7 @@ contains
 #else
   procedure :: to_cmplx  => HESSENBERG_TO_CMPLX
 #endif
+  procedure :: is_triang => HESSENBERG_IS_TRIANG
 end type
 
 type, extends(MATRIX_TYPE) :: TRIANG_TYPE
@@ -644,6 +646,7 @@ end interface
 #undef HESSENBERG_TO_DENSE
 #undef HESSENBERG_TO_SPARSE
 #undef HESSENBERG_TO_TRIANG
+#undef HESSENBERG_IS_TRIANG
 #undef HESSENBERG_TO_REAL
 #undef HESSENBERG_TO_CMPLX
 
