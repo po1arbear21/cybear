@@ -10,9 +10,9 @@
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
 #define TRIANG_TYPE          CONCAT(triang,T)
 
-#define SQRTM_MATRIX_TYPE    CONCAT3(sqrtm,M,T)
+#define SQRTM                CONCAT3(sqrtm,M,T)
 
-subroutine SQRTM_MATRIX_TYPE(M, sqrtM)
+subroutine SQRTM(M, sqrtM)
   !! Computes the matrix square root of a matrix M.
   !!
   !!  sqrtM = sqrtm(M) as in MATLAB
