@@ -1,13 +1,15 @@
 FC     = ifort
 FFLAGS = -march=native -O2 -fpp -module build/
 
-.PHONY: clean
+.PHONY: clean_depend
 
-depend: src/depend.f90 build/src_file.o
-	$(FC) $(FFLAGS) src/depend.f90 -o depend build/src_file.o
+depend/depend: depend/src/depend.f90 depend/build/src_file.o
+	$(FC) $(FFLAGS) depend/src/depend.f90 -o depend/depend depend/build/src_file.o
 
-build/src_file.o: src/src_file.f90 src/vector_def.f90.inc src/vector_imp.f90.inc
-	$(FC) $(FFLAGS) -c src/src_file.f90 -o build/src_file.o
+depend/build/src_file.o: depend/src/src_file.f90 depend/src/vector_def.f90.inc depend/src/vector_imp.f90.inc
+	$(FC) $(FFLAGS) -c depend/src/src_file.f90 -o depend/build/src_file.o
 
-clean:
-	rm -f build/*.o build/*.mod depend
+clean_depend:
+	rm -f depend/build/*.{o,mod} depend/depend
+
+clean_all: clean_depend
