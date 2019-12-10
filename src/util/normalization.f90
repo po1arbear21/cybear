@@ -37,7 +37,7 @@ contains
       !! temperature
 
     call normconst%init(T)
-  end subroutine init_normconst
+  end subroutine
 
   function norm_scalar(value, unit, n) result(nvalue)
     !! normalize scalar
@@ -268,9 +268,11 @@ contains
     real, parameter :: FSC    = EC / (PLANCK * CLIGHT * 4 * PI * EPS0) ! Fine structure constant ~ 1/137
 
     ! local variables
-    real :: eV, hq, rmom, spr, spk, time, velo, pot, field, conc, dpc, scrt, curr, resist, cap, ind, cvr, dk
+    real :: eV, hq, rmom, spr, spk, time, velo, pot, field, conc, dpc, scrt, curr, resist, cap, ind, cvr, dk, mass, &
+      &     norm_permittivity, mass_dens
 
     ! init norm constants
+    mass   = EM              ! mass normed to em0 [kg]
     eV     = BOLTZ*T         ! energy [eV]
     hq     = PLANCK          ! Planck's constant [eVs]
     rmom   = dsqrt(EM/EC*eV) ! momentum [eVs/m]
@@ -289,6 +291,8 @@ contains
     ind    = resist * time   ! inductance [Ohm*s]
     cvr    = CLIGHT/velo
     dk     = 4d0*PI*FSC*cvr  ! dielectric constant (eps_vacuum /= 1)
+    norm_permittivity = EC / eV / spr
+    mass_dens         =  mass*conc      ! mass density  [kg/m**3]
 
     ! initialize vectors
     call this%unit%init( n = 0, c = 64)
@@ -299,21 +303,30 @@ contains
     call insert("m",                    1.0 / spr)
     call insert("m^2",                  1.0 / spr / spr)
     call insert("m^3",                  1.0 / spr / spr / spr)
+    call insert("cm",                   1e-2 / spr)
     call insert("um",                   1e-6 / spr)
     call insert("um^2",                 1e-12 / spr / spr)
     call insert("um^3",                 1e-18 / spr / spr / spr)
+    call insert("nm",                   1e-9 / spr)
     call insert("1/cm^3",               1e6 / conc)
     call insert("1/cm^2",               1e4 / spk / spk)
     call insert("1/cm",                 1e2 / spk)
     call insert("eV",                   1.0 / eV)
+    call insert("meV",                  1e-3 / eV)
+    call insert("eV/cm",                1e2 / eV / spk)
     call insert("eV/cm^3",              1e6 / ev / conc)
     call insert("eV/cm^2/s",            1e4 / ev / spk / spk / scrt)
+    call insert("1/cm^3/eV",            1e6 / conc * eV)
+    call insert("1/eV",                 1e0 * eV)
     call insert("V",                    1.0 / pot)
+    call insert("mV",                   1e-3 / pot)
     call insert("V/m",                  1.0 / field)
     call insert("V/cm",                 1e2 / field)
     call insert("kV/cm",                1e5 / field)
     call insert("1/V",                  pot)
+    call insert("kg",                   1e0 / mass)
     call insert("s",                    1.0 / time)
+    call insert("fs",                   1e-15 / time)
     call insert("1/s",                  1.0 / scrt)
     call insert("Hz",                   1.0 / scrt)
     call insert("cm^2/V/s",             1e-4 / (velo / field))
@@ -327,7 +340,9 @@ contains
     call insert("A/cm",                 1e2 / curr)
     call insert("A/cm/V",               1e2 / curr * pot)
     call insert("A/cm^2",               1e4 / curr * spr)
+    call insert("mA/um^2",              1e9 / curr * spr)
     call insert("1/cm^2/s",             1e4 / spk / spk / scrt)
+    call insert("1/um^2/s",             1e12 / spk / spk / scrt)
     call insert("A/V",                  resist)
     call insert("Ohm",                  1.0 / resist)
     call insert("V/A",                  1.0 / resist)
@@ -335,6 +350,8 @@ contains
     call insert("s/V",                  1.0 / time * pot)
     call insert("H",                    1.0 / ind)
     call insert("eps0",                 1.0 / dk)
+    call insert("C/V/m",                1e0 / norm_permittivity)
+    call insert("g/cm^3",               1e3 / mass_dens)
 
   contains
     subroutine insert(unit, const)
