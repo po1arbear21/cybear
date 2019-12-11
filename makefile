@@ -39,14 +39,19 @@ SOURCES := $(shell find src/ -name '*.f90')
 
 # libraries
 LIBS := ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
+include depend/makefile
 include lib/arpack/arpack.mk
 include lib/expokit/expokit.mk
 #include lib/feast/feast.mk
 #include lib/quadpack/quadpack.mk
 
+# generate program to create dependency file
+# depend/depend:
+# 	make -C depend
+
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
-$(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES)
+$(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES) depend/depend
 	@printf "%b" "$(FC_COL)./depend/depend$(NO_COL) $(IN_COL)$(SOURCES)$(NO_COL) -b $(BUILD_DIR) > $(OU_COL)$(BUILD_DIR).depend$(NO_COL) || rm -f $(OU_COL)$(BUILD_DIR).depend$(NO_COL)\n\n"
 	@./depend/depend $(SOURCES) -b $(BUILD_DIR) > $(BUILD_DIR).depend || rm -f $(BUILD_DIR).depend
 include $(BUILD_DIR).depend
