@@ -1,13 +1,15 @@
-FC     = ifort
-FFLAGS = -march=native -O2 -fpp -module build/
+FC            = ifort
+DEPEND_FFLAGS = -real-size 64 -i8 -march=native -O2 -fpp -module depend/build/
 
-.PHONY: clean
+.PHONY: clean_depend
 
-depend: src/depend.f90 build/src_file.o
-	$(FC) $(FFLAGS) src/depend.f90 -o depend build/src_file.o
+depend/depend: depend/src/depend.f90 depend/build/src_file.o
+	$(FC) $(DEPEND_FFLAGS) depend/src/depend.f90 -o depend/depend depend/build/src_file.o
 
-build/src_file.o: src/src_file.f90 src/vector_def.f90.inc src/vector_imp.f90.inc
-	$(FC) $(FFLAGS) -c src/src_file.f90 -o build/src_file.o
+depend/build/src_file.o: depend/src/src_file.f90 depend/src/vector_def.f90.inc depend/src/vector_imp.f90.inc
+	$(FC) $(DEPEND_FFLAGS) -c depend/src/src_file.f90 -o depend/build/src_file.o
 
-clean:
-	rm -f build/*.o build/*.mod depend
+clean_depend:
+	rm -f depend/build/*.{o,mod} depend/depend
+
+clean_all: clean_depend
