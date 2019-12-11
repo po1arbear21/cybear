@@ -2,12 +2,22 @@
 
 module pardiso_m
   use error_m
+  use vector_m
+
   implicit none
+
+  !# Privat vor Staat (Olaf Scholz does not approve of this message)
+
+  private
+  public :: create_pardiso_handle
+  public :: destruct_pardiso_handle
+  public :: pardiso_factorize
+  public :: pardiso_solve
 
   ! include pardiso interface
 #include 'mkl_pardiso.fi'
 
-  character(len=*), parameter :: PARDISO_ERROR(-12:0) = (/                   &
+  character(*), parameter :: PARDISO_ERROR(-12:0) = [                        &
     & "pardiso_64 called from 32-bit library                              ", &
     & "read/write error with OOC files                                    ", &
     & "error opening OOC files                                            ", &
@@ -21,7 +31,7 @@ module pardiso_m
     & "not enough memory                                                  ", &
     & "input inconsistent                                                 ", &
     & "no error                                                           "  &
-    &/)
+    &]
 
   type pardiso_handle
     type(MKL_PARDISO_HANDLE) :: pt(64)
@@ -40,236 +50,262 @@ module pardiso_m
       !! PARDISO parameters
     logical                  :: factorized = .false.
       !! factorization complete flag
-  contains
-    procedure :: init          => pardiso_init
-    procedure :: destruct      => pardiso_destruct
-    procedure :: pardiso_factorize_r
-    procedure :: pardiso_factorize_c
-    generic   :: factorize     => pardiso_factorize_r, pardiso_factorize_c
-    procedure :: pardiso_solve_r
-    procedure :: pardiso_solve_c
-    generic   :: solve         => pardiso_solve_r, pardiso_solve_c
   end type
+
+#define T pardiso_handle
+#define TT type(pardiso_handle)
+#include "../vector_def.f90.inc"
+
+  type(vector_pardiso_handle) :: pardiso_handles
+  type(vector_int)            :: free_pardiso_handles
+
+  interface pardiso_factorize
+    module procedure :: pardiso_factorize_r
+    module procedure :: pardiso_factorize_c
+  end interface
+
+  interface pardiso_solve
+    module procedure :: pardiso_solve_r
+    module procedure :: pardiso_solve_c
+  end interface
 
 contains
 
-  subroutine pardiso_init(this, nrows, cmplx)
-    !! Inits the pardiso_handle object.
-    !!
-    !! Assumes unsymmetric matrices.
+#define T pardiso_handle
+#define TT type(pardiso_handle)
+#include "../vector_imp.f90.inc"
 
-    class(pardiso_handle), target, intent(out) :: this
-    integer,                       intent(in)  :: nrows
+  function create_pardiso_handle(nrows, cmplx) result(h)
+    integer, intent(in) :: nrows
       !! number of rows
-    logical,                       intent(in)  :: cmplx
+    logical, intent(in) :: cmplx
       !! complex/real flag
+    integer             :: h
+      !! return pardiso handle (index)
 
-    ! maximum number of factors with idential sparse structure
-    this%maxfct = 1
-
-    ! which matrix should be used in solution phase (1 <= mnum <= maxfct)
-    this%mnum = 1
-
-    ! matrix type: real unsymmetric or complex unsymmetric
-    if (cmplx) then
-      this%mtype = 13
+    if (free_pardiso_handles%n > 0) then
+      h = free_pardiso_handles%d(free_pardiso_handles%n)
+      call free_pardiso_handles%resize(free_pardiso_handles%n-1)
     else
-      this%mtype = 11
+      block
+        type(pardiso_handle) :: p
+        call pardiso_handles%push(p)
+      end block
+      h = pardiso_handles%n
     end if
 
-    ! number of rows
-    this%nrows = nrows
+    associate (p => pardiso_handles%d(h))
+      ! maximum number of factors with idential sparse structure
+      p%maxfct = 1
 
-    ! do not print statistical information
-    this%msglvl = 0
+      ! which matrix should be used in solution phase (1 <= mnum <= maxfct)
+      p%mnum = 1
 
-    ! init pt, iparm
-    call pardisoinit(this%pt, this%mtype, this%iparm)
+      ! matrix type: real unsymmetric or complex unsymmetric
+      if (cmplx) then
+        p%mtype = 13
+      else
+        p%mtype = 11
+      end if
 
-    ! ======================
-    !     ipar
-    ! ======================
+      ! number of rows
+      p%nrows = nrows
 
-    ! this%iparm( 1) = 1  ! Use default values
-    ! this%iparm( 2) = 2  ! Fill-in reducing ordering for the input matrix (default: METIS)
-    ! this%iparm( 4) = 0  ! Preconditioned CGS/CG
-    ! this%iparm( 5) = 0  ! User permutation
-    ! this%iparm( 6) = 0  ! Write solution on x (default: right-hand side b unchanged)
-    ! this%iparm( 7)      ! output: Actual number of iterative refinement steps performed
-      this%iparm( 8) = 9  ! Maximal number of iterative refinement steps
-    ! this%iparm(10)      ! Pivoting permutation (default: 1 or 3 depending on cmplx)
-    ! this%iparm(11) = 1  ! Scaling (default: on for unsymmetric)
-    ! this%iparm(12) = 0  ! Solve with transposed or conjugate transposed matrix (default: off)
-    ! this%iparm(13) = 1  ! Improved accuracy using non-symmetric weighted matching (default: on for unsymmetric)
-    ! this%iparm(14)      ! output: Number of perturbed pivots
-    ! this%iparm(15)      ! output: Peak memory on symbolic factorization
-    ! this%iparm(16)      ! output: Permanent memory on symbolic factorization
-    ! this%iparm(17)      ! output: Size of factors/Peak memory on numerical factorization and solution
-    ! this%iparm(18) = -1 ! Report number of non-zero elements in the factors (default: on)
-    ! this%iparm(19) = 0  ! Report number of floating point operations for factorization (default: off)
-    ! this%iparm(20)      ! output: Report CG/CGS diagnostics
-    ! this%iparm(21) = 1  ! Pivoting for symmetric indefinite matrices (default: Bunch-Kaufman)
-    ! this%iparm(22)      ! output: Inertia, number of positive eigenvalues for symmetric indefinite matrices
-    ! this%iparm(23)      ! output: Inertia, number of negative eigenvalues for symmetric indefinite matrices
-      this%iparm(24) = 1  ! Parallel factorization control (default: classic)
-      this%iparm(25) = 2  ! Parallel forward/backward solve control (default: sequential)
-    ! this%iparm(27) = 0  ! Matrix checker (default: off)
-    ! this%iparm(28) = 0  ! Single or double precision (default: double precision)
-    ! ....
+      ! do not print statistical information
+      p%msglvl = 0
 
-    this%factorized = .false.
-  end subroutine
+      ! init pt, iparm
+      call pardisoinit(p%pt, p%mtype, p%iparm)
 
-  subroutine pardiso_destruct(this)
-    !! Release internal memory.
+      ! ======================
+      !     ipar
+      ! ======================
 
-    class(pardiso_handle), intent(inout) :: this
+      ! p%iparm( 1) = 1  ! Use default values
+      ! p%iparm( 2) = 2  ! Fill-in reducing ordering for the input matrix (default: METIS)
+      ! p%iparm( 4) = 0  ! Preconditioned CGS/CG
+      ! p%iparm( 5) = 0  ! User permutation
+      ! p%iparm( 6) = 0  ! Write solution on x (default: right-hand side b unchanged)
+      ! p%iparm( 7)      ! output: Actual number of iterative refinement steps performed
+        p%iparm( 8) = 9  ! Maximal number of iterative refinement steps
+      ! p%iparm(10)      ! Pivoting permutation (default: 1 or 3 depending on cmplx)
+      ! p%iparm(11) = 1  ! Scaling (default: on for unsymmetric)
+      ! p%iparm(12) = 0  ! Solve with transposed or conjugate transposed matrix (default: off)
+      ! p%iparm(13) = 1  ! Improved accuracy using non-symmetric weighted matching (default: on for unsymmetric)
+      ! p%iparm(14)      ! output: Number of perturbed pivots
+      ! p%iparm(15)      ! output: Peak memory on symbolic factorization
+      ! p%iparm(16)      ! output: Permanent memory on symbolic factorization
+      ! p%iparm(17)      ! output: Size of factors/Peak memory on numerical factorization and solution
+      ! p%iparm(18) = -1 ! Report number of non-zero elements in the factors (default: on)
+      ! p%iparm(19) = 0  ! Report number of floating point operations for factorization (default: off)
+      ! p%iparm(20)      ! output: Report CG/CGS diagnostics
+      ! p%iparm(21) = 1  ! Pivoting for symmetric indefinite matrices (default: Bunch-Kaufman)
+      ! p%iparm(22)      ! output: Inertia, number of positive eigenvalues for symmetric indefinite matrices
+      ! p%iparm(23)      ! output: Inertia, number of negative eigenvalues for symmetric indefinite matrices
+        p%iparm(24) = 1  ! Parallel factorization control (default: classic)
+        p%iparm(25) = 2  ! Parallel forward/backward solve control (default: sequential)
+      ! p%iparm(27) = 0  ! Matrix checker (default: off)
+      ! p%iparm(28) = 0  ! Single or double precision (default: double precision)
+      ! ....
+
+      p%factorized = .false.
+    end associate
+  end function
+
+  subroutine destruct_pardiso_handle(h)
+    integer, intent(inout) :: h
+      !! pardiso handle (index)
 
     ! local variables
     integer :: phase, error, ia(0), ja(0), perm(0)
     real    :: a(0), b(0), x(0)
     complex :: ca(0), cb(0), cx(0)
 
-    if (any(this%pt%dummy /= 0)) then
-      ! termination and release of memory
-      phase = -1 ! release internal memory
-      if (this%mtype == 11) then
-        call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, a, ia, ja, perm, 0, &
-                     this%iparm, this%msglvl, b, x, error)
-      else if (this%mtype == 13) then
-        call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, ca, ia, ja, perm, 0, &
-                     this%iparm, this%msglvl, cb, cx, error)
-      end if
+    associate (p => pardiso_handles%d(h))
+      if (any(p%pt%dummy /= 0)) then
+        ! termination and release of memory
+        phase = -1 ! release internal memory
+        if (p%mtype == 11) then
+          call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, a, ia, ja, perm, 0, &
+                       p%iparm, p%msglvl, b, x, error)
+        else if (p%mtype == 13) then
+          call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, ca, ia, ja, perm, 0, &
+                       p%iparm, p%msglvl, cb, cx, error)
+        end if
 
-      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
-    end if
-    this%factorized = .false.
+        if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+      end if
+      p%factorized = .false.
+    end associate
+
+    call free_pardiso_handles%push(h)
+    h = 0
   end subroutine
 
-  subroutine pardiso_factorize_r(this, ia, ja, a)
+  subroutine pardiso_factorize_r(h, ia, ja, a)
     !! Factorize real matrix with PARDISO.
 
-    class(pardiso_handle), intent(inout) :: this
-    integer,               intent(in)    :: ia(:)
-    integer,               intent(in)    :: ja(:)
-    real,                  intent(in)    :: a(:)
+    integer, intent(in) :: h
+      !! pardiso handle (index)
+    integer, intent(in) :: ia(:)
+    integer, intent(in) :: ja(:)
+    real,    intent(in) :: a(:)
 
     ! local variables
     integer :: error, phase, perm(0)
     real    :: dum(0)
 
-    ! make sure the matrix type is real
-    ASSERT(this%mtype == 11)
+    associate (p => pardiso_handles%d(h))
+      ! make sure the matrix type is real
+      ASSERT(p%mtype == 11)
 
-    ! reordering and symbolic factorization
-    phase = 11 ! analysis
-    call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+      ! reordering and symbolic factorization
+      phase = 11 ! analysis
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
-    ! factorization
-    phase = 22 ! numerical factorization
-    call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
-    this%factorized = .true.
+      ! factorization
+      phase = 22 ! numerical factorization
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+      p%factorized = .true.
+    end associate
   end subroutine
 
-  subroutine pardiso_factorize_c(this, ia, ja, a)
+  subroutine pardiso_factorize_c(h, ia, ja, a)
     !! Factorize complex matrix with PARDISO.
 
-    class(pardiso_handle), intent(inout) :: this
-    integer,               intent(in)    :: ia(:)
-    integer,               intent(in)    :: ja(:)
-    complex,               intent(in)    :: a(:)
+    integer, intent(in) :: h
+      !! pardiso handle (index)
+    integer, intent(in) :: ia(:)
+    integer, intent(in) :: ja(:)
+    complex, intent(in) :: a(:)
 
     ! local variables
     integer :: error, phase, perm(0)
     complex :: dum(0)
 
-    ! make sure matrix type is complex
-    ASSERT(this%mtype == 13)
+    associate (p => pardiso_handles%d(h))
+      ! make sure matrix type is complex
+      ASSERT(p%mtype == 13)
 
-    ! reordering and symbolic factorization
-    phase = 11 ! analysis
-    call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+      ! reordering and symbolic factorization
+      phase = 11 ! analysis
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
-    ! factorization
-    phase = 22 ! numerical factorization
-    call pardiso(this%pt, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, 0, this%iparm, this%msglvl, dum, dum, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
-    this%factorized = .true.
+      ! factorization
+      phase = 22 ! numerical factorization
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+      p%factorized = .true.
+    end associate
   end subroutine
 
-  subroutine pardiso_solve_r(this, ia, ja, a, b, x)
+  subroutine pardiso_solve_r(h, ia, ja, a, b, x)
     !! Solve real system with PARDISO.
 
-    class(pardiso_handle), intent(in)  :: this
-    integer,               intent(in)  :: ia(:)
-    integer,               intent(in)  :: ja(:)
-    real,                  intent(in)  :: a(:)
-    real,                  intent(in)  :: b(:)
-    real,                  intent(out) :: x(:)
+    integer, intent(in)  :: h
+      !! pardiso handle (index)
+    integer, intent(in)  :: ia(:)
+    integer, intent(in)  :: ja(:)
+    real,    intent(in)  :: a(:)
+    real,    intent(in)  :: b(:)
+    real,    intent(out) :: x(:)
 
     ! local variables
-    integer                  :: error, phase, perm(0), iparm_(64)
-    real                     :: b_(size(b))
-    type(MKL_PARDISO_HANDLE) :: pt_(64)
+    integer :: error, phase, perm(0)
+    real    :: b_(size(b))
 
-    ! make sure matrix type is real and matrix is factorized
-    ASSERT(this%mtype == 11)
-    ASSERT(this%factorized)
+    associate (p => pardiso_handles%d(h))
+      ! make sure matrix type is real and matrix is factorized
+      ASSERT(p%mtype == 11)
+      ASSERT(p%factorized)
 
-    ! copy data
-    pt_    = this%pt
-    iparm_ = this%iparm
-    b_     = b
+      ! copy data
+      b_ = b
 
-    ! back substitution and iterative refinement
-    phase = 33 ! solve, iterative refinement
-    call pardiso(pt_, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
-
-    ! make sure pardiso does not change the handle
-    ASSERT(all(this%pt%dummy == pt_%dummy))
+      ! back substitution and iterative refinement
+      phase = 33 ! solve, iterative refinement
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &          a, ia, ja, perm, size(b)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+    end associate
   end subroutine
 
-  subroutine pardiso_solve_c(this, ia, ja, a, b, x)
+  subroutine pardiso_solve_c(h, ia, ja, a, b, x)
     !! Solve complex system with PARDISO.
 
-    class(pardiso_handle), intent(in)  :: this
-    integer,               intent(in)  :: ia(:)
-    integer,               intent(in)  :: ja(:)
-    complex,               intent(in)  :: a(:)
-    complex,               intent(in)  :: b(:)
-    complex,               intent(out) :: x(:)
+    integer, intent(in)  :: h
+      !! pardiso handle (index)
+    integer, intent(in)  :: ia(:)
+    integer, intent(in)  :: ja(:)
+    complex, intent(in)  :: a(:)
+    complex, intent(in)  :: b(:)
+    complex, intent(out) :: x(:)
 
     ! local variables
-    integer                  :: error, phase, perm(0), iparm_(64)
-    complex                  :: b_(size(b))
-    type(MKL_PARDISO_HANDLE) :: pt_(64)
+    integer :: error, phase, perm(0)
+    complex :: b_(size(b))
 
-    ! make sure matrix type is complex and matrix is factorized
-    ASSERT(this%mtype == 13)
-    ASSERT(this%factorized)
+    associate (p => pardiso_handles%d(h))
+      ! make sure matrix type is complex and matrix is factorized
+      ASSERT(p%mtype == 13)
+      ASSERT(p%factorized)
 
-    ! copy data
-    pt_    = this%pt
-    iparm_ = this%iparm
-    b_     = b
+      ! copy data
+      b_ = b
 
-    ! back substitution and iterative refinement
-    phase = 33 ! solve, iterative refinement
-    call pardiso(pt_, this%maxfct, this%mnum, this%mtype, phase, this%nrows, &
-                 a, ia, ja, perm, size(b)/this%nrows, iparm_, this%msglvl, b_, x, error)
-    if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
-
-    ! make sure pardiso does not change the handle
-    ASSERT(all(this%pt%dummy == pt_%dummy))
+      ! back substitution and iterative refinement
+      phase = 33 ! solve, iterative refinement
+      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &          a, ia, ja, perm, size(b)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+    end associate
   end subroutine
 
 end module

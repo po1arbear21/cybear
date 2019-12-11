@@ -253,7 +253,7 @@ type, extends(MATRIX_TYPE) :: SPARSE_TYPE
   integer, allocatable :: ja(:)
   TT,      allocatable :: a(:)
 
-  type(pardiso_handle) :: pard
+  integer              :: pard = 0
     !! Handle to pardiso for solving
 contains
   procedure :: SPARSE_INIT

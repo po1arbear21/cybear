@@ -77,7 +77,7 @@ subroutine SPARSE_DESTRUCT(this)
   if (allocated(this%a )) deallocate(this%a )
 
   ! destruct pardiso handle
-  call this%pard%destruct()
+  call destruct_pardiso_handle(this%pard)
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
@@ -102,7 +102,7 @@ subroutine SPARSE_RESET(this, only_factorization)
   end if
 
   ! destruct factorization
-  call this%pard%destruct()
+  call destruct_pardiso_handle(this%pard)
 end subroutine
 
 subroutine SPARSE_SCALE(this, fact)
@@ -113,7 +113,8 @@ subroutine SPARSE_SCALE(this, fact)
   TT,                 intent(in)    :: fact
     !! Scaling factor
 
-  ASSERT(.not. this%pard%factorized)
+  ! h == 0 is default value for unfactorized
+  ASSERT(this%pard == 0)
 
   ! scale values
   this%a = fact * this%a
@@ -265,16 +266,18 @@ subroutine SPARSE_FACTORIZE(this)
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
 
-  ASSERT(.not. this%pard%factorized)
+  ! h == 0 is default value for unfactorized
+  ASSERT(this%pard == 0)
 
+  ! init pardiso
 #ifdef TCMPLX
-  call this%pard%init(this%nrows, .true.)
+  this%pard = create_pardiso_handle(this%nrows, .true.)
 #else
-  call this%pard%init(this%nrows, .false.)
+  this%pard = create_pardiso_handle(this%nrows, .false.)
 #endif
 
   ! factorize with pardiso
-  call this%pard%factorize(this%ia, this%ja, this%a)
+  call pardiso_factorize(this%pard, this%ia, this%ja, this%a)
 end subroutine
 
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -302,7 +305,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   end if
 
   ! solve system with pardiso
-  call this%pard%solve(this%ia, this%ja, this%a, rhs, x)
+  call pardiso_solve(this%pard, this%ia, this%ja, this%a, rhs, x)
 end subroutine
 
 subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
@@ -338,7 +341,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   ! solve with pardiso, pass right-hand sides one after another in 1D array
   rhs_ = reshape(rhs, [size(rhs,1) * size(rhs,2)])
-  call this%pard%solve(this%ia, this%ja, this%a, rhs_, x_)
+  call pardiso_solve(this%pard, this%ia, this%ja, this%a, rhs_, x_)
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine
 
@@ -461,7 +464,8 @@ subroutine SPARSE_TRANSPOSE(this)
   ! local variables
   type(SPARSE_TYPE) :: s2
 
-  ASSERT(.not. this%pard%factorized)
+  ! h == 0 is default value for unfactorized
+  ASSERT(this%pard == 0)
 
   ! transpose matrix
   call this%transpose(s2)
@@ -543,7 +547,9 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
 
   ASSERT(this%nrows == s%nrows)
   ASSERT(this%ncols == s%ncols)
-  ASSERT(.not. this%pard%factorized)
+
+  ! h == 0 is default value for unfactorized
+  ASSERT(this%pard == 0)
 
   ! optional arguments
   fact_ = 1
@@ -644,7 +650,9 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
 
   ASSERT(this%nrows == b%nrows)
   ASSERT(this%ncols == b%ncols)
-  ASSERT(.not. this%pard%factorized)
+
+  ! h == 0 is default value for unfactorized
+  ASSERT(this%pard == 0)
 
   ! optional arguments
   fact_ = 1
@@ -722,6 +730,8 @@ end subroutine
 
 subroutine SPARSE_MUL_SPARSE(this, s2, s3)
   !! Multiply two sparse matrices, store result in sparse third matrix.
+  !!
+  !! operation: s3 <- this * s2
 
   class(SPARSE_TYPE), intent(in)  :: this
     !! Sparse first matrix (unchanged)

@@ -4,6 +4,7 @@
 module matrix_m
   use array_m
   use blas95
+  use error_m
   use high_precision_m
   use lapack95
   use omp_lib
