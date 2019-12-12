@@ -99,6 +99,50 @@ contains
       call tc%assert_eq(ja_exp, sB%ja,       "add_sparse: ja")
     end block
 
+    ! operation: C <- fact1 * A + fact2 * B
+    block
+      type(sparse_real)    :: sB, sC
+      type(spbuild_real)   :: sbuild
+      real,    allocatable :: a_exp(:)
+      integer, allocatable :: ia_exp(:), ja_exp(:)
+
+      ! B =
+      !  0     0     5     1
+      !  0     2     0     0
+      !  0     0     0    -3
+      ! -1     0     0     0
+
+      call sB%init(4)
+      call sbuild%init(sB)
+
+      call sbuild%add(1, 3,  5.0)
+      call sbuild%add(1, 4,  1.0)
+      call sbuild%add(2, 2,  2.0)
+      call sbuild%add(3, 4, -3.0)
+      call sbuild%add(4, 1, -1.0)
+
+      call sbuild%save
+
+      ! 3*B-2*A=
+      !  -2    -4    15     3
+      !   0    -2     0     0
+      !   0     0    -2    -9
+      !  -3    -2     0   -10
+      !
+      ! a  = [-2 -4 15 3 -2 -2 -9 -3 -2 -10]
+      ! ia = [1 5 6 8 11]
+      ! ja = [1 2 3 4 2 3 4 1 2 4]
+
+      a_exp  = [-2,-4,15,3,-2,-2,-9,-3,-2,-10]
+      ia_exp = [1,5,6,8,11]
+      ja_exp = [1,2,3,4,2,3,4,1,2,4]
+      call sB%add_sparse(sA, sC, fact1=3.0, fact2=-2.0)
+
+      call tc%assert_eq(a_exp,  sC%a, 1e-12, "add_sparse: a")
+      call tc%assert_eq(ia_exp, sC%ia,       "add_sparse: ia")
+      call tc%assert_eq(ja_exp, sC%ja,       "add_sparse: ja")
+    end block
+
     ! mat vec
     block
       real, allocatable, dimension(:) :: x, y, y_exp
