@@ -529,7 +529,9 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
 end subroutine
 
 subroutine SPARSE_ADD_SPARSE(this, s, fact)
-    !! Add two sparse matrices, store result in first matrix.
+  !! Add two sparse matrices, store result in first matrix.
+  !!
+  !! operation: this <- this + fact * s
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! First sparse matrix (updated)
@@ -572,7 +574,7 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
         j1 = j1 + 1
       elseif (this%ja(j1) > s%ja(j2)) then
         call ja%push(s%ja(j2))
-        call a%push(s%a(j2))
+        call a%push(fact_ * s%a(j2))
         j2 = j2 + 1
       else
         call ja%push(this%ja(j1))
@@ -588,10 +590,10 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
     end do
     do while (j2 < s%ia(i+1))
       call ja%push(s%ja(j2))
-      call a%push(s%a(j2))
+      call a%push(fact_ * s%a(j2))
       j2 = j2 + 1
     end do
-    ia(i+1) = ja%n
+    ia(i+1) = ja%n + 1
   end do
 
   ! delete old csr data and replace it
@@ -604,6 +606,8 @@ end subroutine
 
 subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
   !! Add two sparse matrices, store result in sparse third matrix.
+  !!
+  !! operation: s3 <- fact1 * this + fact2 * s2
 
   class(SPARSE_TYPE), intent(in)  :: this
     !! Sparse first matrix (unchanged)
