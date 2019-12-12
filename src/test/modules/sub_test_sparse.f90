@@ -99,7 +99,7 @@ contains
       call tc%assert_eq(ja_exp, sB%ja,       "add_sparse: ja")
     end block
 
-    ! operation: C <- fact1 * A + fact2 * B
+    ! add_sparse3: C <- fact1 * A + fact2 * B
     block
       type(sparse_real)    :: sB, sC
       type(spbuild_real)   :: sbuild

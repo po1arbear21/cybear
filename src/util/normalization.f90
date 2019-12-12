@@ -29,7 +29,7 @@ module normalization_m
     module procedure :: denorm_array
     module procedure :: denorm_matrix
   end interface
-  
+
 contains
 
   subroutine init_normconst(T)
@@ -52,13 +52,13 @@ contains
       !! optional normalization object (default: use global normconst)
     real                                              :: nvalue
       !! return normalized value
-      
+
     nvalue = norm_or_denorm_scalar(value, unit, n, flag_norm=.true.)
   end function
 
   function denorm_scalar(value, unit, n) result(nvalue)
     !! denormalize scalar
-    
+
     real,                intent(in)                   :: value
       !! value to denormalize
     character(*),        intent(in)                   :: unit
@@ -84,16 +84,16 @@ contains
       !! should value be normalized or denormalized? (default: false)
     real                                              :: nvalue
       !! return de-/normalized value
-      
+
     real :: nvalue_arr(1)
-    
+
     ! cast to array; then de-/norm
     nvalue_arr = norm_or_denorm_array([value], unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
-    
+
     ! cast to scalar
     nvalue = nvalue_arr(1)
   end function
-  
+
   function norm_array(values, unit, n) result(nvalues)
     !! normalize array
 
@@ -126,7 +126,7 @@ contains
 
   function norm_or_denorm_array(values, unit, n, flag_denorm, flag_norm) result(nvalues)
     !! normalize or denormalize values. internal routine.
-    
+
     real,                intent(in)                   :: values(:)
       !! values to de-/normalize
     character(*),        intent(in)                   :: unit
@@ -137,19 +137,19 @@ contains
       !! should values be normalized or denormalized? (default: false)
     real                                              :: nvalues(size(values))
       !! return de-/normalized values
-          
+
     real :: nvalues_mat(size(values),1), values_mat(size(values),1)
-    
+
     ! cast to 2D array
     values_mat(:,1) = values
-    
+
     ! de-/norm
     nvalues_mat = norm_or_denorm_matrix(values_mat, unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
-    
+
     ! cast to 1D array
     nvalues = nvalues_mat(:,1)
   end function
-  
+
   function norm_matrix(values, unit, n) result(nvalues)
     !! normalize matrix
 
@@ -182,7 +182,7 @@ contains
 
   function norm_or_denorm_matrix(values, unit, n, flag_denorm, flag_norm) result(nvalues)
     !! normalize or denormalize values. internal routine.
-    
+
     real,                intent(in)                   :: values(:,:)
       !! values to de-/normalize
     character(*),        intent(in)                   :: unit
@@ -193,7 +193,7 @@ contains
       !! should values be normalized or denormalized? (default: false)
     real                                              :: nvalues(size(values,1),size(values,2))
       !! return de-/normalized values
-      
+
     integer                      :: i
     logical                      :: flag_denorm_, flag_norm_
     type(normalization), pointer :: nptr
@@ -203,10 +203,10 @@ contains
     if (present(flag_denorm)) flag_denorm_ = flag_denorm
     flag_norm_   = .false.
     if (present(flag_norm))   flag_norm_   = flag_norm
-    
+
     ! test: either denorm XOR norm
     ASSERT(flag_denorm_ .neqv. flag_norm_)
-      
+
     ! load normailzation object to use
     nptr => normconst
     if (present(n)) nptr => n
@@ -217,12 +217,12 @@ contains
       print *, "Unit: " // trim(unit)
       call program_error("Unit not found in normalization object!")
     end if
-    
+
     ! de-/norm
     if      (flag_denorm_) then
-      nvalues = values / nptr%const%d(i)      
+      nvalues = values / nptr%const%d(i)
     else if (flag_norm_)   then
-      nvalues = values * nptr%const%d(i)      
+      nvalues = values * nptr%const%d(i)
     end if
   end function
 
