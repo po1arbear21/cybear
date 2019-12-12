@@ -1,3 +1,5 @@
+#include "assert.f90.inc"
+
 module normalization_m
   use error_m
   use vector_m
@@ -13,7 +15,7 @@ module normalization_m
     procedure :: search_unit => normalization_search_unit
   end type
 
-  type(normalization) :: normconst
+  type(normalization), target :: normconst
     !! global normalization object
 
   interface norm
@@ -27,14 +29,14 @@ module normalization_m
     module procedure :: denorm_array
     module procedure :: denorm_matrix
   end interface
-
+  
 contains
 
   subroutine init_normconst(T)
     !! initialize global normalization object
 
     real, intent(in) :: T
-      !! temperature
+      !! temperature in Kelvin
 
     call normconst%init(T)
   end subroutine
@@ -42,176 +44,125 @@ contains
   function norm_scalar(value, unit, n) result(nvalue)
     !! normalize scalar
 
-    real,                          intent(in) :: value
+    real,                intent(in)                   :: value
       !! value to normalize
-    character(len=*),              intent(in) :: unit
+    character(*),        intent(in)                   :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    type(normalization), intent(in), optional, target :: n
       !! optional normalization object (default: use global normconst)
-    real                                      :: nvalue
+    real                                              :: nvalue
       !! return normalized value
-
-    ! local variables
-    integer :: i
-
-    nvalue = 0
-
-    ! search for unit and normalize value
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalue = value / n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalue = value / normconst%const%d(i)
-    end if
+      
+    nvalue = norm_or_denorm_scalar(value, unit, n, flag_norm=.true.)
   end function
 
   function denorm_scalar(value, unit, n) result(nvalue)
     !! denormalize scalar
-
-    real,                          intent(in) :: value
+    
+    real,                intent(in)                   :: value
       !! value to denormalize
-    character(len=*),              intent(in) :: unit
+    character(*),        intent(in)                   :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    type(normalization), intent(in), optional, target :: n
       !! optional normalization object (default: use global normconst)
-    real                                      :: nvalue
+    real                                              :: nvalue
       !! return denormalized value
 
-    ! local variables
-    integer :: i
-
-    nvalue = 0
-
-    ! search for unit and denormalize value
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalue = value * n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalue = value * normconst%const%d(i)
-    end if
+    nvalue = norm_or_denorm_scalar(value, unit, n, flag_denorm=.true.)
   end function
 
+  function norm_or_denorm_scalar(value, unit, n, flag_denorm, flag_norm) result(nvalue)
+    !! normalize or denormalize a scalar value. internal routine.
+
+    real,                intent(in)                   :: value
+      !! values to de-/normalize
+    character(*),        intent(in)                   :: unit
+      !! physical unit token
+    type(normalization), intent(in), optional, target :: n
+      !! optional normalization object (default: use global normconst)
+    logical,             intent(in), optional         :: flag_norm, flag_denorm
+      !! should value be normalized or denormalized? (default: false)
+    real                                              :: nvalue
+      !! return de-/normalized value
+      
+    real :: nvalue_arr(1)
+    
+    ! cast to array; then de-/norm
+    nvalue_arr = norm_or_denorm_array([value], unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
+    
+    ! cast to scalar
+    nvalue = nvalue_arr(1)
+  end function
+  
   function norm_array(values, unit, n) result(nvalues)
     !! normalize array
 
-    real,                          intent(in) :: values(:)
+    real,                intent(in)                   :: values(:)
       !! values to normalize
-    character(len=*),              intent(in) :: unit
+    character(*),        intent(in)                   :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    type(normalization), intent(in), optional, target :: n
       !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values))
+    real                                              :: nvalues(size(values))
       !! return normalized values
 
-    ! local variables
-    integer :: i
-
-    nvalues = 0
-
-    ! search for unit and normalize values
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values / n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values / normconst%const%d(i)
-    end if
+    nvalues = norm_or_denorm_array(values, unit, n, flag_norm=.true.)
   end function
 
   function denorm_array(values, unit, n) result(nvalues)
     !! denormalize array
 
-    real,                          intent(in) :: values(:)
+    real,                intent(in)                   :: values(:)
       !! values to denormalize
-    character(len=*),              intent(in) :: unit
+    character(*),        intent(in)                   :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    type(normalization), intent(in), optional, target :: n
       !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values))
+    real                                              :: nvalues(size(values))
       !! return denormalized values
 
-    ! local variables
-    integer :: i
-
-    nvalues = 0
-
-    ! search for unit and normalize values
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values * n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values * normconst%const%d(i)
-    end if
+    nvalues = norm_or_denorm_array(values, unit, n, flag_denorm=.true.)
   end function
 
+  function norm_or_denorm_array(values, unit, n, flag_denorm, flag_norm) result(nvalues)
+    !! normalize or denormalize values. internal routine.
+    
+    real,                intent(in)                   :: values(:)
+      !! values to de-/normalize
+    character(*),        intent(in)                   :: unit
+      !! physical unit token
+    type(normalization), intent(in), optional, target :: n
+      !! optional normalization object (default: use global normconst)
+    logical,             intent(in), optional         :: flag_norm, flag_denorm
+      !! should values be normalized or denormalized? (default: false)
+    real                                              :: nvalues(size(values))
+      !! return de-/normalized values
+          
+    real :: nvalues_mat(size(values),1), values_mat(size(values),1)
+    
+    ! cast to 2D array
+    values_mat(:,1) = values
+    
+    ! de-/norm
+    nvalues_mat = norm_or_denorm_matrix(values_mat, unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
+    
+    ! cast to 1D array
+    nvalues = nvalues_mat(:,1)
+  end function
+  
   function norm_matrix(values, unit, n) result(nvalues)
     !! normalize matrix
 
-    real,                          intent(in) :: values(:,:)
+    real,                intent(in)                   :: values(:,:)
       !! values to normalize
-    character(len=*),              intent(in) :: unit
+    character(*),        intent(in)                   :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    type(normalization), intent(in), optional, target :: n
       !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values,1),size(values,2))
+    real                                              :: nvalues(size(values,1),size(values,2))
       !! return normalized values
 
-    ! local variables
-    integer :: i
-
-    nvalues = 0
-
-    ! search for unit and normalize values
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values / n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values / normconst%const%d(i)
-    end if
+    nvalues = norm_or_denorm_matrix(values, unit, n, flag_norm=.true.)
   end function
 
   function denorm_matrix(values, unit, n) result(nvalues)
@@ -219,33 +170,59 @@ contains
 
     real,                          intent(in) :: values(:,:)
       !! values to denormalize
-    character(len=*),              intent(in) :: unit
+    character(*),              intent(in) :: unit
       !! physical unit token
     type(normalization), optional, intent(in) :: n
       !! optional normalization object (default: use global normconst)
     real                                      :: nvalues(size(values,1),size(values,2))
       !! return denormalized values
 
-    ! local variables
-    integer :: i
+    nvalues = norm_or_denorm_matrix(values, unit, n, flag_denorm=.true.)
+  end function
 
-    nvalues = 0
+  function norm_or_denorm_matrix(values, unit, n, flag_denorm, flag_norm) result(nvalues)
+    !! normalize or denormalize values. internal routine.
+    
+    real,                intent(in)                   :: values(:,:)
+      !! values to de-/normalize
+    character(*),        intent(in)                   :: unit
+      !! physical unit token
+    type(normalization), intent(in), optional, target :: n
+      !! optional normalization object (default: use global normconst)
+    logical,             intent(in), optional         :: flag_norm, flag_denorm
+      !! should values be normalized or denormalized? (default: false)
+    real                                              :: nvalues(size(values,1),size(values,2))
+      !! return de-/normalized values
+      
+    integer                      :: i
+    logical                      :: flag_denorm_, flag_norm_
+    type(normalization), pointer :: nptr
 
-    ! search for unit and normalize values
-    if (present(n)) then
-      i = n%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values * n%const%d(i)
-    else
-      i = normconst%search_unit(unit)
-      if (i < 1) then
-        print *, trim(unit)
-        call program_error("Unit not found in normalization object!")
-      end if
-      nvalues = values * normconst%const%d(i)
+    ! load default values
+    flag_denorm_ = .false.
+    if (present(flag_denorm)) flag_denorm_ = flag_denorm
+    flag_norm_   = .false.
+    if (present(flag_norm))   flag_norm_   = flag_norm
+    
+    ! test: either denorm XOR norm
+    ASSERT(flag_denorm_ .neqv. flag_norm_)
+      
+    ! load normailzation object to use
+    nptr => normconst
+    if (present(n)) nptr => n
+
+    ! search for unit
+    i = nptr%search_unit(unit)
+    if (i < 1) then
+      print *, "Unit: " // trim(unit)
+      call program_error("Unit not found in normalization object!")
+    end if
+    
+    ! de-/norm
+    if      (flag_denorm_) then
+      nvalues = values / nptr%const%d(i)      
+    else if (flag_norm_)   then
+      nvalues = values * nptr%const%d(i)      
     end if
   end function
 
@@ -263,7 +240,7 @@ contains
     real, parameter :: PLANCK = 6.58211889e-16                         ! Planck's constant    [ eVs ]
     real, parameter :: CLIGHT = 2.99792458d8                           ! Speed of light       [ m/s ]
     real, parameter :: AVOGA  = 6.02214199e23                          ! Avogadro's constant  [ 1/mol ]
-    real, parameter :: BOLTZ  = 8.617342e-5                            ! Boltzmann's constant [ eV/K ]
+    real, parameter :: BOLTZ  = 8.617333262145e-5                      ! Boltzmann's constant [ eV/K ]
     real, parameter :: EPS0   = 8.854187817e-12                        ! Dielectric constant  [ As/(Vm) ]
     real, parameter :: FSC    = EC / (PLANCK * CLIGHT * 4 * PI * EPS0) ! Fine structure constant ~ 1/137
 
@@ -355,7 +332,7 @@ contains
 
   contains
     subroutine insert(unit, const)
-      character(len=*), intent(in) :: unit
+      character(*), intent(in) :: unit
       real,             intent(in) :: const
       type(string)                 :: s
 
@@ -370,7 +347,7 @@ contains
     !! Search for physical unit token and return its index
 
     class(normalization), intent(in) :: this
-    character(len=*),     intent(in) :: unit
+    character(*),     intent(in) :: unit
       !! physical unit token to search for
     integer                          :: i
       !! if found: return index; if not found: return -1
