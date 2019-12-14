@@ -4,34 +4,33 @@ Fortran project template can be used for your own project.
 
 ## Usage
 ### Makefile
-To compile in (default) debug mode run
+To compile in (default) *debug* mode run
 ```bash
 $ make
 ```
 
-To compile in release mode (includes optimization) run
+To compile in *release* mode (includes optimization) run
 ```bash
 $ make BUILD=release
 ```
 
-For fast/parallel compilation run
+For *fast/parallel* compilation run
 ```bash
 $ make -j4
 ```
 
-To clean build files (with/without library build files, e.g. expokit) run
+To *clean* build files (with/without library build files, e.g. expokit) run
 ```bash
 $ make clean
 $ make clean_all
 ```
 
-To create documentation run
+To create *documentation* run
 ```bash
 $ make doc
 ```
 
 ## Initialization
-
 1. Setup an account at git.rwth-aachen.de
 2. Get invited to this project by Tobias Linn.
 3. Fork this project.
