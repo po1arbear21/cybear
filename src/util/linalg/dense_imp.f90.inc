@@ -525,7 +525,7 @@ subroutine DENSE_ADD_BAND(this, b, fact)
 
   ! add contents of band matrix
   do j = 1, b%ncols
-    do i = b%i0, b%i1
+    do i = -b%nupper, b%nlower
       ! get actual column
       k = j + i
       if ((k < 1) .or. (k > b%nrows)) cycle

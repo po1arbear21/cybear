@@ -665,8 +665,8 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   ! add matrices
   do i = 1, this%nrows
     j1 = this%ia(i)
-    j2 = max(i + b%i0, 1)
-    do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%i1, b%ncols)))
+    j2 = max(i - b%nupper, 1)
+    do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%nlower, b%ncols)))
       if (this%ja(j1) < j2) then
         call ja%push(this%ja(j1))
         call a%push(this%a(j1))
@@ -687,7 +687,7 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
       call a%push(this%a(j1))
       j1 = j1 + 1
     end do
-    do while (j2 <= min(i + b%i1, b%ncols))
+    do while (j2 <= min(i + b%nlower, b%ncols))
       call ja%push(j2)
       call a%push(b%d(i-j2,j2))
       j2 = j2 + 1

@@ -345,7 +345,7 @@ contains
                       &8,5,2,0, &
                       &0,9,6,3, &
                       &0,0,10,7 ], [4, 4], order=[2, 1])
-      call b%init(4, 3, diags)
+      call b%init(4, 1, d0=diags)
 
       ! dense d1
       call d1%init(4)

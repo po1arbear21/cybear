@@ -314,15 +314,36 @@ contains
 end type
 
 type, extends(MATRIX_TYPE) :: BAND_TYPE
-  ! number of diagonals
-  integer :: ndiags
+  !! Band storage example
+  !!    / a_11  a_12  a_13       \
+  !!  A=| a_21  a_22  a_23 a_24  |
+  !!    |       a_32  a_33  a_34 |
+  !!    \             a_43  a_44 /
+  !!  here n=4, nupper=nlower=1
+  !!
+  !! LAPACK band storage
+  !!
+  !!          /             a_13  a_24 \    ! <- row 1
+  !!          /       a_12  a_23  a_34 \    ! <- row 2
+  !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 3
+  !!          \ a_21  a_32  a_43       /    ! <- row 4
+  !!
+  !! This band storage (shifted rows)
+  !!
+  !!          /             a_13  a_24 \    ! <- row -2
+  !!          /       a_12  a_23  a_34 \    ! <- row -1
+  !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 0
+  !!          \ a_21  a_32  a_43       /    ! <- row 1
 
-  ! min and max rows
-  integer :: i0
-  integer :: i1
 
-  ! data nrows x (j0:j1)
-  TT, allocatable :: d(:,:)
+  integer              :: nupper, nlower
+    !! upper/lower number of diagonals (n>=0).
+    !! nupper=nlower=0 <=> diagonal matrix
+
+  TT, allocatable      :: d(:,:)
+    !! matrix entries in band storage format.
+    !! index1: diagonal number (-nupper:+nlower)
+    !! index2: column (1:ncols)
 
   ! factorization data
   TT,      allocatable :: f(:,:)

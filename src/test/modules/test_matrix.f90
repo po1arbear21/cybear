@@ -26,6 +26,7 @@ module test_matrix_m
 contains
 
   subroutine test_matrix
+    call test_band
     call test_dense
     call test_sparse
     call test_triang
