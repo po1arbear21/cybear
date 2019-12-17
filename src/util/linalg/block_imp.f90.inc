@@ -100,22 +100,6 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
 
   ! not factorized
   this%factorized = .false.
-
-  ! is set
-  allocate(this%is_set(this%nbrows,this%nbcols), source=.false.)
-  if (this%diag .or. this%tridiag) then
-    this%is_set = .true.
-    do ib = 1, this%nbrows
-      if (ib > this%nbcols) exit
-      do jb = ib-1, ib+1
-        if (jb < 1 .or. jb > this%nbcols) cycle
-        if (this%diag .and. jb /= ib) cycle
-        this%is_set(ib,jb) = .false.
-      end do
-    end do
-  else
-    this%is_set = .false.
-  end if
 end subroutine
 
 subroutine BLOCK_DESTRUCT(this)
@@ -175,7 +159,6 @@ subroutine BLOCK_SCALE(this, fact)
   integer :: ib, jb
 
   ASSERT(.not. this%factorized)
-  ASSERT(all(this%is_set))
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
@@ -212,8 +195,6 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   end if
   trans_ = 'N'
   if (present(trans)) trans_ = trans
-
-  ASSERT(all(this%is_set))
 
   ! real or complex 1
   one = 1
@@ -287,8 +268,6 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   trans_ = 'N'
   if (present(trans)) trans_ = trans
 
-  ASSERT(all(this%is_set))
-
   ! real or complex 1
   one = 1
 
@@ -343,7 +322,6 @@ subroutine BLOCK_FACTORIZE(this)
   integer :: ib
 
   ASSERT(.not. this%factorized)
-  ASSERT(all(this%is_set))
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -374,8 +352,6 @@ subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   ! local variables
   integer :: ib
 
-  ASSERT(all(this%is_set))
-
   if (this%diag) then
     do ib = 1, this%nbrows
       call this%b(ib,ib)%p%solve_vec(rhs(this%i0(ib):this%i1(ib)), x(this%j0(ib):this%j1(ib)), trans = trans, iter_refine = iter_refine)
@@ -401,8 +377,6 @@ subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   ! local variables
   integer :: ib
-
-  ASSERT(all(this%is_set))
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -433,8 +407,6 @@ subroutine BLOCK_TO_DENSE(this, d, i0, j0)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
-
-  ASSERT(all(this%is_set))
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bj0 => this%j0)
@@ -486,8 +458,6 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
-
-  ASSERT(all(this%is_set))
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bi1 => this%i1, bj0 => this%j0, bj1 => this%j1)
@@ -672,17 +642,21 @@ subroutine BLOCK_SET(this, ib, jb, b)
   class(MATRIX_TYPE), intent(in)    :: b
 
   ! check that ib,jb are in correct ranges (by block counts and by diag/tridiag flags)
-  ASSERT(ib >= 1      .and. ib <= this%nbrows)
-  ASSERT(jb >= 1      .and. jb <= this%nbcols)
+  ASSERT((ib >= 1) .and. (ib <= this%nbrows))
+  ASSERT((jb >= 1) .and. (jb <= this%nbcols))
   if (this%diag) then
     ASSERT(ib == jb)
   else if (this%tridiag) then
     ASSERT(abs(ib-jb) <= 1)
   end if
 
-  ! set block + flag
-  this%b(ib,jb)%p    = b
-  this%is_set(ib,jb) = .true.
+  ! destruct old block
+  if (allocated(this%b(ib,jb)%p)) then
+    call this%b(ib,jb)%p%destruct()
+  end if
+
+  ! set block
+  this%b(ib,jb)%p = b
 end subroutine
 
 #undef T

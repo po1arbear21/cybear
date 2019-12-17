@@ -24,7 +24,6 @@ contains
       !
       !    => nbrows=3, nbcols=3, i0=[1,4,7], i1=[3,6,9], j0=[1,4,7], j1=[3,6,9]
       call M%init([3,3,3], tridiag=.true.)
-      allocate(d_M(9,9), source=0.0)
 
       ! set dense A
       block

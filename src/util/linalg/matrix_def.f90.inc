@@ -454,10 +454,9 @@ type, extends(MATRIX_TYPE) :: BLOCK_TYPE
   type(MATRIX_ALC_TYPE), allocatable :: b(:,:)
 
   ! flags
-  logical              :: diag
-  logical              :: tridiag
-  logical              :: factorized
-  logical, allocatable :: is_set(:,:)
+  logical :: diag
+  logical :: tridiag
+  logical :: factorized
 contains
   procedure :: BLOCK_INIT
   generic   :: init           => BLOCK_INIT
