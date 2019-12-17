@@ -30,6 +30,7 @@ contains
     call test_dense
     call test_sparse
     call test_triang
+    call test_block
   end subroutine
 
 end module

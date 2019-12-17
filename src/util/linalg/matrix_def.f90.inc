@@ -169,6 +169,7 @@
 #define BLOCK_GET_SPARSE     CONCAT3(block,T,get_sparse)
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
+#define BLOCK_SET            CONCAT3(block,T,set)
 
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
@@ -432,6 +433,15 @@ contains
 end type
 
 type, extends(MATRIX_TYPE) :: BLOCK_TYPE
+  !! Block matrix
+  !!
+  !! Example
+  !!        / A B \
+  !!    M = | C D | for A=(2x3), B=(2x4), C=(3x3), D=(3x4), E=(1x3), F=(1x4)-matrix
+  !!        \ E F /
+  !!
+  !!    => nbrows=3, nbcols=2, i0=[1,3,6], i1=[2,5,6], j0=[1,4], j1=[3,7]
+
   ! dimensions
   integer              :: nbrows ! number of block rows
   integer              :: nbcols ! number of block cols
@@ -444,9 +454,10 @@ type, extends(MATRIX_TYPE) :: BLOCK_TYPE
   type(MATRIX_ALC_TYPE), allocatable :: b(:,:)
 
   ! flags
-  logical :: diag
-  logical :: tridiag
-  logical :: factorized
+  logical              :: diag
+  logical              :: tridiag
+  logical              :: factorized
+  logical, allocatable :: is_set(:,:)
 contains
   procedure :: BLOCK_INIT
   generic   :: init           => BLOCK_INIT
@@ -466,7 +477,8 @@ contains
   procedure :: BLOCK_GET_SPARSE
   procedure :: BLOCK_GET_BAND
   procedure :: BLOCK_GET_BLOCK
-  generic   :: get => BLOCK_GET_DENSE, BLOCK_GET_SPARSE, BLOCK_GET_BAND, BLOCK_GET_BLOCK
+  generic   :: get            => BLOCK_GET_DENSE, BLOCK_GET_SPARSE, BLOCK_GET_BAND, BLOCK_GET_BLOCK
+  procedure :: set            => BLOCK_SET
 end type
 
 interface
@@ -706,3 +718,4 @@ end interface
 #undef BLOCK_GET_SPARSE
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
+#undef BLOCK_SET

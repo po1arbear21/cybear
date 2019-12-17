@@ -7,6 +7,7 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
 #define DENSE_TYPE           CONCAT(dense,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
@@ -33,6 +34,7 @@
 #define BLOCK_GET_SPARSE     CONCAT3(block,T,get_sparse)
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
+#define BLOCK_SET            CONCAT3(block,T,set)
 
 subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   !! Initialize Block matrix.
@@ -52,14 +54,11 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   integer, allocatable :: col_dim_(:)
   integer              :: ib, i1, jb, j1
 
+  col_dim_ = row_dim
+  if (present(col_dim)) col_dim_ = col_dim
+
   ! init base
-  if (present(col_dim)) then
-    call this%init("", sum(row_dim), ncols = sum(col_dim))
-    allocate (col_dim_(size(col_dim)), source = col_dim)
-  else
-    call this%init("", sum(row_dim))
-    allocate (col_dim_(size(row_dim)), source = row_dim)
-  end if
+  call this%init("", sum(row_dim), ncols=sum(col_dim_))
 
   ! number of blocks
   this%nbrows = size(row_dim)
@@ -79,7 +78,7 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   allocate (this%j0(this%ncols))
   allocate (this%j1(this%ncols))
   j1 = 0
-  do jb = 1, this%ncols
+  do jb = 1, this%nbcols
     this%j0(jb) = j1 + 1
     this%j1(jb) = j1 + row_dim(jb)
     j1 = this%j1(jb)
@@ -94,13 +93,29 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   this%tridiag = .false.
   if (present(tridiag)) this%tridiag = tridiag
 
-  if (this%diag .and. this%tridiag) call program_error("Block matrix can not be both diagonal and tridiagonal!")
+  if (this%diag .and. this%tridiag) call program_error("Block matrix cannot be both diagonal and tridiagonal!")
   if (this%diag .or. this%tridiag) then
     if (this%nbrows /= this%nbcols) call program_error("(Tri)Diagonal Block matrix must have same number of blocks per row and column!")
   end if
 
   ! not factorized
   this%factorized = .false.
+
+  ! is set
+  allocate(this%is_set(this%nbrows,this%nbcols), source=.false.)
+  if (this%diag .or. this%tridiag) then
+    this%is_set = .true.
+    do ib = 1, this%nbrows
+      if (ib > this%nbcols) exit
+      do jb = ib-1, ib+1
+        if (jb < 1 .or. jb > this%nbcols) cycle
+        if (this%diag .and. jb /= ib) cycle
+        this%is_set(ib,jb) = .false.
+      end do
+    end do
+  else
+    this%is_set = .false.
+  end if
 end subroutine
 
 subroutine BLOCK_DESTRUCT(this)
@@ -160,6 +175,7 @@ subroutine BLOCK_SCALE(this, fact)
   integer :: ib, jb
 
   ASSERT(.not. this%factorized)
+  ASSERT(all(this%is_set))
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
@@ -172,21 +188,21 @@ end subroutine
 subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
-  class(BLOCK_TYPE),          intent(in)    :: this
+  class(BLOCK_TYPE),   intent(in)    :: this
     !! Block matrix
-  TT,                         intent(in)    :: x(:)
+  TT,                  intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                         intent(inout) :: y(:)
+  TT,                  intent(inout) :: y(:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  character(len=1) :: trans_
-  TT               :: one
-  integer          :: ib, jb
+  character :: trans_
+  TT        :: one
+  integer   :: ib, jb
 
   ! optional arguments
   if (present(fact_y)) then
@@ -196,6 +212,8 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   end if
   trans_ = 'N'
   if (present(trans)) trans_ = trans
+
+  ASSERT(all(this%is_set))
 
   ! real or complex 1
   one = 1
@@ -244,21 +262,21 @@ end subroutine
 subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
-  class(BLOCK_TYPE),          intent(in)    :: this
+  class(BLOCK_TYPE),   intent(in)    :: this
     !! Block matrix
-  TT,                         intent(in)    :: x(:,:)
+  TT,                  intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                         intent(inout) :: y(:,:)
+  TT,                  intent(inout) :: y(:,:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  character(len=1) :: trans_
-  TT               :: one
-  integer          :: ib, jb
+  character :: trans_
+  TT        :: one
+  integer   :: ib, jb
 
   ! optional arguments
   if (present(fact_y)) then
@@ -268,6 +286,8 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   end if
   trans_ = 'N'
   if (present(trans)) trans_ = trans
+
+  ASSERT(all(this%is_set))
 
   ! real or complex 1
   one = 1
@@ -323,6 +343,7 @@ subroutine BLOCK_FACTORIZE(this)
   integer :: ib
 
   ASSERT(.not. this%factorized)
+  ASSERT(all(this%is_set))
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -339,19 +360,21 @@ end subroutine
 subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve block diagonal system: this * x = rhs. Call this%factorize() first.
 
-  class(BLOCK_TYPE),          intent(in)  :: this
+  class(BLOCK_TYPE),   intent(in)  :: this
     !! Block matrix
-  TT,                         intent(in)  :: rhs(:)
+  TT,                  intent(in)  :: rhs(:)
     !! Right hand side of equation system
-  TT,                         intent(out) :: x(:)
+  TT,                  intent(out) :: x(:)
     !! Store result in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement
 
   ! local variables
   integer :: ib
+
+  ASSERT(all(this%is_set))
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -365,19 +388,21 @@ end subroutine
 subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
-  class(BLOCK_TYPE),          intent(in)  :: this
+  class(BLOCK_TYPE),   intent(in)  :: this
     !! Block matrix
-  TT,                         intent(in)  :: rhs(:,:)
+  TT,                  intent(in)  :: rhs(:,:)
     !! right hand side of equation system
-  TT,                         intent(out) :: x(:,:)
+  TT,                  intent(out) :: x(:,:)
     !! store result in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! perform iterative refinement
 
   ! local variables
   integer :: ib
+
+  ASSERT(all(this%is_set))
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -408,6 +433,8 @@ subroutine BLOCK_TO_DENSE(this, d, i0, j0)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ASSERT(all(this%is_set))
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bj0 => this%j0)
@@ -459,6 +486,8 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ASSERT(all(this%is_set))
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bi1 => this%i1, bj0 => this%j0, bj1 => this%j1)
@@ -631,6 +660,31 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   end if
 end subroutine
 
+subroutine BLOCK_SET(this, ib, jb, b)
+  !! Set one specific block.
+
+  class(BLOCK_TYPE),  intent(inout) :: this
+    !! Block matrix
+  integer,            intent(in)    :: ib
+    !! Block row
+  integer,            intent(in)    :: jb
+    !! Block col
+  class(MATRIX_TYPE), intent(in)    :: b
+
+  ! check that ib,jb are in correct ranges (by block counts and by diag/tridiag flags)
+  ASSERT(ib >= 1      .and. ib <= this%nbrows)
+  ASSERT(jb >= 1      .and. jb <= this%nbcols)
+  if (this%diag) then
+    ASSERT(ib == jb)
+  else if (this%tridiag) then
+    ASSERT(abs(ib-jb) <= 1)
+  end if
+
+  ! set block + flag
+  this%b(ib,jb)%p    = b
+  this%is_set(ib,jb) = .true.
+end subroutine
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -670,3 +724,4 @@ end subroutine
 #undef BLOCK_GET_SPARSE
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
+#undef BLOCK_SET
