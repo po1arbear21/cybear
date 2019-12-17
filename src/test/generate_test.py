@@ -47,6 +47,6 @@ f.write("  implicit none\n\n")
 
 for i in range(0, len(test_modules)):
   t = test_modules[i]
-  f.write("  call test_"+t+"()\n")
+  f.write("  call test_"+t+"\n")
 
-f.write("end program test\n")
+f.write("end program\n")

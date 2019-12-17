@@ -10,13 +10,13 @@ program test
   use test_schur_m
   implicit none
 
-  call test_high_precision()
-  call test_normalization()
-  call test_dual()
-  call test_matrix()
-  call test_qsort()
-  call test_vector()
-  call test_sqrtm()
-  call test_arnoldi()
-  call test_schur()
-end program test
+  call test_high_precision
+  call test_normalization
+  call test_dual
+  call test_matrix
+  call test_qsort
+  call test_vector
+  call test_sqrtm
+  call test_arnoldi
+  call test_schur
+end program

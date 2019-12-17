@@ -630,7 +630,7 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   end if
 end subroutine
 
-subroutine BLOCK_SET(this, ib, jb, b)
+subroutine BLOCK_SET(this, ib, jb, b, fact)
   !! Set one specific block.
 
   class(BLOCK_TYPE),  intent(inout) :: this
@@ -640,6 +640,8 @@ subroutine BLOCK_SET(this, ib, jb, b)
   integer,            intent(in)    :: jb
     !! Block col
   class(MATRIX_TYPE), intent(in)    :: b
+  TT, optional,       intent(in)    :: fact
+    !! Scaling factor (default: 1)
 
   ! check that ib,jb are in correct ranges (by block counts and by diag/tridiag flags)
   ASSERT((ib >= 1) .and. (ib <= this%nbrows))
@@ -657,6 +659,9 @@ subroutine BLOCK_SET(this, ib, jb, b)
 
   ! set block
   this%b(ib,jb)%p = b
+
+  ! scaling
+  if (present(fact)) call this%b(ib,jb)%p%scale(fact)
 end subroutine
 
 #undef T
