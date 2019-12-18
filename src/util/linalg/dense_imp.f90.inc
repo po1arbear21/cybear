@@ -231,6 +231,8 @@ subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   integer :: info
   logical :: iter_refine_
 
+  ASSERT(allocated(this%lu) .and. allocated(this%ipiv))
+
   ! optional arguments
   iter_refine_ = .true.
   if (present(iter_refine)) iter_refine_ = iter_refine
@@ -570,6 +572,7 @@ end subroutine
 
 subroutine DENSE_MUL_DENSE(this, d2, d3)
   !! Multiply two dense matrices, store result in a third dense matrix.
+  !!  Operation: d3 <- this * d2
 
   class(DENSE_TYPE), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)

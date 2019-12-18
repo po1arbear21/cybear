@@ -86,4 +86,4 @@ end subroutine
 #undef HESSENBERG_TYPE
 #undef TRIANG_TYPE
 
-#undef SQRTM_MATRIX_TYPE
+#undef SQRTM

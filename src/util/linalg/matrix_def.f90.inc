@@ -206,7 +206,7 @@ end type
 type, extends(MATRIX_TYPE) :: DENSE_TYPE
   !! Dense matrix type.
 
-  TT, allocatable :: d(:,:)
+  TT,      allocatable :: d(:,:)
     !! Raw matrix data
   TT,      allocatable :: lu(:,:)
     !! LU decomposition data
