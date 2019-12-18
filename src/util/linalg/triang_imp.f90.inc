@@ -200,6 +200,7 @@ subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 
   character :: uplo
 
+  IGNORE(iter_refine)
   ASSERT(.not. present(iter_refine))
 
   uplo = 'L'
@@ -226,6 +227,7 @@ subroutine TRIANG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   character :: uplo
 
+  IGNORE(iter_refine)
   ASSERT(.not. present(iter_refine))
 
   uplo = 'L'
