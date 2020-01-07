@@ -109,6 +109,7 @@
 #endif
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
+#define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
@@ -315,26 +316,27 @@ contains
 end type
 
 type, extends(MATRIX_TYPE) :: BAND_TYPE
-  !! Band storage example
+  !! Band matrix.
+  !! Storage example
   !!    / a_11  a_12  a_13       \
   !!  A=| a_21  a_22  a_23 a_24  |
   !!    |       a_32  a_33  a_34 |
   !!    \             a_43  a_44 /
   !!  here n=4, nupper=nlower=1
   !!
-  !! LAPACK band storage
-  !!
-  !!          /             a_13  a_24 \    ! <- row 1
-  !!          /       a_12  a_23  a_34 \    ! <- row 2
-  !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 3
-  !!          \ a_21  a_32  a_43       /    ! <- row 4
-  !!
-  !! This band storage (shifted rows)
+  !! Band storage used here (shifted rows)
   !!
   !!          /             a_13  a_24 \    ! <- row -2
-  !!          /       a_12  a_23  a_34 \    ! <- row -1
+  !!          |       a_12  a_23  a_34 |    ! <- row -1
   !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 0
   !!          \ a_21  a_32  a_43       /    ! <- row 1
+  !!
+  !! LAPACK's band storage
+  !!
+  !!          /             a_13  a_24 \    ! <- row 1
+  !!          |       a_12  a_23  a_34 \    ! <- row 2
+  !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 3
+  !!          \ a_21  a_32  a_43       /    ! <- row 4
 
 
   integer              :: nupper, nlower
@@ -370,6 +372,7 @@ contains
   procedure :: BAND_ADD_BAND
   procedure :: BAND_ADD_BAND3
   generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
+  procedure :: set_elem  => BAND_SET_ELEM
   procedure :: output    => BAND_OUTPUT
 end type
 
@@ -663,6 +666,7 @@ end interface
 #undef BAND_TO_CMPLX
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
+#undef BAND_SET_ELEM
 #undef BAND_OUTPUT
 
 #undef HESSENBERG_TYPE
