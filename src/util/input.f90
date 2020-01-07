@@ -126,7 +126,7 @@ contains
       !! Error string
 
     ! local variables
-    integer                   :: i, j, k, status
+    integer                   :: i, j, k, status, status_r
     real                      :: r
     character(len=1)          :: quote
     character(len=len(data0)) :: data, item
@@ -226,12 +226,12 @@ contains
       else
         ! try to read as integer
         read (item, *, iostat = status) i
-        if (status == 0) then
+        read (item, *, iostat = status_r) r
+        if (status == 0 .and. status_r == 0 .and. r-i==0.0) then
           this%type = INPUT_TYPE_INTEGER
         else
           ! try to read as real
-          read (item, *, iostat = status) r
-          if (status == 0) then
+          if (status_r == 0) then
             this%type = INPUT_TYPE_REAL
           else
             if ((trim(item) == "true") .or. (trim(item) == "false")) then
