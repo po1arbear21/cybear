@@ -212,6 +212,67 @@ contains
       call tc%assert_eq(mat_exp, d%d, 1e-12, "set_elem: nlower=0, nupper=2")
     end block
 
+    ! add_elem
+    block
+      type(band_real)   :: m
+      real, allocatable :: mat_exp(:,:)
+      type(dense_real)  :: d
+
+      ! test 1: nlower=nupper=1
+      !     /1 2 0\   / 2 3 0 \   / 3 5 0 \
+      ! m = |0 0 1| + | 4 0 5 | = | 4 0 6 |
+      !     \0 3 4/   \ 0 6 1 /   \ 0 9 5 /
+      call m%init(3, 1)
+
+      call m%set_elem(1, 1, 1.0)
+      call m%set_elem(1, 2, 2.0)
+      call m%set_elem(2, 3, 1.0)
+      call m%set_elem(3, 2, 3.0)
+      call m%set_elem(3, 3, 4.0)
+
+      call m%add_elem(1, 1, 2.0)
+      call m%add_elem(1, 2, 3.0)
+      call m%add_elem(2, 1, 4.0)
+      call m%add_elem(2, 3, 5.0)
+      call m%add_elem(3, 2, 6.0)
+      call m%add_elem(3, 3, 1.0)
+
+      call d%init(3)
+      call m%to_dense(d)
+
+      mat_exp = reshape([3,4,0, 5,0,9, 0,6,5], [3,3])
+
+      call tc%assert_eq(mat_exp, d%d, 1e-12, "add_elem: nlower=nupper=1")
+
+      ! test 2: nlower=0, nupper=2
+      !     /1 2 0 0\   / 0 1 2 0 \   / 1 3 2 0 \
+      ! m = |0 0 1 3| + | 0 3 0 4 | = | 0 3 1 7 |
+      !     |0 0 1 0|   | 0 0 5 0 |   | 0 0 6 0 |
+      !     \0 0 0 4/   \ 0 0 0 5 /   \ 0 0 0 9 /
+      call m%init(4, 0, nupper=2)
+
+      call m%set_elem(1, 1, 1.0)
+      call m%set_elem(1, 2, 2.0)
+      call m%set_elem(2, 3, 1.0)
+      call m%set_elem(2, 4, 3.0)
+      call m%set_elem(3, 3, 1.0)
+      call m%set_elem(4, 4, 4.0)
+
+      call m%add_elem(1, 2, 1.0)
+      call m%add_elem(1, 3, 2.0)
+      call m%add_elem(2, 2, 3.0)
+      call m%add_elem(2, 4, 4.0)
+      call m%add_elem(3, 3, 5.0)
+      call m%add_elem(4, 4, 5.0)
+
+      call d%init(4)
+      call m%to_dense(d)
+
+      mat_exp = reshape([1,0,0,0, 3,3,0,0, 2,1,6,0, 0,7,0,9], [4,4])
+
+      call tc%assert_eq(mat_exp, d%d, 1e-12, "add_elem: nlower=0, nupper=2")
+    end block
+
     call tc%finish
   end subroutine
 

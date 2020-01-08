@@ -33,6 +33,7 @@
 #endif
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
+#define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 #define BAND_EYE             CONCAT3(band,T,eye)
@@ -535,11 +536,32 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
+subroutine BAND_ADD_ELEM(this, i, j, x)
+  class(BAND_TYPE), intent(inout) :: this
+  integer,          intent(in)    :: i
+    !! row index of full matrix to represent
+  integer,          intent(in)    :: j
+    !! col index of full matrix to represent
+  TT,               intent(in)    :: x
+    !! matrix element to add
+
+  ASSERT(-this%nupper <= i-j .and. i-j <= this%nlower)
+  ASSERT(           1 <= j   .and.   j <= this%ncols )
+
+  this%d(i-j,j) = this%d(i-j,j) + x
+end subroutine
+
 subroutine BAND_SET_ELEM(this, i, j, x)
-  class(BAND_TYPE),       intent(inout) :: this
-  integer, intent(in) :: i
-  integer, intent(in) :: j
-  TT, intent(in) :: x
+  class(BAND_TYPE), intent(inout) :: this
+  integer,          intent(in)    :: i
+    !! row index of full matrix to represent
+  integer,          intent(in)    :: j
+    !! col index of full matrix to represent
+  TT,               intent(in)    :: x
+    !! matrix element to set
+
+  ASSERT(-this%nupper <= i-j .and. i-j <= this%nlower)
+  ASSERT(           1 <= j   .and.   j <= this%ncols )
 
   this%d(i-j,j) = x
 end subroutine
@@ -591,6 +613,7 @@ end function
 #undef BAND_TO_CMPLX
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
+#undef BAND_ADD_ELEM
 #undef BAND_SET_ELEM
 #undef BAND_OUTPUT
 #undef BAND_EYE

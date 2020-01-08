@@ -23,7 +23,7 @@ contains
     ! A = diag(..)
     allocate(d0(1,3))
     d0(1,:) = [1, 2, 3]
-    call A%init(3,1,d0=d0)
+    call A%init(3,0,d0=d0)
     call matop_A%init(A)
 
     ! b vec
