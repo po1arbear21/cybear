@@ -34,6 +34,7 @@
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
+#define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 #define BAND_EYE             CONCAT3(band,T,eye)
@@ -545,11 +546,23 @@ subroutine BAND_ADD_ELEM(this, i, j, x)
   TT,               intent(in)    :: x
     !! matrix element to add
 
+  this%d(i-j,j) = this%get_elem(i,j) + x
+end subroutine
+
+function BAND_GET_ELEM(this, i, j) result(x)
+  class(BAND_TYPE), intent(in) :: this
+  integer,          intent(in) :: i
+    !! row index of full matrix to represent
+  integer,          intent(in) :: j
+    !! col index of full matrix to represent
+  TT                           :: x
+    !! matrix element
+
   ASSERT(-this%nupper <= i-j .and. i-j <= this%nlower)
   ASSERT(           1 <= j   .and.   j <= this%ncols )
 
-  this%d(i-j,j) = this%d(i-j,j) + x
-end subroutine
+  x = this%d(i-j,j)
+end function
 
 subroutine BAND_SET_ELEM(this, i, j, x)
   class(BAND_TYPE), intent(inout) :: this
@@ -614,6 +627,7 @@ end function
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
 #undef BAND_ADD_ELEM
+#undef BAND_GET_ELEM
 #undef BAND_SET_ELEM
 #undef BAND_OUTPUT
 #undef BAND_EYE

@@ -212,6 +212,69 @@ contains
       call tc%assert_eq(mat_exp, d%d, 1e-12, "set_elem: nlower=0, nupper=2")
     end block
 
+    ! get_elem
+    block
+      integer           :: i, j
+      type(band_real)   :: m
+      real, allocatable :: mat_exp(:,:), mat(:,:)
+      type(dense_real)  :: d
+
+      ! test 1: nlower=nupper=1
+      ! m = /1 2 0\
+      !     |0 0 1|
+      !     \0 3 4/
+      call m%init(3, 1)
+
+      call m%set_elem(1, 1, 1.0)
+      call m%set_elem(1, 2, 2.0)
+      call m%set_elem(2, 3, 1.0)
+      call m%set_elem(3, 2, 3.0)
+      call m%set_elem(3, 3, 4.0)
+
+      call d%init(3)
+      call m%to_dense(d)
+
+      mat_exp = reshape([1,0,0,2,0,3,0,1,4], [3,3])
+
+      allocate(mat(3,3), source=0.0)
+      do i = 1, 3
+        do j = max(1,i-1),  min(3,i+1)
+          mat(i,j) = m%get_elem(i, j)
+        end do
+      end do
+
+      call tc%assert_eq(mat_exp, mat, 1e-12, "get_elem: nlower=nupper=1")
+
+      ! test 2: nlower=0, nupper=2
+      ! m = /1 2 0 0\
+      !     |0 0 1 3|
+      !     |0 0 1 0|
+      !     \0 0 0 4/
+      call m%init(4, 0, nupper=2)
+
+      call m%set_elem(1, 1, 1.0)
+      call m%set_elem(1, 2, 2.0)
+      call m%set_elem(2, 3, 1.0)
+      call m%set_elem(2, 4, 3.0)
+      call m%set_elem(3, 3, 1.0)
+      call m%set_elem(4, 4, 4.0)
+
+      call d%init(4)
+      call m%to_dense(d)
+
+      mat_exp = reshape([1,0,0,0, 2,0,0,0, 0,1,1,0, 0,3,0,4], [4,4])
+
+      deallocate(mat)
+      allocate(mat(4,4), source=0.0)
+      do i = 1, 4
+        do j = i, min(4,i+2)
+          mat(i,j) = m%get_elem(i, j)
+        end do
+      end do
+
+      call tc%assert_eq(mat_exp, mat, 1e-12, "get_elem: nlower=0, nupper=2")
+    end block
+
     ! add_elem
     block
       type(band_real)   :: m

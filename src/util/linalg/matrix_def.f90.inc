@@ -110,6 +110,7 @@
 #define BAND_ADD_BAND        CONCAT3(band,T,add_band)
 #define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
+#define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 
@@ -374,6 +375,7 @@ contains
   procedure :: BAND_ADD_BAND3
   generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
   procedure :: add_elem  => BAND_ADD_ELEM
+  procedure :: get_elem  => BAND_GET_ELEM
   procedure :: set_elem  => BAND_SET_ELEM
   procedure :: output    => BAND_OUTPUT
 end type
@@ -669,6 +671,7 @@ end interface
 #undef BAND_ADD_BAND
 #undef BAND_ADD_BAND3
 #undef BAND_ADD_ELEM
+#undef BAND_GET_ELEM
 #undef BAND_SET_ELEM
 #undef BAND_OUTPUT
 
