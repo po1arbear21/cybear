@@ -77,7 +77,7 @@ subroutine SPARSE_DESTRUCT(this)
   if (allocated(this%a )) deallocate(this%a )
 
   ! destruct pardiso handle
-  call destruct_pardiso_handle(this%pard)
+  if (this%pard > 0) call destruct_pardiso_handle(this%pard)
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
@@ -102,7 +102,7 @@ subroutine SPARSE_RESET(this, only_factorization)
   end if
 
   ! destruct factorization
-  call destruct_pardiso_handle(this%pard)
+  if (this%pard > 0) call destruct_pardiso_handle(this%pard)
 end subroutine
 
 subroutine SPARSE_SCALE(this, fact)
@@ -1258,11 +1258,13 @@ subroutine SPBUILD_SAVE(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  ! local variables
-  integer           :: i, j, k
+  integer :: i, j, k
+
+  ! reset sparse matrix. needed in case it has old values
+  call this%sp%reset
 
   ! sort column indices
-  call this%sort()
+  call this%sort
 
   ! get total number of elements
   k = 0
