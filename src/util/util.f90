@@ -8,6 +8,10 @@ module util_m
   integer, parameter :: BS_LESS  = 2
   integer, parameter :: BS_GREAT = 3
 
+  interface hash_int
+    module procedure :: hash_int32, hash_int64
+  end interface
+
 contains
 
   pure function cstrlen(cstr) result(len)
@@ -86,21 +90,32 @@ contains
     end if
   end function
 
-  function hash_int(i) result(h)
-    !! 32-bit integer hash function
+  function hash_int32(i) result(h)
+    !! 32-bit integer hash function (nullprogram.com/blog/2018/07/31/)
     integer(kind=4), intent(in) :: i
     integer(kind=4)             :: h
 
-    ! prevent hash_int(0) == 0
-    h = i + 1
-
+    h = i + z'7f4a7c15'
     h = ieor(h, shiftr(h, 17))
-    h = h * (-312814405)
+    h = h * z'ed5ad4bb'
     h = ieor(h, shiftr(h, 11))
-    h = h * (-1404298415)
+    h = h * z'ac4c1b51'
     h = ieor(h, shiftr(h, 15))
-    h = h * (  830770091)
+    h = h * z'31848bab'
     h = ieor(h, shiftr(h, 14))
+  end function
+
+  function hash_int64(i) result(h)
+    !! 64-bit integer hash function (splitmix64)
+    integer(kind=8), intent(in) :: i
+    integer(kind=8)             :: h
+
+    h = i + z'9e3779b97f4a7c15'
+    h = ieor(h, shiftr(h, 30))
+    h = h * z'bf58476d1ce4e5b9'
+    h = ieor(h, shiftr(h, 27))
+    h = h * z'94d049bb133111eb'
+    h = ieor(h, shiftr(h, 31))
   end function
 
   function bin_search(x, x1, mode) result(i)
