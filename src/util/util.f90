@@ -10,7 +10,6 @@ module util_m
 
 contains
 
-
   pure function cstrlen(cstr) result(len)
     !! get length of c string
     character(len=1), intent(in) :: cstr(*)
@@ -63,7 +62,6 @@ contains
     str = adjustl(tmp)
   end function
 
-
   function select_int(flags, ints) result(t)
     !! select an integer according to the flag that is set (no flags set => 0, multiple set => - 1)
     logical, intent(in) :: flags(:)
@@ -76,15 +74,15 @@ contains
     t = 0
     j = 0
     do i = 1, size(flags)
-        if (flags(i)) then
-            t = ints(i)
-            j = j + 1
-        end if
+      if (flags(i)) then
+        t = ints(i)
+        j = j + 1
+      end if
     end do
 
     ! ambiguous
     if (j .gt. 1) then
-        t = -1
+      t = -1
     end if
   end function
 
@@ -129,47 +127,47 @@ contains
 
     ! test if x1 is outside of interval [x(1), x(end)]
     if (x1 .lt. x(i0)) then
-        i = i0
-        return
+      i = i0
+      return
     end if
     if (x1 .gt. x(i1)) then
-        i = i1
-        return
+      i = i1
+      return
     end if
 
     ! binary search
     do while (i1 .gt. (i0 + 1))
-        i = (i1 + i0) / 2
-        if (x(i) .lt. x1) then
-            i0 = i
-        elseif (x(i) .gt. x1) then
-            i1 = i
-        else
-            return
-        end if
+      i = (i1 + i0) / 2
+      if (x(i) .lt. x1) then
+        i0 = i
+      elseif (x(i) .gt. x1) then
+        i1 = i
+      else
+        return
+      end if
     end do
 
     select case (mode_)
-        case (BS_NEAR)
-            ! pick index of value that is closer
-            if ((2 * x1) .lt. (x(i0) + x(i1))) then
-                i = i0
-            else
-                i = i1
-            end if
+      case (BS_NEAR)
+        ! pick index of value that is closer
+        if ((2 * x1) .lt. (x(i0) + x(i1))) then
+          i = i0
+        else
+          i = i1
+        end if
 
-        case (BS_LESS)
-            ! pick smaller index
-            i = i0
+      case (BS_LESS)
+        ! pick smaller index
+        i = i0
 
-        case (BS_GREAT)
-            ! pick larger index
-            i = i1
+      case (BS_GREAT)
+        ! pick larger index
+        i = i1
 
-        case default
-            i = 0
-            write(*,*) mode
-            call program_error("bin_search: unknown search mode!")
+      case default
+        i = 0
+        write(*,*) mode
+        call program_error("bin_search: unknown search mode!")
 
     end select
   end function
@@ -194,7 +192,7 @@ contains
 
     x(1 ) = x0
     do i = 2, nx - 1
-        x(i) = x0 + (i - 1) * dx
+      x(i) = x0 + (i - 1) * dx
     end do
     x(nx) = x1
   end function
@@ -220,7 +218,7 @@ contains
 
     x(1 ) = x0
     do i = 2, nx - 1
-        x(i) = exp(e0 + (i - 1) * de)
+      x(i) = exp(e0 + (i - 1) * de)
     end do
     x(nx) = x1
   end function
