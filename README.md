@@ -31,12 +31,14 @@ $ make doc
 ```
 
 ## Initialization
-1. Setup an account at git.rwth-aachen.de
-2. Get invited to this project by Tobias Linn.
-3. Fork this project.
-4. Clone the forked project: `$ git clone <url> <folder>`
-5. Set up the Fortran Basic repo as a remote such that you can pull new updates from time to time
-  * set up remote: `$ git remote add upstream git@git.rwth-aachen.de:tobias.linn/fortran-basic`
+1. Setup an account at git.rwth-aachen.de.
+2. Get invited to the ITHE group.
+3. Get invited to this project.
+4. Fork this project.
+5. Rename fork and change path.
+6. Clone the forked project: `$ git clone <url> <folder>`
+7. Set up the Fortran Basic repo as a remote such that you can pull new updates from time to time
+  * set up remote: `$ git remote add upstream git@git.rwth-aachen.de:ithe/fortran-basic`
   * pull new updates:
 ```bash
 $ git fetch upstream
