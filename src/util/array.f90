@@ -1,8 +1,17 @@
 module array_m
+  use string_m
   implicit none
 
 #define T int
 #define TT integer
+#include "array_def.f90.inc"
+
+#define T log
+#define TT logical
+#include "array_def.f90.inc"
+
+#define T string
+#define TT type(string)
 #include "array_def.f90.inc"
 
 #define T real

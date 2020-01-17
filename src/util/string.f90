@@ -21,6 +21,10 @@ module string_m
     module procedure :: string_ge_string
   end interface
 
+  interface operator(==)
+    module procedure :: string_eq_string
+  end interface
+
 contains
 
   function string_lt_string(s1, s2) result(r)
@@ -61,6 +65,16 @@ contains
     logical                  :: r
 
     r = s1%s >= s2%s
+  end function
+
+  function string_eq_string(s1, s2) result(r)
+    !! return true if s1 == s2 in collating sense
+
+    type(string), intent(in) :: s1
+    type(string), intent(in) :: s2
+    logical                  :: r
+
+    r = s1%s == s2%s
   end function
 
 end module
