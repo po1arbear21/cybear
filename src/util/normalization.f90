@@ -2,17 +2,14 @@
 
 module normalization_m
   use error_m
-  use vector_m
+  use map_m
   implicit none
 
   type normalization
-    type(vector_string) :: unit
-      !! phyiscal unit tokens (e.g. "eV" or "kV/cm")
-    type(vector_real)   :: const
-      !! corresponding normalization constants
+    type(map_string_real) :: unit_const
+      !! phyiscal unit tokens (e.g. "eV" or "kV/cm") -> corresponding normalization constant
   contains
-    procedure :: init        => normalization_init
-    procedure :: search_unit => normalization_search_unit
+    procedure :: init => normalization_init
   end type
 
   type(normalization), target :: normconst
@@ -194,9 +191,9 @@ contains
     real                                              :: nvalues(size(values,1),size(values,2))
       !! return de-/normalized values
 
-    integer                      :: i
-    logical                      :: flag_denorm_, flag_norm_
-    type(normalization), pointer :: nptr
+    logical                            :: flag_denorm_, flag_norm_
+    type(normalization),       pointer :: nptr
+    type(mapnode_string_real), pointer :: node
 
     ! load default values
     flag_denorm_ = .false.
@@ -212,17 +209,17 @@ contains
     if (present(n)) nptr => n
 
     ! search for unit
-    i = nptr%search_unit(unit)
-    if (i < 1) then
+    node => nptr%unit_const%find(string(unit))
+    if (.not. associated(node)) then
       print *, "Unit: " // trim(unit)
       call program_error("Unit not found in normalization object!")
     end if
 
-    ! de-/norm
+    ! (de-)norm
     if      (flag_denorm_) then
-      nvalues = values / nptr%const%d(i)
+      nvalues = values / node%value
     else if (flag_norm_)   then
-      nvalues = values * nptr%const%d(i)
+      nvalues = values * node%value
     end if
   end function
 
@@ -271,93 +268,63 @@ contains
     norm_permittivity = EC / eV / spr
     mass_dens         =  mass*conc      ! mass density  [kg/m**3]
 
-    ! initialize vectors
-    call this%unit%init( n = 0, c = 64)
-    call this%const%init(n = 0, c = 64)
+    ! initialize map
+    call this%unit_const%init()
 
     ! insert units
-    call insert("1",                    1.0)
-    call insert("m",                    1.0 / spr)
-    call insert("m^2",                  1.0 / spr / spr)
-    call insert("m^3",                  1.0 / spr / spr / spr)
-    call insert("cm",                   1e-2 / spr)
-    call insert("um",                   1e-6 / spr)
-    call insert("um^2",                 1e-12 / spr / spr)
-    call insert("um^3",                 1e-18 / spr / spr / spr)
-    call insert("nm",                   1e-9 / spr)
-    call insert("1/cm^3",               1e6 / conc)
-    call insert("1/cm^2",               1e4 / spk / spk)
-    call insert("1/cm",                 1e2 / spk)
-    call insert("eV",                   1.0 / eV)
-    call insert("meV",                  1e-3 / eV)
-    call insert("eV/cm",                1e2 / eV / spk)
-    call insert("eV/cm^3",              1e6 / ev / conc)
-    call insert("eV/cm^2/s",            1e4 / ev / spk / spk / scrt)
-    call insert("1/cm^3/eV",            1e6 / conc * eV)
-    call insert("1/eV",                 1e0 * eV)
-    call insert("V",                    1.0 / pot)
-    call insert("mV",                   1e-3 / pot)
-    call insert("V/m",                  1.0 / field)
-    call insert("V/cm",                 1e2 / field)
-    call insert("kV/cm",                1e5 / field)
-    call insert("1/V",                  pot)
-    call insert("kg",                   1e0 / mass)
-    call insert("s",                    1.0 / time)
-    call insert("fs",                   1e-15 / time)
-    call insert("1/s",                  1.0 / scrt)
-    call insert("Hz",                   1.0 / scrt)
-    call insert("cm^2/V/s",             1e-4 / (velo / field))
-    call insert("V/s",                  1.0 / (pot / time))
-    call insert("m/s",                  1.0 / velo)
-    call insert("cm/s",                 1e-2 / velo)
-    call insert("(V/cm)^(-2/3)*K*cm/s", (10.0 ** (-10.0 / 3.0)) / (field ** (- 2.0 / 3.0) * T * velo))
-    call insert("A",                    1.0 / curr / spr)
-    call insert("As",                   1.0 / EC)
-    call insert("A/m",                  1.0 / curr)
-    call insert("A/cm",                 1e2 / curr)
-    call insert("A/cm/V",               1e2 / curr * pot)
-    call insert("A/cm^2",               1e4 / curr * spr)
-    call insert("mA/um^2",              1e9 / curr * spr)
-    call insert("1/cm^2/s",             1e4 / spk / spk / scrt)
-    call insert("1/um^2/s",             1e12 / spk / spk / scrt)
-    call insert("A/V",                  resist)
-    call insert("Ohm",                  1.0 / resist)
-    call insert("V/A",                  1.0 / resist)
-    call insert("F",                    1.0 / cap)
-    call insert("s/V",                  1.0 / time * pot)
-    call insert("H",                    1.0 / ind)
-    call insert("eps0",                 1.0 / dk)
-    call insert("C/V/m",                1e0 / norm_permittivity)
-    call insert("g/cm^3",               1e3 / mass_dens)
-
-  contains
-    subroutine insert(unit, const)
-      character(*), intent(in) :: unit
-      real,             intent(in) :: const
-      type(string)                 :: s
-
-      s%s = unit
-
-      call this%unit%push(s)
-      call this%const%push(const)
-    end subroutine
+    call this%unit_const%insert(string("1"),                    1.0)
+    call this%unit_const%insert(string("m"),                    1.0 / spr)
+    call this%unit_const%insert(string("m^2"),                  1.0 / spr / spr)
+    call this%unit_const%insert(string("m^3"),                  1.0 / spr / spr / spr)
+    call this%unit_const%insert(string("cm"),                   1e-2 / spr)
+    call this%unit_const%insert(string("um"),                   1e-6 / spr)
+    call this%unit_const%insert(string("um^2"),                 1e-12 / spr / spr)
+    call this%unit_const%insert(string("um^3"),                 1e-18 / spr / spr / spr)
+    call this%unit_const%insert(string("nm"),                   1e-9 / spr)
+    call this%unit_const%insert(string("1/cm^3"),               1e6 / conc)
+    call this%unit_const%insert(string("1/cm^2"),               1e4 / spk / spk)
+    call this%unit_const%insert(string("1/cm"),                 1e2 / spk)
+    call this%unit_const%insert(string("eV"),                   1.0 / eV)
+    call this%unit_const%insert(string("meV"),                  1e-3 / eV)
+    call this%unit_const%insert(string("eV/cm"),                1e2 / eV / spk)
+    call this%unit_const%insert(string("eV/cm^3"),              1e6 / ev / conc)
+    call this%unit_const%insert(string("eV/cm^2/s"),            1e4 / ev / spk / spk / scrt)
+    call this%unit_const%insert(string("1/cm^3/eV"),            1e6 / conc * eV)
+    call this%unit_const%insert(string("1/eV"),                 1e0 * eV)
+    call this%unit_const%insert(string("V"),                    1.0 / pot)
+    call this%unit_const%insert(string("mV"),                   1e-3 / pot)
+    call this%unit_const%insert(string("V/m"),                  1.0 / field)
+    call this%unit_const%insert(string("V/cm"),                 1e2 / field)
+    call this%unit_const%insert(string("kV/cm"),                1e5 / field)
+    call this%unit_const%insert(string("1/V"),                  pot)
+    call this%unit_const%insert(string("kg"),                   1e0 / mass)
+    call this%unit_const%insert(string("s"),                    1.0 / time)
+    call this%unit_const%insert(string("fs"),                   1e-15 / time)
+    call this%unit_const%insert(string("1/s"),                  1.0 / scrt)
+    call this%unit_const%insert(string("Hz"),                   1.0 / scrt)
+    call this%unit_const%insert(string("cm^2/V/s"),             1e-4 / (velo / field))
+    call this%unit_const%insert(string("V/s"),                  1.0 / (pot / time))
+    call this%unit_const%insert(string("m/s"),                  1.0 / velo)
+    call this%unit_const%insert(string("cm/s"),                 1e-2 / velo)
+    call this%unit_const%insert(string("(V/cm)^(-2/3)*K*cm/s"), (10.0 ** (-10.0 / 3.0)) / (field ** (- 2.0 / 3.0) * T * velo))
+    call this%unit_const%insert(string("A"),                    1.0 / curr / spr)
+    call this%unit_const%insert(string("As"),                   1.0 / EC)
+    call this%unit_const%insert(string("A/m"),                  1.0 / curr)
+    call this%unit_const%insert(string("A/cm"),                 1e2 / curr)
+    call this%unit_const%insert(string("A/cm/V"),               1e2 / curr * pot)
+    call this%unit_const%insert(string("A/cm^2"),               1e4 / curr * spr)
+    call this%unit_const%insert(string("mA/um^2"),              1e9 / curr * spr)
+    call this%unit_const%insert(string("1/cm^2/s"),             1e4 / spk / spk / scrt)
+    call this%unit_const%insert(string("1/um^2/s"),             1e12 / spk / spk / scrt)
+    call this%unit_const%insert(string("A/V"),                  resist)
+    call this%unit_const%insert(string("Ohm"),                  1.0 / resist)
+    call this%unit_const%insert(string("V/A"),                  1.0 / resist)
+    call this%unit_const%insert(string("F"),                    1.0 / cap)
+    call this%unit_const%insert(string("s/V"),                  1.0 / time * pot)
+    call this%unit_const%insert(string("H"),                    1.0 / ind)
+    call this%unit_const%insert(string("eps0"),                 1.0 / dk)
+    call this%unit_const%insert(string("C/V/m"),                1e0 / norm_permittivity)
+    call this%unit_const%insert(string("g/cm^3"),               1e3 / mass_dens)
   end subroutine
-
-  function normalization_search_unit(this, unit) result(i)
-    !! Search for physical unit token and return its index
-
-    class(normalization), intent(in) :: this
-    character(*),     intent(in) :: unit
-      !! physical unit token to search for
-    integer                          :: i
-      !! if found: return index; if not found: return -1
-
-    do i = 1, this%unit%n
-      if (this%unit%d(i)%s == unit) return
-    end do
-
-    ! not found
-    i = -1
-  end function
 
 end module
