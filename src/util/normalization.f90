@@ -231,6 +231,7 @@ contains
     call this%unit_const%insert(string("1/V"),                  pot)
     call this%unit_const%insert(string("kg"),                   1e0 / mass)
     call this%unit_const%insert(string("s"),                    1.0 / time)
+    call this%unit_const%insert(string("ps"),                   1e-12 / time)
     call this%unit_const%insert(string("fs"),                   1e-15 / time)
     call this%unit_const%insert(string("1/s"),                  1.0 / scrt)
     call this%unit_const%insert(string("Hz"),                   1.0 / scrt)
