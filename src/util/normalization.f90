@@ -50,7 +50,7 @@ contains
     real                                              :: nvalue
       !! return normalized value
 
-    nvalue = norm_or_denorm_scalar(value, unit, n, flag_norm=.true.)
+    nvalue = value * get_norm_value(unit, n)
   end function
 
   function denorm_scalar(value, unit, n) result(nvalue)
@@ -65,30 +65,7 @@ contains
     real                                              :: nvalue
       !! return denormalized value
 
-    nvalue = norm_or_denorm_scalar(value, unit, n, flag_denorm=.true.)
-  end function
-
-  function norm_or_denorm_scalar(value, unit, n, flag_denorm, flag_norm) result(nvalue)
-    !! normalize or denormalize a scalar value. internal routine.
-
-    real,                intent(in)                   :: value
-      !! values to de-/normalize
-    character(*),        intent(in)                   :: unit
-      !! physical unit token
-    type(normalization), intent(in), optional, target :: n
-      !! optional normalization object (default: use global normconst)
-    logical,             intent(in), optional         :: flag_norm, flag_denorm
-      !! should value be normalized or denormalized? (default: false)
-    real                                              :: nvalue
-      !! return de-/normalized value
-
-    real :: nvalue_arr(1)
-
-    ! cast to array; then de-/norm
-    nvalue_arr = norm_or_denorm_array([value], unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
-
-    ! cast to scalar
-    nvalue = nvalue_arr(1)
+    nvalue = value / get_norm_value(unit, n)
   end function
 
   function norm_array(values, unit, n) result(nvalues)
@@ -103,7 +80,7 @@ contains
     real                                              :: nvalues(size(values))
       !! return normalized values
 
-    nvalues = norm_or_denorm_array(values, unit, n, flag_norm=.true.)
+    nvalues = values * get_norm_value(unit, n)
   end function
 
   function denorm_array(values, unit, n) result(nvalues)
@@ -118,33 +95,7 @@ contains
     real                                              :: nvalues(size(values))
       !! return denormalized values
 
-    nvalues = norm_or_denorm_array(values, unit, n, flag_denorm=.true.)
-  end function
-
-  function norm_or_denorm_array(values, unit, n, flag_denorm, flag_norm) result(nvalues)
-    !! normalize or denormalize values. internal routine.
-
-    real,                intent(in)                   :: values(:)
-      !! values to de-/normalize
-    character(*),        intent(in)                   :: unit
-      !! physical unit token
-    type(normalization), intent(in), optional, target :: n
-      !! optional normalization object (default: use global normconst)
-    logical,             intent(in), optional         :: flag_norm, flag_denorm
-      !! should values be normalized or denormalized? (default: false)
-    real                                              :: nvalues(size(values))
-      !! return de-/normalized values
-
-    real :: nvalues_mat(size(values),1), values_mat(size(values),1)
-
-    ! cast to 2D array
-    values_mat(:,1) = values
-
-    ! de-/norm
-    nvalues_mat = norm_or_denorm_matrix(values_mat, unit, n=n, flag_denorm=flag_denorm, flag_norm=flag_norm)
-
-    ! cast to 1D array
-    nvalues = nvalues_mat(:,1)
+    nvalues = values / get_norm_value(unit, n)
   end function
 
   function norm_matrix(values, unit, n) result(nvalues)
@@ -159,7 +110,7 @@ contains
     real                                              :: nvalues(size(values,1),size(values,2))
       !! return normalized values
 
-    nvalues = norm_or_denorm_matrix(values, unit, n, flag_norm=.true.)
+    nvalues = values * get_norm_value(unit, n)
   end function
 
   function denorm_matrix(values, unit, n) result(nvalues)
@@ -167,42 +118,27 @@ contains
 
     real,                          intent(in) :: values(:,:)
       !! values to denormalize
-    character(*),              intent(in) :: unit
+    character(*),                  intent(in) :: unit
       !! physical unit token
     type(normalization), optional, intent(in) :: n
       !! optional normalization object (default: use global normconst)
     real                                      :: nvalues(size(values,1),size(values,2))
       !! return denormalized values
 
-    nvalues = norm_or_denorm_matrix(values, unit, n, flag_denorm=.true.)
+    nvalues = values / get_norm_value(unit, n)
   end function
 
-  function norm_or_denorm_matrix(values, unit, n, flag_denorm, flag_norm) result(nvalues)
-    !! normalize or denormalize values. internal routine.
+  function get_norm_value(unit, n) result(val)
+    !! usage:
+    !!  in norm_X: normed_value = denormed_value * val
 
-    real,                intent(in)                   :: values(:,:)
-      !! values to de-/normalize
     character(*),        intent(in)                   :: unit
       !! physical unit token
     type(normalization), intent(in), optional, target :: n
-      !! optional normalization object (default: use global normconst)
-    logical,             intent(in), optional         :: flag_norm, flag_denorm
-      !! should values be normalized or denormalized? (default: false)
-    real                                              :: nvalues(size(values,1),size(values,2))
-      !! return de-/normalized values
+    real                                              :: val
 
-    logical                            :: flag_denorm_, flag_norm_
     type(normalization),       pointer :: nptr
     type(mapnode_string_real), pointer :: node
-
-    ! load default values
-    flag_denorm_ = .false.
-    if (present(flag_denorm)) flag_denorm_ = flag_denorm
-    flag_norm_   = .false.
-    if (present(flag_norm))   flag_norm_   = flag_norm
-
-    ! test: either denorm XOR norm
-    ASSERT(flag_denorm_ .neqv. flag_norm_)
 
     ! load normailzation object to use
     nptr => normconst
@@ -215,12 +151,8 @@ contains
       call program_error("Unit not found in normalization object!")
     end if
 
-    ! (de-)norm
-    if      (flag_denorm_) then
-      nvalues = values / node%value
-    else if (flag_norm_)   then
-      nvalues = values * node%value
-    end if
+    ! return value
+    val = node%value
   end function
 
   subroutine normalization_init(this, T)
@@ -235,7 +167,7 @@ contains
     real, parameter :: EC     = 1.602176462e-19                        ! Electron charge      [ As ]
     real, parameter :: EM     = 9.10938188e-31                         ! Electron rest mass   [ kg ]
     real, parameter :: PLANCK = 6.58211889e-16                         ! Planck's constant    [ eVs ]
-    real, parameter :: CLIGHT = 2.99792458d8                           ! Speed of light       [ m/s ]
+    real, parameter :: CLIGHT = 2.99792458e8                           ! Speed of light       [ m/s ]
     real, parameter :: AVOGA  = 6.02214199e23                          ! Avogadro's constant  [ 1/mol ]
     real, parameter :: BOLTZ  = 8.617333262145e-5                      ! Boltzmann's constant [ eV/K ]
     real, parameter :: EPS0   = 8.854187817e-12                        ! Dielectric constant  [ As/(Vm) ]
@@ -251,20 +183,20 @@ contains
     hq     = PLANCK          ! Planck's constant [eVs]
     rmom   = dsqrt(EM/EC*eV) ! momentum [eVs/m]
     spr    = hq/rmom         ! r-space [m]
-    spk    = 1d0/spr         ! k-space [1/m]
+    spk    = 1.0/spr         ! k-space [1/m]
     time   = hq/eV           ! time    [s]
     velo   = spr/time        ! velocity [m/s]
     pot    = eV              ! el. potential [V]
     field  = pot/spr         ! el. field [V/m]
     conc   = spk*spk*spk     ! concentration [1/m**3]
     dpc    = field           ! deformation potential constant [eV/m]
-    scrt   = 1d0/time        ! scattering rate [1/s]
+    scrt   = 1.0/time        ! scattering rate [1/s]
     curr   = EC/(time*spr)   ! current [A/m]
     resist = eV*time/EC      ! resistance [Ohm = V/A]
     cap    = EC/eV           ! capacitance [As/V]
     ind    = resist * time   ! inductance [Ohm*s]
     cvr    = CLIGHT/velo
-    dk     = 4d0*PI*FSC*cvr  ! dielectric constant (eps_vacuum /= 1)
+    dk     = 4.0*PI*FSC*cvr  ! dielectric constant (eps_vacuum /= 1)
     norm_permittivity = EC / eV / spr
     mass_dens         =  mass*conc      ! mass density  [kg/m**3]
 
