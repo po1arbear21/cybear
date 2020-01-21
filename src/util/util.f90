@@ -238,18 +238,18 @@ contains
     x(nx) = x1
   end function
 
-  function kronecker_delta(n) result(kd)
-    !! return integer array with kronecker delta (integer identy matrix)
+  function eye_int(n) result(e)
+    !! integer identity matrix
     integer, intent(in) :: n
       !! dimension
-    integer             :: kd(n,n)
-      !! return kronecker delta
+    integer             :: e(n,n)
+      !! return integer identity matrix
 
     integer :: i
 
-    kd = 0
+    e = 0
     do i = 1, n
-      kd(i,i) = 1
+      e(i,i) = 1
     end do
   end function
 
