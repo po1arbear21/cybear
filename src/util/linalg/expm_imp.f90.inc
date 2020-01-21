@@ -21,7 +21,7 @@ subroutine EXPM(A, E)
   integer            :: n, s, i, k
   logical            :: pm
   doubleprecision    :: nrm, fact, tr
-  type(DENSE_TYPE)   :: A_, As, Ak, Ak_, B, C, E_
+  type(DENSE_TYPE)   :: A_, Ak, Ak_, B, C, E_
 
   ! matrix dimension
   n = A%nrows
