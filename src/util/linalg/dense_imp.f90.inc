@@ -708,7 +708,7 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
     ! FIXME: check this
     fmt_ = '(1A,F0.0,SP,F0.0,"i")'
 #else
-    fmt_ = "(1A,1F0.0)"
+    fmt_ = "(1A,ES24.17)"
 #endif
   end if
 
