@@ -529,7 +529,7 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
       write(funit_, "(1I0,1A,1I0,1A)", advance="no") k, " ", j, " "
 
       ! write value
-      write(funit_, fmt_) this%d(k,j)
+      write(funit_, fmt_) this%d(i,j)
     end do
   end do
 
