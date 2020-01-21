@@ -879,27 +879,27 @@ end subroutine
 subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   !! Write sparse matrix to file or stream
 
-  class(SPARSE_TYPE),         intent(in) :: this
+  class(SPARSE_TYPE),     intent(in) :: this
     !! Sparse matrix
-  character(len=*), optional, intent(in) :: file
+  character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
   integer,          optional, intent(in) :: funit
     !! File unit (alternative: provide file name)
-  character(len=*), optional, intent(in) :: fmt
+  character(*), optional, intent(in) :: fmt
     !! Value format string
 
   ! local variables
-  integer                       :: i, j, status, funit_
-  character(len=:), allocatable :: fmt_
+  integer                   :: i, j, status, funit_
+  character(:), allocatable :: fmt_
 
   if (present(fmt)) then
     fmt_ = fmt
   else
 #ifdef TCMPLX
     ! FIXME: check this
-    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+    fmt_ = '(F0.0,SP,F0.0,"i")'
 #else
-    fmt_ = "(1A,1F0.0)"
+    fmt_ = "(ES24.17)"
 #endif
   end if
 
