@@ -53,17 +53,17 @@ contains
 
   function int2str(i) result(str)
     !! convert integer to string
-    integer, intent(in)           :: i
-    character(len=:), allocatable :: str
+    integer,      intent(in)             :: i
+    character(:),            allocatable :: str
 
-    ! local variables
-    character(len=24) :: tmp
+    character(24) :: tmp
 
     ! write to temporary string
     write (tmp, "(I24)") i
 
-    ! remove leading space
-    str = adjustl(tmp)
+    ! adjustl: leading blanks cut and appended at end
+    ! trim:    remove trailing blanks
+    str = trim(adjustl(tmp))
   end function
 
   function select_int(flags, ints) result(t)
