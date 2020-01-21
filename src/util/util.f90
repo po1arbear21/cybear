@@ -238,4 +238,19 @@ contains
     x(nx) = x1
   end function
 
+  function kronecker_delta(n) result(kd)
+    !! return integer array with kronecker delta (integer identy matrix)
+    integer, intent(in) :: n
+      !! dimension
+    integer             :: kd(n,n)
+      !! return kronecker delta
+
+    integer :: i
+
+    kd = 0
+    do i = 1, n
+      kd(i,i) = 1
+    end do
+  end function
+
 end module
