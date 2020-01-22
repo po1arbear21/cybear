@@ -15,7 +15,28 @@ contains
     print "(1A)", "test_block"
     call tc%init("block")
 
-    ! create block matrix M
+    ! test init routine
+    block
+      type(block_real) :: A
+      integer          :: row_dim(3), col_dim(4), i0(3), i1(3), j0(4), j1(4)
+
+      row_dim = [2, 3, 1]
+      col_dim = [2, 2, 4, 3]
+
+      i0 = [1, 3, 6]
+      i1 = [2,5,6]
+      j0 = [1,3,5,9]
+      j1 = [2,4,8,11]
+
+      call A%init(row_dim, col_dim=col_dim)
+
+      call tc%assert_eq(i0, A%i0, "init: i0")
+      call tc%assert_eq(i1, A%i1, "init: i1")
+      call tc%assert_eq(j0, A%j0, "init: j0")
+      call tc%assert_eq(j1, A%j1, "init: j1")
+    end block
+
+    ! create block matrix M for futher tests: mulvec, etc.
     block
       ! Example
       !        / A B C \
