@@ -81,7 +81,7 @@ subroutine SPARSE_DESTRUCT(this)
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
-  !! Reset dense matrix to zero (optionally only the factorization).
+  !! Reset sparse matrix to zero (optionally only the factorization).
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix

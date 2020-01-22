@@ -75,12 +75,12 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   end do
 
   ! set col indices
-  allocate (this%j0(this%ncols))
-  allocate (this%j1(this%ncols))
+  allocate (this%j0(this%nbcols))
+  allocate (this%j1(this%nbcols))
   j1 = 0
   do jb = 1, this%nbcols
     this%j0(jb) = j1 + 1
-    this%j1(jb) = j1 + row_dim(jb)
+    this%j1(jb) = j1 + col_dim_(jb)
     j1 = this%j1(jb)
   end do
 
@@ -94,7 +94,7 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   if (present(tridiag)) this%tridiag = tridiag
 
   if (this%diag .and. this%tridiag) call program_error("Block matrix cannot be both diagonal and tridiagonal!")
-  if (this%diag .or. this%tridiag) then
+  if (this%diag .or.  this%tridiag) then
     if (this%nbrows /= this%nbcols) call program_error("(Tri)Diagonal Block matrix must have same number of blocks per row and column!")
   end if
 
