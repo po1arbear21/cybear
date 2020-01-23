@@ -23,6 +23,30 @@ module ode_m
     procedure :: init => ode_options_init ! initialize
   end type
 
+  type ode_result
+    !! results returned by ode solver
+
+    real, allocatable :: Us(:,:)
+      !! return values at sample points (nU x size(xs))
+
+    real, allocatable :: U1(:)
+      !! return final state
+    real, allocatable :: dU1dU0(:,:)
+      !! return derivatives of U1 wrt U0
+    real, allocatable :: dU1dP(:,:)
+      !! return derivatives of U1 wrt P
+
+    real, allocatable :: UA(:)
+      !! return average state in interval
+    real, allocatable :: dUAdU0(:,:)
+      !! return derivatives of UA wrt U0
+    real, allocatable :: dUAdP(:,:)
+      !! return derivatives of UA wrt P
+
+    integer :: nsteps
+      !! return number of steps taken
+  end type
+
   interface
     subroutine ode_fun(x, U, P, f, dfdU, dfdP)
       real,              intent(in)  :: x
@@ -41,7 +65,7 @@ module ode_m
 
     subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, &
       P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
-      import
+      import ode_options, ode_fun
       procedure(ode_fun), pointer, intent(in)    :: fun
         !! function to integrate
       real,                        intent(in)    :: xold
@@ -87,7 +111,7 @@ module ode_m
 
 contains
 
-  subroutine ode_solve(kernel, nS, fun, x0, x1, U0, P, opt, U1, dU1dU0, dU1dP, UA, dUAdU0, dUAdP, nsteps)
+  subroutine ode_solve(kernel, nS, fun, x0, x1, U0, P, opt, res, xs)
     procedure(ode_kernel), pointer, intent(in)  :: kernel
       !! pointer to ode solver kernel
     integer,                        intent(in)  :: nS
@@ -104,20 +128,10 @@ contains
       !! parameters
     type(ode_options),              intent(in)  :: opt
       !! solver options
-    real,                           intent(out) :: U1(:)
-      !! output final state
-    real,    optional,              intent(out) :: dU1dU0(:,:)
-      !! optional output derivatives of U1 wrt U0
-    real,    optional,              intent(out) :: dU1dP(:,:)
-      !! optional output derivatives of U1 wrt P
-    real,    optional,              intent(out) :: UA(:)
-      !! optional output average state in interval [x0, x1]
-    real,    optional,              intent(out) :: dUAdU0(:,:)
-      !! optional output derivatives of UA wrt U0
-    real,    optional,              intent(out) :: dUAdP(:,:)
-      !! optional output derivatives of UA wrt P
-    integer, optional,              intent(out) :: nsteps
-      !! optional output number of steps taken
+    type(ode_result),               intent(out) :: res
+      !! output result object
+    real, optional,                 intent(in)  :: xs(:)
+      !! x sample points
 
     ! local variables
     integer :: nU, nP
@@ -127,16 +141,12 @@ contains
     nP = size(P)
 
     block
-      integer       :: i, j, rejection_counter, nsteps_
+      integer       :: i, j, is, rejection_counter
       real          :: x, xold, dxk, dxn, err
-      real          :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), polyk(nU,0:nS)
-      real          :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), polyn(nU,0:nS), dpolyndQ(nU,nU+nP,nS)
+      real          :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), polyk(nU,nS)
+      real          :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
       type(hp_real) :: hp_UA(nU), hp_dUAdQ(nU,nU+nP)
-      logical       :: status, avg
-
-      ! average state wanted?
-      avg = .false.
-      if (present(UA) .or. present(dUAdU0) .or. present(dUAdP)) avg = .true.
+      logical       :: status
 
       ! initial x and dx
       x    = x0
@@ -144,7 +154,7 @@ contains
       dxk = (x1 - x0) / 8
 
       ! reset step and rejection counter
-      nsteps_ = 0
+      res%nsteps = 0
       rejection_counter = 0
 
       ! initial state
@@ -154,6 +164,12 @@ contains
         dUkdQ(i,i) = 1.0
       end do
 
+      ! init samples
+      if (present(xs)) then
+        allocate(res%Us(nU,size(xs)), source = 0d0)
+        is = 1
+      end if
+
       ! eval f and derivatives at U0
       call fun(x0, U0, P, f = fk, dfdU = dfkdUk)
 
@@ -162,10 +178,8 @@ contains
       polyk(:,1) = fk
 
       ! init average state
-      if (avg) then
-        hp_UA    = real_to_hp(0.0)
-        hp_dUAdQ = real_to_hp(0.0)
-      end if
+      hp_UA    = real_to_hp(0.0)
+      hp_dUAdQ = real_to_hp(0.0)
 
       ! initial values for error control
       status = .false.
@@ -197,13 +211,22 @@ contains
           rejection_counter = 0
 
           ! update average state by integrating the interpolation polynomial
-          if (avg) then
-            hp_UA    = hp_UA    + dxk * Uk
-            hp_dUAdQ = hp_dUAdQ + dxk * dUkdQ
-            do j = 1, nS
-              hp_UA    = hp_UA    + dxk**(j+1) / real(j+1) * polyn(:,j)
-              hp_dUAdQ = hp_dUAdQ + dxk**(j+1) / real(j+1) * dpolyndQ(:,:,j)
-            end do
+          hp_UA    = hp_UA    + dxk * Uk
+          hp_dUAdQ = hp_dUAdQ + dxk * dUkdQ
+          do j = 1, nS
+            hp_UA    = hp_UA    + dxk**(j+1) / real(j+1) * polyn(:,j)
+            hp_dUAdQ = hp_dUAdQ + dxk**(j+1) / real(j+1) * dpolyndQ(:,:,j)
+          end do
+
+          ! sample
+          if (present(xs)) then
+            if (is <= size(xs)) then
+              do while (xs(is) <= x + dxk)
+                res%Us(:,is) = Uk + polyn(:,1) * (xs(is) - x) + polyn(:,2) * (xs(is) - x)**2 + polyn(:,3) * (xs(is) - x)**3
+                is = is + 1
+                if (is > size(xs)) exit
+              end do
+            end if
           end if
 
           ! advance x
@@ -218,7 +241,7 @@ contains
           polyk  = polyn
 
           ! update step counter
-          nsteps_ = nsteps_ + 1
+          res%nsteps = res%nsteps + 1
         end if
 
         ! adjust step size
@@ -227,17 +250,14 @@ contains
       end do
 
       ! set end state and extract derivatives from dUkdQ
-      U1 = Uk
-      if (present(dU1dU0)) dU1dU0 = dUkdQ(:,1:nU)
-      if (present(dU1dP )) dU1dP  = dUkdQ(:,(nU+1):(nU+nP))
+      res%U1 = Uk
+      res%dU1dU0 = dUkdQ(:,1:nU)
+      res%dU1dP  = dUkdQ(:,(nU+1):(nU+nP))
 
-      ! get average state
-      if (present(UA    )) UA     = hp_to_real(hp_UA                     ) / (x1 - x0)
-      if (present(dUAdU0)) dUAdU0 = hp_to_real(hp_dUAdQ(:,1:nU)          ) / (x1 - x0)
-      if (present(dUAdP )) dUAdP  = hp_to_real(hp_dUAdQ(:,(nU+1):(nU+nP))) / (x1 - x0)
-
-      ! output number of steps
-      if (present(nsteps)) nsteps = nsteps_
+      ! average state
+      res%UA     = hp_to_real(hp_UA                     ) / (x1 - x0)
+      res%dUAdU0 = hp_to_real(hp_dUAdQ(:,1:nU)          ) / (x1 - x0)
+      res%dUAdP  = hp_to_real(hp_dUAdQ(:,(nU+1):(nU+nP))) / (x1 - x0)
     end block
   end subroutine
 

@@ -4,9 +4,9 @@ module radau5_m
   implicit none
 
   private
-  public :: radau5
+  public :: ode_options, ode_result, radau5
 
-  ! radau5 parameters
+  ! radau5 IIa parameters
   real, parameter :: C(3) = [ &
     (4.0 - sqrt(6.0)) / 10.0, &
     (4.0 + sqrt(6.0)) / 10.0, &
@@ -23,6 +23,7 @@ module radau5_m
     (-  2.0 -   3.0 * sqrt(6.0)) /  225.0, &
     (   1.0                    ) /    9.0  &
   ], [ 3, 3 ])
+
   real, parameter :: G0   = 2.74888829595676675854321047154372d-01
   real, parameter :: E(3) = [             &
       G0 * (-13.0 - 7.0 * sqrt(6.0)) / 3.0, &
@@ -32,7 +33,7 @@ module radau5_m
 
 contains
 
-  subroutine radau5(fun, x0, x1, U0, P, opt, U1, dU1dU0, dU1dP, UA, dUAdU0, dUAdP, nsteps)
+  subroutine radau5(fun, x0, x1, U0, P, opt, res, xs)
     !! radau5 ode solver
     procedure(ode_fun),    pointer, intent(in)  :: fun
       !! pointer to function to integrate
@@ -46,23 +47,13 @@ contains
       !! parameters
     type(ode_options),              intent(in)  :: opt
       !! solver options
-    real,                           intent(out) :: U1(:)
-      !! output final state
-    real,    optional,              intent(out) :: dU1dU0(:,:)
-      !! optional output derivatives of U1 wrt U0
-    real,    optional,              intent(out) :: dU1dP(:,:)
-      !! optional output derivatives of U1 wrt P
-    real,    optional,              intent(out) :: UA(:)
-      !! optional output average state in interval [x0, x1]
-    real,    optional,              intent(out) :: dUAdU0(:,:)
-      !! optional output derivatives of UA wrt U0
-    real,    optional,              intent(out) :: dUAdP(:,:)
-      !! optional output derivatives of UA wrt P
-    integer, optional,              intent(out) :: nsteps
-      !! optional output number of steps taken
+    type(ode_result),               intent(out) :: res
+      !! output result object
+    real, optional,                 intent(in)  :: xs(:)
+      !! x sample points
 
     ! call base solver with radau5 kernel (3 stages)
-    call ode_solve(radau5_kernel, 3, fun, x0, x1, U0, P, opt, U1, dU1dU0, dU1dP, UA, dUAdU0, dUAdP, nsteps)
+    call ode_solve(radau5_kernel, 3, fun, x0, x1, U0, P, opt, res, xs)
   end subroutine
 
   subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
@@ -347,7 +338,7 @@ contains
       dhdP  = 0
       do j = 1, 3
         dhdUk = dhdUk - dxk * A(i,j) * dfdz(:,:,j)
-        dhdP  = dhdP -  dxk * A(i,j) * dfdP(:,:,j)
+        dhdP  = dhdP  - dxk * A(i,j) * dfdP(:,:,j)
       end do
 
       dhdQ(i0:i1,:) = matmul(dhdUk, dUkdQ)
