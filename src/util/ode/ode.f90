@@ -170,6 +170,19 @@ contains
 
       ! init samples
       if (present(xs)) then
+#ifdef DEBUG
+        ! check if requested sample points are sorted
+        if (x1 > x0) then
+          do is = 2, size(xs)
+            if (xs(is) < xs(is-1)) call program_error("xs must be sorted in ascending order for x1 > x0")
+          end do
+        else
+          do is = 2, size(xs)
+            if (xs(is) > xs(is-1)) call program_error("xs must be sorted in descending order for x1 < x0")
+          end do
+        end if
+#endif
+
         allocate(res%Us(    nU,   size(xs)), source = 0.0)
         allocate(res%dUsdU0(nU,nU,size(xs)), source = 0.0)
         allocate(res%dUsdP (nU,nP,size(xs)), source = 0.0)
@@ -224,10 +237,10 @@ contains
             hp_dUAdQ = hp_dUAdQ + dxk**(j+1) / real(j+1) * dpolyndQ(:,:,j)
           end do
 
-          ! sample
+          ! samples
           if (present(xs)) then
             if (is <= size(xs)) then
-              do while (xs(is) <= x + dxk)
+              do while ((min(x, x + dxk) <= xs(is)) .and. ((max(x, x + dxk) >= xs(is))))
                 res%Us(    :  ,is) = Uk
                 res%dUsdU0(:,:,is) = dUkdq(:,1:nU)
                 res%dUsdP( :,:,is) = dUkdq(:,(nU+1):(nU+nP))

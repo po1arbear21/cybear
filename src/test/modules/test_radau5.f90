@@ -80,7 +80,7 @@ contains
       call opt%init(2)
 
       x0    = 0.0
-      x1    = 2.5
+      x1    = -2.5 ! backwards
       U0(1) = 0.2
       U0(2) = -0.7
       P( 1) = 2.1
