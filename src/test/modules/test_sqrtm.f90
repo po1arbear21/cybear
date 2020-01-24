@@ -1,10 +1,10 @@
 module test_sqrtm_m
   use test_case_m
   use sqrtm_m
-
   implicit none
 
 contains
+
   subroutine test_sqrtm
     type(test_case)       :: tc
     real, allocatable     :: d0(:,:), Asqrt_exp(:,:)
@@ -68,4 +68,5 @@ contains
 
     call tc%finish
   end subroutine
+
 end module

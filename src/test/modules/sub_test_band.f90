@@ -5,6 +5,7 @@ submodule(test_matrix_m) test_band_m
   implicit none
 
 contains
+
   module subroutine test_band
     type(test_case)      :: tc
     type(band_real)      :: tri, band, penta, diag

@@ -5,6 +5,7 @@ submodule(test_matrix_m) test_dense_m
   implicit none
 
 contains
+
   module subroutine test_dense
     type(test_case) :: tc
     print "(1A)", "test_dense"

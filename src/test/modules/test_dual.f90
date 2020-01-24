@@ -166,6 +166,6 @@ contains
     end block
 
     call tc%finish()
-  end subroutine test_dual
+  end subroutine
 
-end module test_dual_m
+end module

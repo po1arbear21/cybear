@@ -25,8 +25,8 @@ for i in range(1, len(sys.argv)):
   f.write("    print \"(1A)\", \"test_"+name+"\"\n")
   f.write("    call tc%init(\""+name+"\")\n\n\n\n")
   f.write("    call tc%finish()\n")
-  f.write("  end subroutine test_"+name+"\n\n")
-  f.write("end module test_"+name+"_m\n")
+  f.write("  end subroutine\n\n")
+  f.write("end module\n")
 
   f.close()
 

@@ -145,6 +145,6 @@ contains
     end block
 
     call tc%finish()
-  end subroutine test_qsort
+  end subroutine
 
-end module test_qsort_m
+end module

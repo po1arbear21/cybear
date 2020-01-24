@@ -64,6 +64,6 @@ contains
     end block
 
     call tc%finish()
-  end subroutine test_high_precision
+  end subroutine
 
-end module test_high_precision_m
+end module

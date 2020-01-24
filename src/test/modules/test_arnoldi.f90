@@ -1,7 +1,6 @@
 module test_arnoldi_m
   use test_case_m
   use arnoldi_m
-
   implicit none
 
   type(test_case) :: tc

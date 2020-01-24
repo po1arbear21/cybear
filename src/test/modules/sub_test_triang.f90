@@ -5,6 +5,7 @@ submodule(test_matrix_m) test_triang_m
   implicit none
 
 contains
+
   module subroutine test_triang
     type(test_case)   :: tc
     type(triang_real) :: d_lower, d_upper
@@ -83,4 +84,5 @@ contains
 
     call tc%finish
   end subroutine
+
 end submodule

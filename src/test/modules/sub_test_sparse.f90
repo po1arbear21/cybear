@@ -3,6 +3,7 @@ submodule(test_matrix_m) test_sparse_m
   implicit none
 
 contains
+
   module subroutine test_sparse()
     type(test_case)   :: tc
     type(sparse_real) :: sA
@@ -270,4 +271,5 @@ contains
 
     call tc%finish()
   end subroutine
+
 end submodule

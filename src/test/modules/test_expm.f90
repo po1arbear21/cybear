@@ -1,10 +1,10 @@
 module test_expm_m
   use test_case_m
   use expm_m
-
   implicit none
 
 contains
+
   subroutine test_expm
     real, allocatable :: d0(:,:), expmA_exp(:,:)
     type(test_case)   :: tc
@@ -39,4 +39,5 @@ contains
 
     call tc%finish
   end subroutine
+
 end module
