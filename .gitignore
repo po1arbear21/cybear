@@ -1,4 +1,5 @@
 .*
 *.asc
+*.i90
 doc
 !.gitignore
