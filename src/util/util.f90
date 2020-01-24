@@ -73,7 +73,7 @@ contains
     integer             :: t
 
     ! local variables
-    integer             :: i, j
+    integer :: i, j
 
     t = 0
     j = 0

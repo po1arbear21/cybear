@@ -3,6 +3,7 @@
 module normalization_m
   use error_m
   use map_m
+  use math_m
   implicit none
 
   type normalization
@@ -163,7 +164,6 @@ contains
       !! temperature
 
     ! constants
-    real, parameter :: PI     = 3.141592653589793238462643
     real, parameter :: EC     = 1.602176462e-19                        ! Electron charge      [ As ]
     real, parameter :: EM     = 9.10938188e-31                         ! Electron rest mass   [ kg ]
     real, parameter :: PLANCK = 6.58211889e-16                         ! Planck's constant    [ eVs ]
