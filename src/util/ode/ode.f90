@@ -28,6 +28,10 @@ module ode_m
 
     real, allocatable :: Us(:,:)
       !! return values at sample points (nU x size(xs))
+    real, allocatable :: dUsdU0(:,:,:)
+      !! return derivatives of sample values wrt U0 (nU x nU x size(xs))
+    real, allocatable :: dUsdP(:,:,:)
+      !! return derivatives of sample values wrt P (nU x nP x size(xs))
 
     real, allocatable :: U1(:)
       !! return final state
@@ -166,7 +170,9 @@ contains
 
       ! init samples
       if (present(xs)) then
-        allocate(res%Us(nU,size(xs)), source = 0d0)
+        allocate(res%Us(    nU,   size(xs)), source = 0.0)
+        allocate(res%dUsdU0(nU,nU,size(xs)), source = 0.0)
+        allocate(res%dUsdP (nU,nP,size(xs)), source = 0.0)
         is = 1
       end if
 
@@ -222,7 +228,15 @@ contains
           if (present(xs)) then
             if (is <= size(xs)) then
               do while (xs(is) <= x + dxk)
-                res%Us(:,is) = Uk + polyn(:,1) * (xs(is) - x) + polyn(:,2) * (xs(is) - x)**2 + polyn(:,3) * (xs(is) - x)**3
+                res%Us(    :  ,is) = Uk
+                res%dUsdU0(:,:,is) = dUkdq(:,1:nU)
+                res%dUsdP( :,:,is) = dUkdq(:,(nU+1):(nU+nP))
+                do j = 1, nS
+                  res%Us(    :  ,is) = res%Us(    :,  is) + polyn(   :               ,j) * (xs(is) - x)**j
+                  res%dUsdU0(:,:,is) = res%dUsdU0(:,:,is) + dpolyndQ(:,          1:nU,j) * (xs(is) - x)**j
+                  res%dUsdP( :,:,is) = res%dUsdP( :,:,is) + dpolyndQ(:,(nU+1):(nU+nP),j) * (xs(is) - x)**j
+                end do
+
                 is = is + 1
                 if (is > size(xs)) exit
               end do
@@ -250,7 +264,7 @@ contains
       end do
 
       ! set end state and extract derivatives from dUkdQ
-      res%U1 = Uk
+      res%U1     = Uk
       res%dU1dU0 = dUkdQ(:,1:nU)
       res%dU1dP  = dUkdQ(:,(nU+1):(nU+nP))
 

@@ -21,24 +21,28 @@ module test_case_m
     ! public procedures
     procedure :: init
     procedure :: finish
-    generic   :: assert_eq => assert_eq_int   , assert_eq_int_arr   , assert_eq_int_arr2D   , &
-                              assert_eq_real  , assert_eq_real_arr  , assert_eq_real_arr2D  , &
-                              assert_eq_cmplx , assert_eq_cmplx_arr , assert_eq_cmplx_arr2D , &
-                              assert_eq_string, assert_eq_string_arr, assert_eq_string_arr2D
+    generic   :: assert_eq => assert_eq_int      , assert_eq_real      , assert_eq_cmplx      , assert_eq_string      , &
+                              assert_eq_int_arr  , assert_eq_real_arr  , assert_eq_cmplx_arr  , assert_eq_string_arr  , &
+                              assert_eq_int_arr2D, assert_eq_real_arr2D, assert_eq_cmplx_arr2D, assert_eq_string_arr2D, &
+                              assert_eq_int_arr3D, assert_eq_real_arr3D, assert_eq_cmplx_arr3D, assert_eq_string_arr3D
 
     ! private procedures
     procedure, private :: assert_eq_int
     procedure, private :: assert_eq_int_arr
     procedure, private :: assert_eq_int_arr2D
+    procedure, private :: assert_eq_int_arr3D
     procedure, private :: assert_eq_real
     procedure, private :: assert_eq_real_arr
     procedure, private :: assert_eq_real_arr2D
+    procedure, private :: assert_eq_real_arr3D
     procedure, private :: assert_eq_cmplx
     procedure, private :: assert_eq_cmplx_arr
     procedure, private :: assert_eq_cmplx_arr2D
+    procedure, private :: assert_eq_cmplx_arr3D
     procedure, private :: assert_eq_string
     procedure, private :: assert_eq_string_arr
     procedure, private :: assert_eq_string_arr2D
+    procedure, private :: assert_eq_string_arr3D
     procedure, private :: check
   end type
 
@@ -157,6 +161,49 @@ contains
     end do
   end subroutine
 
+  subroutine assert_eq_int_arr3D(this, expected, values, msg)
+    !! Check integer values (3D array) for equality to expected values.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    integer,          intent(in)    :: expected(:,:,:)
+      !! Expected values
+    integer,          intent(in)    :: values(:,:,:)
+      !! Actual values
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, k, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,3) == size(values,3)), msg, &
+                    msg2 = "number of slices differ", ipar = [size(expected,3), size(values,3)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check((values(i,j,k) == expected(i,j,k)), msg, &
+                          msg2 = "array values differ; (row, col, slice, expected, value)", ipar = [i, j, k, expected(i,j,k), values(i,j,k)])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
+      end do
+    end do
+  end subroutine
+
   subroutine assert_eq_real(this, expected, value, abs_tol, msg)
     !! Check real value (scalar) for equality to expected value within tolerance.
 
@@ -246,6 +293,51 @@ contains
           print "(1A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
+      end do
+    end do
+  end subroutine
+
+  subroutine assert_eq_real_arr3D(this, expected, values, abs_tol, msg)
+    !! Check real values (3D array) for equality to expected values within tolerance.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    real,             intent(in)    :: expected(:,:,:)
+      !! Expected values
+    real,             intent(in)    :: values(:,:,:)
+      !! Actual values
+    real,             intent(in)    :: abs_tol
+      !! Absolute tolerance to compare values to
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, k, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,3) == size(values,3)), msg, &
+                    msg2 = "number of slices differ", ipar = [size(expected,3), size(values,3)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= abs_tol, msg, &
+                          msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], rpar = [expected(i,j,k), values(i,j,k)])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
       end do
     end do
   end subroutine
@@ -343,6 +435,51 @@ contains
     end do
   end subroutine
 
+  subroutine assert_eq_cmplx_arr3D(this, expected, values, abs_tol, msg)
+    !! Check complex values (3D array) for equality to expected values within tolerance.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    complex,          intent(in)    :: expected(:,:,:)
+      !! Expected values
+    complex,          intent(in)    :: values(:,:,:)
+      !! Actual values
+    real,             intent(in)    :: abs_tol
+      !! Absolute tolerance to compare values to
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, k, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,3) == size(values,3)), msg, &
+                    msg2 = "number of slices differ", ipar = [size(expected,3), size(values,3)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= abs_tol, msg, &
+                          msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], cpar = [expected(i,j,k), values(i,j,k)])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
+      end do
+    end do
+  end subroutine
+
   subroutine assert_eq_string(this, expected, value, msg)
     !! Check string (scalar) for equality to expected value.
 
@@ -426,6 +563,49 @@ contains
           print "(1A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
+      end do
+    end do
+  end subroutine
+
+  subroutine assert_eq_string_arr3D(this, expected, values, msg)
+    !! Check strings (3D array) for equality to expected values.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    type(string),     intent(in)    :: expected(:,:,:)
+      !! Expected values
+    type(string),     intent(in)    :: values(:,:,:)
+      !! Actual values
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, k, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,3) == size(values,3)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,3), size(values,3)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check((values(i,j,k)%s == expected(i,j,k)%s), msg, &
+                          msg2 = "array values differ; (row, col, slice)", ipar = [i, j, k])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
       end do
     end do
   end subroutine
