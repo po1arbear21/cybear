@@ -423,8 +423,8 @@ subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
       allocate (r(n,nrhs), d(n,nrhs))
 
       ! calculate residual with high precision
-      a(0) = -1d0
-      a(1) = 0d0
+      a(0) = -1.0
+      a(1) = 0.0
       if (this%upper) then
         do j = 1, nrhs
           do i = 1, n
@@ -487,7 +487,7 @@ subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
       allocate (a(0:n), b(0:n), r(n,nrhs), d(n,nrhs))
 
       ! calculate residual with high precision
-      a(0) = -1d0
+      a(0) = -1.0
       if (this%upper) then
         do j = 1, nrhs
           do i = 1, n

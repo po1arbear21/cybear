@@ -20,7 +20,7 @@ subroutine EXPM(A, E)
   integer, parameter :: q = 6
   integer            :: n, s, i, k
   logical            :: pm
-  doubleprecision    :: nrm, fact, tr
+  real               :: nrm, fact, tr
   type(DENSE_TYPE)   :: A_, Ak, Ak_, B, C, E_
 
   ! matrix dimension
