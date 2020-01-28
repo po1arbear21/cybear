@@ -7,7 +7,7 @@ contains
   subroutine program_error(msg, code)
     !! Prints an error message and performs traceback
 
-    character(len=*),  intent(in) :: msg
+    character(*),      intent(in) :: msg
       !! error message
     integer, optional, intent(in) :: code
       !! additional error code
@@ -23,9 +23,9 @@ contains
   end subroutine
 
   subroutine assert_failed(expr, file, line)
-    character(len=*), intent(in) :: expr
-    character(len=*), intent(in) :: file
-    integer,          intent(in) :: line
+    character(*), intent(in) :: expr
+    character(*), intent(in) :: file
+    integer,      intent(in) :: line
 
     print *
     print *, expr

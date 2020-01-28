@@ -28,7 +28,7 @@ subroutine MATRIX_INIT(this, dum, nrows, ncols)
 
   class(MATRIX_TYPE), intent(out) :: this
     !! Matrix
-  character(len=*),   intent(in)  :: dum
+  character(*),       intent(in)  :: dum
     !! Dummy, unused
   integer,            intent(in)  :: nrows
     !! Number of rows

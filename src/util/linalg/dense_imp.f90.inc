@@ -136,15 +136,15 @@ subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(DENSE_TYPE),          intent(in)    :: this
+  class(DENSE_TYPE),   intent(in)    :: this
     !! Dense matrix
-  TT,                         intent(in)    :: x(:)
+  TT,                  intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                         intent(inout) :: y(:)
+  TT,                  intent(inout) :: y(:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   call gemv(this%d, x, y, beta = fact_y, trans = trans)
@@ -154,15 +154,15 @@ subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(DENSE_TYPE),          intent(in)    :: this
+  class(DENSE_TYPE),   intent(in)    :: this
     !! Dense matrix
-  TT,                         intent(in)    :: x(:,:)
+  TT,                  intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                         intent(inout) :: y(:,:)
+  TT,                  intent(inout) :: y(:,:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! Scale existing data in y and add result to it (default: 0)
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transposed flag for this matrix, must be 'N', 'C' or 'T' (default: 'N')
 
   call gemm(this%d, x, y, transa = trans, beta = fact_y)
@@ -192,15 +192,15 @@ subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for a single right-hand side.
   !! Solves: this * x = rhs, where x and rhs are raw vectors. Call this%factorize() first!
 
-  class(DENSE_TYPE),          intent(in)  :: this
+  class(DENSE_TYPE),   intent(in)  :: this
     !! Dense matrix
-  TT,                         intent(in)  :: rhs(:)
+  TT,                  intent(in)  :: rhs(:)
     !! Right hand side of equation system
-  TT,                         intent(out) :: x(:)
+  TT,                  intent(out) :: x(:)
     !! Store result in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
   ! local variables
@@ -216,15 +216,15 @@ subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for multiple right-hand sides.
   !! Solves: this * x = rhs, where x and rhs are raw matrices. Call this%factorize() first!
 
-  class(DENSE_TYPE),          intent(in)  :: this
+  class(DENSE_TYPE),   intent(in)  :: this
     !! Dense matrix
-  TT,                         intent(in)  :: rhs(:,:)
+  TT,                  intent(in)  :: rhs(:,:)
     !! Right hand sides of equation system
-  TT,                         intent(out) :: x(:,:)
+  TT,                  intent(out) :: x(:,:)
     !! Store results in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
   ! local variables
@@ -688,27 +688,26 @@ end subroutine
 subroutine DENSE_OUTPUT(this, file, funit, fmt)
   !! Write dense matrix to file or stream.
 
-  class(DENSE_TYPE),          intent(in) :: this
+  class(DENSE_TYPE),      intent(in) :: this
     !! Dense matrix
-  character(len=*), optional, intent(in) :: file
+  character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
-  integer,          optional, intent(in) :: funit
+  integer,      optional, intent(in) :: funit
     !! File unit (alternative: provide file name)
-  character(len=*), optional, intent(in) :: fmt
+  character(*), optional, intent(in) :: fmt
     !! Value format string
 
   ! local variables
-  integer                       :: i, j, funit_, status
-  character(len=:), allocatable :: fmt_
+  integer                   :: i, j, funit_, status
+  character(:), allocatable :: fmt_
 
   if (present(fmt)) then
     fmt_ = fmt
   else
 #ifdef TCMPLX
-    ! FIXME: check this
-    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+    fmt_ = '(1A,E32.24,SP,E32.24,"i")'
 #else
-    fmt_ = "(1A,ES24.17)"
+    fmt_ = '(1A,E32.24)'
 #endif
   end if
 

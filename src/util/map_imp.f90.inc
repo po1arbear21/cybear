@@ -349,7 +349,7 @@ function MAP_FIND_POS(this, key) result(node)
     if (tmp%key == key) then
       ! key found
       return
-    elseif (key .lt. tmp%key) then
+    elseif (key < tmp%key) then
       ! goto left subtree
       tmp => tmp%left
     else
@@ -444,7 +444,7 @@ subroutine MAP_INSERT(this, key, value, node, status)
     p => this%find_pos(key)
 
     ! make sure key does not exist already
-    if (key .eq. p%key) then
+    if (key == p%key) then
       ! insertion failed: duplicate key
       if (present(node)) node => p
       if (present(status)) status = .false.
@@ -455,7 +455,7 @@ subroutine MAP_INSERT(this, key, value, node, status)
     allocate (n)
     if (present(node)) node => n
     call n%init(key, value, RB_RED, null(), null(), p)
-    if (key .lt. p%key) then
+    if (key < p%key) then
       p%left => n
     else
       p%right => n
@@ -471,7 +471,7 @@ subroutine MAP_INSERT(this, key, value, node, status)
       end if
 
       ! condition 2: parent is black
-      if (p%color .eq. RB_BLACK) then
+      if (p%color == RB_BLACK) then
         exit
       end if
 
@@ -480,7 +480,7 @@ subroutine MAP_INSERT(this, key, value, node, status)
 
       ! condition 3: parent and uncle are red
       if (associated(u)) then
-        if (u%color .eq. RB_RED) then
+        if (u%color == RB_RED) then
           p%color = RB_BLACK
           u%color = RB_BLACK
           g%color = RB_RED

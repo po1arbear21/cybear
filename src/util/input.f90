@@ -17,21 +17,21 @@ module input_m
   integer, parameter :: INPUT_NUM_TYPES    = 4
 
   type input_var
-    character(len=:), allocatable :: name
+    character(:), allocatable :: name
       !! Variable name
-    integer                       :: type
+    integer                   :: type
       !! Variable type
-    integer                       :: size
+    integer                   :: size
       !! Size of variable, 1 means scalar, > 1 means array
-    integer,          allocatable :: int_data(:)
+    integer,      allocatable :: int_data(:)
       !! integer data
-    real,             allocatable :: real_data(:)
+    real,         allocatable :: real_data(:)
       !! real data
-    type(string),     allocatable :: str_data(:)
+    type(string), allocatable :: str_data(:)
       !! string data
-    logical,          allocatable :: logic_data(:)
+    logical,      allocatable :: logic_data(:)
       !! logical data
-    character(len=:), allocatable :: unit
+    character(:), allocatable :: unit
       !! Physical unit token (for real variables)
   contains
     procedure :: init => input_var_init
@@ -42,9 +42,9 @@ module input_m
 #include "vector_def.f90.inc"
 
   type input_section
-    character(len=:), allocatable :: name
+    character(:), allocatable :: name
       !! Section name
-    type(vector_input_var)        :: vars
+    type(vector_input_var)    :: vars
       !! variables in this section
   contains
     procedure :: init    => input_section_init
@@ -56,13 +56,13 @@ module input_m
 #include "vector_def.f90.inc"
 
   type input_file
-    character(len=:), allocatable :: name
+    character(:), allocatable  :: name
       !! File name
-    character(len=:), allocatable :: default
+    character(:), allocatable  :: default
       !! default file name
-    type(vector_input_section)    :: sections
+    type(vector_input_section) :: sections
       !! Sections in this file
-    type(vector_input_section)    :: default_sections
+    type(vector_input_section) :: default_sections
       !! Default values for sections
   contains
     procedure :: init         => input_file_init
@@ -118,18 +118,18 @@ contains
     !! initialize variable from data string
 
     class(input_var), intent(out) :: this
-    character(len=*), intent(in)  :: data0
+    character(*),     intent(in)  :: data0
       !! data string
     logical,          intent(out) :: valid
       !! valid flag
-    character(len=*), intent(out) :: err
+    character(*),     intent(out) :: err
       !! Error string
 
     ! local variables
-    integer                   :: i, j, k, status, status_r
-    real                      :: r
-    character(len=1)          :: quote
-    character(len=len(data0)) :: data, item
+    integer               :: i, j, k, status, status_r
+    real                  :: r
+    character             :: quote
+    character(len(data0)) :: data, item
 
     ! assume no error
     valid = .true.
@@ -360,7 +360,7 @@ contains
     !! initialize input section
 
     class(input_section), intent(out) :: this
-    character(len=*),     intent(in)  :: name
+    character(*),         intent(in)  :: name
       !! section name
 
     ! init members
@@ -393,10 +393,10 @@ contains
   subroutine input_file_init(this, name, default)
     !! initialize input file
 
-    class(input_file),          intent(out) :: this
-    character(len=*),           intent(in)  :: name
+    class(input_file),      intent(out) :: this
+    character(*),           intent(in)  :: name
       !! filename
-    character(len=*), optional, intent(in)  :: default
+    character(*), optional, intent(in)  :: default
       !! filename for default sections
 
     ! save names
@@ -421,17 +421,17 @@ contains
     class(input_file),                    intent(inout) :: this
     type(vector_input_section),           intent(out)   :: sections
       !! setup sections
-    character(len=*),                     intent(in)    :: name
+    character(*),                         intent(in)    :: name
       !! filename to load
     type(vector_input_section), optional, intent(in)    :: default_sections
       !! sections with default values
 
     ! local variables
-    integer                       :: funit, line_number, status
-    logical                       :: valid
-    character(len=10)             :: lfmt
-    character(len=:), allocatable :: line, err
-    type(vector_string)           :: cont_lines
+    integer                   :: funit, line_number, status
+    logical                   :: valid
+    character(10)             :: lfmt
+    character(:), allocatable :: line, err
+    type(vector_string)       :: cont_lines
 
     ! line format
     write(lfmt, "(A,I0,A)") "(A", MAX_LINE_LEN, ")"
@@ -443,7 +443,7 @@ contains
     call sections%init(0, c = 8)
 
     ! allocate memory for line
-    allocate (character(len=MAX_LINE_LEN) :: line)
+    allocate (character(MAX_LINE_LEN) :: line)
 
     ! open file
     open(newunit = funit, file = trim(name), status = "old", action = "read")
@@ -485,22 +485,22 @@ contains
     class(input_file),                    intent(inout) :: this
     type(vector_input_section),           intent(inout) :: sections
       !! Input sections
-    character(len=*),                     intent(in)    :: line0
+    character(*),                         intent(in)    :: line0
       !! Line from input file
     type(vector_string),                  intent(inout) :: cont_lines
       !! Collection of lines belonging together
     logical,                              intent(out)   :: valid
       !! Output if parsing was successful (valid syntax)
-    character(len=:), allocatable,        intent(out)   :: err
+    character(:), allocatable,            intent(out)   :: err
       !! Error string
     type(vector_input_section), optional, intent(in)    :: default_sections
       !! Input sections
 
     ! local variables
-    character(len=:), allocatable  :: line, name
-    character(len=1)               :: quote
-    type(string)                   :: str
-    integer                        :: i, j, line_len
+    character(:), allocatable  :: line, name
+    character(1)               :: quote
+    type(string)               :: str
+    integer                    :: i, j, line_len
 
     IGNORE(this)
 
@@ -557,8 +557,8 @@ contains
     ! check for previous line continuation
     if (cont_lines%n > 0) then ! concat lines in single giant string
       block
-        character(len=:), allocatable :: concat_line
-        type(input_var)  :: v
+        character(:), allocatable :: concat_line
+        type(input_var)           :: v
 
         ! add current line
         str%s = trim(line)
@@ -569,7 +569,7 @@ contains
         do i = 1, cont_lines%n
           j = j + len_trim(cont_lines%d(i)%s)
         end do
-        allocate (character(len=j) :: concat_line)
+        allocate (character(j) :: concat_line)
 
         j = 0
         do i = 1, cont_lines%n
@@ -601,8 +601,8 @@ contains
 
     ! check for new section
     block
-      character(len=:), allocatable :: section_name
-      type(input_section)           :: sect
+      character(:), allocatable :: section_name
+      type(input_section)       :: sect
 
       if (line(1:1) == '[') then ! new section
         ! line must end with ]
@@ -657,7 +657,7 @@ contains
     !! get all section indices with this name
 
     class(input_file),    intent(in)  :: this
-    character(len=*),     intent(in)  :: section_name
+    character(*),         intent(in)  :: section_name
       !! name of section to search
     integer, allocatable, intent(out) :: section_ids(:)
       !! output indices
@@ -684,7 +684,7 @@ contains
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
-    character(len=*),  intent(in)  :: name
+    character(*),      intent(in)  :: name
       !! variable name
     integer,           intent(out) :: value
       !! output value
@@ -715,7 +715,7 @@ contains
     class(input_file),    intent(in)  :: this
     integer,              intent(in)  :: section_id
       !! section index
-    character(len=*),     intent(in)  :: name
+    character(*),         intent(in)  :: name
       !! variable name
     integer, allocatable, intent(out) :: values(:)
       !! output values
@@ -743,9 +743,9 @@ contains
     !! get scalar integer value, provide section name instead of index
 
     class(input_file), intent(in)  :: this
-    character(len=*),  intent(in)  :: section_name
+    character(*),      intent(in)  :: section_name
       !! section name
-    character(len=*),  intent(in)  :: name
+    character(*),      intent(in)  :: name
       !! variable name
     integer,           intent(out) :: value
       !! output value
@@ -777,9 +777,9 @@ contains
     !! get array of integers, provide section name instead of index
 
     class(input_file),    intent(in)  :: this
-    character(len=*),     intent(in)  :: section_name
+    character(*),         intent(in)  :: section_name
       !! section name
-    character(len=*),     intent(in)  :: name
+    character(*),         intent(in)  :: name
       !! variable name
     integer, allocatable, intent(out) :: values(:)
       !! output values
@@ -813,7 +813,7 @@ contains
     class(input_file),             intent(in)  :: this
     integer,                       intent(in)  :: section_id
       !! section index
-    character(len=*),              intent(in)  :: name
+    character(*),                  intent(in)  :: name
       !! variable name
     real,                          intent(out) :: value
       !! output value
@@ -857,7 +857,7 @@ contains
     class(input_file),             intent(in)  :: this
     integer,                       intent(in)  :: section_id
       !! section index
-    character(len=*),              intent(in)  :: name
+    character(*),                  intent(in)  :: name
       !! variable name
     real, allocatable,             intent(out) :: values(:)
       !! output values
@@ -899,9 +899,9 @@ contains
     !! get scalar real value, provide section name instead of index
 
     class(input_file),             intent(in)  :: this
-    character(len=*),              intent(in)  :: section_name
+    character(*),                  intent(in)  :: section_name
       !! section name
-    character(len=*),              intent(in)  :: name
+    character(*),                  intent(in)  :: name
       !! variable name
     real,                          intent(out) :: value
       !! output value
@@ -937,9 +937,9 @@ contains
     !! get array of reals, provide section name instead of index
 
     class(input_file),             intent(in)  :: this
-    character(len=*),              intent(in)  :: section_name
+    character(*),                  intent(in)  :: section_name
       !! section name
-    character(len=*),              intent(in)  :: name
+    character(*),                  intent(in)  :: name
       !! variable name
     real, allocatable,             intent(out) :: values(:)
       !! output values
@@ -974,12 +974,12 @@ contains
   subroutine input_file_get_string(this, section_id, name, value)
     !! get scalar string value
 
-    class(input_file),             intent(in)  :: this
-    integer,                       intent(in)  :: section_id
+    class(input_file),         intent(in)  :: this
+    integer,                   intent(in)  :: section_id
       !! section index
-    character(len=*),              intent(in)  :: name
+    character(*),              intent(in)  :: name
       !! variable name
-    character(len=:), allocatable, intent(out) :: value
+    character(:), allocatable, intent(out) :: value
       !! output value
 
     ! local variables
@@ -1008,7 +1008,7 @@ contains
     class(input_file),         intent(in)  :: this
     integer,                   intent(in)  :: section_id
       !! section index
-    character(len=*),          intent(in)  :: name
+    character(*),              intent(in)  :: name
       !! variable name
     type(string), allocatable, intent(out) :: values(:)
       !! output values
@@ -1035,12 +1035,12 @@ contains
   subroutine input_file_get_name_string(this, section_name, name, value)
     !! get scalar string value, provide section name instead of index
 
-    class(input_file),             intent(in)  :: this
-    character(len=*),              intent(in)  :: section_name
+    class(input_file),         intent(in)  :: this
+    character(*),              intent(in)  :: section_name
       !! section name
-    character(len=*),              intent(in)  :: name
+    character(*),              intent(in)  :: name
       !! variable name
-    character(len=:), allocatable, intent(out) :: value
+    character(:), allocatable, intent(out) :: value
       !! output value
 
     ! local variables
@@ -1070,9 +1070,9 @@ contains
     !! get array of strings, provide section name instead of index
 
     class(input_file),         intent(in)  :: this
-    character(len=*),          intent(in)  :: section_name
+    character(*),              intent(in)  :: section_name
       !! section name
-    character(len=*),          intent(in)  :: name
+    character(*),              intent(in)  :: name
       !! variable name
     type(string), allocatable, intent(out) :: values(:)
       !! output values
@@ -1106,7 +1106,7 @@ contains
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
-    character(len=*),  intent(in)  :: name
+    character(*),      intent(in)  :: name
       !! variable name
     logical,           intent(out) :: value
       !! output value
@@ -1137,7 +1137,7 @@ contains
     class(input_file),    intent(in)  :: this
     integer,              intent(in)  :: section_id
       !! section index
-    character(len=*),     intent(in)  :: name
+    character(*),         intent(in)  :: name
       !! variable name
     logical, allocatable, intent(out) :: values(:)
       !! output values
@@ -1165,9 +1165,9 @@ contains
     !! get scalar logical value, provide section name instead of index
 
     class(input_file), intent(in)  :: this
-    character(len=*),  intent(in)  :: section_name
+    character(*),      intent(in)  :: section_name
       !! section name
-    character(len=*),  intent(in)  :: name
+    character(*),      intent(in)  :: name
       !! variable name
     logical,           intent(out) :: value
       !! output value
@@ -1199,9 +1199,9 @@ contains
     !! get array of logicals, provide section name instead of index
 
     class(input_file),    intent(in)  :: this
-    character(len=*),     intent(in)  :: section_name
+    character(*),         intent(in)  :: section_name
       !! section name
-    character(len=*),     intent(in)  :: name
+    character(*),         intent(in)  :: name
       !! variable name
     logical, allocatable, intent(out) :: values(:)
       !! output values

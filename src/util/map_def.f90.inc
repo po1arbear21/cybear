@@ -59,7 +59,7 @@ contains
   procedure :: previous     => MAPNODE_PREVIOUS
   procedure :: rotate_left  => MAPNODE_ROTATE_LEFT
   procedure :: rotate_right => MAPNODE_ROTATE_RIGHT
-end type MAPNODE_TYPE
+end type
 
 type MAP_TYPE
   type(MAPNODE_TYPE), pointer :: root => null()
@@ -78,7 +78,7 @@ contains
   procedure :: rightmost => MAP_RIGHTMOST
   procedure :: insert    => MAP_INSERT
   procedure :: to_array  => MAP_TO_ARRAY
-end type MAP_TYPE
+end type
 
 #undef PASTE
 #undef PASTE2

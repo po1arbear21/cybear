@@ -28,7 +28,7 @@ subroutine MATOP_INIT(this, dum, nrows, ncols)
   !! initialize matrix operation
 
   class(MATOP_TYPE), intent(out) :: this
-  character(len=*),  intent(in)  :: dum
+  character(*),      intent(in)  :: dum
     !! Dummy, unused
   integer,           intent(in)  :: nrows
     !! number of output values

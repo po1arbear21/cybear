@@ -144,7 +144,7 @@ contains
     end block
 
     call tc%finish()
-  end subroutine test_radau5
+  end subroutine
 
   subroutine test_exp(x, U, P, f, dfdU, dfdP)
     real,              intent(in)  :: x

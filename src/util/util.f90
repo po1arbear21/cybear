@@ -16,12 +16,12 @@ contains
 
   pure function cstrlen(cstr) result(len)
     !! get length of c string
-    character(len=1), intent(in) :: cstr(*)
-    integer                      :: len
+    character(1), intent(in) :: cstr(*)
+    integer                  :: len
 
     ! go through cstr until null character is found
     len = 1
-    do while (cstr(len) .ne. c_null_char)
+    do while (cstr(len) /= c_null_char)
       len = len + 1
     end do
 
@@ -31,16 +31,16 @@ contains
 
   pure function c2fstring(cstr) result(fstr)
     !! convert c string to fortran string
-    character(len=1), intent(in) :: cstr(*)
-    character(len=cstrlen(cstr)) :: fstr
+    character(1), intent(in) :: cstr(*)
+    character(cstrlen(cstr)) :: fstr
 
     fstr = transfer(cstr(1:len(fstr)), fstr)
   end function
 
   pure function f2cstring(fstr) result(cstr)
     !! convert fortran string to c string
-    character(len=*), intent(in) :: fstr
-    character(len=1)             :: cstr(len_trim(fstr) + 1)
+    character(*), intent(in) :: fstr
+    character(1)             :: cstr(len_trim(fstr) + 1)
 
     ! local variables
     integer :: i
@@ -53,8 +53,8 @@ contains
 
   function int2str(i) result(str)
     !! convert integer to string
-    integer,      intent(in)             :: i
-    character(:),            allocatable :: str
+    integer, intent(in)       :: i
+    character(:), allocatable :: str
 
     character(24) :: tmp
 
@@ -85,9 +85,7 @@ contains
     end do
 
     ! ambiguous
-    if (j .gt. 1) then
-      t = -1
-    end if
+    if (j > 1) t = -1
   end function
 
   function hash_int32(i) result(h)
@@ -141,21 +139,21 @@ contains
     i1 = size(x)
 
     ! test if x1 is outside of interval [x(1), x(end)]
-    if (x1 .lt. x(i0)) then
+    if (x1 < x(i0)) then
       i = i0
       return
     end if
-    if (x1 .gt. x(i1)) then
+    if (x1 > x(i1)) then
       i = i1
       return
     end if
 
     ! binary search
-    do while (i1 .gt. (i0 + 1))
+    do while (i1 > (i0 + 1))
       i = (i1 + i0) / 2
-      if (x(i) .lt. x1) then
+      if (x(i) < x1) then
         i0 = i
-      elseif (x(i) .gt. x1) then
+      elseif (x(i) > x1) then
         i1 = i
       else
         return
@@ -165,7 +163,7 @@ contains
     select case (mode_)
       case (BS_NEAR)
         ! pick index of value that is closer
-        if ((2 * x1) .lt. (x(i0) + x(i1))) then
+        if ((2 * x1) < (x(i0) + x(i1))) then
           i = i0
         else
           i = i1
@@ -181,8 +179,8 @@ contains
 
       case default
         i = 0
-        write(*,*) mode
-        call program_error("bin_search: unknown search mode!")
+        print *, mode
+        call program_error("unknown search mode")
 
     end select
   end function

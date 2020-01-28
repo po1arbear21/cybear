@@ -68,9 +68,9 @@ function HASHMAP_GET_INDEX(this, key) result(i)
   i = 0
   do j = 0, size(this%table)
     i = modulo(hash_int(key + j), size(this%table)) + 1
-    if (this%table(i) .eq. -1) then
+    if (this%table(i) == -1) then
       exit
-    else if (this%keys%d(this%table(i)) .eq. key) then
+    else if (this%keys%d(this%table(i)) == key) then
       exit
     end if
   end do
@@ -88,7 +88,7 @@ function HASHMAP_GET(this, key) result(v)
   nullify(v)
 
   i = this%get_index(key)
-  if (this%table(i) .ne. -1) then
+  if (this%table(i) /= -1) then
     v => this%values%d(this%table(i))
   end if
 end function
@@ -105,16 +105,16 @@ subroutine HASHMAP_INSERT(this, key, value, pos)
   integer :: i
 
   i = this%get_index(key)
-  if (this%table(i) .eq. -1) then
+  if (this%table(i) == -1) then
     ! new key
     call this%keys%push(key)
     call this%values%push(value)
     this%table(i) = this%keys%n
-  else if (this%keys%d(this%table(i)) .eq. key) then
-    write(*,*) "key = ", key
-    call program_error("HASHMAP_INSERT: key already exists!")
+  else if (this%keys%d(this%table(i)) == key) then
+    print *, "key = ", key
+    call program_error("key already exists!")
   else
-    call program_error("HASHMAP_INSERT: table full!")
+    call program_error("table full!")
   end if
   if (present(pos)) pos = this%table(i)
 end subroutine

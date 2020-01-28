@@ -10,11 +10,11 @@ module arpack_m
 
       integer,          intent(inout) :: ido
         !! Reverse communication flag (must be 0 on first call)
-      character(len=1), intent(in)    :: bmat
+      character(1),     intent(in)    :: bmat
         !! Type of B matrix: ('I': Standard EVP; 'G': Generalized EVP)
       integer,          intent(in)    :: n
         !! Dimension of the EVP
-      character(len=2), intent(in)    :: which
+      character(2),     intent(in)    :: which
         !! 'LA': nev largest algebraic eigenvalues
         !! 'SA': nev smallest algebraic eigenvalues
         !! 'LM': nev largest magnitude eigenvalues
@@ -53,11 +53,11 @@ module arpack_m
 
       integer,          intent(inout) :: ido
         !! Reverse communication flag (must be 0 on first call)
-      character(len=1), intent(in)    :: bmat
+      character(1),     intent(in)    :: bmat
         !! Type of B matrix: ('I': Standard EVP; 'G': Generalized EVP)
       integer,          intent(in)    :: n
         !! Dimension of the EVP
-      character(len=2), intent(in)    :: which
+      character(2),     intent(in)    :: which
         !! 'LM': nev largest  magnitude eigenvalues
         !! 'SM': nev smallest magnitude eigenvalues
         !! 'LR': nev largest  real part eigenvalues
@@ -97,11 +97,11 @@ module arpack_m
 
       integer,          intent(inout) :: ido
         !! Reverse communication flag (must be 0 on first call)
-      character(len=1), intent(in)    :: bmat
+      character(1),     intent(in)    :: bmat
         !! Type of B matrix: ('I': Standard EVP; 'G': Generalized EVP)
       integer,          intent(in)    :: n
         !! Dimension of the EVP
-      character(len=2), intent(in)    :: which
+      character(2),     intent(in)    :: which
         !! 'LM': nev largest  magnitude eigenvalues
         !! 'SM': nev smallest magnitude eigenvalues
         !! 'LR': nev largest  real part eigenvalues

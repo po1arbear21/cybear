@@ -20,7 +20,7 @@ contains
     logical          :: r
 
     r = (ieee_class(x) == ieee_positive_inf) .or. (ieee_class(x) == ieee_negative_inf)
-  end function isinf
+  end function
 
   elemental function ber(x) result(b)
     !! bernoulli function

@@ -2,7 +2,7 @@ module string_m
   implicit none
 
   type string
-    character(len=:), allocatable :: s
+    character(:), allocatable :: s
   end type
 
   interface operator(<)

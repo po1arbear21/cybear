@@ -23,7 +23,7 @@ contains
   procedure :: get_index => HASHMAP_GET_INDEX
   procedure :: get       => HASHMAP_GET
   procedure :: insert    => HASHMAP_INSERT
-end type HASHMAP_TYPE
+end type
 
 #undef T
 #undef TT

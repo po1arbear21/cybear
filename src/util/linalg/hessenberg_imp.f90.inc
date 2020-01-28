@@ -120,21 +120,21 @@ subroutine HESSENBERG_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply hessenberg matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(HESSENBERG_TYPE),     intent(in)    :: this
+  class(HESSENBERG_TYPE), intent(in)    :: this
     !! Hessenberg matrix
-  TT,                         intent(in)    :: x(:)
+  TT,                     intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                         intent(inout) :: y(:)
+  TT,                     intent(inout) :: y(:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional,    intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional,    intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  integer          :: i
-  character(len=1) :: uplo, trans_
-  TT, allocatable  :: tmp(:)
+  integer         :: i
+  character       :: uplo, trans_
+  TT, allocatable :: tmp(:)
 
   uplo = 'L'
   if (this%upper) uplo = 'U'
@@ -197,21 +197,21 @@ subroutine HESSENBERG_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply hessenberg matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(HESSENBERG_TYPE),     intent(in)    :: this
+  class(HESSENBERG_TYPE), intent(in)    :: this
     !! Hessenberg matrix
-  TT,                         intent(in)    :: x(:,:)
+  TT,                     intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                         intent(inout) :: y(:,:)
+  TT,                     intent(inout) :: y(:,:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional,    intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional,    intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  integer          :: i
-  character(len=1) :: uplo, trans_
-  TT, allocatable  :: tmp(:,:)
+  integer         :: i
+  character       :: uplo, trans_
+  TT, allocatable :: tmp(:,:)
 
   uplo = 'L'
   if (this%upper) uplo = 'U'
@@ -334,15 +334,15 @@ end subroutine
 subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first!
 
-  class(HESSENBERG_TYPE),     intent(in)  :: this
+  class(HESSENBERG_TYPE), intent(in)  :: this
     !! Hessenberg matrix
-  TT,                         intent(in)  :: rhs(:)
+  TT,                     intent(in)  :: rhs(:)
     !! Right hand side of equation system
-  TT,                         intent(out) :: x(:)
+  TT,                     intent(out) :: x(:)
     !! Store result in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional,    intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional,    intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
   ! local variables
@@ -362,15 +362,15 @@ end subroutine
 subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
-  class(HESSENBERG_TYPE),     intent(in)  :: this
+  class(HESSENBERG_TYPE), intent(in)  :: this
     !! Hessenberg matrix
-  TT,                         intent(in)  :: rhs(:,:)
+  TT,                     intent(in)  :: rhs(:,:)
     !! Right hand sides of equation system
-  TT,                         intent(out) :: x(:,:)
+  TT,                     intent(out) :: x(:,:)
     !! Store results in x
-  character(len=1), optional, intent(in)  :: trans
+  character, optional,    intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional,    intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
   ! local variables

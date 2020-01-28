@@ -124,21 +124,21 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(SPARSE_TYPE),         intent(in)    :: this
+  class(SPARSE_TYPE),  intent(in)    :: this
     !! Sparse matrix
-  TT,                         intent(in)    :: x(:)
+  TT,                  intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                         intent(inout) :: y(:)
+  TT,                  intent(inout) :: y(:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transpose flag, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  integer          :: i, j
-  TT               :: fact_y_
-  character(len=1) :: trans_
+  integer   :: i, j
+  TT        :: fact_y_
+  character :: trans_
 
   ! y scaling factor
   fact_y_ = 0
@@ -194,21 +194,21 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(SPARSE_TYPE),         intent(in)    :: this
+  class(SPARSE_TYPE),  intent(in)    :: this
     !! Sparse matrix
-  TT,                         intent(in)    :: x(:,:)
+  TT,                  intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                         intent(inout) :: y(:,:)
+  TT,                  intent(inout) :: y(:,:)
     !! Store result in y
-  TT,               optional, intent(in)    :: fact_y
+  TT,        optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character(len=1), optional, intent(in)    :: trans
+  character, optional, intent(in)    :: trans
     !! Transpose flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
 
   ! local variables
-  integer          :: i, j
-  TT               :: fact_y_
-  character(len=1) :: trans_
+  integer   :: i, j
+  TT        :: fact_y_
+  character :: trans_
 
   ! y scaling factor
   fact_y_ = 0
@@ -285,15 +285,15 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !!
   !! Call this%factorize() first!
 
-  class(SPARSE_TYPE),         intent(in)  :: this
+  class(SPARSE_TYPE),  intent(in)  :: this
     !! Sparse matrix
-  TT,                         intent(in)  :: rhs(:)
+  TT,                  intent(in)  :: rhs(:)
     !! Right hand side
-  TT,                         intent(out) :: x(:)
+  TT,                  intent(out) :: x(:)
     !! Solution vector
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! Not implemented for 'T' or 'C' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
   ! optional arguments
@@ -313,15 +313,15 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !!
   !! Call this%factorize() first.
 
-  class(SPARSE_TYPE),         intent(in)  :: this
+  class(SPARSE_TYPE),  intent(in)  :: this
     !! Sparse matrix
-  TT,                         intent(in)  :: rhs(:,:)
+  TT,                  intent(in)  :: rhs(:,:)
     !! Right hand side
-  TT,                         intent(out) :: x(:,:)
+  TT,                  intent(out) :: x(:,:)
     !! Solution vector
-  character(len=1), optional, intent(in)  :: trans
+  character, optional, intent(in)  :: trans
     !! Not implemented for 'T' or 'C' (default: 'N')
-  logical,          optional, intent(in)  :: iter_refine
+  logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
   ! local variables
@@ -897,9 +897,9 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   else
 #ifdef TCMPLX
     ! FIXME: check this
-    fmt_ = '(F0.0,SP,F0.0,"i")'
+    fmt_ = '(E32.24,SP,E32.24,"i")'
 #else
-    fmt_ = "(ES24.17)"
+    fmt_ = '(E32.24)'
 #endif
   end if
 

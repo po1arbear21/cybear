@@ -200,7 +200,7 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   one = 1
 
   associate (i0 => this%i0, i1 => this%i1, j0 => this%j0, j1 => this%j1)
-    if (trans_ .eq. 'N') then
+    if (trans_ == 'N') then
       do ib = 1, this%nbrows
         if (this%diag) then
           if (.not. allocated(this%b(ib,ib)%p)) cycle
@@ -272,7 +272,7 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   one = 1
 
   associate (i0 => this%i0, i1 => this%i1, j0 => this%j0, j1 => this%j1)
-    if (trans_ .eq. 'N') then
+    if (trans_ == 'N') then
       do ib = 1, this%nbrows
         if (this%diag) then
           if (.not. allocated(this%b(ib,ib)%p)) cycle

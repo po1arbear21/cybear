@@ -102,10 +102,8 @@ contains
     ! init derivatives
     allocate (this%dx(n), source = 0.0)
     if (present(i)) then
-      if (i .gt. 0) then
-        ! set derivative wrt base variable i to 1
-        this%dx(i) = 1
-      end if
+      ! set derivative wrt base variable i to 1
+      if (i > 0) this%dx(i) = 1
     end if
   end subroutine
 
@@ -329,7 +327,7 @@ contains
     type(dual), intent(in) :: x
     type(dual)             :: r
 
-    if (x%x .ge. 0) then
+    if (x%x >= 0) then
       r = x
     else
       r = - x

@@ -507,20 +507,20 @@ interface
 
   subroutine MATRIX_MUL_VEC(this, x, y, fact_y, trans)
     import MATRIX_TYPE
-    class(MATRIX_TYPE),         intent(in)    :: this
-    TT,                         intent(in)    :: x(:)
-    TT,                         intent(inout) :: y(:)
-    TT,               optional, intent(in)    :: fact_y
-    character(len=1), optional, intent(in)    :: trans
+    class(MATRIX_TYPE),  intent(in)    :: this
+    TT,                  intent(in)    :: x(:)
+    TT,                  intent(inout) :: y(:)
+    TT,        optional, intent(in)    :: fact_y
+    character, optional, intent(in)    :: trans
   end subroutine
 
   subroutine MATRIX_MUL_MAT(this, x, y, fact_y, trans)
     import MATRIX_TYPE
-    class(MATRIX_TYPE),         intent(in)    :: this
-    TT,                         intent(in)    :: x(:,:)
-    TT,                         intent(inout) :: y(:,:)
-    TT,               optional, intent(in)    :: fact_y
-    character(len=1), optional, intent(in)    :: trans
+    class(MATRIX_TYPE),  intent(in)    :: this
+    TT,                  intent(in)    :: x(:,:)
+    TT,                  intent(inout) :: y(:,:)
+    TT,        optional, intent(in)    :: fact_y
+    character, optional, intent(in)    :: trans
   end subroutine
 
   subroutine MATRIX_FACTORIZE(this)
@@ -530,20 +530,20 @@ interface
 
   subroutine MATRIX_SOLVE_VEC(this, rhs, x, trans, iter_refine)
     import MATRIX_TYPE
-    class(MATRIX_TYPE),         intent(in)  :: this
-    TT,                         intent(in)  :: rhs(:)
-    TT,                         intent(out) :: x(:)
-    character(len=1), optional, intent(in)  :: trans
-    logical,          optional, intent(in)  :: iter_refine
+    class(MATRIX_TYPE),  intent(in)  :: this
+    TT,                  intent(in)  :: rhs(:)
+    TT,                  intent(out) :: x(:)
+    character, optional, intent(in)  :: trans
+    logical,   optional, intent(in)  :: iter_refine
   end subroutine
 
   subroutine MATRIX_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     import MATRIX_TYPE
-    class(MATRIX_TYPE),         intent(in)  :: this
-    TT,                         intent(in)  :: rhs(:,:)
-    TT,                         intent(out) :: x(:,:)
-    character(len=1), optional, intent(in)  :: trans
-    logical,          optional, intent(in)  :: iter_refine
+    class(MATRIX_TYPE),  intent(in)  :: this
+    TT,                  intent(in)  :: rhs(:,:)
+    TT,                  intent(out) :: x(:,:)
+    character, optional, intent(in)  :: trans
+    logical,   optional, intent(in)  :: iter_refine
   end subroutine
 
   subroutine MATRIX_TO_DENSE(this, d, i0, j0)

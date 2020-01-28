@@ -503,9 +503,9 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   else
 #ifdef TCMPLX
     ! FIXME: check this
-    fmt_ = '(1A,F0.0,SP,F0.0,"i")'
+    fmt_ = '(E32.24,SP,E32.24,"i")'
 #else
-    fmt_ = "(ES24.17)"
+    fmt_ = '(E32.24)'
 #endif
   end if
 
