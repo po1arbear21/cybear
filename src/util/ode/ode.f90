@@ -1,6 +1,5 @@
 module ode_m
   use error_m
-  use high_precision_m
   implicit none
 
   type ode_options
@@ -26,26 +25,12 @@ module ode_m
   type ode_result
     !! results returned by ode solver
 
-    real, allocatable :: Us(:,:)
+    real, allocatable :: Usmp(:,:)
       !! return values at sample points (nU x size(xs))
-    real, allocatable :: dUsdU0(:,:,:)
+    real, allocatable :: dUsmpdU0(:,:,:)
       !! return derivatives of sample values wrt U0 (nU x nU x size(xs))
-    real, allocatable :: dUsdP(:,:,:)
+    real, allocatable :: dUsmpdP(:,:,:)
       !! return derivatives of sample values wrt P (nU x nP x size(xs))
-
-    real, allocatable :: U1(:)
-      !! return final state
-    real, allocatable :: dU1dU0(:,:)
-      !! return derivatives of U1 wrt U0
-    real, allocatable :: dU1dP(:,:)
-      !! return derivatives of U1 wrt P
-
-    real, allocatable :: UA(:)
-      !! return average state in interval
-    real, allocatable :: dUAdU0(:,:)
-      !! return derivatives of UA wrt U0
-    real, allocatable :: dUAdP(:,:)
-      !! return derivatives of UA wrt P
 
     integer :: nsteps
       !! return number of steps taken
@@ -115,7 +100,7 @@ module ode_m
 
 contains
 
-  subroutine ode_solve(kernel, nS, fun, x0, x1, U0, P, opt, res, xs)
+  subroutine ode_solve(kernel, nS, fun, x0, x1, xsmp, U0, P, opt, res)
     procedure(ode_kernel), pointer, intent(in)  :: kernel
       !! pointer to ode solver kernel
     integer,                        intent(in)  :: nS
@@ -126,6 +111,8 @@ contains
       !! initial x
     real,                           intent(in)  :: x1
       !! final x
+    real,                           intent(in)  :: xsmp(:)
+      !! x sample points
     real,                           intent(in)  :: U0(:)
       !! initial state
     real,                           intent(in)  :: P(:)
@@ -134,8 +121,6 @@ contains
       !! solver options
     type(ode_result),               intent(out) :: res
       !! output result object
-    real, optional,                 intent(in)  :: xs(:)
-      !! x sample points
 
     ! local variables
     integer :: nU, nP
@@ -145,11 +130,11 @@ contains
     nP = size(P)
 
     block
-      integer       :: i, j, is, rejection_counter
+      integer       :: i, j, rejection_counter
+      integer       :: ismp, nsmp, dsmp, ismpmax
       real          :: x, xold, dxk, dxn, err
       real          :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), polyk(nU,nS)
       real          :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
-      type(hp_real) :: hp_UA(nU), hp_dUAdQ(nU,nU+nP)
       logical       :: status
 
       ! initial x and dx
@@ -168,25 +153,35 @@ contains
         dUkdQ(i,i) = 1.0
       end do
 
-      ! init samples
-      if (present(xs)) then
+      ! number of samples
+      nsmp = size(xsmp)
+
 #ifdef DEBUG
-        ! check if requested sample points are sorted
-        if (x1 > x0) then
-          do is = 2, size(xs)
-            if (xs(is) < xs(is-1)) call program_error("xs must be sorted in ascending order for x1 > x0")
-          end do
-        else
-          do is = 2, size(xs)
-            if (xs(is) > xs(is-1)) call program_error("xs must be sorted in descending order for x1 < x0")
-          end do
-        end if
+      ! check if requested sample points are sorted
+      do ismp = 2, nsmp
+        if (xsmp(ismp) < xsmp(ismp-1)) call program_error("sample points xsmp must be sorted in ascending order")
+      end do
+
+      ! check if requested sample points are inside of interval
+      if ((xsmp(1) < min(x0, x1)) .or. (xsmp(nsmp) > max(x0, x1))) then
+        call program_error("sample points xsmp must lie inside of interval [min(x0, x1), max(x0, x1)]")
+      end if
 #endif
 
-        allocate(res%Us(    nU,   size(xs)), source = 0.0)
-        allocate(res%dUsdU0(nU,nU,size(xs)), source = 0.0)
-        allocate(res%dUsdP (nU,nP,size(xs)), source = 0.0)
-        is = 1
+      ! init samples
+      allocate(res%Usmp(    nU,   nsmp), source = 0.0)
+      allocate(res%dUsmpdU0(nU,nU,nsmp), source = 0.0)
+      allocate(res%dUsmpdP (nU,nP,nsmp), source = 0.0)
+
+      ! go forward or backward through sample points
+      if (x1 > x0) then
+        ismp    = 1
+        dsmp    = 1
+        ismpmax = nsmp
+      else
+        ismp    = nsmp
+        dsmp    = -1
+        ismpmax = 1
       end if
 
       ! eval f and derivatives at U0
@@ -195,10 +190,6 @@ contains
       ! init interpolation polynomial (linear extrapolation)
       polyk      = 0
       polyk(:,1) = fk
-
-      ! init average state
-      hp_UA    = real_to_hp(0.0)
-      hp_dUAdQ = real_to_hp(0.0)
 
       ! initial values for error control
       status = .false.
@@ -229,31 +220,22 @@ contains
           ! accept step, reset rejection counter
           rejection_counter = 0
 
-          ! update average state by integrating the interpolation polynomial
-          hp_UA    = hp_UA    + dxk * Uk
-          hp_dUAdQ = hp_dUAdQ + dxk * dUkdQ
-          do j = 1, nS
-            hp_UA    = hp_UA    + dxk**(j+1) / real(j+1) * polyn(:,j)
-            hp_dUAdQ = hp_dUAdQ + dxk**(j+1) / real(j+1) * dpolyndQ(:,:,j)
-          end do
-
-          ! samples
-          if (present(xs)) then
-            if (is <= size(xs)) then
-              do while ((min(x, x + dxk) <= xs(is)) .and. ((max(x, x + dxk) >= xs(is))))
-                res%Us(    :  ,is) = Uk
-                res%dUsdU0(:,:,is) = dUkdq(:,1:nU)
-                res%dUsdP( :,:,is) = dUkdq(:,(nU+1):(nU+nP))
-                do j = 1, nS
-                  res%Us(    :  ,is) = res%Us(    :,  is) + polyn(   :               ,j) * (xs(is) - x)**j
-                  res%dUsdU0(:,:,is) = res%dUsdU0(:,:,is) + dpolyndQ(:,          1:nU,j) * (xs(is) - x)**j
-                  res%dUsdP( :,:,is) = res%dUsdP( :,:,is) + dpolyndQ(:,(nU+1):(nU+nP),j) * (xs(is) - x)**j
-                end do
-
-                is = is + 1
-                if (is > size(xs)) exit
+          ! get samples
+          if (ismp /= ismpmax+dsmp) then
+            do while ((min(x,x+dxk) <= xsmp(ismp)) .and. (max(x,x+dxk) >= xsmp(ismp)))
+              res%Usmp(    :  ,ismp) = Uk
+              res%dUsmpdU0(:,:,ismp) = dUkdq(:,1:nU)
+              res%dUsmpdP( :,:,ismp) = dUkdq(:,(nU+1):(nU+nP))
+              do j = 1, nS
+                res%Usmp(    :  ,ismp) = res%Usmp(    :,  ismp) + polyn(   :               ,j) * (xsmp(ismp) - x)**j
+                res%dUsmpdU0(:,:,ismp) = res%dUsmpdU0(:,:,ismp) + dpolyndQ(:,          1:nU,j) * (xsmp(ismp) - x)**j
+                res%dUsmpdP( :,:,ismp) = res%dUsmpdP( :,:,ismp) + dpolyndQ(:,(nU+1):(nU+nP),j) * (xsmp(ismp) - x)**j
               end do
-            end if
+
+              ! go to next sample point
+              ismp = ismp + dsmp
+              if (ismp == ismpmax + dsmp) exit
+            end do
           end if
 
           ! advance x
@@ -275,16 +257,6 @@ contains
         dxk = dxn
         if (abs(x + dxk - x0) > abs(x1 - x0)) dxk = x1 - x
       end do
-
-      ! set end state and extract derivatives from dUkdQ
-      res%U1     = Uk
-      res%dU1dU0 = dUkdQ(:,1:nU)
-      res%dU1dP  = dUkdQ(:,(nU+1):(nU+nP))
-
-      ! average state
-      res%UA     = hp_to_real(hp_UA                     ) / (x1 - x0)
-      res%dUAdU0 = hp_to_real(hp_dUAdQ(:,1:nU)          ) / (x1 - x0)
-      res%dUAdP  = hp_to_real(hp_dUAdQ(:,(nU+1):(nU+nP))) / (x1 - x0)
     end block
   end subroutine
 

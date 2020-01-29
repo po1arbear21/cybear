@@ -33,7 +33,7 @@ module radau5_m
 
 contains
 
-  subroutine radau5(fun, x0, x1, U0, P, opt, res, xs)
+  subroutine radau5(fun, x0, x1, xsmp, U0, P, opt, res)
     !! radau5 ode solver
     procedure(ode_fun),    pointer, intent(in)  :: fun
       !! pointer to function to integrate
@@ -41,6 +41,8 @@ contains
       !! initial x
     real,                           intent(in)  :: x1
       !! final x
+    real,                           intent(in)  :: xsmp(:)
+      !! x sample points
     real,                           intent(in)  :: U0(:)
       !! initial state
     real,                           intent(in)  :: P(:)
@@ -49,11 +51,9 @@ contains
       !! solver options
     type(ode_result),               intent(out) :: res
       !! output result object
-    real, optional,                 intent(in)  :: xs(:)
-      !! x sample points
 
     ! call base solver with radau5 kernel (3 stages)
-    call ode_solve(radau5_kernel, 3, fun, x0, x1, U0, P, opt, res, xs)
+    call ode_solve(radau5_kernel, 3, fun, x0, x1, xsmp, U0, P, opt, res)
   end subroutine
 
   subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
