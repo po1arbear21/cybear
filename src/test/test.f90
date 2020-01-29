@@ -4,6 +4,7 @@ program test
   use test_normalization_m
   use test_dual_m
   use test_radau5_m
+  use test_newton_m
   use test_matrix_m
   use test_qsort_m
   use test_vector_m
@@ -17,6 +18,7 @@ program test
   call test_normalization
   call test_dual
   call test_radau5
+  call test_newton
   call test_matrix
   call test_qsort
   call test_vector
