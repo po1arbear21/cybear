@@ -16,6 +16,11 @@ module newton_m
       !! upper solution bound (can be +inf)
     integer :: max_it
       !! maximum number of iterations
+
+    logical                   :: log
+      !! enable/disable logging
+    character(:), allocatable :: msg
+      !! message to print each iteration
   contains
     procedure :: init => newton1D_opt_init
   end type
@@ -31,6 +36,11 @@ module newton_m
       !! limit newton update
     integer :: max_it
       !! maximum number of iterations
+
+    logical                   :: log
+      !! enable/disable logging
+    character(:), allocatable :: msg
+      !! message to print each iteration
   contains
     procedure :: init => newton_opt_init
   end type
@@ -165,6 +175,10 @@ contains
       ! update solution
       x = x - dx
 
+      if (opt%log) then
+        print "(1A, 1I0, 1E24.16)", opt%msg, it, err
+      end if
+
       ! exit if close to solution
       if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
         if (((xmax - xmin) < 0.5 * abs(xmax + xmin) * opt%rtol) .or. (0.5 * (xmax - xmin) < opt%atol)) then
@@ -249,6 +263,10 @@ contains
 
       ! update solution
       x = x - dx
+
+      if (opt%log) then
+        print "(1A, 1I0, 1E24.16)", opt%msg, it, abs_err
+      end if
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation
@@ -260,19 +278,23 @@ contains
     end if
   end subroutine
 
-  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, max_it)
+  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, max_it, log, msg)
     !! initialize 1D newton iteration options
-    class(newton1D_opt), intent(out) :: this
-    real,    optional,   intent(in)  :: atol
+    class(newton1D_opt),    intent(out) :: this
+    real,         optional, intent(in)  :: atol
       !! absolute tolerance (default: 1e-16)
-    real,    optional,   intent(in)  :: rtol
+    real,         optional, intent(in)  :: rtol
       !! relative tolerance (default: 1e-12)
-    real,    optional,   intent(in)  :: xmin
+    real,         optional, intent(in)  :: xmin
       !! lower solution bound (default: -inf)
-    real,    optional,   intent(in)  :: xmax
+    real,         optional, intent(in)  :: xmax
       !! upper solution bound (default: +inf)
-    integer, optional,   intent(in)  :: max_it
+    integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
+    logical,      optional, intent(in)  :: log
+      !! enable logging (default .false.)
+    character(*), optional, intent(in)  :: msg
+      !! message to print each iteration if logging is enabled (default: "")
 
     this%atol = 1e-16
     if (present(atol)) this%atol = atol
@@ -284,19 +306,27 @@ contains
     if (present(xmax)) this%xmax = xmax
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
+    this%log = .false.
+    if (present(log)) this%log = log
+    this%msg = ""
+    if (present(msg)) this%msg = msg
   end subroutine
 
-  subroutine newton_opt_init(this, atol, rtol, dx_lim, max_it)
+  subroutine newton_opt_init(this, atol, rtol, dx_lim, max_it, log, msg)
     !! initialize multidimensional newton iteration options
-    class(newton_opt), intent(out) :: this
-    real,    optional, intent(in)  :: atol
+    class(newton_opt),      intent(out) :: this
+    real,         optional, intent(in)  :: atol
       !! absolute tolerance (default: 1e-16)
-    real,    optional, intent(in)  :: rtol
+    real,         optional, intent(in)  :: rtol
       !! relative tolerance (default: 1e-12)
-    real,    optional, intent(in)  :: dx_lim
+    real,         optional, intent(in)  :: dx_lim
       !! limit for newton update (default: inf)
-    integer, optional, intent(in)  :: max_it
+    integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
+    logical,      optional, intent(in)  :: log
+      !! enable logging (default .false.)
+    character(*), optional, intent(in)  :: msg
+      !! message to print each iteration if logging is enabled (default: "")
 
     this%atol = 1e-16
     if (present(atol)) this%atol = atol
@@ -306,6 +336,10 @@ contains
     if (present(dx_lim)) this%dx_lim = dx_lim
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
+    this%log = .false.
+    if (present(log)) this%log = log
+    this%msg = ""
+    if (present(msg)) this%msg = msg
   end subroutine
 
 end module

@@ -15,8 +15,9 @@ contains
       type(newton1D_opt) :: opt
       real :: x, dxdp(2), xe, dxedp(2)
 
-      call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -1.0, xmax = 4.0)
+      call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -1.0, xmax = 4.0, log = .true., msg = "poly1D: ")
       call newton1D(poly1D, [3.0, 1.0], opt, 1.0, x, dxdp = dxdp)
+      print *
 
       ! expected values for f = (x - 3) * (4*x**2 + 1)
       xe       = 3.0
@@ -31,8 +32,9 @@ contains
       type(newton_opt) :: opt
       real :: x(2), dxdp(2,2), xe(2), dxedp(2,2)
 
-      call opt%init(atol = 1e-16, rtol = 1e-14)
+      call opt%init(atol = 1e-16, rtol = 1e-14, log = .true., msg = "poly2D: ")
       call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
+      print *
 
       ! expected values
       xe(1) = 1.0
