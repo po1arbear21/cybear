@@ -1,5 +1,10 @@
+#include "assert.f90.inc"
+
 module math_m
+
+  use error_m
   use ieee_arithmetic
+
   implicit none
 
   real, parameter :: PI = 3.141592653589793238462643
@@ -106,6 +111,85 @@ contains
         dphidx = dphidx + i * x**(i-1) / fact
       end do
     end if
+  end function
+
+  pure function linspace(x0, x1, nx) result(x)
+    !! create array of linear spaced values
+
+    real,    intent(in) :: x0
+      !! start value of x
+    real,    intent(in) :: x1
+      !! end value of x
+    integer, intent(in) :: nx
+      !! number of values
+    real                :: x(nx)
+      !! return array x
+
+    integer :: i
+    real    :: dx
+
+    ! spacing between values
+    dx = (x1 - x0) / (nx - 1)
+
+    x(1) = x0
+    do i = 2, nx - 1
+      x(i) = x0 + (i - 1) * dx
+    end do
+    x(nx) = x1
+  end function
+
+  function logspace(x0, x1, nx) result(x)
+    !! create array of logarithmic spaced values
+
+    real,    intent(in) :: x0
+      !! start value of x
+    real,    intent(in) :: x1
+      !! end value of x
+    integer, intent(in) :: nx
+      !! number of values
+    real                :: x(nx)
+      !! return array x
+
+    integer :: i
+    real    :: e0, e1, de
+
+    ASSERT(x0 > 0.0)
+    ASSERT(x1 > 0.0)
+
+    e0 = log(x0)
+    e1 = log(x1)
+    de = (e1 - e0) / (nx - 1)
+
+    x(1) = x0
+    do i = 2, nx - 1
+      x(i) = exp(e0 + (i - 1) * de)
+    end do
+    x(nx) = x1
+  end function
+
+  pure function eye_int(n) result(e)
+    !! integer identity matrix
+
+    integer, intent(in) :: n
+      !! dimension
+    integer             :: e(n,n)
+      !! return integer identity matrix
+
+    integer :: i
+
+    e = 0
+    do i = 1, n
+      e(i,i) = 1
+    end do
+  end function
+
+  pure function norm_inf(arr)
+    !! Calculates the infinity norm $$ || \ \cdot \  ||_\infty $$ of the given array.
+
+    real, intent(in) :: arr(:)
+    real             :: norm_inf
+
+    norm_inf = maxval(abs(arr))
   end function
 
 end module

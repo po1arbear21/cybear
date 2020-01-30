@@ -1,9 +1,11 @@
 #include "../../util/macro.f90.inc"
 
 module test_radau5_m
+
   use test_case_m
   use radau5_m
-  use util_m
+  use math_m
+
   implicit none
 
 contains
