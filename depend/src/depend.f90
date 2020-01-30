@@ -92,7 +92,7 @@ program depend
     if (files(i)%program_name /= "") then
       do j = 1, programs%n
         if (programs%d(j)%name == files(i)%program_name) then
-          call error("program name multiple times defined")
+          call error("program name multiple times defined. name: "//files(i)%program_name)
         end if
       end do
       tmp%name = files(i)%program_name
@@ -103,7 +103,7 @@ program depend
     do j = 1, files(i)%modules%n
       do k = 1, modules%n
         if (modules%d(k)%name == files(i)%modules%d(j)) then
-          call error("module name defined multiple times")
+          call error("module name defined multiple times. name: "//files(i)%modules%d(j))
         end if
       end do
       tmp%name = trim(files(i)%modules%d(j))
@@ -113,7 +113,7 @@ program depend
     do j = 1, files(i)%submodules%n
       do k = 1, submodules%n
         if (submodules%d(k)%name == files(i)%submodules%d(j)) then
-          call error("submodule name defined multiple times")
+          call error("submodule name defined multiple times. name: "//files(i)%submodules%d(j))
         end if
       end do
       tmp%name = trim(files(i)%submodules%d(j))
