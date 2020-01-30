@@ -1,11 +1,13 @@
 temperature = 300.0 : K
+alpha = 1.1
 
 [grid]
   x0 = -0.5 : um
-  x1 = +0.5 : um
+  x1 = +0.5 : um      ! end length
   Nx = 100
   y  = 0.0, 0.1, 0.2, 0.3, 0.4, &
        0.5, 0.6, 0.7, 0.8, 0.9 : um
+  idx = 2, 4, 3, 2, 2, -1
 
 ! comment lol
 [transport]
@@ -33,3 +35,5 @@ temperature = 300.0 : K
   x1 = -0.5 : um
   y0 =  0.2 : um
   y1 =  0.5 : um
+  names = "123", "asd asd", "asd 123 x"
+  tf = true, true, false, true

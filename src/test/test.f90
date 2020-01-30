@@ -1,5 +1,6 @@
 program test
   use test_high_precision_m
+  use test_input_m
   use test_expm_m
   use test_normalization_m
   use test_dual_m
@@ -14,6 +15,7 @@ program test
   implicit none
 
   call test_high_precision
+  call test_input
   call test_expm
   call test_normalization
   call test_dual

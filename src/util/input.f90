@@ -65,10 +65,9 @@ module input_m
     type(vector_input_section) :: default_sections
       !! Default values for sections
   contains
-    procedure :: init         => input_file_init
+    private
     procedure :: load         => input_file_load
     procedure :: parse_line   => input_file_parse_line
-    procedure :: get_sections => input_file_get_sections
 
     procedure :: input_file_get_int
     procedure :: input_file_get_int_arr
@@ -86,22 +85,25 @@ module input_m
     procedure :: input_file_get_logical_arr
     procedure :: input_file_get_name_logical
     procedure :: input_file_get_name_logical_arr
-    generic   :: get => input_file_get_int,             &
-                        input_file_get_int_arr,         &
-                        input_file_get_name_int,        &
-                        input_file_get_name_int_arr,    &
-                        input_file_get_real,            &
-                        input_file_get_real_arr,        &
-                        input_file_get_name_real,       &
-                        input_file_get_name_real_arr,   &
-                        input_file_get_string,          &
-                        input_file_get_string_arr,      &
-                        input_file_get_name_string,     &
-                        input_file_get_name_string_arr, &
-                        input_file_get_logical,         &
-                        input_file_get_logical_arr,     &
-                        input_file_get_name_logical,    &
-                        input_file_get_name_logical_arr
+
+    procedure, public :: init         => input_file_init
+    procedure, public :: get_sections => input_file_get_sections
+    generic,   public :: get          => input_file_get_int,             &
+      &                                  input_file_get_int_arr,         &
+      &                                  input_file_get_name_int,        &
+      &                                  input_file_get_name_int_arr,    &
+      &                                  input_file_get_real,            &
+      &                                  input_file_get_real_arr,        &
+      &                                  input_file_get_name_real,       &
+      &                                  input_file_get_name_real_arr,   &
+      &                                  input_file_get_string,          &
+      &                                  input_file_get_string_arr,      &
+      &                                  input_file_get_name_string,     &
+      &                                  input_file_get_name_string_arr, &
+      &                                  input_file_get_logical,         &
+      &                                  input_file_get_logical_arr,     &
+      &                                  input_file_get_name_logical,    &
+      &                                  input_file_get_name_logical_arr
   end type
 
 contains
