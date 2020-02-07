@@ -1,6 +1,9 @@
 #include "../../util/assert.f90.inc"
 
 submodule(test_matrix_m) test_block_m
+  !! TODO fixme
+  !!    test if a block of a block matrix could be another block matrix (instead of the usual dense or so)
+
   use matrix_m
   implicit none
 
@@ -48,7 +51,10 @@ contains
 
       ! set dense A
       block
-        type(dense_real)  :: A
+        type(dense_real), pointer :: A
+
+        ! get pointer into M's blocks
+        call M%get(1, 1, A)
 
         ! A=dense=
         !   1 2 0
@@ -56,13 +62,15 @@ contains
         !   0 5 6
         d0 = reshape([1,0,0,2,3,5,0,4,6], [3,3])
         call A%init(d0)
-        call M%set(1,1,A)
       end block
 
       ! set sparse B
       block
-        type(sparse_real)  :: B
-        type(spbuild_real) :: sb
+        type(sparse_real), pointer :: B
+        type(spbuild_real)         :: sb
+
+        ! get pointer into M's blocks
+        call M%get(1, 2, B)
 
         ! B = sparse =
         !   1     0     0
@@ -80,13 +88,14 @@ contains
         end do
         end do
         call sb%save
-
-        call M%set(1, 2, B)
       end block
 
       ! set D: band diag matrix
       block
-        type(band_real) :: D
+        type(band_real), pointer :: D
+
+        ! get pointer into M's blocks
+        call M%get(2, 1, D)
 
         ! D =
         !   3     0     0
@@ -94,13 +103,14 @@ contains
         !   0     0     7
         d0 = reshape([3,5,7], [1,3])
         call D%init(3, 0, d0=d0)
-
-        call M%set(2, 1, D)
       end block
 
       ! set E: band matrix
       block
-        type(band_real) :: E
+        type(band_real), pointer :: E
+
+        ! get pointer into M's blocks
+        call M%get(2, 2, E)
 
         ! E =
         !   4     2     0
@@ -108,8 +118,6 @@ contains
         !   0     0     6
         d0 = reshape([(i, i=1,6)], [2,3], order=[2,1])
         call E%init(3, 0, nupper=1, d0=d0)
-
-        call M%set(2, 2, E)
       end block
 
       ! set F: triangular matrix

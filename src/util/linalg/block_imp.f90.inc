@@ -549,85 +549,97 @@ end subroutine
 subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   !! Return pointer to dense block.
 
-  class(BLOCK_TYPE), target, intent(in)  :: this
+  class(BLOCK_TYPE), target, intent(inout) :: this
     !! Block matrix
-  integer,                   intent(in)  :: ib
+  integer,                   intent(in)    :: ib
     !! Block row
-  integer,                   intent(in)  :: jb
+  integer,                   intent(in)    :: jb
     !! Block col
-  type(DENSE_TYPE), pointer, intent(out) :: p
-    !! Output pointer to dense block or null() if not dense
+  type(DENSE_TYPE), pointer, intent(out)   :: p
+    !! Output pointer to dense block
 
-  nullify(p)
-  if (allocated(this%b(ib,jb)%p)) then
-    select type (b => this%b(ib,jb)%p)
+  ! allocate if block not already allocated
+  if (.not. allocated(this%b(ib,jb)%p)) allocate(DENSE_TYPE :: this%b(ib,jb)%p)
+
+  ! set intent out pointer to block
+  select type (b => this%b(ib,jb)%p)
     class is (DENSE_TYPE)
       p => b
-    end select
-  end if
+    class default
+      call program_error("Wrong matrix type given! (given: dense, block's type: something else)")
+  end select
 end subroutine
 
 subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
   !! Return pointer to sparse block.
 
-  class(BLOCK_TYPE), target,  intent(in)  :: this
+  class(BLOCK_TYPE), target,  intent(inout) :: this
     !! Block matrix
-  integer,                    intent(in)  :: ib
+  integer,                    intent(in)    :: ib
     !! Block row
-  integer,                    intent(in)  :: jb
+  integer,                    intent(in)    :: jb
     !! Block col
-  type(SPARSE_TYPE), pointer, intent(out) :: p
-    !! Output pointer to sparse block or null() if not dense
+  type(SPARSE_TYPE), pointer, intent(out)   :: p
+    !! Output pointer to sparse block
 
-  nullify(p)
-  if (allocated(this%b(ib,jb)%p)) then
-    select type (b => this%b(ib,jb)%p)
+  ! allocate if block not already allocated
+  if (.not. allocated(this%b(ib,jb)%p)) allocate(SPARSE_TYPE :: this%b(ib,jb)%p)
+
+  ! set intent out pointer to block
+  select type (b => this%b(ib,jb)%p)
     class is (SPARSE_TYPE)
       p => b
-    end select
-  end if
+    class default
+      call program_error("Wrong matrix type given! (given: SPARSE, block's type: something else)")
+  end select
 end subroutine
 
 subroutine BLOCK_GET_BAND(this, ib, jb, p)
-  !! Return pointer to band block.
+  !! Return pointer to BAND block.
 
-  class(BLOCK_TYPE), target, intent(in)  :: this
+  class(BLOCK_TYPE), target, intent(inout) :: this
     !! Block matrix
-  integer,                   intent(in)  :: ib
+  integer,                   intent(in)    :: ib
     !! Block row
-  integer,                   intent(in)  :: jb
+  integer,                   intent(in)    :: jb
     !! Block col
-  type(BAND_TYPE), pointer,  intent(out) :: p
-    !! Output pointer to band block or null() if not dense
+  type(BAND_TYPE), pointer,  intent(out)   :: p
+    !! Output pointer to BAND block
 
-  nullify(p)
-  if (allocated(this%b(ib,jb)%p)) then
-    select type (b => this%b(ib,jb)%p)
+  ! allocate if block not already allocated
+  if (.not. allocated(this%b(ib,jb)%p)) allocate(BAND_TYPE :: this%b(ib,jb)%p)
+
+  ! set intent out pointer to block
+  select type (b => this%b(ib,jb)%p)
     class is (BAND_TYPE)
       p => b
-    end select
-  end if
+    class default
+      call program_error("Wrong matrix type given! (given: BAND, block's type: something else)")
+  end select
 end subroutine
 
 subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
-  !! Return pointer to block block.
+  !! Return pointer to BLOCK block.
 
-  class(BLOCK_TYPE), target, intent(in)  :: this
+  class(BLOCK_TYPE), target, intent(inout) :: this
     !! Block matrix
-  integer,                   intent(in)  :: ib
+  integer,                   intent(in)    :: ib
     !! Block row
-  integer,                   intent(in)  :: jb
+  integer,                   intent(in)    :: jb
     !! Block col
-  type(BLOCK_TYPE), pointer, intent(out) :: p
-    !! Output pointer to block block or null() if not dense
+  type(BLOCK_TYPE), pointer, intent(out)   :: p
+    !! Output pointer to BLOCK block
 
-  nullify(p)
-  if (allocated(this%b(ib,jb)%p)) then
-    select type (b => this%b(ib,jb)%p)
+  ! allocate if block not already allocated
+  if (.not. allocated(this%b(ib,jb)%p)) allocate(BLOCK_TYPE :: this%b(ib,jb)%p)
+
+  ! set intent out pointer to block
+  select type (b => this%b(ib,jb)%p)
     class is (BLOCK_TYPE)
       p => b
-    end select
-  end if
+    class default
+      call program_error("Wrong matrix type given! (given: BLOCK, block's type: something else)")
+  end select
 end subroutine
 
 subroutine BLOCK_SET(this, ib, jb, b, fact)
