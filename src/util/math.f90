@@ -183,6 +183,22 @@ contains
     end do
   end function
 
+  pure function eye_real(n) result(e)
+    !! real identity matrix
+
+    integer, intent(in) :: n
+      !! dimension
+    real                :: e(n,n)
+      !! return real identity matrix
+
+    integer :: i
+
+    e = 0.0
+    do i = 1, n
+      e(i,i) = 1.0
+    end do
+  end function
+
   pure function norm_inf(arr)
     !! Calculates the infinity norm $$ || \ \cdot \  ||_\infty $$ of the given array.
 
