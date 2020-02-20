@@ -11,7 +11,8 @@
 #define VECTOR_RESET         CONCAT3(vector,T,reset)
 #define VECTOR_RESERVE       CONCAT3(vector,T,reserve)
 #define VECTOR_RESIZE        CONCAT3(vector,T,resize)
-#define VECTOR_PUSH          CONCAT3(vector,T,push)
+#define VECTOR_PUSH_ELEM     CONCAT3(vector,T,push_elem)
+#define VECTOR_PUSH_ELEMS    CONCAT3(vector,T,push_elems)
 #define VECTOR_POP           CONCAT3(vector,T,pop)
 #define VECTOR_SHRINK        CONCAT3(vector,T,shrink)
 #define VECTOR_GET           CONCAT3(vector,T,get)
@@ -94,7 +95,7 @@ subroutine VECTOR_RESIZE(this, n)
   if (this%n < 0) this%n = 0
 end subroutine
 
-subroutine VECTOR_PUSH(this, x)
+subroutine VECTOR_PUSH_ELEM(this, x)
   !! append element to end of vector
   class(VECTOR_TYPE), intent(inout) :: this
   TT,                 intent(in)    :: x
@@ -108,6 +109,22 @@ subroutine VECTOR_PUSH(this, x)
 
   ! save element
   this%d(this%n) = x
+end subroutine
+
+subroutine VECTOR_PUSH_ELEMS(this, x)
+  !! append elements to end of vector
+  class(VECTOR_TYPE), intent(inout) :: this
+  TT,                 intent(in)    :: x(:)
+    !! elements to add
+
+  ! increase size by length of given elements
+  this%n = this%n + size(x)
+
+  ! increase capacity to double as much as currently needed (if necessary)
+  if (this%n > this%c) call this%reserve(2 * this%n)
+
+  ! save element
+  this%d(this%n-size(x)+1:this%n) = x
 end subroutine
 
 subroutine VECTOR_POP(this)
@@ -181,7 +198,8 @@ end function
 #undef VECTOR_RESET
 #undef VECTOR_RESERVE
 #undef VECTOR_RESIZE
-#undef VECTOR_PUSH
+#undef VECTOR_PUSH_ELEM
+#undef VECTOR_PUSH_ELEMS
 #undef VECTOR_POP
 #undef VECTOR_SHRINK
 #undef VECTOR_GET

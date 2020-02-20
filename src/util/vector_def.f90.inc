@@ -11,7 +11,8 @@
 #define VECTOR_RESET         CONCAT3(vector,T,reset)
 #define VECTOR_RESERVE       CONCAT3(vector,T,reserve)
 #define VECTOR_RESIZE        CONCAT3(vector,T,resize)
-#define VECTOR_PUSH          CONCAT3(vector,T,push)
+#define VECTOR_PUSH_ELEM     CONCAT3(vector,T,push_elem)
+#define VECTOR_PUSH_ELEMS     CONCAT3(vector,T,push_elems)
 #define VECTOR_POP           CONCAT3(vector,T,pop)
 #define VECTOR_SHRINK        CONCAT3(vector,T,shrink)
 #define VECTOR_GET           CONCAT3(vector,T,get)
@@ -28,11 +29,13 @@ type VECTOR_TYPE
     !! capacity (size of data array)
 contains
   procedure :: init     => VECTOR_INIT
-  procedure :: destruct => VECTOR_DESTRUCT        ! fixme warum?? ist doch eh allocatable?
+  procedure :: destruct => VECTOR_DESTRUCT
   procedure :: reset    => VECTOR_RESET
   procedure :: reserve  => VECTOR_RESERVE
   procedure :: resize   => VECTOR_RESIZE
-  procedure :: push     => VECTOR_PUSH            ! append element to end of vector
+  generic   :: push     => VECTOR_PUSH_ELEM, VECTOR_PUSH_ELEMS
+  procedure ::             VECTOR_PUSH_ELEM       ! append element to end of vector
+  procedure ::             VECTOR_PUSH_ELEMS      ! append elements/array to end of vector
   procedure :: pop      => VECTOR_POP             ! removes last element
   procedure :: shrink   => VECTOR_SHRINK
   procedure :: get      => VECTOR_GET             ! returns all data
@@ -57,7 +60,8 @@ end type
 #undef VECTOR_RESET
 #undef VECTOR_RESERVE
 #undef VECTOR_RESIZE
-#undef VECTOR_PUSH
+#undef VECTOR_PUSH_ELEM
+#undef VECTOR_PUSH_ELEMS
 #undef VECTOR_POP
 #undef VECTOR_SHRINK
 #undef VECTOR_GET
