@@ -117,7 +117,7 @@ contains
 
     ! initialize coefficients
     this%a = f
-    this%dadf = eye_real(this%n+1)
+! this%dadf = eye_real(this%n+1)
 
     ! divided difference algorithm
     do i = 1, this%n
