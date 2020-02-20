@@ -1,5 +1,7 @@
 program test
+  use test_poly_m
   use test_high_precision_m
+  use test_math_m
   use test_input_m
   use test_expm_m
   use test_normalization_m
@@ -9,12 +11,13 @@ program test
   use test_matrix_m
   use test_qsort_m
   use test_vector_m
-  use test_poly_m
   use test_sqrtm_m
   use test_arnoldi_m
   use test_schur_m
   implicit none
 
+  call test_math
+  call test_poly
   call test_high_precision
   call test_input
   call test_expm
@@ -25,7 +28,6 @@ program test
   call test_matrix
   call test_qsort
   call test_vector
-  call test_poly
   call test_sqrtm
   call test_arnoldi
   call test_schur

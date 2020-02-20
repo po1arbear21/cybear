@@ -11,6 +11,21 @@ module math_m
 
 contains
 
+  pure function cross_product(a, b) result(axb)
+    real, intent(in) :: a(3), b(3)
+    real             :: axb(3)
+
+    axb = [a(2)*b(3) - a(3)*b(2), &
+      &    a(3)*b(1) - a(1)*b(3), &
+      &    a(1)*b(2) - a(2)*b(1)  ]
+  end function
+
+  pure real function cross_product_2d(a, b)
+    real, intent(in) :: a(2), b(2)
+
+    cross_product_2d = a(1)*b(2) - a(2)*b(1)
+  end function
+
   elemental function heaviside(x) result(h)
     !! heaviside step function
     real, intent(in) :: x
