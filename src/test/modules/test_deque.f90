@@ -83,15 +83,23 @@ contains
     call tc%assert_eq(102, deq%front(), "pop_front: front")
     call tc%assert_eq(109, deq%back(), "pop_front: back")
 
-    ! test11: shrink
+    ! test11: pop_back
+    call deq%pop_back()
+    call deq%pop_back()
+    call deq%pop_back()
+    call tc%assert_eq(5, deq%n, "pop_back: n")
+    call tc%assert_eq(102, deq%front(), "pop_back: front")
+    call tc%assert_eq(106, deq%back(), "pop_back: back")
+
+    ! test12: shrink
     call deq%shrink()
-    call tc%assert_eq(8, size(deq%d), "shrink: capacity")
-    call tc%assert_eq([102, 103, 104, 105, 106, 107, 108, 109], deq%d(1:deq%n), "shrink: d")
+    call tc%assert_eq(5, size(deq%d), "shrink: capacity")
+    call tc%assert_eq([102, 103, 104, 105, 106], deq%d(1:deq%n), "shrink: d")
 
-    ! test12: to_array
-    call tc%assert_eq([102, 103, 104, 105, 106, 107, 108, 109], deq%to_array(), "to_array")
+    ! test13: to_array
+    call tc%assert_eq([102, 103, 104, 105, 106], deq%to_array(), "to_array")
 
-    ! test13: from_array
+    ! test14: from_array
     call deq%resize(3)
     call deq%shrink()
     call deq%from_array([1, 2, 3, 4, 5])
