@@ -21,12 +21,17 @@ module test_case_m
     ! public procedures
     procedure :: init
     procedure :: finish
+    generic   :: assert    => assert_1, assert_arr, assert_arr2D, assert_arr3D
     generic   :: assert_eq => assert_eq_int      , assert_eq_real      , assert_eq_cmplx      , assert_eq_string      , &
                               assert_eq_int_arr  , assert_eq_real_arr  , assert_eq_cmplx_arr  , assert_eq_string_arr  , &
                               assert_eq_int_arr2D, assert_eq_real_arr2D, assert_eq_cmplx_arr2D, assert_eq_string_arr2D, &
                               assert_eq_int_arr3D, assert_eq_real_arr3D, assert_eq_cmplx_arr3D, assert_eq_string_arr3D
 
     ! private procedures
+    procedure, private :: assert_1
+    procedure, private :: assert_arr
+    procedure, private :: assert_arr2D
+    procedure, private :: assert_arr3D
     procedure, private :: assert_eq_int
     procedure, private :: assert_eq_int_arr
     procedure, private :: assert_eq_int_arr2D
@@ -72,6 +77,100 @@ contains
     print *
 
     if (this%passed_tests /= this%num_tests) call program_error("Test case "//trim(this%name)//" failed!")
+  end subroutine
+
+  subroutine assert_1(this, value, msg)
+    !! Check logical value for true.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    logical,          intent(in)    :: value
+      !! Logical value
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    call this%check(value, msg, msg2 = "assertion for scalar logical failed")
+  end subroutine
+
+  subroutine assert_arr(this, values, msg)
+    !! Check logical values (1D array) for true.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    logical,          intent(in)    :: values(:)
+      !! Logical values
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, failed
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values)
+      call this%check(values(i), msg, msg2 = "assertion for array values failed; (row)", ipar = [i])
+      if (.not. this%last_passed) failed = failed + 1
+      if (failed > 5) then
+        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        return
+      end if
+    end do
+  end subroutine
+
+  subroutine assert_arr2D(this, values, msg)
+    !! Check logical values (1D array) for true.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    logical,          intent(in)    :: values(:,:)
+      !! Logical values
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, failed
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        call this%check(values(i,j), msg, msg2 = "assertion for array values failed; (row, col)", ipar = [i, j])
+        if (.not. this%last_passed) failed = failed + 1
+        if (failed > 5) then
+          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          return
+        end if
+      end do
+    end do
+  end subroutine
+
+  subroutine assert_arr3D(this, values, msg)
+    !! Check logical values (1D array) for true.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    logical,          intent(in)    :: values(:,:,:)
+      !! Logical values
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    ! local variables
+    integer :: i, j, k, failed
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check(values(i,j,k), msg, msg2 = "assertion for array values failed; (row, col, slice)", ipar = [i, j, k])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
+      end do
+    end do
   end subroutine
 
   subroutine assert_eq_int(this, expected, value, msg)

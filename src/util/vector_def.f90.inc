@@ -11,37 +11,35 @@
 #define VECTOR_RESET         CONCAT3(vector,T,reset)
 #define VECTOR_RESERVE       CONCAT3(vector,T,reserve)
 #define VECTOR_RESIZE        CONCAT3(vector,T,resize)
+#define VECTOR_FRONT         CONCAT3(vector,T,front)
+#define VECTOR_BACK          CONCAT3(vector,T,back)
 #define VECTOR_PUSH_ELEM     CONCAT3(vector,T,push_elem)
-#define VECTOR_PUSH_ELEMS     CONCAT3(vector,T,push_elems)
+#define VECTOR_PUSH_ELEMS    CONCAT3(vector,T,push_elems)
 #define VECTOR_POP           CONCAT3(vector,T,pop)
 #define VECTOR_SHRINK        CONCAT3(vector,T,shrink)
-#define VECTOR_GET           CONCAT3(vector,T,get)
-#define VECTOR_SET           CONCAT3(vector,T,set)
-#define VECTOR_FIRST         CONCAT3(vector,T,first)
-#define VECTOR_LAST          CONCAT3(vector,T,last)
+#define VECTOR_TO_ARRAY      CONCAT3(vector,T,to_array)
+#define VECTOR_FROM_ARRAY    CONCAT3(vector,T,from_array)
 
 type VECTOR_TYPE
   TT, allocatable :: d(:)
     !! data array
   integer         :: n = 0
     !! size of vector
-  integer         :: c = 0
-    !! capacity (size of data array)
 contains
-  procedure :: init     => VECTOR_INIT
-  procedure :: destruct => VECTOR_DESTRUCT
-  procedure :: reset    => VECTOR_RESET
-  procedure :: reserve  => VECTOR_RESERVE
-  procedure :: resize   => VECTOR_RESIZE
-  generic   :: push     => VECTOR_PUSH_ELEM, VECTOR_PUSH_ELEMS
-  procedure ::             VECTOR_PUSH_ELEM       ! append element to end of vector
-  procedure ::             VECTOR_PUSH_ELEMS      ! append elements/array to end of vector
-  procedure :: pop      => VECTOR_POP             ! removes last element
-  procedure :: shrink   => VECTOR_SHRINK
-  procedure :: get      => VECTOR_GET             ! returns all data
-  procedure :: set      => VECTOR_SET             ! sets all data. reserve before
-  procedure :: first    => VECTOR_FIRST
-  procedure :: last     => VECTOR_LAST
+  procedure :: init       => VECTOR_INIT
+  procedure :: destruct   => VECTOR_DESTRUCT
+  procedure :: reset      => VECTOR_RESET
+  procedure :: reserve    => VECTOR_RESERVE
+  procedure :: resize     => VECTOR_RESIZE
+  procedure :: front      => VECTOR_FRONT
+  procedure :: back       => VECTOR_BACK
+  generic   :: push       => VECTOR_PUSH_ELEM, VECTOR_PUSH_ELEMS
+  procedure ::               VECTOR_PUSH_ELEM       ! append element to end of vector
+  procedure ::               VECTOR_PUSH_ELEMS      ! append elements/array to end of vector
+  procedure :: pop        => VECTOR_POP             ! removes last element
+  procedure :: shrink     => VECTOR_SHRINK
+  procedure :: to_array   => VECTOR_TO_ARRAY        ! returns all data in an array
+  procedure :: from_array => VECTOR_FROM_ARRAY      ! sets all data from an array
 end type
 
 #undef T
@@ -60,11 +58,11 @@ end type
 #undef VECTOR_RESET
 #undef VECTOR_RESERVE
 #undef VECTOR_RESIZE
+#undef VECTOR_FRONT
+#undef VECTOR_BACK
 #undef VECTOR_PUSH_ELEM
 #undef VECTOR_PUSH_ELEMS
 #undef VECTOR_POP
 #undef VECTOR_SHRINK
-#undef VECTOR_GET
-#undef VECTOR_SET
-#undef VECTOR_FIRST
-#undef VECTOR_LAST
+#undef VECTOR_TO_ARRAY
+#undef VECTOR_FROM_ARRAY

@@ -2,6 +2,7 @@ program test
   use test_poly_m
   use test_high_precision_m
   use test_math_m
+  use test_deque_m
   use test_input_m
   use test_expm_m
   use test_normalization_m
@@ -16,9 +17,10 @@ program test
   use test_schur_m
   implicit none
 
-  call test_math
   call test_poly
   call test_high_precision
+  call test_math
+  call test_deque
   call test_input
   call test_expm
   call test_normalization

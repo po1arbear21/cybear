@@ -824,7 +824,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
     call qsort(col%d(icol0:icol1))
 
     ! save values
-    call val%reserve(col%c)
+    call val%reserve(size(col%d))
     call val%resize( col%n)
     val%d(icol0:icol1) = row(col%d(icol0:icol1))
 
@@ -1109,7 +1109,7 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
   if (i > this%cols(row)%n) then ! append to end
     ! update sorted flag
     if (this%sorted(row) .and. (this%cols(row)%n > 0)) then
-      if (col <= this%cols(row)%last()) this%sorted(row) = .false.
+      if (col <= this%cols(row)%back()) this%sorted(row) = .false.
     end if
 
     ! make sure that appending without searching happens in order
