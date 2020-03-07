@@ -1,8 +1,14 @@
-# compiler flags
+# fortran compiler flags
 FC       := ifort
 FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp
 FDEBUG   := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG -init=huge
 FRELEASE := -O2 -mkl -ftz -ipo
+
+# c compiler flags
+CC       := icc
+CFLGAS   := -march=native
+CDEBUG   := -O0 -g
+CRELEASE := -O3 -ipo
 
 # colors
 FC_COL = \e[1;37;40m
@@ -14,9 +20,11 @@ NO_COL = \e[m
 BUILD := debug
 ifeq ($(BUILD),debug)
 FFLAGS := $(FFLAGS) $(FDEBUG)
+CFLGAS := $(CFLAGS) $(CDEBUG)
 else
 ifeq ($(BUILD),release)
 FFLAGS := $(FFLAGS) $(FRELEASE)
+CFLGAS := $(CFLAGS) $(CRELEASE)
 else
 $(error BUILD must be debug or release!)
 endif
@@ -36,6 +44,11 @@ $(TRASH_DIR):
 
 # find all source files in src directory
 SOURCES := $(shell find src/ -name '*.f90')
+
+# C source files and objects
+SOURCES_C := $(shell find src/ -name '*.c')
+vpath %.c $(sort $(dir $(SOURCES_C)))
+OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # libraries
 LIBS := ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
@@ -65,6 +78,11 @@ $(BUILD_DIR)%.anc:
 	@$(FC) $(FFLAGS) -module $(BUILD_DIR) -syntax-only -c $<
 	@mv $(notdir $(<:.f90=.i90)) $(BUILD_DIR) 2>/dev/null || true
 	@touch $@
+
+# rule for c object files
+$(BUILD_DIR)%.c.o: %.c
+	@printf "%b" "$(FC_COL)$(CC)$(NO_COL) $(CFLAGS) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 # rule for object files
 $(BUILD_DIR)%.o:

@@ -1,5 +1,6 @@
 program test
   use test_poly_m
+  use test_random_m
   use test_high_precision_m
   use test_math_m
   use test_deque_m
@@ -18,6 +19,7 @@ program test
   implicit none
 
   call test_poly
+  call test_random
   call test_high_precision
   call test_math
   call test_deque
