@@ -35,20 +35,16 @@ subroutine DEQUE_INIT(this, n, c, x)
   integer :: c_
 
   ! resize
-  this%n = n
-  if (this%n < 0) this%n = 0
+  this%n = max(n, 0)
 
   ! capacity
-  c_ = this%n
-  if (present(c)) then
-    if (c > this%n) c_ = c
-  end if
-  c_ = max(c_, 1)
+  c_ = max(this%n, 1)
+  if (present(c)) c_ = max(c_, c)
 
   ! reserve memory
   call this%reserve(c_)
 
-  ! set front an back pointers
+  ! set front and back pointers
   this%ifront = 1
   this%iback  = this%n
 
