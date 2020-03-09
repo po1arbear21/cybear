@@ -86,10 +86,10 @@ contains
 
   subroutine random_init(this, seed, seq)
     !! initialize random number generator (applies seed and selects sequence)
-    class(random), intent(out) :: this
-    integer,       intent(in)  :: seed(2)
+    class(random),   intent(out) :: this
+    integer(kind=8), intent(in)  :: seed(2)
       !! 128-bit seed
-    integer,       intent(in)  :: seq(2)
+    integer(kind=8), intent(in)  :: seq(2)
       !! 128-bit sequence selector (give each thread its own sequence)
 
     call pcg64_srandom(this%state, seed(1), seed(2), seq(1), seq(2))
