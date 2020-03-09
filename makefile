@@ -20,11 +20,11 @@ NO_COL = \e[m
 BUILD := debug
 ifeq ($(BUILD),debug)
 FFLAGS := $(FFLAGS) $(FDEBUG)
-CFLGAS := $(CFLAGS) $(CDEBUG)
+CFLAGS := $(CFLAGS) $(CDEBUG)
 else
 ifeq ($(BUILD),release)
 FFLAGS := $(FFLAGS) $(FRELEASE)
-CFLGAS := $(CFLAGS) $(CRELEASE)
+CFLAGS := $(CFLAGS) $(CRELEASE)
 else
 $(error BUILD must be debug or release!)
 endif
@@ -90,7 +90,7 @@ $(BUILD_DIR)%.o:
 	@$(FC) $(FFLAGS) -I$(BUILD_DIR) -module $(TRASH_DIR) -c $< -o $@
 
 clean:
-	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,p} $(BUILD_DIR).depend $(TARGETS)
+	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o} $(BUILD_DIR).depend $(TARGETS)
 
 doc: all
 	ford -e i90 -d $(BUILD_DIR) README.md
