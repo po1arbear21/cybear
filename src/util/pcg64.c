@@ -17,12 +17,12 @@ static inline void pcg_setseq_128_step_r(struct pcg64_state* rng) {
   rng->state = rng->state * PCG_DEFAULT_MULTIPLIER_128 + rng->inc;
 }
 
-inline uint64_t pcg_rotr_64(uint64_t value, unsigned int rot) {
+static inline uint64_t pcg_rotr_64(uint64_t value, unsigned int rot) {
   return (value >> rot) | (value << ((- rot) & 63));
 }
 
-static inline uint64_t pcg_output_xsl_rr_128_64(pcg128_t state) {
-  return pcg_rotr_64(((uint64_t)(state >> 64u)) ^ (uint64_t)state, state >> 122u);
+static inline uint64_t pcg_output(pcg128_t state) {
+  return pcg_rotr_64(((uint64_t)(state >> 64u)) ^ (uint64_t)state, (unsigned int)(state >> 122u));
 }
 
 static inline pcg128_t pcg_advance_lcg_128(pcg128_t state, pcg128_t delta, pcg128_t cur_mult, pcg128_t cur_plus) {
@@ -54,7 +54,7 @@ void pcg64_srandom(struct pcg64_state* rng, uint64_t initstate_h, uint64_t inits
 
 uint64_t pcg64_random(struct pcg64_state* rng) {
   pcg_setseq_128_step_r(rng);
-  return pcg_output_xsl_rr_128_64(rng->state);
+  return pcg_output(rng->state);
 }
 
 void pcg64_random_n(struct pcg64_state* rng, int64_t n, uint64_t *x) {

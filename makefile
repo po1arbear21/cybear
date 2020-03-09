@@ -6,7 +6,7 @@ FRELEASE := -O2 -mkl -ftz -ipo
 
 # c compiler flags
 CC       := icc
-CFLGAS   := -march=native
+CFLAGS   := -march=native
 CDEBUG   := -O0 -g
 CRELEASE := -O3 -ipo
 
