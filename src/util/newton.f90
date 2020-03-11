@@ -61,9 +61,9 @@ module newton_m
 
     subroutine newton_fun(x, p, f, dfdx, dfdp)
       import matrix_real
-      real,                        intent(in) :: x(:)
+      real,                        intent(in)  :: x(:)
         !! arguments
-      real,                        intent(in) :: p(:)
+      real,                        intent(in)  :: p(:)
         !! parameters
       real,                        intent(out) :: f(:)
         !! output function values
@@ -78,13 +78,13 @@ contains
 
   subroutine newton1D(fun, p, opt, x0, x, dxdp)
     !! get root of 1D function by newton iteration with bisection stabilization
-    procedure(newton1D_fun)        :: fun
+    procedure(newton1D_fun)         :: fun
       !! pointer to function
-    real,               intent(in) :: p(:)
+    real,               intent(in)  :: p(:)
       !! function parameters (can be empty array if not needed)
-    type(newton1D_opt), intent(in) :: opt
+    type(newton1D_opt), intent(in)  :: opt
       !! iteration options
-    real,               intent(in) :: x0
+    real,               intent(in)  :: x0
       !! first guess for solution
     real,               intent(out) :: x
       !! output solution
@@ -222,7 +222,7 @@ contains
     allocate (f(   size(x)        ), source = 0.0)
     allocate (dfdp(size(x),size(p)), source = 0.0)
     allocate (dx(  size(x)        ), source = 0.0)
-    nullify(dfdx)
+    nullify (dfdx)
 
     ! init iteration params
     it  = 0
