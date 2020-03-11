@@ -45,7 +45,7 @@ module newton_m
     procedure :: init => newton_opt_init
   end type
 
-  interface
+  abstract interface
     subroutine newton1D_fun(x, p, f, dfdx, dfdp)
       real,           intent(in)  :: x
         !! argument
@@ -78,17 +78,17 @@ contains
 
   subroutine newton1D(fun, p, opt, x0, x, dxdp)
     !! get root of 1D function by newton iteration with bisection stabilization
-    procedure(newton1D_fun), pointer, intent(in) :: fun
+    procedure(newton1D_fun)        :: fun
       !! pointer to function
-    real,                             intent(in) :: p(:)
+    real,               intent(in) :: p(:)
       !! function parameters (can be empty array if not needed)
-    type(newton1D_opt),               intent(in) :: opt
+    type(newton1D_opt), intent(in) :: opt
       !! iteration options
-    real,                             intent(in) :: x0
+    real,               intent(in) :: x0
       !! first guess for solution
-    real,                             intent(out) :: x
+    real,               intent(out) :: x
       !! output solution
-    real, optional,                   intent(out) :: dxdp(:)
+    real, optional,     intent(out) :: dxdp(:)
       !! optional output derivative of x wrt parameters
 
     ! local variables
@@ -199,17 +199,17 @@ contains
 
   subroutine newton(fun, p, opt, x0, x, dxdp)
     !! get root of multidimensional function by newton-raphson iteration
-    procedure(newton_fun), pointer, intent(in)  :: fun
+    procedure(newton_fun)         :: fun
       !! pointer to function
-    real,                           intent(in)  :: p(:)
+    real,             intent(in)  :: p(:)
       !! function parameters (can be empty array if not needed)
-    type(newton_opt),               intent(in)  :: opt
+    type(newton_opt), intent(in)  :: opt
       !! iteration options
-    real,                           intent(in)  :: x0(:)
+    real,             intent(in)  :: x0(:)
       !! first guess for solution
-    real,                           intent(out) :: x(:)
+    real,             intent(out) :: x(:)
       !! output solution
-    real, optional,                 intent(out) :: dxdp(:,:)
+    real, optional,   intent(out) :: dxdp(:,:)
       !! optional output derivatives of x wrt p
 
     ! local variables
