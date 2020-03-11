@@ -96,7 +96,7 @@ subroutine VECTOR_RESIZE(this, n)
     !! new size
 
   ! reserve memory
-  call this%reserve(n)
+  if (n > 0) call this%reserve(2**(ceiling(log(real(n)) / log(2.0))))
 
   ! change size
   this%n = n
