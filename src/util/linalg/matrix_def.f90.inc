@@ -83,6 +83,7 @@
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
 #define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
+#define SPBUILD_RESET_ROW    CONCAT3(spbuild,T,reset_row)
 #define SPBUILD_SET          CONCAT3(spbuild,T,set)
 #define SPBUILD_SET_ROW      CONCAT3(spbuild,T,set_row)
 #define SPBUILD_ADD          CONCAT3(spbuild,T,add)
@@ -306,15 +307,16 @@ type SPBUILD_TYPE
   logical, allocatable           :: keep_struct(:)
     !! Indicates whether a row should be deleted completely on reset, or structure should be kept
 contains
-  procedure :: init     => SPBUILD_INIT
-  procedure :: destruct => SPBUILD_DESTRUCT
-  procedure :: reset    => SPBUILD_RESET
-  procedure :: set      => SPBUILD_SET
-  procedure :: set_row  => SPBUILD_SET_ROW
-  procedure :: add      => SPBUILD_ADD
-  procedure :: sort     => SPBUILD_SORT
-  procedure :: load     => SPBUILD_LOAD
-  procedure :: save     => SPBUILD_SAVE
+  procedure :: init      => SPBUILD_INIT
+  procedure :: destruct  => SPBUILD_DESTRUCT
+  procedure :: reset     => SPBUILD_RESET
+  procedure :: reset_row => SPBUILD_RESET_ROW
+  procedure :: set       => SPBUILD_SET
+  procedure :: set_row   => SPBUILD_SET_ROW
+  procedure :: add       => SPBUILD_ADD
+  procedure :: sort      => SPBUILD_SORT
+  procedure :: load      => SPBUILD_LOAD
+  procedure :: save      => SPBUILD_SAVE
 end type
 
 type, extends(MATRIX_TYPE) :: BAND_TYPE
@@ -647,6 +649,7 @@ end interface
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
 #undef SPBUILD_RESET
+#undef SPBUILD_RESET_ROW
 #undef SPBUILD_SET
 #undef SPBUILD_SET_ROW
 #undef SPBUILD_ADD

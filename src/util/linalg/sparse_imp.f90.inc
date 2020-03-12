@@ -44,6 +44,7 @@
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
 #define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
+#define SPBUILD_RESET_ROW    CONCAT3(spbuild,T,reset_row)
 #define SPBUILD_SET          CONCAT3(spbuild,T,set)
 #define SPBUILD_SET_ROW      CONCAT3(spbuild,T,set_row)
 #define SPBUILD_ADD          CONCAT3(spbuild,T,add)
@@ -1012,29 +1013,38 @@ subroutine SPBUILD_DESTRUCT(this)
 end subroutine
 
 subroutine SPBUILD_RESET(this)
-  !! Delete all values
+  !! Delete all values of each row
 
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  ! local variables
   integer :: i
 
-  ! reset all rows
   do i = 1, this%sp%nrows
-    if (this%keep_struct(i)) then
-      ! reset data while keeping structure
-      this%vals(  i)%d(1:this%vals(  i)%n) = 0
-      this%filled(i)%d(1:this%filled(i)%n) = .false.
-    else
-      ! reset data without keeping structure
-      call this%cols(i)%resize(0)
-      call this%vals(i)%resize(0)
-      call this%filled(i)%resize(0)
-      this%sorted(i)      = .true.
-      this%keep_struct(i) = .true.
-    end if
+    call this%reset_row(i)
   end do
+end subroutine
+
+subroutine SPBUILD_RESET_ROW(this, row)
+  !! Delete all values of a row
+
+  class(SPBUILD_TYPE), intent(inout) :: this
+    !! Sparse matrix builder
+  integer,             intent(in)    :: row
+    !! row index
+
+  if (this%keep_struct(row)) then
+    ! reset data while keeping structure
+    this%vals(  row)%d(1:this%vals(  row)%n) = 0
+    this%filled(row)%d(1:this%filled(row)%n) = .false.
+  else
+    ! reset data without keeping structure
+    call this%cols(row)%resize(0)
+    call this%vals(row)%resize(0)
+    call this%filled(row)%resize(0)
+    this%sorted(row)      = .true.
+    this%keep_struct(row) = .true.
+  end if
 end subroutine
 
 subroutine SPBUILD_SET(this, row, col, val, fact, search)
@@ -1343,6 +1353,7 @@ end subroutine
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
 #undef SPBUILD_RESET
+#undef SPBUILD_RESET_ROW
 #undef SPBUILD_SET
 #undef SPBUILD_SET_ROW
 #undef SPBUILD_ADD

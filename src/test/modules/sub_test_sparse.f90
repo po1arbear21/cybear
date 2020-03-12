@@ -268,6 +268,70 @@ contains
       call tc%assert_eq(x_exp, x, 1e-12, "solve_mat")
     end block
 
+    ! reset row + set
+    block
+      type(spbuild_real)   :: sb
+      type(sparse_real)    :: sp
+      real,    allocatable :: a_exp(:)
+      integer, allocatable :: ia_exp(:), ja_exp(:)
+
+      ! A =
+      !  1     2     0     0
+      !  0     4     0     0
+      !  0     0     1     0
+      !  0     1     0     5
+      !
+      ! a  = [1 2 4 1 1 5]
+      ! ia = [1 3 4 5 7]
+      ! ja = [1 2 2 3 2 4]
+
+      call sp%init(4)
+      call sb%init(sp)
+
+      call sb%add(1, 1, 1.0)
+      call sb%add(1, 2, 2.0)
+      call sb%add(2, 2, 4.0)
+      call sb%add(3, 3, 1.0)
+      call sb%add(4, 2, 1.0)
+      call sb%add(4, 4, 5.0)
+
+      !
+      ! test 1: reset row 1
+      !
+      ! a  = [4 1 1 5]
+      ! ia = [1 1 2 3 5]
+      ! ja = [2 3 2 4]
+
+      call sb%reset_row(1)
+
+      call sb%save
+
+      a_exp  = [4, 1, 1, 5]
+      ia_exp = [1, 1, 2, 3, 5]
+      ja_exp = [2, 3, 2, 4]
+
+      call tc%assert_eq(a_exp,  sp%a, 1e-12, "sparse_builder%resest_row to sparse: a")
+      call tc%assert_eq(ia_exp, sp%ia,       "sparse_builder%resest_row to sparse: ia")
+      call tc%assert_eq(ja_exp, sp%ja,       "sparse_builder%resest_row to sparse: ja")
+
+      !
+      ! test 2: insert 1 on diagonal
+      !
+      ! a  = [1 4 1 1 5]
+      ! ia = [1 2 3 4 6]
+      ! ja = [1 2 3 2 4]
+      call sb%set(1, 1, 1.0)
+
+      call sb%save
+
+      a_exp  = [1, 4, 1, 1, 5]
+      ia_exp = [1, 2, 3, 4, 6]
+      ja_exp = [1, 2, 3, 2, 4]
+
+      call tc%assert_eq(a_exp,  sp%a, 1e-12, "sparse_builder%set to sparse: a")
+      call tc%assert_eq(ia_exp, sp%ia,       "sparse_builder%set to sparse: ia")
+      call tc%assert_eq(ja_exp, sp%ja,       "sparse_builder%set to sparse: ja")
+    end block
 
     call tc%finish()
   end subroutine
