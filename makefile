@@ -2,13 +2,13 @@
 FC       := ifort
 FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp
 FDEBUG   := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG -init=huge
-FRELEASE := -O2 -mkl -ftz -ipo
+FRELEASE := -O3 -mkl -ftz
 
 # c compiler flags
 CC       := icc
 CFLAGS   := -march=native
 CDEBUG   := -O0 -g
-CRELEASE := -O3 -ipo
+CRELEASE := -O3
 
 # colors
 FC_COL = \e[1;37;40m
