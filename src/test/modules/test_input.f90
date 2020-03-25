@@ -43,6 +43,10 @@ contains
       call f%get_sections("grid", sid)
       call f%get(sid(1), "y", r_arr)
       call tc%assert_eq(norm([(real(i)/10.0, i=0,9)], 'um'), r_arr, 1e-10, "get_real_arr")
+
+      ! test reading scalars
+      call f%get("", "alpha", r)
+      call f%get("", "scaling fact", r)     ! tests that value 2.0 is parsed as real and not integer!
     end block
 
     ! integers

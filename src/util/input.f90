@@ -128,7 +128,7 @@ contains
       !! Error string
 
     ! local variables
-    integer               :: i, j, k, status, status_r
+    integer               :: i, j, k, status
     real                  :: r
     character             :: quote
     character(len(data0)) :: data, item
@@ -222,30 +222,39 @@ contains
       if (i == 0) then
         i = scan(item, "'")
       end if
-      if (i /= 0) then
+      DEDUCE_TYPE: if (i /= 0) then
         ! string
         this%type = INPUT_TYPE_STRING
       else
-        ! try to read as integer
-        read (item, *, iostat = status) i
-        read (item, *, iostat = status_r) r
-        if (status == 0 .and. status_r == 0 .and. r-i==0.0) then
-          this%type = INPUT_TYPE_INTEGER
-        else
-          ! try to read as real
-          if (status_r == 0) then
-            this%type = INPUT_TYPE_REAL
-          else
-            if ((trim(item) == "true") .or. (trim(item) == "false")) then
-              this%type = INPUT_TYPE_LOGIC
-            else
-              valid = .false.
-              err   = "Can not deduce type of variable"
-              return
-            end if
+
+        ! only try to read as integer if there are no decimal dots or 'd', 'e'
+        i = scan(item, '.') + scan(item, 'd') + scan(item, 'e')
+        if (i == 0) then
+          read (item, *, iostat = status) i
+          if (status == 0) then
+            this%type = INPUT_TYPE_INTEGER
+            exit DEDUCE_TYPE
           end if
         end if
-      end if
+
+        ! try reading as real
+        read (item, *, iostat = status) r
+        if (status == 0) then
+          this%type = INPUT_TYPE_REAL
+          exit DEDUCE_TYPE
+        end if
+
+        ! try reading as bool
+        if ((trim(item) == "true") .or. (trim(item) == "false")) then
+          this%type = INPUT_TYPE_LOGIC
+          exit DEDUCE_TYPE
+        end if
+
+        ! we reached this far -> couldnt determine data type -> error
+        valid = .false.
+        err   = "Cannot deduce type of variable"
+        return
+      end if DEDUCE_TYPE
     end if
 
     ! read in data
