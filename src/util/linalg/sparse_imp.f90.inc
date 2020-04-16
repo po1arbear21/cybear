@@ -663,18 +663,25 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   fact_ = 1
   if (present(fact)) fact_ = fact
 
+  ! allocate memory
+  allocate (ia(this%nrows + 1))
+  i = b%nrows + b%nlower * b%nrows - b%nlower * (b%nlower + 1) / 2 + b%nupper * b%nrows - b%nupper * (b%nupper + 1) / 2
+  call ja%init(0, c = size(this%ja) + i)
+  call a%init( 0, c = size(this%ja) + i)
+
   ! add matrices
+  ia(1) = 1
   do i = 1, this%nrows
     j1 = this%ia(i)
-    j2 = max(i - b%nupper, 1)
-    do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%nlower, b%ncols)))
+    j2 = max(i - b%nlower, 1)
+    do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%nupper, b%ncols)))
       if (this%ja(j1) < j2) then
         call ja%push(this%ja(j1))
         call a%push(this%a(j1))
         j1 = j1 + 1
       elseif (this%ja(j1) > j2) then
         call ja%push(j2)
-        call a%push(b%d(i-j2,j2))
+        call a%push(fact_ * b%d(i-j2,j2))
         j2 = j2 + 1
       else
         call ja%push(j2)
@@ -688,12 +695,12 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
       call a%push(this%a(j1))
       j1 = j1 + 1
     end do
-    do while (j2 <= min(i + b%nlower, b%ncols))
+    do while (j2 <= min(i + b%nupper, b%ncols))
       call ja%push(j2)
-      call a%push(b%d(i-j2,j2))
+      call a%push(fact_ * b%d(i-j2,j2))
       j2 = j2 + 1
     end do
-    ia(i+1) = ja%n
+    ia(i+1) = ja%n + 1
   end do
 
   ! delete old csr data and replace it

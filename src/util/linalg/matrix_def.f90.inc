@@ -323,10 +323,10 @@ type, extends(MATRIX_TYPE) :: BAND_TYPE
   !! Band matrix.
   !! Storage example
   !!    / a_11  a_12  a_13       \
-  !!  A=| a_21  a_22  a_23 a_24  |
+  !!  A=| a_21  a_22  a_23  a_24 |
   !!    |       a_32  a_33  a_34 |
   !!    \             a_43  a_44 /
-  !!  here n=4, nupper=nlower=1
+  !!  here n=4, nlower=1, nupper=2
   !!
   !! Band storage used here (shifted rows)
   !!
