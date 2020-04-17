@@ -103,6 +103,9 @@ contains
       y_exp = [-3, -8, 3, -22]
       allocate(y(4))
 
+      ! set y to nan
+      y = 0.0 / 0.0
+
       call get_test_matrix(sA)
       call sA%mul_vec(x, y)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
@@ -127,6 +130,9 @@ contains
       !  0     9     0
       y_exp = reshape([1, 0, 0, 0, 10, 16, 0, 9, 0, 0, 1, 0], [4,3])
       allocate(y(4,3))
+
+      ! set y to nan
+      y = 0.0 / 0.0
 
       call get_test_matrix(sA)
       call sA%mul_mat(x, y)

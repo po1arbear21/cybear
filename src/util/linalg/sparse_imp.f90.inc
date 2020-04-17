@@ -138,13 +138,14 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
 
   ! local variables
   integer   :: i, j
-  TT        :: fact_y_
   character :: trans_
 
   ! y scaling factor
-  fact_y_ = 0
-  if (present(fact_y)) fact_y_ = fact_y
-  y = fact_y_ * y
+  if (present(fact_y)) then
+    y = fact_y * y
+  else
+    y = 0
+  end if
 
   ! transpose flag
   trans_ = 'N'
@@ -208,13 +209,14 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
 
   ! local variables
   integer   :: i, j
-  TT        :: fact_y_
   character :: trans_
 
   ! y scaling factor
-  fact_y_ = 0
-  if (present(fact_y)) fact_y_ = fact_y
-  y = fact_y_ * y
+  if (present(fact_y)) then
+    y = fact_y * y
+  else
+    y = 0
+  end if
 
   ! transpose flag
   trans_ = 'N'
