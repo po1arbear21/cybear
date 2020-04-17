@@ -52,7 +52,6 @@ OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # libraries
 LIBS := ${MKLROOT}/lib/intel64/libmkl_lapack95_ilp64.a ${MKLROOT}/lib/intel64/libmkl_blas95_ilp64.a
-include depend/makefile
 include lib/arpack/arpack.mk
 include lib/expokit/expokit.mk
 #include lib/feast/feast.mk
@@ -64,9 +63,9 @@ include lib/expokit/expokit.mk
 
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
-$(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES) depend/depend
-	@printf "%b" "$(FC_COL)./depend/depend$(NO_COL) $(IN_COL)$(SOURCES)$(NO_COL) -b $(BUILD_DIR) > $(OU_COL)$(BUILD_DIR).depend$(NO_COL) || rm -f $(OU_COL)$(BUILD_DIR).depend$(NO_COL)\n\n"
-	@./depend/depend $(SOURCES) -b $(BUILD_DIR) > $(BUILD_DIR).depend || rm -f $(BUILD_DIR).depend
+$(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES)
+	@printf "%b" "$(FC_COL)python3 depend.py$(NO_COL) $(IN_COL)$(SOURCES)$(NO_COL) -b $(BUILD_DIR) > $(OU_COL)$(BUILD_DIR).depend$(NO_COL) || rm -f $(OU_COL)$(BUILD_DIR).depend$(NO_COL)\n\n"
+	@python3 depend.py $(SOURCES) -b $(BUILD_DIR) > $(BUILD_DIR).depend || rm -f $(BUILD_DIR).depend
 include $(BUILD_DIR).depend
 
 # build all targets
