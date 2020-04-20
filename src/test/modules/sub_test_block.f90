@@ -154,7 +154,7 @@ contains
         !   1 0 0
         !   0 1 0
         !   0 0 1
-        call M%set(3, 3, band_real_eye(3))
+        call M%set(3, 3, band_eye_real(3))
       end block
     end block
 

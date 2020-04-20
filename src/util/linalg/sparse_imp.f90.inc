@@ -39,7 +39,7 @@
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
-#define SPARSE_EYE           CONCAT3(sparse,T,eye)
+#define SPARSE_EYE           CONCAT3(sparse,eye,T)
 
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)

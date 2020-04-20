@@ -37,7 +37,7 @@
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
-#define BAND_EYE             CONCAT3(band,T,eye)
+#define BAND_EYE             CONCAT3(band,eye,T)
 
 subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   !! Initialize band matrix

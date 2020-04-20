@@ -43,7 +43,7 @@
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
 #define DENSE_EIG            CONCAT3(dense,T,eig)
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
-#define DENSE_EYE            CONCAT(eye,T)
+#define DENSE_EYE            CONCAT3(dense,eye,T)
 
 subroutine DENSE_INIT_BY_DATA(this, d)
   !! Initialize dense matrix.

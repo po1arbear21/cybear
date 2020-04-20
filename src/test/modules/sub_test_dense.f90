@@ -401,7 +401,7 @@ contains
       mat(3,3) = 3.0
 
       e_exp = [1,2,3]
-      d = eye_real(3)
+      d = dense_eye_real(3)
       R_exp = d%d
       L_exp = d%d
 
