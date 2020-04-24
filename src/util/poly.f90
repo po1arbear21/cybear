@@ -11,20 +11,21 @@ module poly_m
       !! rank of polynomial (maximal exponent)
 
     real, allocatable :: x(:)
-      !! interpolation nodes
+      !! interpolation nodes (0:n)
     real, allocatable :: f(:)
-      !! interpolation values
+      !! interpolation values (0:n)
 
     real, allocatable :: a(:)
-      !! coefficients (newton base)
+      !! newton base coefficients (0:n)
     real, allocatable :: dadf(:,:)
-      !! derivatives of a wrt f
+      !! derivatives of a wrt f (0:n,0:n)
   contains
     procedure :: init   => poly1D_init
     procedure :: interp => poly1D_interp
     procedure :: poly1D_eval_scalar
     procedure :: poly1D_eval_array
     generic   :: eval   => poly1D_eval_scalar, poly1D_eval_array
+    procedure :: grad   => poly1D_grad
   end type
 
   type poly2D
@@ -36,22 +37,23 @@ module poly_m
       !! y rank of polynomial (maximal exponent)
 
     real, allocatable :: x(:)
-      !! x coords of interpolation nodes
+      !! x coords of interpolation nodes (0:nx)
     real, allocatable :: y(:)
-      !! y coords of interpolation nodes
+      !! y coords of interpolation nodes (0:ny)
     real, allocatable :: f(:,:)
-      !! interpolation values
+      !! interpolation values (0:nx,0:ny)
 
     real, allocatable :: a(:,:)
-      !! coefficients (newton base)
+      !! newton base coefficients (0:nx,0:ny)
     real, allocatable :: dadf(:,:,:,:)
-      !! derivatives of a wrt f
+      !! derivatives of a wrt f (0:nx,0:ny,0:nx,0:ny)
   contains
     procedure :: init   => poly2D_init
     procedure :: interp => poly2D_interp
     procedure :: poly2D_eval_scalar
     procedure :: poly2D_eval_array
     generic   :: eval   => poly2D_eval_scalar, poly2D_eval_array
+    procedure :: grad   => poly2D_grad
   end type
 
   type poly3D
@@ -65,24 +67,25 @@ module poly_m
       !! z rank of polynomial (maximal exponent)
 
     real, allocatable :: x(:)
-      !! x coords of interpolation nodes
+      !! x coords of interpolation nodes (0:nx)
     real, allocatable :: y(:)
-      !! y coords of interpolation nodes
+      !! y coords of interpolation nodes (0:ny)
     real, allocatable :: z(:)
-      !! z coords of interpolation nodes
+      !! z coords of interpolation nodes (0:nz)
     real, allocatable :: f(:,:,:)
-      !! interpolation values
+      !! interpolation values (0:nx,0:ny,0:nz)
 
     real, allocatable :: a(:,:,:)
-      !! coefficients (newton base)
+      !! newton base coefficients (0:nx,0:ny,0:nz)
     real, allocatable :: dadf(:,:,:,:,:,:)
-      !! derivatives of a wrt f
+      !! derivatives of a wrt f (0:nx,0:ny,0:nz,0:nx,0:ny,0:nz)
   contains
     procedure :: init   => poly3D_init
     procedure :: interp => poly3D_interp
     procedure :: poly3D_eval_scalar
     procedure :: poly3D_eval_array
     generic   :: eval   => poly3D_eval_scalar, poly3D_eval_array
+    procedure :: grad   => poly3D_grad
   end type
 
 contains
@@ -94,19 +97,19 @@ contains
       !! rank
 
     this%n = n
-    allocate (this%x(1:n+1))
-    allocate (this%f(1:n+1))
-    allocate (this%a(1:n+1))
-    allocate (this%dadf(1:n+1,1:n+1))
+    allocate (this%x(0:n))
+    allocate (this%f(0:n))
+    allocate (this%a(0:n))
+    allocate (this%dadf(0:n,0:n))
   end subroutine
 
   subroutine poly1D_interp(this, x, f)
     !! calculate interpolation coefficients
     class(poly1D), intent(inout) :: this
-    real,          intent(in)    :: x(this%n+1)
-      !! interpolation nodes
-    real,          intent(in)    :: f(this%n+1)
-      !! interpolation values
+    real,          intent(in)    :: x(0:)
+      !! interpolation nodes (0:n)
+    real,          intent(in)    :: f(0:)
+      !! interpolation values (0:n)
 
     ! local variables
     integer :: i, j, k0, k1
@@ -121,11 +124,11 @@ contains
 
     ! divided difference algorithm
     do i = 1, this%n
-      do j = this%n+1, i+1, -1
+      do j = this%n, i, -1
         this%a(j) = (this%a(j) - this%a(j-1)) / (x(j) - x(j-i))
 
         ! derivatives (lower band matrix that grows each step, lower triangular matrix once i == n)
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(j,k0:k1) = (this%dadf(j,k0:k1) - this%dadf(j-1,k0:k1)) / (x(j) - x(j-i))
       end do
@@ -139,24 +142,24 @@ contains
       !! sampling point
     real,           intent(out) :: p
       !! output sampling value
-    real, optional, intent(out) :: dpdf(:)
-      !! optional output derivatives of p wrt this%f
+    real, optional, intent(out) :: dpdf(0:)
+      !! optional: output derivatives of p wrt this%f
 
     ! local variables
     integer :: i
 
     ! Horner's scheme
-    p = this%a(this%n+1)
-    do i = this%n, 1, -1
-      p = this%a(i) + (x - this%x(i)) * p
+    p = this%a(this%n)
+    do i = this%n-1, 0, -1
+      p = p * (x - this%x(i)) + this%a(i)
     end do
 
     ! derivatives
     if (present(dpdf)) then
-      dpdf = this%dadf(this%n+1,:)
-      do i = this%n, 1, -1
-        dpdf = (x - this%x(i)) * dpdf
-        dpdf(1:i) = dpdf(1:i) + this%dadf(i,1:i) ! use triangular structure of dadf
+      dpdf = this%dadf(this%n,:)
+      do i = this%n-1, 0, -1
+        dpdf = dpdf * (x - this%x(i))
+        dpdf(0:i) = dpdf(0:i) + this%dadf(i,0:i) ! use triangular structure of dadf
       end do
     end if
   end subroutine
@@ -168,7 +171,7 @@ contains
       !! sampling points
     real,           intent(out) :: p(:)
       !! output sampling values
-    real, optional, intent(out) :: dpdf(:,:)
+    real, optional, intent(out) :: dpdf(:,0:)
       !! optional output derivatives of p wrt this%f
 
     ! local variables
@@ -177,11 +180,45 @@ contains
     ! evaluate all points
     if (present(dpdf)) then
       do i = 1, size(x)
-        call poly1D_eval_scalar(this, x(i), p(i), dpdf(i,:))
+        call poly1D_eval_scalar(this, x(i), p(i), dpdf = dpdf(i,:))
       end do
     else
       do i = 1, size(x)
         call poly1D_eval_scalar(this, x(i), p(i))
+      end do
+    end if
+  end subroutine
+
+  subroutine poly1D_grad(this, x, gradp, dgradpdf)
+    !! evaluate gradient of 1D interpolation polynomial at one point (using Horner's scheme)
+    class(poly1D),  intent(in)  :: this
+    real,           intent(in)  :: x
+      !! sampling point
+    real,           intent(out) :: gradp
+      !! optional: output gradient of p (derivative of p wrt x)
+    real, optional, intent(out) :: dgradpdf(0:)
+      !! optional: output derivatives of gradp wrt this%f
+
+    ! local variables
+    integer :: i
+    real    :: p, dpdf(0:this%n)
+
+    ! Horner's scheme
+    gradp = 0
+    p     = this%a(this%n)
+    do i = this%n-1, 0, -1
+      gradp = p + gradp * (x - this%x(i))
+      p     = p * (x - this%x(i)) + this%a(i)
+    end do
+
+    ! derivatives
+    if (present(dgradpdf)) then
+      dgradpdf = 0
+      dpdf     = this%dadf(this%n,:)
+      do i = this%n-1, 0, -1
+        dgradpdf  = dpdf + dgradpdf * (x - this%x(i))
+        dpdf      = dpdf * (x - this%x(i))
+        dpdf(0:i) = dpdf(0:i) + this%dadf(i,0:i) ! use triangular structure of dadf
       end do
     end if
   end subroutine
@@ -196,22 +233,22 @@ contains
 
     this%nx = nx
     this%ny = ny
-    allocate (this%x(1:nx+1))
-    allocate (this%y(1:ny+1))
-    allocate (this%f(1:nx+1,1:ny+1))
-    allocate (this%a(1:nx+1,1:ny+1))
-    allocate (this%dadf(1:nx+1,1:ny+1,1:nx+1,1:ny+1))
+    allocate (this%x(0:nx))
+    allocate (this%y(0:ny))
+    allocate (this%f(0:nx,0:ny))
+    allocate (this%a(0:nx,0:ny))
+    allocate (this%dadf(0:nx,0:ny,0:nx,0:ny))
   end subroutine
 
   subroutine poly2D_interp(this, x, y, f)
     !! calculate interpolation coefficients
     class(poly2D), intent(inout) :: this
-    real,          intent(in)    :: x(this%nx+1)
-      !! x coords of interpolation nodes
-    real,          intent(in)    :: y(this%ny+1)
-      !! y coords of interpolation nodes
-    real,          intent(in)    :: f(this%nx+1,this%ny+1)
-      !! interpolation values
+    real,          intent(in)    :: x(0:)
+      !! x coords of interpolation nodes (0:nx)
+    real,          intent(in)    :: y(0:)
+      !! y coords of interpolation nodes (0:ny)
+    real,          intent(in)    :: f(0:,0:)
+      !! interpolation values (0:nx, 0:ny)
 
     ! local variables
     integer :: i, j, k0, k1
@@ -224,17 +261,17 @@ contains
     ! initialize coefficients
     this%a = f
     this%dadf = 0
-    do j = 1, this%ny+1; do i = 1, this%nx+1
+    do j = 0, this%ny; do i = 0, this%nx
       this%dadf(i,j,i,j) = 1.0
     end do; end do
 
     ! divided difference algorithm in x direction
     do i = 1, this%nx
-      do j = this%nx+1, i+1, -1
+      do j = this%nx, i, -1
         this%a(j,:) = (this%a(j,:) - this%a(j-1,:)) / (x(j) - x(j-i))
 
         ! derivatives
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(j,:,k0:k1,:) = (this%dadf(j,:,k0:k1,:) - this%dadf(j-1,:,k0:k1,:)) / (x(j) - x(j-i))
       end do
@@ -242,11 +279,11 @@ contains
 
     ! divided difference algorithm in y direction
     do i = 1, this%ny
-      do j = this%ny+1, i+1, -1
+      do j = this%ny, i, -1
         this%a(:,j) = (this%a(:,j) - this%a(:,j-1)) / (y(j) - y(j-i))
 
         ! derivatives
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(:,j,:,k0:k1) = (this%dadf(:,j,:,k0:k1) - this%dadf(:,j-1,:,k0:k1)) / (y(j) - y(j-i))
       end do
@@ -262,45 +299,44 @@ contains
       !! y coord of sampling point
     real,           intent(out) :: p
       !! output sampling value
-    real, optional, intent(out) :: dpdf(:,:)
-      !! optional output derivatives of p wrt this%f
+    real, optional, intent(out) :: dpdf(0:,0:)
+      !! optional output derivatives of p wrt this%f (0:nx,0:ny)
+
+    ! local variables
+    integer :: i, j
+    real    :: px, dpxdf(0:this%nx,0:this%ny)
 
     associate (nx => this%nx, ny => this%ny, a => this%a, dadf => this%dadf)
-      block
-        integer :: i, j
-        real    :: px, dpxdf(nx+1,ny+1)
-
-        ! Horner's scheme in 2D
-        p = a(nx+1,ny+1)
-        do i = nx, 1, -1
-          p = a(i,ny+1) + (x - this%x(i)) * p
+      ! Horner's scheme in 2D
+      p = a(nx,ny)
+      do i = nx-1, 0, -1
+        p = p * (x - this%x(i)) + a(i,ny)
+      end do
+      do j = ny-1, 0, -1
+        px = a(nx,j)
+        do i = nx-1, 0, -1
+          px = px * (x - this%x(i)) + a(i,j)
         end do
-        do j = ny, 1, -1
-          px = a(nx+1,j)
-          do i = nx, 1, -1
-            px = a(i,j) + (x - this%x(i)) * px
-          end do
-          p = px + (y - this%y(j)) * p
-        end do
+        p = p * (y - this%y(j)) + px
+      end do
 
-        ! derivatives
-        if (present(dpdf)) then
-          dpdf = dadf(nx+1,ny+1,:,:)
-          do i = nx, 1, -1
-            dpdf = (x - this%x(i)) * dpdf
-            dpdf(1:i,:) = dadf(i,ny+1,1:i,:) + dpdf(1:i,:)
+      ! derivatives
+      if (present(dpdf)) then
+        dpdf = dadf(nx,ny,:,:)
+        do i = nx-1, 0, -1
+          dpdf = dpdf * (x - this%x(i))
+          dpdf(0:i,:) = dpdf(0:i,:) + dadf(i,ny,0:i,:)
+        end do
+        do j = ny-1, 0, -1
+          dpxdf(:,0:j) = dadf(nx,j,:,0:j)
+          do i = nx-1, 0, -1
+            dpxdf( : ,0:j) = dpxdf( : ,0:j) * (x - this%x(i))
+            dpxdf(0:i,0:j) = dpxdf(0:i,0:j) + dadf(i,j,0:i,0:j)
           end do
-          do j = ny, 1, -1
-            dpxdf(:,1:j) = dadf(nx+1,j,:,1:j)
-            do i = nx, 1, -1
-              dpxdf(:,1:j) = (x - this%x(i)) * dpxdf(:,1:j)
-              dpxdf(1:i,1:j) = dadf(i,j,1:i,1:j) + dpxdf(1:i,1:j)
-            end do
-            dpdf = (y - this%y(j)) * dpdf
-            dpdf(:,1:j) = dpxdf(:,1:j) + dpdf(:,1:j)
-          end do
-        end if
-      end block
+          dpdf = dpdf * (y - this%y(j))
+          dpdf(:,0:j) = dpdf(:,0:j) + dpxdf(:,0:j)
+        end do
+      end if
     end associate
   end subroutine
 
@@ -313,8 +349,8 @@ contains
       !! y coords of sampling points
     real,           intent(out) :: p(:,:)
       !! output sampling value
-    real, optional, intent(out) :: dpdf(:,:,:,:)
-      !! optional output derivatives of p wrt this%f
+    real, optional, intent(out) :: dpdf(:,:,0:,0:)
+      !! optional output derivatives of p wrt this%f (1:size(x),1:size(y),0:nx,0:ny)
 
     ! local variables
     integer :: i, j
@@ -330,6 +366,69 @@ contains
     end if
   end subroutine
 
+  subroutine poly2D_grad(this, x, y, gradp, dgradpdf)
+    !! evaluate gradient of 2D interpolation polynomial at one point (using Horner's scheme)
+    class(poly2D),  intent(in)  :: this
+    real,           intent(in)  :: x
+      !! x coord of sampling point
+    real,           intent(in)  :: y
+      !! y coord of sampling point
+    real,           intent(out) :: gradp(:)
+      !! output gradient of p (2)
+    real, optional, intent(out) :: dgradpdf(:,0:,0:)
+      !! optional: output derivatives of gradp wrt this%f (2,0:nx,0:ny)
+
+    associate (nx => this%nx, ny => this%ny, a => this%a, dadf => this%dadf)
+      block
+        integer :: i, j
+        real    :: p, dpdf(0:nx,0:ny), px, dpxdf(0:nx,0:ny), gradpx, dgradpxdf(0:nx,0:ny)
+        ! Horner's scheme in 2D
+        gradp = 0
+        p     = a(nx,ny)
+        do i = nx-1, 0, -1
+          gradp(1) = p + gradp(1) * (x - this%x(i))
+          p = p * (x - this%x(i)) + a(i,ny)
+        end do
+        do j = ny-1, 0, -1
+          gradpx = 0
+          px     = a(nx,j)
+          do i = nx-1, 0, -1
+            gradpx = px + gradpx * (x - this%x(i))
+            px     = px * (x - this%x(i)) + a(i,j)
+          end do
+          gradp(1) =     gradp(1) * (y - this%y(j)) + gradpx
+          gradp(2) = p + gradp(2) * (y - this%y(j))
+          p        = p * (y - this%y(j)) + px
+        end do
+
+        ! derivatives
+        if (present(dgradpdf)) then
+          dgradpdf = 0
+          dpdf     = dadf(nx,ny,:,:)
+          do i = nx-1, 0, -1
+            dgradpdf(1,:,:) = dpdf + dgradpdf(1,:,:) * (x - this%x(i))
+            dpdf            = dpdf * (x - this%x(i))
+            dpdf(0:i,:)     = dpdf(0:i,:) + dadf(i,ny,0:i,:)
+          end do
+          do j = ny-1, 0, -1
+            dgradpxdf(:,0:j) = 0
+            dpxdf(    :,0:j) = dadf(nx,j,:,0:j)
+            do i = nx-1, 0, -1
+              dgradpxdf(: ,0:j) = dpxdf( : ,0:j) + dgradpxdf(:,0:j) * (x - this%x(i))
+              dpxdf(    : ,0:j) = dpxdf( : ,0:j) * (x - this%x(i))
+              dpxdf(   0:i,0:j) = dpxdf(0:i,0:j) + dadf(i,j,0:i,0:j)
+            end do
+            dgradpdf(1,:, : ) =        dgradpdf(1,:,:) * (y - this%y(j))
+            dgradpdf(1,:,0:j) = dgradpdf(1,:,0:j) + dgradpxdf(:,0:j)
+            dgradpdf(2,:, : ) = dpdf + dgradpdf(2,:,:) * (y - this%y(j))
+            dpdf              = dpdf * (y - this%y(j))
+            dpdf(:,0:j)       = dpdf(:,0:j) + dpxdf(:,0:j)
+          end do
+        end if
+      end block
+    end associate
+  end subroutine
+
   subroutine poly3D_init(this, nx, ny, nz)
     !! initialize 3D interpolation polynomial
     class(poly3D), intent(out) :: this
@@ -343,25 +442,25 @@ contains
     this%nx = nx
     this%ny = ny
     this%nz = nz
-    allocate (this%x(1:nx+1))
-    allocate (this%y(1:ny+1))
-    allocate (this%z(1:nz+1))
-    allocate (this%f(1:nx+1,1:ny+1,1:nz+1))
-    allocate (this%a(1:nx+1,1:ny+1,1:nz+1))
-    allocate (this%dadf(1:nx+1,1:ny+1,1:nz+1,1:nx+1,1:ny+1,1:nz+1))
+    allocate (this%x(0:nx))
+    allocate (this%y(0:ny))
+    allocate (this%z(0:nz))
+    allocate (this%f(0:nx,0:ny,0:nz))
+    allocate (this%a(0:nx,0:ny,0:nz))
+    allocate (this%dadf(0:nx,0:ny,0:nz,0:nx,0:ny,0:nz))
   end subroutine
 
   subroutine poly3D_interp(this, x, y, z, f)
     !! calculate interpolation coefficients
     class(poly3D), intent(inout) :: this
-    real,          intent(in)    :: x(this%nx+1)
-      !! x coords of interpolation nodes
-    real,          intent(in)    :: y(this%ny+1)
-      !! y coords of interpolation nodes
-    real,          intent(in)    :: z(this%ny+1)
-      !! z coords of interpolation nodes
-    real,          intent(in)    :: f(this%nx+1,this%ny+1,this%nz+1)
-      !! interpolation values
+    real,          intent(in)    :: x(0:)
+      !! x coords of interpolation nodes (0:nx)
+    real,          intent(in)    :: y(0:)
+      !! y coords of interpolation nodes (0:ny)
+    real,          intent(in)    :: z(0:)
+      !! z coords of interpolation nodes (0:nz)
+    real,          intent(in)    :: f(0:,0:,0:)
+      !! interpolation values (0:nx,0:ny,0:nz)
 
     ! local variables
     integer :: i, j, k, k0, k1
@@ -375,17 +474,17 @@ contains
     ! initialize coefficients
     this%a = f
     this%dadf = 0
-    do k = 1, this%nz+1; do j = 1, this%ny+1; do i = 1, this%nx+1
+    do k = 0, this%nz; do j = 0, this%ny; do i = 0, this%nx
       this%dadf(i,j,k,i,j,k) = 1.0
     end do; end do; end do
 
     ! divided difference algorithm in x direction
     do i = 1, this%nx
-      do j = this%nx+1, i+1, -1
+      do j = this%nx, i, -1
         this%a(j,:,:) = (this%a(j,:,:) - this%a(j-1,:,:)) / (x(j) - x(j-i))
 
         ! derivatives
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(j,:,:,k0:k1,:,:) = (this%dadf(j,:,:,k0:k1,:,:) - this%dadf(j-1,:,:,k0:k1,:,:)) / (x(j) - x(j-i))
       end do
@@ -393,11 +492,11 @@ contains
 
     ! divided difference algorithm in y direction
     do i = 1, this%ny
-      do j = this%ny+1, i+1, -1
+      do j = this%ny, i, -1
         this%a(:,j,:) = (this%a(:,j,:) - this%a(:,j-1,:)) / (y(j) - y(j-i))
 
         ! derivatives
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(:,j,:,:,k0:k1,:) = (this%dadf(:,j,:,:,k0:k1,:) - this%dadf(:,j-1,:,:,k0:k1,:)) / (y(j) - y(j-i))
       end do
@@ -405,11 +504,11 @@ contains
 
     ! divided difference algorithm in y direction
     do i = 1, this%nz
-      do j = this%nz+1, i+1, -1
+      do j = this%nz, i, -1
         this%a(:,:,j) = (this%a(:,:,j) - this%a(:,:,j-1)) / (z(j) - z(j-i))
 
         ! derivatives
-        k0 = max(j-i,1)
+        k0 = max(j-i,0)
         k1 = j
         this%dadf(:,:,j,:,:,k0:k1) = (this%dadf(:,:,j,:,:,k0:k1) - this%dadf(:,:,j-1,:,:,k0:k1)) / (z(j) - z(j-i))
       end do
@@ -427,80 +526,80 @@ contains
       !! z coord of sampling point
     real,           intent(out) :: p
       !! output sampling value
-    real, optional, intent(out) :: dpdf(:,:,:)
-      !! optional output derivatives of p wrt this%f
+    real, optional, intent(out) :: dpdf(0:,0:,0:)
+      !! optional output derivatives of p wrt this%f (0:nx,0:ny,0:nz)
 
     associate (nx => this%nx, ny => this%ny, nz => this%nz, a => this%a, dadf => this%dadf)
       block
         integer :: i, j, k
-        real    :: px, dpxdf(nx+1,ny+1,nz+1), pxy, dpxydf(nx+1,ny+1,nz+1)
+        real    :: px, dpxdf(0:nx,0:ny,0:nz), pxy, dpxydf(0:nx,0:ny,0:nz)
 
         ! Horner's scheme in 3D
-        p = a(nx+1,ny+1,nz+1)
-        do i = nx, 1, -1
-          p = a(i,ny+1,nz+1) + (x - this%x(i)) * p
+        p = a(nx,ny,nz)
+        do i = nx-1, 0, -1
+          p = p * (x - this%x(i)) + a(i,ny,nz)
         end do
-        do j = ny, 1, -1
-          px = a(nx+1,j,nz+1)
-          do i = nx, 1, -1
-            px = a(i,j,nz+1) + (x - this%x(i)) * px
+        do j = ny-1, 0, -1
+          px = a(nx,j,nz)
+          do i = nx-1, 0, -1
+            px = px * (x - this%x(i)) + a(i,j,nz)
           end do
-          p = px + (y - this%y(j)) * p
+          p = p * (y - this%y(j)) + px
         end do
-        do k = nz, 1, -1
-          pxy = a(nx+1,ny+1,k)
-          do i = nx, 1, -1
-            pxy = a(i,ny+1,k) + (x - this%x(i)) * pxy
+        do k = nz-1, 0, -1
+          pxy = a(nx,ny,k)
+          do i = nx-1, 0, -1
+            pxy = pxy * (x - this%x(i)) + a(i,ny,k)
           end do
-          do j = ny, 1, -1
-            px = a(nx+1,j,k)
-            do i = nx, 1, -1
-              px = a(i,j,k) + (x - this%x(i)) * px
+          do j = ny-1, 0, -1
+            px = a(nx,j,k)
+            do i = nx-1, 0, -1
+              px = px * (x - this%x(i)) + a(i,j,k)
             end do
-            pxy = px + (y - this%y(j)) * pxy
+            pxy = pxy * (y - this%y(j)) + px
           end do
-          p = pxy + (z - this%z(k)) * p
+          p = p * (z - this%z(k)) + pxy
         end do
 
         ! derivatives
         if (present(dpdf)) then
-          ! j = ny + 1; k = nz + 1
-          dpdf = this%dadf(nx+1,ny+1,nz+1,:,:,:)
-          do i = nx, 1, -1
-            dpdf = (x - this%x(i)) * dpdf
-            dpdf(1:i,:,:) = dadf(i,ny+1,nz+1,1:i,:,:) + dpdf(1:i,:,:)
+          ! j = ny; k = nz
+          dpdf = this%dadf(nx,ny,nz,:,:,:)
+          do i = nx-1, 0, -1
+            dpdf          = dpdf * (x - this%x(i))
+            dpdf(0:i,:,:) = dpdf(0:i,:,:) + dadf(i,ny,nz,0:i,:,:)
           end do
 
-          ! k = nz + 1
-          do j = ny, 1, -1
-            dpxdf(:,1:j,:) = dadf(nx+1,j,nz+1,:,1:j,:)
-            do i = nx, 1, -1
-              dpxdf(:,1:j,:) = (x - this%x(i)) * dpxdf(:,1:j,:)
-              dpxdf(1:i,1:j,:) = dadf(i,j,nz+1,1:i,1:j,:) + dpxdf(1:i,1:j,:)
+          ! k = nz
+          do j = ny-1, 0, -1
+            dpxdf(:,0:j,:) = dadf(nx,j,nz,:,0:j,:)
+            do i = nx-1, 0, -1
+              dpxdf( : ,0:j,:) = dpxdf( : ,0:j,:) * (x - this%x(i))
+              dpxdf(0:i,0:j,:) = dpxdf(0:i,0:j,:) + dadf(i,j,nz,0:i,0:j,:)
             end do
-            dpdf = (y - this%y(j)) * dpdf
-            dpdf(:,1:j,:) = dpxdf(:,1:j,:) + dpdf(:,1:j,:)
+            dpdf = dpdf * (y - this%y(j))
+            dpdf(:,0:j,:) = dpdf(:,0:j,:) + dpxdf(:,0:j,:)
           end do
 
-          do k = nz, 1, -1
-            ! j = ny + 1
-            dpxydf(:,:,1:k) = dadf(nx+1,ny+1,k,:,:,1:k)
-            do i = nx, 1, -1
-              dpxydf(:,:,1:k) = (x - this%x(i)) * dpxydf(:,:,1:k)
-              dpxydf(1:i,:,1:k) = dadf(i,ny+1,k,1:i,:,1:k) + dpxydf(1:i,:,1:k)
+          do k = nz-1, 0, -1
+            ! j = ny
+            dpxydf(:,:,0:k) = dadf(nx,ny,k,:,:,0:k)
+            do i = nx-1, 0, -1
+              dpxydf( : ,:,0:k) = dpxydf( : ,:,0:k) * (x - this%x(i))
+              dpxydf(0:i,:,0:k) = dpxydf(0:i,:,0:k) + dadf(i,ny,k,0:i,:,0:k)
             end do
 
-            do j = ny, 1, -1
-              dpxdf(:,1:j,1:k) = dadf(nx+1,j,k,:,1:j,1:k)
-              do i = nx, 1, -1
-                dpxdf(:,1:j,1:k) = (x - this%x(i)) * dpxdf(:,1:j,1:k)
-                dpxdf(1:i,1:j,1:k) = dadf(i,j,k,1:i,1:j,1:k) + dpxdf(1:i,1:j,1:k)
+            do j = ny-1, 0, -1
+              dpxdf(:,0:j,0:k) = dadf(nx,j,k,:,0:j,0:k)
+              do i = nx-1, 0, -1
+                dpxdf( : ,0:j,0:k) = dpxdf(:,0:j,0:k) * (x - this%x(i))
+                dpxdf(0:i,0:j,0:k) = dpxdf(0:i,0:j,0:k) + dadf(i,j,k,0:i,0:j,0:k)
               end do
-              dpxydf(:,:,1:k) = (y - this%y(j)) * dpxydf(:,:,1:k)
-              dpxydf(:,1:j,1:k) = dpxdf(:,1:j,1:k) + dpxydf(:,1:j,1:k)
+              dpxydf(:, : ,0:k) = dpxydf(:,:,0:k) * (y - this%y(j))
+              dpxydf(:,0:j,0:k) = dpxydf(:,0:j,0:k) + dpxdf(:,0:j,0:k)
             end do
-            dpdf = (z - this%z(k)) * dpdf
-            dpdf(:,:,1:k) = dpxydf(:,:,1:k) + dpdf(:,:,1:k)
+            dpdf = dpdf * (z - this%z(k))
+            dpdf(:,:,0:k) = dpdf(:,:,0:k) + dpxydf(:,:,0:k)
           end do
         end if
       end block
@@ -518,8 +617,8 @@ contains
       !! z coords of sampling points
     real,           intent(out) :: p(:,:,:)
       !! output sampling value
-    real, optional, intent(out) :: dpdf(:,:,:,:,:,:)
-      !! optional output derivatives of p wrt this%f
+    real, optional, intent(out) :: dpdf(:,:,:,0:,0:,0:)
+      !! optional output derivatives of p wrt this%f (size(x),size(y),size(z),0:nx,0:ny,0:nz)
 
     ! local variables
     integer :: i, j, k
@@ -533,6 +632,132 @@ contains
         call poly3D_eval_scalar(this, x(i), y(j), z(k), p(i,j,k))
       end do; end do; end do
     end if
+  end subroutine
+
+  subroutine poly3D_grad(this, x, y, z, gradp, dgradpdf)
+    !! evaluate gradient of 3D interpolation polynomial at one point (using Horner's scheme)
+    class(poly3D),  intent(in)  :: this
+    real,           intent(in)  :: x
+      !! x coord of sampling point
+    real,           intent(in)  :: y
+      !! y coord of sampling point
+    real,           intent(in)  :: z
+      !! z coord of sampling point
+    real,           intent(out) :: gradp(:)
+      !! output gradient of p (3)
+    real, optional, intent(out) :: dgradpdf(:,0:,0:,0:)
+      !! optional: output derivatives of gradp wrt this%f (3,0:nx,0:ny,0:nz)
+
+    associate (nx => this%nx, ny => this%ny, nz => this%nz, a => this%a, dadf => this%dadf)
+      block
+        integer :: i, j, k
+        real    :: p, dpdf(0:nx,0:ny,0:nz), px, dpxdf(0:nx,0:ny,0:nz), pxy, dpxydf(0:nx,0:ny,0:nz)
+        real    :: gradpx, dgradpxdf(0:nx,0:ny,0:nz), gradpxy(2), dgradpxydf(2,0:nx,0:ny,0:nz)
+
+        ! Horner's scheme in 3D
+        gradp = 0
+        p     = a(nx,ny,nz)
+        do i = nx-1, 0, -1
+          gradp(1) = p + gradp(1) * (x - this%x(i))
+          p        = p * (x - this%x(i)) + a(i,ny,nz)
+        end do
+        do j = ny-1, 0, -1
+          gradpx = 0
+          px     = a(nx,j,nz)
+          do i = nx-1, 0, -1
+            gradpx = px + gradpx * (x - this%x(i))
+            px     = px * (x - this%x(i)) + a(i,j,nz)
+          end do
+          gradp(1) =     gradp(1) * (y - this%y(j)) + gradpx
+          gradp(2) = p + gradp(2) * (y - this%y(j))
+          p        = p * (y - this%y(j)) + px
+        end do
+        do k = nz-1, 0, -1
+          gradpxy = 0
+          pxy     = a(nx,ny,k)
+          do i = nx-1, 0, -1
+            gradpxy(1) = pxy + gradpxy(1) * (x - this%x(i))
+            pxy        = pxy * (x - this%x(i)) + a(i,ny,k)
+          end do
+          do j = ny-1, 0, -1
+            gradpx = 0
+            px     = a(nx,j,k)
+            do i = nx-1, 0, -1
+              gradpx = px + gradpx * (x - this%x(i))
+              px     = px * (x - this%x(i)) + a(i,j,k)
+            end do
+            gradpxy(1) =       gradpxy(1) * (y - this%y(j)) + gradpx
+            gradpxy(2) = pxy + gradpxy(2) * (y - this%y(j))
+            pxy        = pxy * (y - this%y(j)) + px
+          end do
+          gradp(1) =     gradp(1) * (z - this%z(k)) + gradpxy(1)
+          gradp(2) =     gradp(2) * (z - this%z(k)) + gradpxy(2)
+          gradp(3) = p + gradp(3) * (z - this%z(k))
+          p        = p * (z - this%z(k)) + pxy
+        end do
+
+        ! derivatives
+        if (present(dgradpdf)) then
+          ! j = ny; k = nz
+          dgradpdf = 0
+          dpdf     = this%dadf(nx,ny,nz,:,:,:)
+          do i = nx-1, 0, -1
+            dgradpdf(1,:,:,:) = dpdf + dgradpdf(1,:,:,:) * (x - this%x(i))
+            dpdf              = dpdf * (x - this%x(i))
+            dpdf(0:i,:,:)     = dpdf(0:i,:,:) + dadf(i,ny,nz,0:i,:,:)
+          end do
+
+          ! k = nz
+          do j = ny-1, 0, -1
+            dgradpxdf(:,0:j,:) = 0
+            dpxdf(    :,0:j,:) = dadf(nx,j,nz,:,0:j,:)
+            do i = nx-1, 0, -1
+              dgradpxdf(: ,0:j,:) = dpxdf(:,0:j,:) + dgradpxdf(:,0:j,:) * (x - this%x(i))
+              dpxdf(    : ,0:j,:) = dpxdf(:,0:j,:) * (x - this%x(i))
+              dpxdf(   0:i,0:j,:) = dpxdf(0:i,0:j,:) + dadf(i,j,nz,0:i,0:j,:)
+            end do
+            dgradpdf(1,:, : ,:) =        dgradpdf(1,:, : ,:) * (y - this%y(j))
+            dgradpdf(1,:,0:j,:) =        dgradpdf(1,:,0:j,:) + dgradpxdf(:,0:j,:)
+            dgradpdf(2,:, : ,:) = dpdf + dgradpdf(2,:, : ,:) * (y - this%y(j))
+            dpdf                = dpdf * (y - this%y(j))
+            dpdf(      :,0:j,:) = dpdf(:,0:j,:) + dpxdf(:,0:j,:)
+          end do
+
+          do k = nz-1, 0, -1
+            ! j = ny
+            dgradpxydf(:,:,:,0:k) = 0
+            dpxydf(      :,:,0:k) = dadf(nx,ny,k,:,:,0:k)
+            do i = nx-1, 0, -1
+              dgradpxydf(1, : ,:,0:k) = dpxydf(:,:,0:k) + dgradpxydf(1,:,:,0:k) * (x - this%x(i))
+              dpxydf(       : ,:,0:k) = dpxydf(:,:,0:k) * (x - this%x(i))
+              dpxydf(      0:i,:,0:k) = dpxydf(0:i,:,0:k) + dadf(i,ny,k,0:i,:,0:k)
+            end do
+
+            do j = ny-1, 0, -1
+              dgradpxdf(:,0:j,0:k) = 0
+              dpxdf(    :,0:j,0:k) = dadf(nx,j,k,:,0:j,0:k)
+              do i = nx-1, 0, -1
+                dgradpxdf( : ,0:j,0:k) = dpxdf(:,0:j,0:k) + dgradpxdf(:,0:j,0:k) * (x - this%x(i))
+                dpxdf(     : ,0:j,0:k) = dpxdf(:,0:j,0:k) * (x - this%x(i))
+                dpxdf(    0:i,0:j,0:k) = dpxdf(0:i,0:j,0:k) + dadf(i,j,k,0:i,0:j,0:k)
+              end do
+              dgradpxydf(1,:, : ,0:k) = dgradpxydf(1,:, : ,0:k) * (y - this%y(j))
+              dgradpxydf(1,:,0:j,0:k) = dgradpxydf(1,:,0:j,0:k) + dgradpxdf(:,0:j,0:k)
+              dgradpxydf(2,:, : ,0:k) = dpxydf(:,:,0:k) + dgradpxydf(2,:,:,0:k) * (y - this%y(j))
+              dpxydf(      :, : ,0:k) = dpxydf(:,:,0:k) * (y - this%y(j))
+              dpxydf(      :,0:j,0:k) = dpxydf(:,0:j,0:k) + dpxdf(:,0:j,0:k)
+            end do
+            dgradpdf(1,:,:, : ) = dgradpdf(1,:,:, : ) * (z - this%z(k))
+            dgradpdf(1,:,:,0:k) = dgradpdf(1,:,:,0:k) + dgradpxydf(1,:,:,0:k)
+            dgradpdf(2,:,:, : ) = dgradpdf(2,:,:, : ) * (z - this%z(k))
+            dgradpdf(2,:,:,0:k) = dgradpdf(2,:,:,0:k) + dgradpxydf(2,:,:,0:k)
+            dgradpdf(3,:,:, : ) = dpdf + dgradpdf(3,:,:,:) * (z - this%z(k))
+            dpdf                = dpdf * (z - this%z(k))
+            dpdf(      :,:,0:k) = dpdf(:,:,0:k) + dpxydf(:,:,0:k)
+          end do
+        end if
+      end block
+    end associate
   end subroutine
 
 end module
