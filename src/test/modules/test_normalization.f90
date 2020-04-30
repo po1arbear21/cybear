@@ -81,6 +81,8 @@ contains
       end do
     end block
 
+    call destruct_normconst()
+
     call tc%finish()
   end subroutine
 
