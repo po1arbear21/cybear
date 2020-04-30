@@ -173,11 +173,11 @@ contains
       !! temperature
 
     ! constants
-    real, parameter :: EC     = 1.602176462e-19                        ! Electron charge           [ As      ]
-    real, parameter :: EM     = 9.10938188e-31                         ! Electron rest mass        [ kg      ]
-    real, parameter :: PLANCK = 6.58211889e-16                         ! reduced Planck's constant [ eVs     ]
-    real, parameter :: BOLTZ  = 8.617333262145e-5                      ! Boltzmann's constant      [ eV/K    ]
-    real, parameter :: EPS0   = 8.854187817e-12                        ! Vacuum permittivity       [ As/(Vm) ]
+    real, parameter :: EC     = 1.602176634e-19           ! elementary charge         [ As      ]
+    real, parameter :: EM     = 9.109383632e-31           ! electron rest mass        [ kg      ]
+    real, parameter :: PLANCK = 6.626070150e-34/(2*PI*EC) ! reduced Planck's constant [ eVs     ]
+    real, parameter :: BOLTZ  = 1.380649000e-23/EC        ! Boltzmann's constant      [ eV/K    ]
+    real, parameter :: EPS0   = 8.854187813e-12           ! vacuum permittivity       [ As/(Vm) ]
 
     ! local variables
     real :: meter, second, kilogram, volt, ampere, kelvin, diel
