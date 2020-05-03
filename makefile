@@ -11,9 +11,9 @@ CDEBUG   := -O0 -g
 CRELEASE := -O3
 
 # colors
-FC_COL = \e[1;37;40m
-IN_COL = \e[1;32;40m
-OU_COL = \e[1;36;40m
+FC_COL = \e[1;37m
+IN_COL = \e[1;32m
+OU_COL = \e[1;36m
 NO_COL = \e[m
 
 # build configuration (can be overwritten from command line)
