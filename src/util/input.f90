@@ -87,6 +87,7 @@ module input_m
     procedure :: input_file_get_name_logical_arr
 
     procedure, public :: init         => input_file_init
+    procedure, public :: get_section  => input_file_get_section
     procedure, public :: get_sections => input_file_get_sections
     generic,   public :: get          => input_file_get_int,             &
       &                                  input_file_get_int_arr,         &
@@ -118,7 +119,6 @@ contains
 
   subroutine input_var_init(this, data0, valid, err)
     !! initialize variable from data string
-
     class(input_var), intent(out) :: this
     character(*),     intent(in)  :: data0
       !! data string
@@ -369,7 +369,6 @@ contains
 
   subroutine input_section_init(this, name)
     !! initialize input section
-
     class(input_section), intent(out) :: this
     character(*),         intent(in)  :: name
       !! section name
@@ -381,7 +380,6 @@ contains
 
   subroutine input_section_add_var(this, v)
     !! add/replace variable in section
-
     class(input_section), intent(inout) :: this
     type(input_var),      intent(in)    :: v
       !! variable to be added/replaced
@@ -403,7 +401,6 @@ contains
 
   subroutine input_file_init(this, name, default)
     !! initialize input file
-
     class(input_file),      intent(out) :: this
     character(*),           intent(in)  :: name
       !! filename
@@ -428,7 +425,6 @@ contains
 
   subroutine input_file_load(this, sections, name, default_sections)
     !! load file and setup sections
-
     class(input_file),                    intent(inout) :: this
     type(vector_input_section),           intent(out)   :: sections
       !! setup sections
@@ -492,7 +488,6 @@ contains
 
   subroutine input_file_parse_line(this, sections, line0, cont_lines, valid, err, default_sections)
     !! Parse a single line from input file, update sections
-
     class(input_file),                    intent(inout) :: this
     type(vector_input_section),           intent(inout) :: sections
       !! Input sections
@@ -664,9 +659,44 @@ contains
     end block
   end subroutine
 
+  subroutine input_file_get_section(this, section_name, section_id, status)
+    !! get index of section with this name
+    class(input_file), intent(in)  :: this
+    character(*),      intent(in)  :: section_name
+      !! name of section to search
+    integer,           intent(out) :: section_id
+      !! output section index
+    integer, optional, intent(out) :: status
+      !! optional: output 0 on success; -1 if not found; >0 if not unique (if not present: error if not found or not unique)
+
+    ! local variables
+    integer :: i, st
+
+    st = -1
+    do i = 1, this%sections%n
+      if (this%sections%d(i)%name == section_name) then
+        section_id = i
+        st         = st + 1
+      end if
+    end do
+
+    if (present(status)) status = st
+
+    if (st < 0) then
+      if (.not. present(status)) then
+        print *, section_name
+        call program_error("section name not found")
+      end if
+    elseif (st > 0) then
+      if (.not. present(status)) then
+        print *, section_name
+        call program_error("multiple sections with this name found")
+      end if
+    end if
+  end subroutine
+
   subroutine input_file_get_sections(this, section_name, section_ids)
     !! get all section indices with this name
-
     class(input_file),    intent(in)  :: this
     character(*),         intent(in)  :: section_name
       !! name of section to search
@@ -674,7 +704,7 @@ contains
       !! output indices
 
     ! local variables
-    integer :: i
+    integer          :: i
     type(vector_int) :: sv
 
     ! collect sections with this name
@@ -691,7 +721,6 @@ contains
 
   subroutine input_file_get_int(this, section_id, name, value, status)
     !! get scalar integer value
-
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
@@ -729,7 +758,6 @@ contains
 
   subroutine input_file_get_int_arr(this, section_id, name, values, status)
     !! get array of integers
-
     class(input_file),    intent(in)  :: this
     integer,              intent(in)  :: section_id
       !! section index
@@ -737,9 +765,8 @@ contains
       !! variable name
     integer, allocatable, intent(out) :: values(:)
       !! output values
-    logical, optional, intent(out) :: status
+    logical, optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
-
 
     ! local variables
     integer :: i
@@ -767,7 +794,6 @@ contains
 
   subroutine input_file_get_name_int(this, section_name, name, value, status)
     !! get scalar integer value, provide section name instead of index
-
     class(input_file), intent(in)  :: this
     character(*),      intent(in)  :: section_name
       !! section name
@@ -779,31 +805,25 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, value, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, value, status = status)
   end subroutine
 
   subroutine input_file_get_name_int_arr(this, section_name, name, values, status)
     !! get array of integers, provide section name instead of index
-
     class(input_file),    intent(in)  :: this
     character(*),         intent(in)  :: section_name
       !! section name
@@ -815,31 +835,25 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, values, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, values, status = status)
   end subroutine
 
   subroutine input_file_get_real(this, section_id, name, value, normalize, norm_object, status)
     !! get scalar real value
-
     class(input_file),             intent(in)  :: this
     integer,                       intent(in)  :: section_id
       !! section index
@@ -890,7 +904,6 @@ contains
 
   subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object, status)
     !! get array of reals
-
     class(input_file),             intent(in)  :: this
     integer,                       intent(in)  :: section_id
       !! section index
@@ -941,7 +954,6 @@ contains
 
   subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object, status)
     !! get scalar real value, provide section name instead of index
-
     class(input_file),             intent(in)  :: this
     character(*),                  intent(in)  :: section_name
       !! section name
@@ -957,26 +969,21 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, value, normalize = normalize, norm_object = norm_object, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, value, normalize = normalize, norm_object = norm_object, status = status)
   end subroutine
 
   subroutine input_file_get_name_real_arr(this, section_name, name, values, normalize, norm_object, status)
@@ -997,26 +1004,21 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, values, normalize = normalize, norm_object = norm_object, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, values, normalize = normalize, norm_object = norm_object, status = status)
   end subroutine
 
   subroutine input_file_get_string(this, section_id, name, value, status)
@@ -1096,7 +1098,6 @@ contains
 
   subroutine input_file_get_name_string(this, section_name, name, value, status)
     !! get scalar string value, provide section name instead of index
-
     class(input_file),         intent(in)  :: this
     character(*),              intent(in)  :: section_name
       !! section name
@@ -1108,31 +1109,25 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, value, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, value, status = status)
   end subroutine
 
   subroutine input_file_get_name_string_arr(this, section_name, name, values, status)
     !! get array of strings, provide section name instead of index
-
     class(input_file),         intent(in)  :: this
     character(*),              intent(in)  :: section_name
       !! section name
@@ -1144,31 +1139,25 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, values, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, values, status = status)
   end subroutine
 
   subroutine input_file_get_logical(this, section_id, name, value, status)
     !! get scalar logical value
-
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
@@ -1206,7 +1195,6 @@ contains
 
   subroutine input_file_get_logical_arr(this, section_id, name, values, status)
     !! get array of reals
-
     class(input_file),    intent(in)  :: this
     integer,              intent(in)  :: section_id
       !! section index
@@ -1243,7 +1231,6 @@ contains
 
   subroutine input_file_get_name_logical(this, section_name, name, value, status)
     !! get scalar logical value, provide section name instead of index
-
     class(input_file), intent(in)  :: this
     character(*),      intent(in)  :: section_name
       !! section name
@@ -1255,31 +1242,25 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, value, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, value, status = status)
   end subroutine
 
   subroutine input_file_get_name_logical_arr(this, section_name, name, values, status)
     !! get array of logicals, provide section name instead of index
-
     class(input_file),    intent(in)  :: this
     character(*),         intent(in)  :: section_name
       !! section name
@@ -1291,26 +1272,21 @@ contains
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
-    integer :: i
-    logical :: found
+    integer :: section_id, st
 
-    ! search section
-    found = .false.
-    do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        if (.not. found) then
-          found = .true.
-        else
-          print *, section_name
-          call program_error("multiple sections with this name")
-        end if
-        call this%get(i, name, values, status = status)
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
       end if
-    end do
-    if (.not. found) then
-      print *, section_name
-      call program_error("section name not found")
+    else
+      call this%get_section(section_name, section_id)
     end if
+
+    ! get value
+    call this%get(section_id, name, values, status = status)
   end subroutine
 
 end module
