@@ -689,7 +689,7 @@ contains
     allocate (section_ids(sv%n), source = sv%d(1:sv%n))
   end subroutine
 
-  subroutine input_file_get_int(this, section_id, name, value)
+  subroutine input_file_get_int(this, section_id, name, value, status)
     !! get scalar integer value
 
     class(input_file), intent(in)  :: this
@@ -699,6 +699,8 @@ contains
       !! variable name
     integer,           intent(out) :: value
       !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -710,17 +712,22 @@ contains
             if (var%size /= 1) call program_error("variable is not scalar")
             if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
             value = var%int_data(1)
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_int_arr(this, section_id, name, values)
+  subroutine input_file_get_int_arr(this, section_id, name, values, status)
     !! get array of integers
 
     class(input_file),    intent(in)  :: this
@@ -730,6 +737,9 @@ contains
       !! variable name
     integer, allocatable, intent(out) :: values(:)
       !! output values
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
+
 
     ! local variables
     integer :: i
@@ -740,17 +750,22 @@ contains
           if (var%name == name) then
             if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
             allocate (values(size(var%int_data)), source = var%int_data)
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_name_int(this, section_name, name, value)
+  subroutine input_file_get_name_int(this, section_name, name, value, status)
     !! get scalar integer value, provide section name instead of index
 
     class(input_file), intent(in)  :: this
@@ -760,6 +775,8 @@ contains
       !! variable name
     integer,           intent(out) :: value
       !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -775,7 +792,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, value)
+        call this%get(i, name, value, status = status)
       end if
     end do
     if (.not. found) then
@@ -784,7 +801,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_name_int_arr(this, section_name, name, values)
+  subroutine input_file_get_name_int_arr(this, section_name, name, values, status)
     !! get array of integers, provide section name instead of index
 
     class(input_file),    intent(in)  :: this
@@ -794,6 +811,8 @@ contains
       !! variable name
     integer, allocatable, intent(out) :: values(:)
       !! output values
+    logical, optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -809,7 +828,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, values)
+        call this%get(i, name, values, status = status)
       end if
     end do
     if (.not. found) then
@@ -818,7 +837,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_real(this, section_id, name, value, normalize, norm_object)
+  subroutine input_file_get_real(this, section_id, name, value, normalize, norm_object, status)
     !! get scalar real value
 
     class(input_file),             intent(in)  :: this
@@ -832,6 +851,8 @@ contains
       !! normalize value by using unit token (default: true)
     type(normalization), optional, intent(in)  :: norm_object
       !! optional normalization object (default: use global normconst)
+    logical,             optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -852,17 +873,22 @@ contains
             else
               value = var%real_data(1)
             end if
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object)
+  subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object, status)
     !! get array of reals
 
     class(input_file),             intent(in)  :: this
@@ -876,6 +902,8 @@ contains
       !! normalize value by using unit token (default: true)
     type(normalization), optional, intent(in)  :: norm_object
       !! optional normalization object (default: use global normconst)
+    logical,             optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -896,17 +924,22 @@ contains
             else
               allocate (values(size(var%real_data)), source = var%real_data)
             end if
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object)
+  subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object, status)
     !! get scalar real value, provide section name instead of index
 
     class(input_file),             intent(in)  :: this
@@ -920,6 +953,8 @@ contains
       !! normalize value by using unit token (default: true)
     type(normalization), optional, intent(in)  :: norm_object
       !! optional normalization object (default: use global normconst)
+    logical,             optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -935,7 +970,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, value, normalize = normalize, norm_object = norm_object)
+        call this%get(i, name, value, normalize = normalize, norm_object = norm_object, status = status)
       end if
     end do
     if (.not. found) then
@@ -944,7 +979,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_name_real_arr(this, section_name, name, values, normalize, norm_object)
+  subroutine input_file_get_name_real_arr(this, section_name, name, values, normalize, norm_object, status)
     !! get array of reals, provide section name instead of index
 
     class(input_file),             intent(in)  :: this
@@ -958,6 +993,8 @@ contains
       !! normalize value by using unit token (default: true)
     type(normalization), optional, intent(in)  :: norm_object
       !! optional normalization object (default: use global normconst)
+    logical,             optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -973,7 +1010,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, values, normalize = normalize, norm_object = norm_object)
+        call this%get(i, name, values, normalize = normalize, norm_object = norm_object, status = status)
       end if
     end do
     if (.not. found) then
@@ -982,7 +1019,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_string(this, section_id, name, value)
+  subroutine input_file_get_string(this, section_id, name, value, status)
     !! get scalar string value
 
     class(input_file),         intent(in)  :: this
@@ -992,6 +1029,8 @@ contains
       !! variable name
     character(:), allocatable, intent(out) :: value
       !! output value
+    logical,      optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1003,17 +1042,22 @@ contains
             if (var%size /= 1) call program_error("variable is not scalar")
             if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
             value = var%str_data(1)%s
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_string_arr(this, section_id, name, values)
+  subroutine input_file_get_string_arr(this, section_id, name, values, status)
     !! get array of strings
 
     class(input_file),         intent(in)  :: this
@@ -1023,6 +1067,8 @@ contains
       !! variable name
     type(string), allocatable, intent(out) :: values(:)
       !! output values
+    logical,      optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1033,17 +1079,22 @@ contains
           if (var%name == name) then
             if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
             allocate (values(size(var%str_data)), source = var%str_data)
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_name_string(this, section_name, name, value)
+  subroutine input_file_get_name_string(this, section_name, name, value, status)
     !! get scalar string value, provide section name instead of index
 
     class(input_file),         intent(in)  :: this
@@ -1053,6 +1104,8 @@ contains
       !! variable name
     character(:), allocatable, intent(out) :: value
       !! output value
+    logical,      optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1068,7 +1121,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, value)
+        call this%get(i, name, value, status = status)
       end if
     end do
     if (.not. found) then
@@ -1077,7 +1130,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_name_string_arr(this, section_name, name, values)
+  subroutine input_file_get_name_string_arr(this, section_name, name, values, status)
     !! get array of strings, provide section name instead of index
 
     class(input_file),         intent(in)  :: this
@@ -1087,6 +1140,8 @@ contains
       !! variable name
     type(string), allocatable, intent(out) :: values(:)
       !! output values
+    logical,      optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1102,7 +1157,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, values)
+        call this%get(i, name, values, status = status)
       end if
     end do
     if (.not. found) then
@@ -1111,7 +1166,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_logical(this, section_id, name, value)
+  subroutine input_file_get_logical(this, section_id, name, value, status)
     !! get scalar logical value
 
     class(input_file), intent(in)  :: this
@@ -1121,6 +1176,8 @@ contains
       !! variable name
     logical,           intent(out) :: value
       !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1132,17 +1189,22 @@ contains
             if (var%size /= 1) call program_error("variable is not scalar")
             if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
             value = var%logic_data(1)
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_logical_arr(this, section_id, name, values)
+  subroutine input_file_get_logical_arr(this, section_id, name, values, status)
     !! get array of reals
 
     class(input_file),    intent(in)  :: this
@@ -1152,6 +1214,8 @@ contains
       !! variable name
     logical, allocatable, intent(out) :: values(:)
       !! output values
+    logical, optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1162,17 +1226,22 @@ contains
           if (var%name == name) then
             if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
             allocate (values(size(var%logic_data)), source = var%logic_data)
+            if (present(status)) status = .true.
             return
           end if
         end associate
       end do
     end associate
 
-    print *, name
-    call program_error("variable name not found")
+    if (present(status)) then
+      status = .false.
+    else
+      print *, name
+      call program_error("variable name not found")
+    end if
   end subroutine
 
-  subroutine input_file_get_name_logical(this, section_name, name, value)
+  subroutine input_file_get_name_logical(this, section_name, name, value, status)
     !! get scalar logical value, provide section name instead of index
 
     class(input_file), intent(in)  :: this
@@ -1182,6 +1251,8 @@ contains
       !! variable name
     logical,           intent(out) :: value
       !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1197,7 +1268,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, value)
+        call this%get(i, name, value, status = status)
       end if
     end do
     if (.not. found) then
@@ -1206,7 +1277,7 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_name_logical_arr(this, section_name, name, values)
+  subroutine input_file_get_name_logical_arr(this, section_name, name, values, status)
     !! get array of logicals, provide section name instead of index
 
     class(input_file),    intent(in)  :: this
@@ -1216,6 +1287,8 @@ contains
       !! variable name
     logical, allocatable, intent(out) :: values(:)
       !! output values
+    logical, optional,    intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
 
     ! local variables
     integer :: i
@@ -1231,7 +1304,7 @@ contains
           print *, section_name
           call program_error("multiple sections with this name")
         end if
-        call this%get(i, name, values)
+        call this%get(i, name, values, status = status)
       end if
     end do
     if (.not. found) then
