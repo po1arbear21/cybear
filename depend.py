@@ -17,6 +17,7 @@ class src_file:
     self.folder       = folder
     self.filename     = filename
     self.program_name = ""
+    self.library_name = ""
     self.modules      = []
     self.submodules   = []
     self.use_modules  = []
@@ -46,6 +47,15 @@ class src_file:
         # remove leading and trailing spaces
         line = line.strip(" \r\n")
 
+        # check for library statement
+        if ((len(line) >= 11) and (line[0:11].lower() == "!!!library ")):
+          if (len(line) < 12): raise ParseException(full_filename, line_number, line, "library name missing")
+          if (self.library_name != ""): raise ParseException(full_filename, line_number, line, "multiple library statements in one file")
+          if (self.program_name != ""): raise ParseException(full_filename, line_number, line, "program and library statement in one file")
+          self.library_name = line[11:].lower().strip()
+
+          continue
+
         # remove comments
         quote = ""
         for i in range(len(line)):
@@ -65,7 +75,8 @@ class src_file:
         # check for program statement
         if ((len(line) >= 8) and (line[0:8].lower() == "program ")):
           if (len(line) < 9): raise ParseException(full_filename, line_number, line, "program name missing")
-          if (self.program_name != ""): raise ParseException(full_filename, line_number, line, "multiple program statements from one file")
+          if (self.program_name != ""): raise ParseException(full_filename, line_number, line, "multiple program statements in one file")
+          if (self.library_name != ""): raise ParseException(full_filename, line_number, line, "program and library statement in one file")
           self.program_name = line[8:].lower().strip()
 
           continue
@@ -169,8 +180,9 @@ for f in args.filenames:
   folder, filename = os.path.split(f)
   files.append(src_file(folder + "/", filename))
 
-# collect all programs, modules and submodules
+# collect all programs, libraries, modules and submodules
 programs   = []
+libraries  = []
 modules    = []
 submodules = []
 for i in range(len(files)):
@@ -178,6 +190,11 @@ for i in range(len(files)):
     for j in range(len(programs)):
       if (files[i].program_name == programs[j].name): raise Exception("program name " + programs[j].name + " found more than once")
     programs.append(src_item(files[i].program_name, i))
+
+  if (files[i].library_name != ""):
+    for j in range(len(libraries)):
+      if (files[i].library_name == libraries[j].name): raise Exception("library name " + libraries[j].name + " found more than once")
+    libraries.append(src_item(files[i].library_name, i))
 
   for j in range(len(files[i].modules)):
     for k in range(len(modules)):
@@ -223,9 +240,9 @@ for i in range(len(files)):
     if (not file_exists): files[i].includes[j] = ""
 
 # get object list for each program
-objects = []
+pobjects = []
 for i in range(len(programs)):
-  objects.append([programs[i].file_index])
+  pobjects.append([programs[i].file_index])
 
   # init queue of file candidates
   file_queue = queue.Queue()
@@ -237,7 +254,7 @@ for i in range(len(programs)):
     j = file_queue.get()
 
     # add file if not already in list
-    if (j not in objects[i]): objects[i].append(j)
+    if (j not in pobjects[i]): pobjects[i].append(j)
 
     # add dependencies
     for d in files[j].dep_anchor:
@@ -246,20 +263,55 @@ for i in range(len(programs)):
   # add submodules
   for s in submodules:
     for j in range(len(files[s.file_index].parents)):
-      for k in objects[i]:
+      for k in pobjects[i]:
         if (files[s.file_index].parents[j] in files[k].modules):
-          if (s.file_index not in objects[i]): objects[i].append(s.file_index)
+          if (s.file_index not in pobjects[i]): pobjects[i].append(s.file_index)
 
-# output targets variable (programs)
+# get object list for each library
+lobjects = []
+for i in range(len(libraries)):
+  lobjects.append([libraries[i].file_index])
+
+  # init queue of file candidates
+  file_queue = queue.Queue()
+  for d in files[libraries[i].file_index].dep_anchor:
+    file_queue.put(d)
+
+  # add files and their dependencies
+  while (not file_queue.empty()):
+    j = file_queue.get()
+
+    # add file if not already in list
+    if (j not in lobjects[i]): lobjects[i].append(j)
+
+    # add dependencies
+    for d in files[j].dep_anchor:
+      file_queue.put(d)
+
+  # add submodules
+  for s in submodules:
+    for j in range(len(files[s.file_index].parents)):
+      for k in lobjects[i]:
+        if (files[s.file_index].parents[j] in files[k].modules):
+          if (s.file_index not in lobjects[i]): lobjects[i].append(s.file_index)
+
+# output targets variable (programs and libraries)
 print("TARGETS =", end = "")
 for i in range(len(programs)):
   print(" " + args.build_dir + programs[i].name, end = "")
+for i in range(len(libraries)):
+  print(" " + args.build_dir + libraries[i].name, end = "")
 print("\n")
 
 # output object list for each target
 for i in range(len(programs)):
   print("OBJECTS_" + programs[i].name + " =", end = "")
-  for j in objects[i]:
+  for j in pobjects[i]:
+    print(" " + args.build_dir + files[j].objname, end = "")
+  print("")
+for i in range(len(libraries)):
+  print("OBJECTS_" + libraries[i].name + " =", end = "")
+  for j in lobjects[i]:
     print(" " + args.build_dir + files[j].objname, end = "")
   print("")
 print("")
@@ -267,7 +319,12 @@ print("")
 # output anchor list for each target
 for i in range(len(programs)):
   print("ANCHORS_" + programs[i].name + " =", end = "")
-  for j in objects[i]:
+  for j in pobjects[i]:
+    print(" " + args.build_dir + files[j].ancname, end = "")
+  print("")
+for i in range(len(libraries)):
+  print("ANCHORS_" + libraries[i].name + " =", end = "")
+  for j in lobjects[i]:
     print(" " + args.build_dir + files[j].ancname, end = "")
   print("")
 print("")
@@ -278,6 +335,12 @@ for i in range(len(programs)):
   print(args.build_dir + programs[i].name + ": $(ANCHORS_" + programs[i].name + ") $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
   print('\t@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) -I' + args.build_dir + ' -o $(OU_COL)' + args.build_dir + programs[i].name + '$(NO_COL) $(IN_COL)$(OBJECTS_' + programs[i].name + ') $(OBJECTS_C) $(LIBS)$(NO_COL)\\n\\n"')
   print("\t@$(FC) $(FFLAGS) -I" + args.build_dir + " -o " + args.build_dir + programs[i].name + " $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
+  print("")
+for i in range(len(libraries)):
+  print(".PHONY: " + libraries[i].name)
+  print(args.build_dir + libraries[i].name + ": $(ANCHORS_" + libraries[i].name + ") $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C) $(LIBS)")
+  print('\t@printf "%b" "$(FC_COL)ar$(NO_COL) rcs $(OU_COL)' + args.build_dir + libraries[i].name + '.a$(NO_COL) $(IN_COL)$(OBJECTS_' + libraries[i].name + ') $(OBJECTS_C)$(NO_COL)\\n\\n"')
+  print("\t@ar rcs " + args.build_dir + libraries[i].name + ".a $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C)")
   print("")
 
 # output anchor files
