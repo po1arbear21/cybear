@@ -1,6 +1,7 @@
 module util_m
   use error_m
   use iso_c_binding
+  use vector_m
   implicit none
 
   ! binary search modes
@@ -184,5 +185,42 @@ contains
 
     end select
   end function
+
+  subroutine load_array(file, x)
+    !! load 1D real array from file
+    character(*),      intent(in)  :: file
+      !! file name
+    real, allocatable, intent(out) :: x(:)
+      !! output array read from file
+
+    ! local variables
+    integer           :: funit, iostat
+    real              :: r
+    type(vector_real) :: vec
+
+    call vec%init(0, c = 16)
+
+    ! read file into vector
+    open (newunit = funit, file = file, status = "old", action = "read", iostat = iostat)
+    if (iostat /= 0) then
+      close (funit)
+      call program_error("Could not open file "//file)
+    end if
+    do while (.true.)
+      read (unit = funit, fmt = *, iostat = iostat) r
+      if (iostat > 0) then
+        close(funit)
+        call program_error("IO-Error")
+      else if (iostat == 0) then
+        call vec%push(r)
+      else
+        exit ! end of file
+      end if
+    end do
+    close(funit)
+
+    ! output array
+    allocate (x(vec%n), source = vec%d(1:vec%n))
+  end subroutine
 
 end module
