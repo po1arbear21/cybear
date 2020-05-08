@@ -12,6 +12,34 @@ module matrix_m
   use vector_m
   implicit none
 
+  private
+  public :: matrix_real
+  public :: matrix_cmplx
+  public :: matrix_alc_real
+  public :: matrix_alc_cmplx
+  public :: matrix_ptr_real
+  public :: matrix_ptr_cmplx
+  public :: dense_real
+  public :: dense_cmplx
+  public :: dense_eye_real
+  public :: dense_eye_cmplx
+  public :: sparse_real
+  public :: sparse_cmplx
+  public :: sparse_eye_real
+  public :: sparse_eye_cmplx
+  public :: spbuild_real
+  public :: spbuild_cmplx
+  public :: band_real
+  public :: band_cmplx
+  public :: band_eye_real
+  public :: band_eye_cmplx
+  public :: hessenberg_real
+  public :: hessenberg_cmplx
+  public :: triang_real
+  public :: triang_cmplx
+  public :: block_real
+  public :: block_cmplx
+
 #define T real
 #define TT real
 #include "matrix_def.f90.inc"

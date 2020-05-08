@@ -1,8 +1,13 @@
 #include "../macro.f90.inc"
 
 module schur_m
+  use error_m
+  use lapack95
   use matrix_m
   implicit none
+
+  private
+  public :: schur
 
   interface schur
     module procedure :: schur_dense_real

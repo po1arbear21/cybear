@@ -1,8 +1,13 @@
 #include "../macro.f90.inc"
 
 module expm_m
+  use error_m
+  use lapack95
   use matrix_m
   implicit none
+
+  private
+  public :: expm
 
   interface expm
     module procedure :: expm_dense_real

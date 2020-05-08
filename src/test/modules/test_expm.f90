@@ -1,6 +1,7 @@
 module test_expm_m
-  use test_case_m
+  use matrix_m
   use expm_m
+  use test_case_m
   implicit none
 
 contains

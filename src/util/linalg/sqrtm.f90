@@ -1,8 +1,13 @@
 #include "../macro.f90.inc"
 
 module sqrtm_m
+  use error_m
+  use matrix_m
   use schur_m
   implicit none
+
+  private
+  public :: sqrtm
 
   interface sqrtm
     module procedure :: sqrtm_dense_real

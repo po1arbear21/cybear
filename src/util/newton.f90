@@ -1,4 +1,5 @@
 module newton_m
+  use error_m
   use ieee_arithmetic
   use matrix_m
   implicit none

@@ -1,7 +1,7 @@
 module test_schur_m
-  use test_case_m
+  use matrix_m
   use schur_m
-
+  use test_case_m
   implicit none
 
 contains

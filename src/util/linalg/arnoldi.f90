@@ -1,8 +1,14 @@
 #include "../macro.f90.inc"
 
 module arnoldi_m
+  use blas95
+  use error_m
   use matop_m
+  use matrix_m
   implicit none
+
+  private
+  public :: arnoldi
 
 contains
   subroutine arnoldi(A, b, H, Q, brkd, tol, m0)
