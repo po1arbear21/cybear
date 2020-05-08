@@ -1,10 +1,8 @@
-#include "assert.f90.inc"
+#include "macro.f90.inc"
 
 module math_m
-
   use error_m
   use ieee_arithmetic
-
   implicit none
 
   real, parameter :: PI = 3.141592653589793238462643

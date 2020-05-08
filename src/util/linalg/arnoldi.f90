@@ -1,9 +1,7 @@
-#include "../assert.f90.inc"
+#include "../macro.f90.inc"
 
 module arnoldi_m
-
   use matop_m
-
   implicit none
 
 contains

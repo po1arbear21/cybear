@@ -1,5 +1,3 @@
-#include "../../util/assert.f90.inc"
-
 submodule(test_matrix_m) test_triang_m
   use matrix_m
   implicit none

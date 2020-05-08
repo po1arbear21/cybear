@@ -1,4 +1,4 @@
-#include "../assert.f90.inc"
+#include "../macro.f90.inc"
 
 module sqrtm_m
   use schur_m

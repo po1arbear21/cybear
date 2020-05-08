@@ -1,4 +1,3 @@
-#include "../assert.f90.inc"
 #include "../macro.f90.inc"
 
 module matrix_m

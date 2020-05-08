@@ -1,9 +1,8 @@
-#include "../assert.f90.inc"
+#include "../macro.f90.inc"
 
 module pardiso_m
   use error_m
   use vector_m
-
   implicit none
 
   !# Privat vor Staat (Olaf Scholz does not approve of this message)

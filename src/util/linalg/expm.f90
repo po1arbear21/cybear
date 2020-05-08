@@ -1,8 +1,7 @@
-#include "../assert.f90.inc"
+#include "../macro.f90.inc"
 
 module expm_m
   use matrix_m
-
   implicit none
 
   interface expm
