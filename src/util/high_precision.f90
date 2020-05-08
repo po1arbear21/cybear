@@ -1,8 +1,6 @@
 module high_precision_m
   !! algorithms copied from "Accurate sum and dot prodcut" by ogita, rump and oishi
-
   use error_m
-
   implicit none
 
   private

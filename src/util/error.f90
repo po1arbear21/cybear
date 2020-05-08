@@ -3,7 +3,7 @@ module error_m
   implicit none
 
   private
-  public :: error_msg, set_error_mode, program_error, assert_failed
+  public :: error_msg, set_error_mode, program_error, program_has_error, program_get_errors, assert_failed
 
   logical :: error_mode = .false.
     !! save error messages to vector

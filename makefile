@@ -57,10 +57,6 @@ include lib/expokit/expokit.mk
 #include lib/feast/feast.mk
 #include lib/quadpack/quadpack.mk
 
-# generate program to create dependency file
-# depend/depend:
-# 	make -C depend
-
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
 $(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES)
