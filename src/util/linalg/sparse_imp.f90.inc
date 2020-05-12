@@ -158,7 +158,7 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
 
   if (trans_ == 'N') then
     ! matrix vector multiplication
-    !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+    !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
     do i = 1, this%nrows
       do j = this%ia(i), this%ia(i+1)-1
       y(i) = y(i) + this%a(j) * x(this%ja(j))
@@ -169,7 +169,7 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
 #ifdef TCMPLX
     if (trans_ == 'C') then
       ! matrix vector multiplication with complex conjugated transposed matrix
-      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
       do i = 1, this%nrows
         do j = this%ia(i), this%ia(i+1)-1
           y(this%ja(j)) = y(this%ja(j)) + conjg(this%a(j)) * x(i)
@@ -179,7 +179,7 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
     else
 #endif
       ! matrix vector multiplication with transposed matrix
-      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
       do i = 1, this%nrows
         do j = this%ia(i), this%ia(i+1)-1
           y(this%ja(j)) = y(this%ja(j)) + this%a(j) * x(i)
@@ -229,7 +229,7 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
 
   if (trans_ == 'N') then
     ! matrix matrix multiplication
-    !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+    !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
     do i = 1, this%nrows
       do j = this%ia(i), this%ia(i+1)-1
         y(i,:) = y(i,:) + this%a(j) * x(this%ja(j),:)
@@ -240,7 +240,7 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
 #ifdef TCMPLX
     if (trans_ == 'C') then
       ! matrix matrix multiplication with complex conjugated transposed matrix
-      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
       do i = 1, this%nrows
         do j = this%ia(i), this%ia(i+1)-1
           y(this%ja(j),:) = y(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
@@ -250,7 +250,7 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
     else
 #endif
       ! matrix matrix multiplication with transposed matrix
-      !$omp parallel do private(i, j) shared(this, x, y) schedule(dynamic)
+      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
       do i = 1, this%nrows
         do j = this%ia(i), this%ia(i+1)-1
           y(this%ja(j),:) = y(this%ja(j),:) + this%a(j) * x(i,:)
@@ -780,8 +780,9 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
   allocate (thread_i1(num_threads), source = 0)
 
   ! work in parallel
-  !$omp parallel private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
-                 shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
+  !$omp parallel default(none) &
+    private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
+    shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
 
   ! get current thread id
   thread_i = omp_get_thread_num() + 1
@@ -1215,7 +1216,7 @@ subroutine SPBUILD_SORT(this)
   integer, allocatable :: perm(:)
 
   ! sort rows in parallel
-  !$omp parallel private(i, n, perm) shared(this)
+  !$omp parallel default(none) private(i, n, perm) shared(this)
 
   ! allocate enough memory for permutation array
   allocate (perm(maxval(this%cols%n)))
