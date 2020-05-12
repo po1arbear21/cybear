@@ -35,21 +35,21 @@ contains
 
   subroutine radau5(fun, x0, x1, xsmp, U0, P, opt, res)
     !! radau5 ode solver
-    procedure(ode_fun),    pointer, intent(in)  :: fun
+    procedure(ode_fun)             :: fun
       !! pointer to function to integrate
-    real,                           intent(in)  :: x0
+    real,              intent(in)  :: x0
       !! initial x
-    real,                           intent(in)  :: x1
+    real,              intent(in)  :: x1
       !! final x
-    real,                           intent(in)  :: xsmp(:)
+    real,              intent(in)  :: xsmp(:)
       !! x sample points
-    real,                           intent(in)  :: U0(:)
+    real,              intent(in)  :: U0(:)
       !! initial state
-    real,                           intent(in)  :: P(:)
+    real,              intent(in)  :: P(:)
       !! parameters
-    type(ode_options),              intent(in)  :: opt
+    type(ode_options), intent(in)  :: opt
       !! solver options
-    type(ode_result),               intent(out) :: res
+    type(ode_result),  intent(out) :: res
       !! output result object
 
     ! call base solver with radau5 kernel (3 stages)
@@ -58,45 +58,45 @@ contains
 
   subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
     !! kernel for radau5 ode solver
-    procedure(ode_fun), pointer, intent(in)    :: fun
+    procedure(ode_fun)               :: fun
       !! function to integrate
-    real,                        intent(in)    :: xold
+    real,              intent(in)    :: xold
       !! initial x position of previous step
-    real,                        intent(in)    :: x
+    real,              intent(in)    :: x
       !! initial x position of step
-    real,                        intent(in)    :: dxk
+    real,              intent(in)    :: dxk
       !! stepsize
-    real,                        intent(in)    :: Uk(:)
+    real,              intent(in)    :: Uk(:)
       !! state at beginning of step
-    real,                        intent(in)    :: dUkdQ(:,:)
+    real,              intent(in)    :: dUkdQ(:,:)
       !! derivatives of Uk wrt Q = [U0; P]
-    real,                        intent(in)    :: fk(:)
+    real,              intent(in)    :: fk(:)
       !! dUk/dx
-    real,                        intent(in)    :: dfkdUk(:,:)
+    real,              intent(in)    :: dfkdUk(:,:)
       !! derivatives of fk wrt Uk
-    real,                        intent(in)    :: polyk(:,:)
+    real,              intent(in)    :: polyk(:,:)
       !! interpolation polynomial (from previous step)
-    real,                        intent(in)    :: P(:)
+    real,              intent(in)    :: P(:)
       !! parameters
-    type(ode_options),           intent(in)    :: opt
+    type(ode_options), intent(in)    :: opt
       !! options
-    real,                        intent(out)   :: dxn
+    real,              intent(out)   :: dxn
       !! output new stepsize
-    real,                        intent(out)   :: Un(:)
+    real,              intent(out)   :: Un(:)
       !! output state at end of step
-    real,                        intent(out)   :: dUndQ(:,:)
+    real,              intent(out)   :: dUndQ(:,:)
       !! output derivatives of Un wrt Q = [U0; P]
-    real,                        intent(out)   :: fn(:)
+    real,              intent(out)   :: fn(:)
       !! output dUn/dx
-    real,                        intent(out)   :: dfndUn(:,:)
+    real,              intent(out)   :: dfndUn(:,:)
       !! output derivatives of fn wrt Un
-    real,                        intent(out)   :: polyn(:,:)
+    real,              intent(out)   :: polyn(:,:)
       !! output interpolation polynomial for this step
-    real,                        intent(out)   :: dpolyndQ(:,:,:)
+    real,              intent(out)   :: dpolyndQ(:,:,:)
       !! output derivatives of polyn wrt Q = [U0; P]
-    real,                        intent(inout) :: err
+    real,              intent(inout) :: err
       !! output scalar error estimate
-    logical,                     intent(inout) :: status
+    logical,           intent(inout) :: status
       !! output success (true) or fail (false)
 
     ! local variables
@@ -231,25 +231,25 @@ contains
   end subroutine
 
   subroutine eval_f(nU, fun, x, dxk, Uk, z, P, f, dfdz, dfdP)
-    integer,                     intent(in)  :: nU
+    integer,        intent(in)  :: nU
       !! system size
-    procedure(ode_fun), pointer, intent(in)  :: fun
+    procedure(ode_fun)          :: fun
       !! function to integrate
-    real,                        intent(in)  :: x
+    real,           intent(in)  :: x
       !! beginning of step
-    real,                        intent(in)  :: dxk
+    real,           intent(in)  :: dxk
       !! step size
-    real,                        intent(in)  :: Uk(:)
+    real,           intent(in)  :: Uk(:)
       !! state at beginning of step
-    real,                        intent(in)  :: z(:)
+    real,           intent(in)  :: z(:)
       !! delta states
-    real,                        intent(in)  :: P(:)
+    real,           intent(in)  :: P(:)
       !! parameters
-    real,                        intent(out) :: f(:,:)
+    real,           intent(out) :: f(:,:)
       !! output function values
-    real,                        intent(out) :: dfdz(:,:,:)
+    real,           intent(out) :: dfdz(:,:,:)
       !! output derivatives of f wrt z
-    real, optional,              intent(out) :: dfdP(:,:,:)
+    real, optional, intent(out) :: dfdP(:,:,:)
       !! output derivatives of f wrt parameters
 
     ! local variables
@@ -347,31 +347,31 @@ contains
   end subroutine
 
   subroutine error_estimate(nU, fun, x, dxk, Uk, fk, dfkdUk, P, opt, z, Un, status, err)
-    integer,                     intent(in)  :: nU
+    integer,           intent(in)  :: nU
       !! system size
-    procedure(ode_fun), pointer, intent(in)  :: fun
+    procedure(ode_fun)             :: fun
       !! function to integrate
-    real,                        intent(in)  :: x
+    real,              intent(in)  :: x
       !! initial x position of step
-    real,                        intent(in)  :: dxk
+    real,              intent(in)  :: dxk
       !! stepsize
-    real,                        intent(in)  :: Uk(:)
+    real,              intent(in)  :: Uk(:)
       !! state at beginning of step
-    real,                        intent(in)  :: fk(:)
+    real,              intent(in)  :: fk(:)
       !! dUk/dx
-    real,                        intent(in)  :: dfkdUk(:,:)
+    real,              intent(in)  :: dfkdUk(:,:)
       !! derivatives of fk wrt Uk
-    real,                        intent(in)  :: P(:)
+    real,              intent(in)  :: P(:)
       !! parameters
-    type(ode_options),           intent(in)  :: opt
+    type(ode_options), intent(in)  :: opt
       !! options
-    real,                        intent(in)  :: z(:)
+    real,              intent(in)  :: z(:)
       !! delta states
-    real,                        intent(in)  :: Un(:)
+    real,              intent(in)  :: Un(:)
       !! state at end of step
-    logical,                     intent(in)  :: status
+    logical,           intent(in)  :: status
       !! old status
-    real,                        intent(out) :: err
+    real,              intent(out) :: err
       !! output scalar error estimate
 
     ! local variables
