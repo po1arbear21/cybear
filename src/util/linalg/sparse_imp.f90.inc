@@ -40,6 +40,7 @@
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
+#define SPARSE_ZERO          CONCAT3(sparse,zero,T)
 
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
 #define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
@@ -947,11 +948,12 @@ function SPARSE_EYE(nrows, ncols) result(eye)
   integer, optional,  intent(in)  :: ncols
     !! Optional number of columns (default: ncols = nrows)
   type(SPARSE_TYPE)               :: eye
+    !! return sparse identity matrix
 
   ! local variables
   integer :: i, n
 
-  call eye%init(nrows, ncols)
+  call eye%init(nrows, ncols = ncols)
   n = min(eye%nrows, eye%ncols)
 
   ! allocate csr memory
@@ -968,6 +970,24 @@ function SPARSE_EYE(nrows, ncols) result(eye)
   do i = n + 1, eye%nrows
     eye%ia(i+1) = eye%ia(n+1)
   end do
+end function
+
+function SPARSE_ZERO(nrows, ncols) result(zero)
+  !! empty sparse matrix
+
+  integer,            intent(in)  :: nrows
+    !! Number of rows
+  integer, optional,  intent(in)  :: ncols
+    !! Optional number of columns (default: ncols = nrows)
+  type(SPARSE_TYPE)               :: zero
+    !! return empty sparse matrix
+
+  call zero%init(nrows, ncols = ncols)
+
+  ! allocate csr memory
+  allocate (zero%ia(nrows), source = 1)
+  allocate (zero%ja(0))
+  allocate (zero%a(0))
 end function
 
 subroutine SPBUILD_INIT(this, s, n_per_row)
@@ -1359,6 +1379,7 @@ end subroutine
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
 #undef SPARSE_EYE
+#undef SPARSE_ZERO
 
 #undef SPBUILD_INIT
 #undef SPBUILD_DESTRUCT
