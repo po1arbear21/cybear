@@ -27,6 +27,8 @@ module matrix_m
   public :: sparse_cmplx
   public :: sparse_eye_real
   public :: sparse_eye_cmplx
+  public :: sparse_zero_real
+  public :: sparse_zero_cmplx
   public :: spbuild_real
   public :: spbuild_cmplx
   public :: band_real
