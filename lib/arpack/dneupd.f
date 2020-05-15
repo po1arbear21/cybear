@@ -366,7 +366,7 @@ c
       external   dcopy  , dger   , dgeqr2 , dlacpy ,
      &           dlahqr , dlaset , dmout  , dorm2r ,
      &           dtrevc , dtrmm  , dtrsen , dscal  ,
-     &           dvout  , ivout
+     &           dvout  , ivout, dngets, dgemv
 c
 c     %--------------------%
 c     | External Functions |

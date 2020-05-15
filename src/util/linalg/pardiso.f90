@@ -16,21 +16,21 @@ module pardiso_m
   ! include pardiso interface
 #include 'mkl_pardiso.fi'
 
-  character(*), parameter :: PARDISO_ERROR(-12:0) = [                        &
-    & "pardiso_64 called from 32-bit library                              ", &
-    & "read/write error with OOC files                                    ", &
-    & "error opening OOC files                                            ", &
-    & "not enough memory for OOC                                          ", &
-    & "32-bit integer overflow problem                                    ", &
-    & "diagonal matrix is singular                                        ", &
-    & "reordering failed                                                  ", &
-    & "unclassified (internal) error                                      ", &
-    & "zero pivot, numerical factorization or iterative refinement problem", &
-    & "reordering problem                                                 ", &
-    & "not enough memory                                                  ", &
-    & "input inconsistent                                                 ", &
-    & "no error                                                           "  &
-    &]
+  character(*), parameter :: PARDISO_ERROR(-12:0) = [                      &
+    "pardiso_64 called from 32-bit library                              ", &
+    "read/write error with OOC files                                    ", &
+    "error opening OOC files                                            ", &
+    "not enough memory for OOC                                          ", &
+    "32-bit integer overflow problem                                    ", &
+    "diagonal matrix is singular                                        ", &
+    "reordering failed                                                  ", &
+    "unclassified (internal) error                                      ", &
+    "zero pivot, numerical factorization or iterative refinement problem", &
+    "reordering problem                                                 ", &
+    "not enough memory                                                  ", &
+    "input inconsistent                                                 ", &
+    "no error                                                           "  &
+  ]
 
   type pardiso_handle
     type(MKL_PARDISO_HANDLE) :: pt(64)

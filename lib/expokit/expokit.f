@@ -5,7 +5,7 @@
       implicit none
       integer n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm, v(n), w(n), wsp(lwsp)
-      external matvec
+      external matvec, dcopy, daxpy, dscal, dgpadm, dnchbv, dgemv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -13,41 +13,41 @@
 *
 *     It does not compute the matrix exponential in isolation but
 *     instead, it computes directly the action of the exponential
-*     operator on the operand vector. This way of doing so allows 
-*     for addressing large sparse problems. 
+*     operator on the operand vector. This way of doing so allows
+*     for addressing large sparse problems.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *     This is a customised version for Markov Chains. This means that a
-*     check is done within this code to ensure that the resulting vector 
-*     w is a probability vector, i.e., w must have all its components 
+*     check is done within this code to ensure that the resulting vector
+*     w is a probability vector, i.e., w must have all its components
 *     in [0,1], with sum equal to 1. This check is done at some expense
-*     and the user may try DGEXPV which is cheaper since it ignores 
+*     and the user may try DGEXPV which is cheaper since it ignores
 *     probability constraints.
 *
 *     IMPORTANT: The check assumes that the transition rate matrix Q
 *                satisfies Qe = 0, where e=(1,...,1)'. Don't use DMEXPV
 *                if this condition does not hold. Use DGEXPV instead.
-*                DMEXPV/DGEXPV require the matrix-vector product 
+*                DMEXPV/DGEXPV require the matrix-vector product
 *                y = A*x = Q'*x, i.e, the TRANSPOSE of Q times a vector.
 *                Failure to remember this leads to wrong results.
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*                      
+*
 *     v(n)   : (input) given operand vector.
 *
 *     w(n)   : (output) computed approximation of exp(t*A)*v.
 *
-*     tol    : (input/output) the requested acurracy tolerance on w. 
+*     tol    : (input/output) the requested acurracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -58,7 +58,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+2)^2+4*(m+2)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H     wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+2
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -73,29 +73,29 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
 *     -----------------------------------------------------------------|
 *     wsp(1)  = step_min, minimum step-size used during integration
 *     wsp(2)  = step_max, maximum step-size used during integration
-*     wsp(3)  = x_round, maximum among all roundoff errors (lower bound) 
+*     wsp(3)  = x_round, maximum among all roundoff errors (lower bound)
 *     wsp(4)  = s_round, sum of roundoff errors (lower bound)
 *     wsp(5)  = x_error, maximum among all local truncation errors
 *     wsp(6)  = s_error, global sum of local truncation errors
@@ -107,9 +107,9 @@
 *     The `hump' is a measure of the conditioning of the problem. The
 *     matrix exponential is well-conditioned if hump = 1, whereas it is
 *     poorly-conditioned if hump >> 1. However the solution can still be
-*     relatively fairly accurate even when the hump is large (the hump 
+*     relatively fairly accurate even when the hump is large (the hump
 *     is an upper bound), especially when the hump and the scaled norm
-*     of w [this is also computed and returned in wsp(10)] are of the 
+*     of w [this is also computed and returned in wsp(10)] are of the
 *     same order of magnitude (further details in reference below).
 *     Markov chains are usually well-conditioned problems.
 *
@@ -126,11 +126,11 @@
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H). The value 0 switches to the
 *               uniform rational Chebyshev approximation of type (14,14)
 *
@@ -245,7 +245,7 @@
             wsp(ih+(j-1)*mh+i-1) = hij
          enddo
          hj1j = DNRM2( n, wsp(j1v),1 )
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -295,9 +295,9 @@
       endif
 
  402  continue
-* 
+*
 *---  error estimate ...
-* 
+*
       if ( k1.eq.0 ) then
          err_loc = tol
       else
@@ -316,7 +316,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -424,11 +424,12 @@
       implicit none
       integer ideg, m, ldh, lwsp, iexph, ns, iflag, ipiv(m)
       double precision t, H(ldh,m), wsp(lwsp)
+      external dgemm, daxpy, dgesv, dscal
 
 *-----Purpose----------------------------------------------------------|
 *
 *     Computes exp(t*H), the matrix exponential of a general matrix in
-*     full, using the irreducible rational Pade approximation to the 
+*     full, using the irreducible rational Pade approximation to the
 *     exponential function exp(x) = r(x) = (+/-)( I + 2*(q(x)/p(x)) ),
 *     combined with scaling-and-squaring.
 *
@@ -442,7 +443,7 @@
 *     H(ldh,m)  : (input) argument matrix.
 *
 *     t         : (input) time-scale (can be < 0).
-*                  
+*
 *     wsp(lwsp) : (workspace/output) lwsp .ge. 4*m*m+ideg+1.
 *
 *     ipiv(m)   : (workspace)
@@ -450,7 +451,7 @@
 *>>>> iexph     : (output) number such that wsp(iexph) points to exp(tH)
 *                 i.e., exp(tH) is located at wsp(iexph ... iexph+m*m-1)
 *                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*                 NOTE: if the routine was called with wsp(iptr), 
+*                 NOTE: if the routine was called with wsp(iptr),
 *                       then exp(tH) will start at wsp(iptr+iexph-1).
 *
 *     ns        : (output) number of scaling-squaring used.
@@ -485,7 +486,7 @@
       iq  = ip + mm
       ifree = iq + mm
 *
-*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2; 
+*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2;
 *     and set scale = t/2^ns ...
 *
       do i = 1,m
@@ -594,11 +595,12 @@
       implicit none
       integer ideg, m, ldh, lwsp, iexph, ns, iflag, ipiv(m)
       double precision t, H(ldh,m), wsp(lwsp)
+      external dgemm, daxpy, dsysv, dscal
 
 *-----Purpose----------------------------------------------------------|
 *
 *     Computes exp(t*H), the matrix exponential of a symmetric matrix
-*     in full, using the irreducible rational Pade approximation to the 
+*     in full, using the irreducible rational Pade approximation to the
 *     exponential function exp(x) = r(x) = (+/-)( I + 2*(q(x)/p(x)) ),
 *     combined with scaling-and-squaring.
 *
@@ -612,7 +614,7 @@
 *     H(ldh,m)  : (input) argument matrix (both lower and upper parts).
 *
 *     t         : (input) time-scale (can be < 0).
-*                  
+*
 *     wsp(lwsp) : (workspace/output) lwsp .ge. 4*m*m+ideg+1.
 *
 *     ipiv(m)   : (workspace)
@@ -620,7 +622,7 @@
 *>>>> iexph     : (output) number such that wsp(iexph) points to exp(tH)
 *                 i.e., exp(tH) is located at wsp(iexph ... iexph+m*m-1)
 *                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*                 NOTE: if the routine was called with wsp(iptr), 
+*                 NOTE: if the routine was called with wsp(iptr),
 *                       then exp(tH) will start at wsp(iptr+iexph-1).
 *
 *     ns        : (output) number of scaling-squaring used.
@@ -655,7 +657,7 @@
       iq  = ip + mm
       ifree = iq + mm
 *
-*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2; 
+*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2;
 *     and set scale = t/2^ns ...
 *
       do i = 1,m
@@ -765,10 +767,11 @@
       double precision t
       integer          ideg, m, ldh, lwsp, iexph, ns, iflag, ipiv(m)
       complex*16       H(ldh,m), wsp(lwsp)
+      external zgemm, zaxpy, zgesv, zdscal
 
 *-----Purpose----------------------------------------------------------|
 *
-*     Computes exp(t*H), the matrix exponential of a general complex 
+*     Computes exp(t*H), the matrix exponential of a general complex
 *     matrix in full, using the irreducible rational Pade approximation
 *     to the exponential exp(z) = r(z) = (+/-)( I + 2*(q(z)/p(z)) ),
 *     combined with scaling-and-squaring.
@@ -783,7 +786,7 @@
 *     H(ldh,m)  : (input) argument matrix.
 *
 *     t         : (input) time-scale (can be < 0).
-*                  
+*
 *     wsp(lwsp) : (workspace/output) lwsp .ge. 4*m*m+ideg+1.
 *
 *     ipiv(m)   : (workspace)
@@ -791,7 +794,7 @@
 *>>>> iexph     : (output) number such that wsp(iexph) points to exp(tH)
 *                 i.e., exp(tH) is located at wsp(iexph ... iexph+m*m-1)
 *                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*                 NOTE: if the routine was called with wsp(iptr), 
+*                 NOTE: if the routine was called with wsp(iptr),
 *                       then exp(tH) will start at wsp(iptr+iexph-1).
 *
 *     ns        : (output) number of scaling-squaring used.
@@ -828,7 +831,7 @@
       iq  = ip + mm
       ifree = iq + mm
 *
-*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2; 
+*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2;
 *     and set scale = t/2^ns ...
 *
       do i = 1,m
@@ -937,6 +940,7 @@
       double precision t
       integer          ideg, m, ldh, lwsp, iexph, ns, iflag, ipiv(m)
       complex*16       H(ldh,m), wsp(lwsp)
+      external zgemm, zaxpy, zhesv, zdscal
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -955,7 +959,7 @@
 *     H(ldh,m)  : (input) argument matrix (both lower and upper parts).
 *
 *     t         : (input) time-scale (can be < 0).
-*                  
+*
 *     wsp(lwsp) : (workspace/output) lwsp .ge. 4*m*m+ideg+1.
 *
 *     ipiv(m)   : (workspace)
@@ -963,7 +967,7 @@
 *>>>> iexph     : (output) number such that wsp(iexph) points to exp(tH)
 *                 i.e., exp(tH) is located at wsp(iexph ... iexph+m*m-1)
 *                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*                 NOTE: if the routine was called with wsp(iptr), 
+*                 NOTE: if the routine was called with wsp(iptr),
 *                       then exp(tH) will start at wsp(iptr+iexph-1).
 *
 *     ns        : (output) number of scaling-squaring used.
@@ -1000,7 +1004,7 @@
       iq  = ip + mm
       ifree = iq + mm
 *
-*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2; 
+*---  scaling: seek ns such that ||t*H/2^ns|| < 1/2;
 *     and set scale = t/2^ns ...
 *
       do i = 1,m
@@ -1109,6 +1113,7 @@
       integer          m, ldh, iflag, iwsp(m)
       double precision t, H(ldh,m), y(m)
       complex*16       wsp(m*(m+2))
+      external zgesv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1116,7 +1121,7 @@
 *     expansion of the uniform rational Chebyshev approximation
 *     to exp(-x) of type (14,14). H is a General matrix.
 *     About 14-digit accuracy is expected if the matrix H is negative
-*     definite. The algorithm may behave poorly otherwise. 
+*     definite. The algorithm may behave poorly otherwise.
 *
 *-----Arguments--------------------------------------------------------|
 *
@@ -1147,7 +1152,7 @@
       complex*16 alpha(ndeg), theta(ndeg)
 
       intrinsic DBLE
-      
+
 *---  Pointers ...
 
       ih = 1
@@ -1172,7 +1177,7 @@
       theta(5)=( 0.208756929753827868D+00, 0.109912615662209418D+02)
       theta(6)=( 0.370327340957595652D+01, 0.136563731924991884D+02)
       theta(7)=( 0.889777151877331107D+01, 0.166309842834712071D+02)
-*     
+*
 *---  Accumulation of the contribution of each pole ...
 *
       do j = 1,m
@@ -1190,7 +1195,7 @@
          enddo
          call ZGESV( M, 1, WSP(iH),M, IWSP, WSP(iY),M, IFLAG )
          if ( IFLAG.ne.0 ) stop 'Error in DGCHBV'
-*---     Accumulate the partial result in y ...     
+*---     Accumulate the partial result in y ...
          do j = 1,m
             y(j) = y(j) + DBLE( alpha(ip)*wsp(iy+j-1) )
          enddo
@@ -1204,6 +1209,7 @@
       integer          m, ldh, iflag, iwsp(m)
       double precision t, H(ldh,m), y(m)
       complex*16       wsp(m*(m+2))
+      external zsysv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1211,7 +1217,7 @@
 *     expansion of the uniform rational Chebyshev approximation
 *     to exp(-x) of type (14,14). H is assumed to be symmetric.
 *     About 14-digit accuracy is expected if the matrix H is negative
-*     definite. The algorithm may behave poorly otherwise. 
+*     definite. The algorithm may behave poorly otherwise.
 *
 *-----Arguments--------------------------------------------------------|
 *
@@ -1242,7 +1248,7 @@
       complex*16 alpha(ndeg), theta(ndeg), w
 
       intrinsic ABS,CMPLX,DBLE,MIN
-      
+
 *---  Pointers ...
 
       ih = 1
@@ -1267,7 +1273,7 @@
       theta(5)=( 0.208756929753827868D+00, 0.109912615662209418D+02)
       theta(6)=( 0.370327340957595652D+01, 0.136563731924991884D+02)
       theta(7)=( 0.889777151877331107D+01, 0.166309842834712071D+02)
-*     
+*
 *---  Accumulation of the contribution of each pole ...
 *
       do j = 1,m
@@ -1285,7 +1291,7 @@
          enddo
          call ZSYSV('U', M, 1, WSP(iH),M, IWSP, WSP(iY),M, W,1, IFLAG )
          if ( IFLAG.ne.0 ) stop 'Error in DSCHBV'
-*---     Accumulate the partial result in y ...     
+*---     Accumulate the partial result in y ...
          do i = 1,m
             y(i) = y(i) + DBLE( alpha(ip)*wsp(iy+i-1) )
          enddo
@@ -1299,6 +1305,7 @@
       integer          m, ldh, iflag, iwsp(m)
       double precision t
       complex*16       H(ldh,m), y(m), wsp(m*(m+2))
+      external zgesv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1306,7 +1313,7 @@
 *     expansion of the uniform rational Chebyshev approximation
 *     to exp(-x) of type (14,14). H is a General matrix.
 *     About 14-digit accuracy is expected if the matrix H is negative
-*     definite. The algorithm may behave poorly otherwise. 
+*     definite. The algorithm may behave poorly otherwise.
 *
 *-----Arguments--------------------------------------------------------|
 *
@@ -1335,7 +1342,7 @@
       parameter ( ndeg=7 )
       double      precision alpha0
       complex*16  alpha(2*ndeg), theta(2*ndeg)
-      
+
 *---  Pointers ...
 
       ih = 1
@@ -1365,7 +1372,7 @@
          theta(ndeg+ip) = CONJG( theta(ip) )
          alpha(ndeg+ip) = CONJG( alpha(ip) )
       enddo
-*     
+*
 *---  Accumulation of the contribution of each pole ...
 *
       do j = 1,m
@@ -1384,7 +1391,7 @@
          enddo
          call ZGESV( M, 1, WSP(iH),M, IWSP, WSP(iY),M, IFLAG )
          if ( IFLAG.ne.0 ) stop 'Error in ZGCHBV'
-*---     Accumulate the partial result in y ...     
+*---     Accumulate the partial result in y ...
          do i = 1,m
             y(i) = y(i) + alpha(ip)*wsp(iy+i-1)
          enddo
@@ -1398,6 +1405,7 @@
       integer          m, ldh
       double precision t, H(ldh,m), y(m)
       complex*16       wsp(m*(m+2))
+      external zswap, zaxpy
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1405,7 +1413,7 @@
 *     expansion of the uniform rational Chebyshev approximation
 *     to exp(-x) of type (14,14). H is assumed to be upper-Hessenberg.
 *     About 14-digit accuracy is expected if the matrix H is negative
-*     definite. The algorithm may behave poorly otherwise. 
+*     definite. The algorithm may behave poorly otherwise.
 *
 *-----Arguments--------------------------------------------------------|
 *
@@ -1435,7 +1443,7 @@
       complex*16 alpha(ndeg), theta(ndeg), tmpc
 
       intrinsic ABS,DBLE,MIN
-      
+
 *---  Pointers ...
 
       ih = 1
@@ -1460,7 +1468,7 @@
       theta(5)=( 0.208756929753827868D+00, 0.109912615662209418D+02)
       theta(6)=( 0.370327340957595652D+01, 0.136563731924991884D+02)
       theta(7)=( 0.889777151877331107D+01, 0.166309842834712071D+02)
-*     
+*
 *---  Accumulation of the contribution of each pole ...
 *
       do j = 1,m
@@ -1482,16 +1490,16 @@
          do i = 1,m-1
 *---        Get pivot and exchange rows ...
             if (ABS(wsp(ih+(i-1)*m+i-1)).lt.ABS(wsp(ih+(i-1)*m+i))) then
-               call ZSWAP( m-i+1, wsp(ih+(i-1)*m+i-1),m, 
+               call ZSWAP( m-i+1, wsp(ih+(i-1)*m+i-1),m,
      .                     wsp(ih+(i-1)*m+i),m )
                call ZSWAP( 1, wsp(iy+i-1),1, wsp(iy+i),1 )
             endif
-*---        Forward eliminiation ... 
+*---        Forward eliminiation ...
             tmpc = wsp(ih+(i-1)*m+i) / wsp(ih+(i-1)*m+i-1)
             call ZAXPY( m-i, -tmpc, wsp(ih+i*m+i-1),m, wsp(ih+i*m+i),m )
             wsp(iy+i) = wsp(iy+i) - tmpc*wsp(iy+i-1)
          enddo
-*---     Backward substitution ...    
+*---     Backward substitution ...
          do i = m,1,-1
             tmpc = wsp(iy+i-1)
             do j = i+1,m
@@ -1499,7 +1507,7 @@
             enddo
             wsp(iy+i-1) = tmpc / wsp(ih+(i-1)*m+i-1)
          enddo
-*---     Accumulate the partial result in y ...     
+*---     Accumulate the partial result in y ...
          do j = 1,m
             y(j) = y(j) + DBLE( alpha(ip)*wsp(iy+j-1) )
          enddo
@@ -1513,6 +1521,7 @@
       integer          m, ldh
       double precision t
       complex*16       H(ldh,m), y(m), wsp(m*(m+2))
+      external zswap, zaxpy
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1520,7 +1529,7 @@
 *     expansion of the uniform rational Chebyshev approximation
 *     to exp(-x) of type (14,14). H is assumed to be upper-Hessenberg.
 *     About 14-digit accuracy is expected if the matrix H is negative
-*     definite. The algorithm may behave poorly otherwise. 
+*     definite. The algorithm may behave poorly otherwise.
 *
 *-----Arguments--------------------------------------------------------|
 *
@@ -1550,7 +1559,7 @@
       complex*16 alpha(ndeg), theta(ndeg), tmpc
 
       intrinsic ABS,DBLE,CONJG,MIN
-      
+
 *---  Pointers ...
 
       ih = 1
@@ -1580,7 +1589,7 @@
          theta(ndeg+ip) = CONJG( theta(ip) )
          alpha(ndeg+ip) = CONJG( alpha(ip) )
       enddo
-*     
+*
 *---  Accumulation of the contribution of each pole ...
 *
       do j = 1,m
@@ -1603,16 +1612,16 @@
          do i = 1,m-1
 *---        Get pivot and exchange rows ...
             if (ABS(wsp(ih+(i-1)*m+i-1)).lt.ABS(wsp(ih+(i-1)*m+i))) then
-               call ZSWAP( m-i+1, wsp(ih+(i-1)*m+i-1),m, 
+               call ZSWAP( m-i+1, wsp(ih+(i-1)*m+i-1),m,
      .                     wsp(ih+(i-1)*m+i),m )
                call ZSWAP( 1, wsp(iy+i-1),1, wsp(iy+i),1 )
             endif
-*---        Forward eliminiation ... 
+*---        Forward eliminiation ...
             tmpc = wsp(ih+(i-1)*m+i) / wsp(ih+(i-1)*m+i-1)
             call ZAXPY( m-i, -tmpc, wsp(ih+i*m+i-1),m, wsp(ih+i*m+i),m )
             wsp(iy+i) = wsp(iy+i) - tmpc*wsp(iy+i-1)
          enddo
-*---     Backward substitution ...    
+*---     Backward substitution ...
          do i = m,1,-1
             tmpc = wsp(iy+i-1)
             do j = i+1,m
@@ -1620,7 +1629,7 @@
             enddo
             wsp(iy+i-1) = tmpc / wsp(ih+(i-1)*m+i-1)
          enddo
-*---     Accumulate the partial result in y ...     
+*---     Accumulate the partial result in y ...
          do j = 1,m
             y(j) = y(j) + alpha(ip)*wsp(iy+j-1)
          enddo
@@ -1634,7 +1643,7 @@
       implicit none
       integer n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm, v(n), w(n), wsp(lwsp)
-      external matvec
+      external matvec, dcopy, daxpy, dscal, dgpadm, dnchbv, dgemv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -1642,27 +1651,27 @@
 *
 *     It does not compute the matrix exponential in isolation but
 *     instead, it computes directly the action of the exponential
-*     operator on the operand vector. This way of doing so allows 
-*     for addressing large sparse problems. 
+*     operator on the operand vector. This way of doing so allows
+*     for addressing large sparse problems.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*                      
+*
 *     v(n)   : (input) given operand vector.
-*                      
+*
 *     w(n)   : (output) computed approximation of exp(t*A)*v.
 *
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -1673,7 +1682,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+2)^2+4*(m+2)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+2
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -1685,13 +1694,13 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
+*     Upon exit, an interested user may retrieve accounts on the
 *     computations. They are located in wsp and iwsp as indicated below:
 *
 *     location  mnemonic                 description
@@ -1699,7 +1708,7 @@
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -1718,9 +1727,9 @@
 *     The `hump' is a measure of the conditioning of the problem. The
 *     matrix exponential is well-conditioned if hump = 1, whereas it is
 *     poorly-conditioned if hump >> 1. However the solution can still be
-*     relatively fairly accurate even when the hump is large (the hump 
+*     relatively fairly accurate even when the hump is large (the hump
 *     is an upper bound), especially when the hump and the scaled norm
-*     of w [this is also computed and returned in wsp(10)] are of the 
+*     of w [this is also computed and returned in wsp(10)] are of the
 *     same order of magnitude (further details in reference below).
 *
 *----------------------------------------------------------------------|
@@ -1736,11 +1745,11 @@
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H). The value 0 switches to the
 *               uniform rational Chebyshev approximation of type (14,14)
 *
@@ -1814,7 +1823,7 @@
       call DCOPY( n, v,1, w,1 )
       beta = DNRM2( n, w,1 )
       vnorm = beta
-      hump = beta 
+      hump = beta
 *
 *---  obtain the very first stepsize ...
 *
@@ -1852,7 +1861,7 @@
             wsp(ih+(j-1)*mh+i-1) = hij
          enddo
          hj1j = DNRM2( n, wsp(j1v),1 )
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -1902,7 +1911,7 @@
       endif
 
  402  continue
-* 
+*
 *---  error estimate ...
 *
       if ( k1.eq.0 ) then
@@ -1923,7 +1932,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -2014,7 +2023,7 @@
       implicit none
       integer n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm, v(n), w(n), wsp(lwsp)
-      external matvec
+      external matvec, dcopy, daxpy, dscal, dgpadm, dnchbv, dgemv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -2022,27 +2031,27 @@
 *
 *     It does not compute the matrix exponential in isolation but
 *     instead, it computes directly the action of the exponential
-*     operator on the operand vector. This way of doing so allows 
-*     for addressing large sparse problems. 
+*     operator on the operand vector. This way of doing so allows
+*     for addressing large sparse problems.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*                      
+*
 *     v(n)   : (input) given operand vector.
 *
 *     w(n)   : (output) computed approximation of exp(t*A)*v.
 *
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -2053,7 +2062,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+2)^2+4*(m+2)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+2
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -2065,22 +2074,22 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, nbr of Tridiagonal matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, nbr of integration steps used up to completion 
+*     iwsp(4) = nstep, nbr of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -2099,9 +2108,9 @@
 *     The `hump' is a measure of the conditioning of the problem. The
 *     matrix exponential is well-conditioned if hump = 1, whereas it is
 *     poorly-conditioned if hump >> 1. However the solution can still be
-*     relatively fairly accurate even when the hump is large (the hump 
+*     relatively fairly accurate even when the hump is large (the hump
 *     is an upper bound), especially when the hump and the scaled norm
-*     of w [this is also computed and returned in wsp(10)] are of the 
+*     of w [this is also computed and returned in wsp(10)] are of the
 *     same order of magnitude (further details in reference below).
 *
 *----------------------------------------------------------------------|
@@ -2117,11 +2126,11 @@
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H). The value 0 switches to the
 *               uniform rational Chebyshev approximation of type (14,14)
 *
@@ -2195,7 +2204,7 @@
       call DCOPY( n, v,1, w,1 )
       beta = DNRM2( n, w,1 )
       vnorm = beta
-      hump = beta 
+      hump = beta
 *
 *---  obtain the very first stepsize ...
 *
@@ -2233,7 +2242,7 @@
          call DAXPY( n, -hjj, wsp(j1v-n),1, wsp(j1v),1 )
          hj1j = DNRM2( n, wsp(j1v),1 )
          wsp(ih+(j-1)*(mh+1)) = hjj
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -2283,7 +2292,7 @@
          call DNCHBV(mx,sgn*t_step,wsp(ih),mh,wsp(iexph),wsp(ifree+mx))
       endif
  402  continue
-* 
+*
 *---  error estimate ...
 *
       if ( k1.eq.0 ) then
@@ -2304,7 +2313,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -2397,21 +2406,21 @@
       integer          n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm
       complex*16       v(n), w(n), wsp(lwsp)
-      external         matvec
+      external      matvec, zcopy, zaxpy, zdscal, zgpadm, znchbv, zgemv
 
 *-----Purpose----------------------------------------------------------|
 *
 *---  ZGEXPV computes w = exp(t*A)*v
-*     for a Zomplex (i.e., complex double precision) matrix A 
+*     for a Zomplex (i.e., complex double precision) matrix A
 *
 *     It does not compute the matrix exponential in isolation but
 *     instead, it computes directly the action of the exponential
-*     operator on the operand vector. This way of doing so allows 
-*     for addressing large sparse problems. 
+*     operator on the operand vector. This way of doing so allows
+*     for addressing large sparse problems.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
@@ -2426,7 +2435,7 @@
 *
 *     w(n)   : (output) computed approximation of exp(t*A)*v.
 *
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -2437,7 +2446,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+2)^2+4*(m+2)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+2
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -2449,29 +2458,29 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
 *     -----------------------------------------------------------------|
 *     wsp(1)  = step_min, minimum step-size used during integration
 *     wsp(2)  = step_max, maximum step-size used during integration
-*     wsp(3)  = x_round, maximum among all roundoff errors (lower bound) 
+*     wsp(3)  = x_round, maximum among all roundoff errors (lower bound)
 *     wsp(4)  = s_round, sum of roundoff errors (lower bound)
 *     wsp(5)  = x_error, maximum among all local truncation errors
 *     wsp(6)  = s_error, global sum of local truncation errors
@@ -2483,9 +2492,9 @@
 *     The `hump' is a measure of the conditioning of the problem. The
 *     matrix exponential is well-conditioned if hump = 1, whereas it is
 *     poorly-conditioned if hump >> 1. However the solution can still be
-*     relatively fairly accurate even when the hump is large (the hump 
+*     relatively fairly accurate even when the hump is large (the hump
 *     is an upper bound), especially when the hump and the scaled norm
-*     of w [this is also computed and returned in wsp(10)] are of the 
+*     of w [this is also computed and returned in wsp(10)] are of the
 *     same order of magnitude (further details in reference below).
 *
 *----------------------------------------------------------------------|
@@ -2501,11 +2510,11 @@
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H). The value 0 switches to the
 *               uniform rational Chebyshev approximation of type (14,14)
 *
@@ -2584,7 +2593,7 @@
       call ZCOPY( n, v,1, w,1 )
       beta = DZNRM2( n, w,1 )
       vnorm = beta
-      hump = beta 
+      hump = beta
 *
 *---  obtain the very first stepsize ...
 *
@@ -2621,7 +2630,7 @@
             wsp(ih+(j-1)*mh+i-1) = hij
          enddo
          hj1j = DZNRM2( n, wsp(j1v),1 )
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -2669,9 +2678,9 @@
          call ZNCHBV(mx,sgn*t_step,wsp(ih),mh,wsp(iexph),wsp(ifree+mx))
       endif
  402  continue
-* 
+*
 *---  error estimate ...
-* 
+*
       if ( k1.eq.0 ) then
          err_loc = tol
       else
@@ -2690,7 +2699,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -2783,7 +2792,7 @@
       integer          n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm
       complex*16       v(n), w(n), wsp(lwsp)
-      external         matvec
+      external      matvec, zcopy, zaxpy, zdscal, zgpadm, znchbv, zgemv
 
 *-----Purpose----------------------------------------------------------|
 *
@@ -2791,27 +2800,27 @@
 *
 *     It does not compute the matrix exponential in isolation but
 *     instead, it computes directly the action of the exponential
-*     operator on the operand vector. This way of doing so allows 
-*     for addressing large sparse problems. 
+*     operator on the operand vector. This way of doing so allows
+*     for addressing large sparse problems.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*                      
+*
 *     v(n)   : (input) given operand vector.
 *
 *     w(n)   : (output) computed approximation of exp(t*A)*v.
 *
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -2822,7 +2831,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+2)^2+4*(m+2)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+2
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -2834,22 +2843,22 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -2868,9 +2877,9 @@
 *     The `hump' is a measure of the conditioning of the problem. The
 *     matrix exponential is well-conditioned if hump = 1, whereas it is
 *     poorly-conditioned if hump >> 1. However the solution can still be
-*     relatively fairly accurate even when the hump is large (the hump 
+*     relatively fairly accurate even when the hump is large (the hump
 *     is an upper bound), especially when the hump and the scaled norm
-*     of w [this is also computed and returned in wsp(10)] are of the 
+*     of w [this is also computed and returned in wsp(10)] are of the
 *     same order of magnitude (further details in reference below).
 *
 *----------------------------------------------------------------------|
@@ -2886,11 +2895,11 @@
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H). The value 0 switches to the
 *               uniform rational Chebyshev approximation of type (14,14)
 *
@@ -2969,7 +2978,7 @@
       call ZCOPY( n, v,1, w,1 )
       beta = DZNRM2( n, w,1 )
       vnorm = beta
-      hump = beta 
+      hump = beta
 *
 *---  obtain the very first stepsize ...
 *
@@ -3058,9 +3067,9 @@
       endif
 
  402  continue
-* 
+*
 *---  error estimate ...
-* 
+*
       if ( k1.eq.0 ) then
          err_loc = tol
       else
@@ -3079,7 +3088,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -3166,41 +3175,41 @@
 *----------------------------------------------------------------------|
 *----------------------------------------------------------------------|
       subroutine DGPHIV( n, m, t, u, v, w, tol, anorm,
-     .                   wsp,lwsp, iwsp,liwsp, matvec, itrace,iflag ) 
+     .                   wsp,lwsp, iwsp,liwsp, matvec, itrace,iflag )
 
       implicit none
       integer n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm, u(n), v(n), w(n), wsp(lwsp)
-      external matvec
+      external matvec, dcopy, daxpy, dscal, dgpadm, dgemv
 
 *-----Purpose----------------------------------------------------------|
 *
-*---  DGPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution 
+*---  DGPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution
 *     of the nonhomogeneous linear ODE problem w' = Aw + u, w(0) = v.
 *     phi(z) = (exp(z)-1)/z and A is a General matrix.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*   
+*
 *     u(n)   : (input) operand vector with respect to the phi function
 *              (forcing term of the ODE problem).
 *
 *     v(n)   : (input) operand vector with respect to the exp function
 *              (initial condition of the ODE problem).
-*  
-*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u 
-* 
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*
+*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u
+*
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -3211,7 +3220,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+3)^2+4*(m+3)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+3
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -3223,22 +3232,22 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -3257,19 +3266,19 @@
 *
       integer mxstep, mxreject, ideg
       double precision delta, gamma
-      parameter( mxstep   = 1000, 
+      parameter( mxstep   = 1000,
      .           mxreject = 0,
-     .           ideg     = 6, 
+     .           ideg     = 6,
      .           delta    = 1.2d0,
      .           gamma    = 0.9d0 )
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H).
 *
 *     delta   : local truncation error `safety factor'
@@ -3304,7 +3313,7 @@
 *
       k1 = 3
       mh = m + 3
-      iv = 1 
+      iv = 1
       ih = iv + n*(m+1) + n
       ifree = ih + mh*mh
       lfree = lwsp - ifree + 1
@@ -3333,7 +3342,7 @@
       if ( eps.eq.0.0d0 ) go to 1
       if ( tol.le.eps ) tol = SQRT( eps )
       rndoff = eps*anorm
- 
+
       break_tol = 1.0d-7
 *>>>  break_tol = tol
 *>>>  break_tol = anorm*tol
@@ -3380,7 +3389,7 @@
             wsp(ih+(j-1)*mh+i-1) = hij
          enddo
          hj1j = DNRM2( n, wsp(j1v),1 )
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -3424,14 +3433,14 @@
       nscale = nscale + ns
       wsp(iphih+mbrkdwn)   = hj1j*wsp(iphih+mx+mbrkdwn-1)
       wsp(iphih+mbrkdwn+1) = hj1j*wsp(iphih+2*mx+mbrkdwn-1)
- 
+
  402  continue
 *---  error estimate ...
       if ( k1.eq.0 ) then
          err_loc = tol
       else
          p1 = ABS( wsp(iphih+m) )   * beta
-         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm 
+         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm
          if ( p1.gt.10.0d0*p2 ) then
             err_loc = p2
             xm = 1.0d0/DBLE( m+1 )
@@ -3444,8 +3453,8 @@
          endif
       endif
 
-*---  reject the step-size if the error is not acceptable ...   
-      if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and. 
+*---  reject the step-size if the error is not acceptable ...
+      if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
          t_step = gamma * t_step * (t_step*tol/err_loc)**xm
@@ -3456,7 +3465,7 @@
             print*,'err_loc =',err_loc
             print*,'err_required =',delta*t_old*tol
             print*,'stepsize rejected, stepping down to:',t_step
-         endif 
+         endif
          ireject = ireject + 1
          nreject = nreject + 1
          if ( mxreject.ne.0 .and. ireject.gt.mxreject ) then
@@ -3476,13 +3485,13 @@
 *
       t_new = gamma * t_step * (t_step*tol/err_loc)**xm
       p1 = 10.0d0**(NINT( LOG10( t_new )-SQR1 )-1)
-      t_new = AINT( t_new/p1 + 0.55d0 ) * p1 
+      t_new = AINT( t_new/p1 + 0.55d0 ) * p1
 
       err_loc = MAX( err_loc,rndoff )
 *
 *---  update the time covered ...
 *
-      t_now = t_now + t_step 
+      t_now = t_now + t_step
 *
 *---  display and keep some information ...
 *
@@ -3493,15 +3502,15 @@
          print*,'err_loc   =',err_loc
          print*,'next_step =',t_new
       endif
- 
-      step_min = MIN( step_min, t_step ) 
+
+      step_min = MIN( step_min, t_step )
       step_max = MAX( step_max, t_step )
       s_error = s_error + err_loc
       x_error = MAX( x_error, err_loc )
- 
+
       if ( mxstep.eq.0 .or. nstep.lt.mxstep ) goto 100
       iflag = 1
- 
+
  500  continue
 
       iwsp(1) = nmult
@@ -3524,41 +3533,41 @@
 *----------------------------------------------------------------------|
 *----------------------------------------------------------------------|
       subroutine DSPHIV( n, m, t, u, v, w, tol, anorm,
-     .                   wsp,lwsp, iwsp,liwsp, matvec, itrace,iflag ) 
+     .                   wsp,lwsp, iwsp,liwsp, matvec, itrace,iflag )
 
       implicit none
       integer n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm, u(n), v(n), w(n), wsp(lwsp)
-      external matvec
+      external matvec, dcopy, daxpy, dscal, dgpadm, dgemv
 
 *-----Purpose----------------------------------------------------------|
 *
-*---  DSPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution 
+*---  DSPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution
 *     of the nonhomogeneous linear ODE problem w' = Aw + u, w(0) = v.
 *     phi(z) = (exp(z)-1)/z and A is a Symmetric matrix.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*   
+*
 *     u(n)   : (input) operand vector with respect to the phi function
 *              (forcing term of the ODE problem).
 *
 *     v(n)   : (input) operand vector with respect to the exp function
 *              (initial condition of the ODE problem).
-*  
-*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u 
-* 
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*
+*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u
+*
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -3569,7 +3578,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+3)^2+4*(m+3)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+3
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -3581,22 +3590,22 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -3615,19 +3624,19 @@
 *
       integer mxstep, mxreject, ideg
       double precision delta, gamma
-      parameter( mxstep   = 500, 
+      parameter( mxstep   = 500,
      .           mxreject = 0,
-     .           ideg     = 6, 
+     .           ideg     = 6,
      .           delta    = 1.2d0,
      .           gamma    = 0.9d0 )
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H).
 *
 *     delta   : local truncation error `safety factor'
@@ -3662,7 +3671,7 @@
 *
       k1 = 3
       mh = m + 3
-      iv = 1 
+      iv = 1
       ih = iv + n*(m+1) + n
       ifree = ih + mh*mh
       lfree = lwsp - ifree + 1
@@ -3691,7 +3700,7 @@
       if ( eps.eq.0.0d0 ) go to 1
       if ( tol.le.eps ) tol = SQRT( eps )
       rndoff = eps*anorm
- 
+
       break_tol = 1.0d-7
 *>>>  break_tol = tol
 *>>>  break_tol = anorm*tol
@@ -3738,7 +3747,7 @@
          call DAXPY( n, -hjj, wsp(j1v-n),1, wsp(j1v),1 )
          hj1j = DNRM2( n, wsp(j1v),1 )
          wsp(ih+(j-1)*(mh+1)) = hjj
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -3785,16 +3794,16 @@
       nscale = nscale + ns
       wsp(iphih+mbrkdwn)   = hj1j*wsp(iphih+mx+mbrkdwn-1)
       wsp(iphih+mbrkdwn+1) = hj1j*wsp(iphih+2*mx+mbrkdwn-1)
- 
+
  402  continue
-* 
+*
 *---  error estimate ...
 *
       if ( k1.eq.0 ) then
          err_loc = tol
       else
          p1 = ABS( wsp(iphih+m) )   * beta
-         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm 
+         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm
          if ( p1.gt.10.0d0*p2 ) then
             err_loc = p2
             xm = 1.0d0/DBLE( m+1 )
@@ -3808,8 +3817,8 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
-      if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and. 
+*
+      if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
          t_step = gamma * t_step * (t_step*tol/err_loc)**xm
@@ -3820,7 +3829,7 @@
             print*,'err_loc =',err_loc
             print*,'err_required =',delta*t_old*tol
             print*,'stepsize rejected, stepping down to:',t_step
-         endif 
+         endif
          ireject = ireject + 1
          nreject = nreject + 1
          if ( mxreject.ne.0 .and. ireject.gt.mxreject ) then
@@ -3840,13 +3849,13 @@
 *
       t_new = gamma * t_step * (t_step*tol/err_loc)**xm
       p1 = 10.0d0**(NINT( LOG10( t_new )-SQR1 )-1)
-      t_new = AINT( t_new/p1 + 0.55d0 ) * p1 
+      t_new = AINT( t_new/p1 + 0.55d0 ) * p1
 
       err_loc = MAX( err_loc,rndoff )
 *
 *---  update the time covered ...
 *
-      t_now = t_now + t_step 
+      t_now = t_now + t_step
 *
 *---  display and keep some information ...
 *
@@ -3858,14 +3867,14 @@
          print*,'next_step =',t_new
       endif
 
-      step_min = MIN( step_min, t_step ) 
+      step_min = MIN( step_min, t_step )
       step_max = MAX( step_max, t_step )
       s_error = s_error + err_loc
       x_error = MAX( x_error, err_loc )
- 
+
       if ( mxstep.eq.0 .or. nstep.lt.mxstep ) goto 100
       iflag = 1
- 
+
  500  continue
 
       iwsp(1) = nmult
@@ -3894,37 +3903,37 @@
       integer          n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm
       complex*16       u(n), v(n), w(n), wsp(lwsp)
-      external         matvec
+      external matvec, zcopy, zaxpy, zdscal, zgpadm, zgemv
 
 *-----Purpose----------------------------------------------------------|
 *
-*---  ZGPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution 
+*---  ZGPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution
 *     of the nonhomogeneous linear ODE problem w' = Aw + u, w(0) = v.
-*     phi(z) = (exp(z)-1)/z and A is a Zomplex (i.e., complex double 
+*     phi(z) = (exp(z)-1)/z and A is a Zomplex (i.e., complex double
 *     precision matrix).
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*   
+*
 *     u(n)   : (input) operand vector with respect to the phi function
 *              (forcing term of the ODE problem).
 *
 *     v(n)   : (input) operand vector with respect to the exp function
 *              (initial condition of the ODE problem).
-*  
-*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u 
-* 
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*
+*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u
+*
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -3935,7 +3944,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+3)^2+4*(m+3)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+3
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -3953,16 +3962,16 @@
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -3981,19 +3990,19 @@
 *
       integer mxstep, mxreject, ideg
       double precision delta, gamma
-      parameter( mxstep   = 500, 
+      parameter( mxstep   = 500,
      .           mxreject = 0,
-     .           ideg     = 6, 
+     .           ideg     = 6,
      .           delta    = 1.2d0,
      .           gamma    = 0.9d0 )
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H).
 *
 *     delta   : local truncation error `safety factor'
@@ -4033,7 +4042,7 @@
 *
       k1 = 3
       mh = m + 3
-      iv = 1 
+      iv = 1
       ih = iv + n*(m+1) + n
       ifree = ih + mh*mh
       lfree = lwsp - ifree + 1
@@ -4108,7 +4117,7 @@
             wsp(ih+(j-1)*mh+i-1) = hij
          enddo
          hj1j = DZNRM2( n, wsp(j1v),1 )
-*---     if `happy breakdown' go straightforward at the end ... 
+*---     if `happy breakdown' go straightforward at the end ...
          if ( hj1j.le.break_tol ) then
             print*,'happy breakdown: mbrkdwn =',j,' h =',hj1j
             k1 = 0
@@ -4155,14 +4164,14 @@
       wsp(iphih+mbrkdwn+1) = hj1j*wsp(iphih+2*mx+mbrkdwn-1)
 
  402  continue
-* 
+*
 *---  error estimate ...
-* 
+*
       if ( k1.eq.0 ) then
          err_loc = tol
       else
          p1 = ABS( wsp(iphih+m) )   * beta
-         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm 
+         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm
          if ( p1.gt.10.0d0*p2 ) then
             err_loc = p2
             xm = 1.0d0/DBLE( m+1 )
@@ -4176,7 +4185,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step
@@ -4263,36 +4272,36 @@
       integer          n, m, lwsp, liwsp, itrace, iflag, iwsp(liwsp)
       double precision t, tol, anorm
       complex*16       u(n), v(n), w(n), wsp(lwsp)
-      external         matvec
+      external matvec, zcopy, zaxpy, zdscal, zgpadm, zgemv
 
 *-----Purpose----------------------------------------------------------|
 *
-*---  ZHPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution 
+*---  ZHPHIV computes w = exp(t*A)v + t*phi(tA)u which is the solution
 *     of the nonhomogeneous linear ODE problem w' = Aw + u, w(0) = v.
 *     phi(z) = (exp(z)-1)/z and A is an Hermitian matrix.
 *
 *     The method used is based on Krylov subspace projection
 *     techniques and the matrix under consideration interacts only
-*     via the external routine `matvec' performing the matrix-vector 
+*     via the external routine `matvec' performing the matrix-vector
 *     product (matrix-free method).
 *
 *-----Arguments--------------------------------------------------------|
 *
 *     n      : (input) order of the principal matrix A.
-*                      
+*
 *     m      : (input) maximum size for the Krylov basis.
-*                      
+*
 *     t      : (input) time at wich the solution is needed (can be < 0).
-*   
+*
 *     u(n)   : (input) operand vector with respect to the phi function
 *              (forcing term of the ODE problem).
 *
 *     v(n)   : (input) operand vector with respect to the exp function
 *              (initial condition of the ODE problem).
-*  
-*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u 
-* 
-*     tol    : (input/output) the requested accuracy tolerance on w. 
+*
+*     w(n)   : (output) computed approximation of exp(t*A)v + t*phi(tA)u
+*
+*     tol    : (input/output) the requested accuracy tolerance on w.
 *              If on input tol=0.0d0 or tol is too small (tol.le.eps)
 *              the internal value sqrt(eps) is used, and tol is set to
 *              sqrt(eps) on output (`eps' denotes the machine epsilon).
@@ -4303,7 +4312,7 @@
 *   wsp(lwsp): (workspace) lwsp .ge. n*(m+1)+n+(m+3)^2+4*(m+3)^2+ideg+1
 *                                   +---------+-------+---------------+
 *              (actually, ideg=6)        V        H      wsp for PADE
-*                   
+*
 * iwsp(liwsp): (workspace) liwsp .ge. m+3
 *
 *     matvec : external subroutine for matrix-vector multiplication.
@@ -4315,22 +4324,22 @@
 *     itrace : (input) running mode. 0=silent, 1=print step-by-step info
 *
 *     iflag  : (output) exit flag.
-*              <0 - bad input arguments 
+*              <0 - bad input arguments
 *               0 - no problem
 *               1 - maximum number of steps reached without convergence
 *               2 - requested tolerance was too high
 *
 *-----Accounts on the computation--------------------------------------|
-*     Upon exit, an interested user may retrieve accounts on the 
-*     computations. They are located in the workspace arrays wsp and 
-*     iwsp as indicated below: 
+*     Upon exit, an interested user may retrieve accounts on the
+*     computations. They are located in the workspace arrays wsp and
+*     iwsp as indicated below:
 *
 *     location  mnemonic                 description
 *     -----------------------------------------------------------------|
 *     iwsp(1) = nmult, number of matrix-vector multiplications used
 *     iwsp(2) = nexph, number of Hessenberg matrix exponential evaluated
 *     iwsp(3) = nscale, number of repeated squaring involved in Pade
-*     iwsp(4) = nstep, number of integration steps used up to completion 
+*     iwsp(4) = nstep, number of integration steps used up to completion
 *     iwsp(5) = nreject, number of rejected step-sizes
 *     iwsp(6) = ibrkflag, set to 1 if `happy breakdown' and 0 otherwise
 *     iwsp(7) = mbrkdwn, if `happy brkdown', basis-size when it occured
@@ -4349,19 +4358,19 @@
 *
       integer mxstep, mxreject, ideg
       double precision delta, gamma
-      parameter( mxstep   = 500, 
+      parameter( mxstep   = 500,
      .           mxreject = 0,
-     .           ideg     = 6, 
+     .           ideg     = 6,
      .           delta    = 1.2d0,
      .           gamma    = 0.9d0 )
 
 *     mxstep  : maximum allowable number of integration steps.
 *               The value 0 means an infinite number of steps.
-* 
-*     mxreject: maximum allowable number of rejections at each step. 
+*
+*     mxreject: maximum allowable number of rejections at each step.
 *               The value 0 means an infinite number of rejections.
 *
-*     ideg    : the Pade approximation of type (ideg,ideg) is used as 
+*     ideg    : the Pade approximation of type (ideg,ideg) is used as
 *               an approximation to exp(H).
 *
 *     delta   : local truncation error `safety factor'
@@ -4401,7 +4410,7 @@
 *
       k1 = 3
       mh = m + 3
-      iv = 1 
+      iv = 1
       ih = iv + n*(m+1) + n
       ifree = ih + mh*mh
       lfree = lwsp - ifree + 1
@@ -4524,14 +4533,14 @@
       wsp(iphih+mbrkdwn+1) = hj1j*wsp(iphih+2*mx+mbrkdwn-1)
 
  402  continue
-* 
+*
 *---  error estimate ...
-* 
+*
       if ( k1.eq.0 ) then
          err_loc = tol
       else
          p1 = ABS( wsp(iphih+m) )   * beta
-         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm 
+         p2 = ABS( wsp(iphih+m+1) ) * beta * avnorm
          if ( p1.gt.10.0d0*p2 ) then
             err_loc = p2
             xm = 1.0d0/DBLE( m+1 )
@@ -4545,7 +4554,7 @@
       endif
 *
 *---  reject the step-size if the error is not acceptable ...
-*   
+*
       if ( (k1.ne.0) .and. (err_loc.gt.delta*t_step*tol) .and.
      .     (mxreject.eq.0 .or. ireject.lt.mxreject) ) then
          t_old = t_step

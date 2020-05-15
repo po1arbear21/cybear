@@ -135,7 +135,7 @@ c     %----------------------%
 c     | External Subroutines |
 c     %----------------------%
 c
-      external   dcopy, dsortc, second
+      external   dcopy, dsortc, second, ivout, dvout
 c
 c     %----------------------%
 c     | Intrinsics Functions |

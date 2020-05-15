@@ -131,7 +131,7 @@ c     %----------------------%
 c     | External Subroutines |
 c     %----------------------%
 c
-      external   dswap, dcopy, dsortr, second
+      external   dswap, dcopy, dsortr, second, ivout, dvout
 c
 c     %---------------------%
 c     | Intrinsic Functions |

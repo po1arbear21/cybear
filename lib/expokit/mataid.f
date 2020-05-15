@@ -22,7 +22,7 @@
       double precision a(nzmax)
       common /RMAT/ a, ia, ja, nz, n
       integer i, j
- 
+
       do j = 1,n
          y(j) = 0.0d0
       enddo
@@ -107,7 +107,7 @@
       integer i, j
       complex*16 ZERO
       parameter( ZERO=(0.0d0,0.0d0) )
- 
+
       do j = 1,n
          y(j) = ZERO
       enddo
@@ -173,7 +173,7 @@
 
 *----------------------------------------------------------------------|
       subroutine DGCNVR( from,to,diag, nrow,ncol, nz, ia, ja, a, iwsp )
- 
+
       implicit none
       character        from*3, to*3, diag*1
       integer          nrow, ncol, nz, ia(*), ja(*), iwsp(*)
@@ -195,14 +195,14 @@
 *     to     : (input, character*3) the storage format holding the
 *              matrix on output. Same accepted values as above.
 *
-*     diag   : (input, character*1) specifies whether or not the 
-*              entire diagonal should be lodged, i.e., including 
+*     diag   : (input, character*1) specifies whether or not the
+*              entire diagonal should be lodged, i.e., including
 *              null diagonal entries. (This may be required by
 *              some applications that make use of the locations
 *              of diagonal elements.)
-*              diag = 'N', no specific attention is given to diagonal 
+*              diag = 'N', no specific attention is given to diagonal
 *                          elements.
-*              diag = 'D', the entire diagonal is lodged, including 
+*              diag = 'D', the entire diagonal is lodged, including
 *                          null elements on the diagonal.
 *              if from=to & diag='D', null diagonal entries are
 *              explicitly inserted in the actual matrix.
@@ -212,31 +212,31 @@
 *     ncol   : (input) number of columns in the matrix.
 *
 *     nz     : (input/output) number of non-zeros elements.
-*              If diag='D' and null diagonal entries are inserted, then 
+*              If diag='D' and null diagonal entries are inserted, then
 *              nz is updated on exit and contains the effective number
 *              of entries stored. In what follows, nz' (read nz prime)
 *              denotes the updated value of nz, nz <= nz' <= nz+n.
 *              If diag='N' then nz'=nz.
 *
 *     ia(*) : (input/output) of declared length .ge. nz'.
-*             On input, 
-*                if from='CRS', ia(1:nrow+1) contains pointers for the 
-*                beginning of each row. 
+*             On input,
+*                if from='CRS', ia(1:nrow+1) contains pointers for the
+*                beginning of each row.
 *                if from='COO', or 'CCS', ia(1:nz) contains row indices.
 *             On output,
-*                if to='CRS', ia(1:nrow+1) contains pointers for the 
-*                beginning of each row. 
+*                if to='CRS', ia(1:nrow+1) contains pointers for the
+*                beginning of each row.
 *                if to='COO' or 'CCS', ia(1:nz') contains row indices
 *                in increasing order in each column.
 *
 *     ja(*) : (input/output) of declared length .ge. nz'.
-*             On input, 
-*                if from='CRS', ja(1:ncol+1) contains pointers for the 
-*                beginning of each column. 
+*             On input,
+*                if from='CRS', ja(1:ncol+1) contains pointers for the
+*                beginning of each column.
 *                if from='COO' or 'CCS', ja(1:nz) contains col. indices.
 *             On output,
-*                if to='CRS', ja(1:ncol+1) contains pointers for the 
-*                beginning of each column. 
+*                if to='CRS', ja(1:ncol+1) contains pointers for the
+*                beginning of each column.
 *                if to='COO' or 'CCS', ja(1:nz') contains column indices
 *                in increasing order in each row.
 *
@@ -247,16 +247,18 @@
 *
 *----------------------------------------------------------------------|
 *     Roger B. Sidje (rbs@maths.uq.edu.au)
-*     Department of Mathematics, University of Queensland. 
-*     Brisbane QLD 4072, Australia. 1996. 
+*     Department of Mathematics, University of Queensland.
+*     Brisbane QLD 4072, Australia. 1996.
 *----------------------------------------------------------------------|
 
       integer i, j, k, nn, iflag
-      character cpy_from*3, cpy_to*3, cpy_diag*1, c*1, S1*3, S2*3 
+      character cpy_from*3, cpy_to*3, cpy_diag*1, c*1, S1*3, S2*3
       logical LSAME
 
       intrinsic CHAR,ICHAR,LLE,LGE,MIN
       LSAME(S1,S2) = LLE(S1,S2).and.LGE(S1,S2)
+
+      external dcmpac
 *
 *---  upper case strings ...
 *
@@ -296,7 +298,7 @@
                ia(nn) = i
                nn = nn-1
             enddo
-         enddo 
+         enddo
       endif
       if ( LSAME(cpy_from,'CCS') ) then
 *---     expand ja indices ...
@@ -306,7 +308,7 @@
                ja(nn) = j
                nn = nn-1
             enddo
-         enddo 
+         enddo
       endif
 *
 *--   if requested, insert diagonal elements even if they are zero...
@@ -351,6 +353,8 @@
       integer          n, nx, ix(nx), ixx(nx), iwsp(n)
       double precision xx(nx)
       integer          k
+
+      external idsrt1, idsrt2
 *
 *---  sort ix and carry ixx and xx along ...
 *
@@ -368,7 +372,7 @@
       do k = n,1,-1
          ix(k) = ix(k+1)-iwsp(k)
       enddo
-* 
+*
 *---  sort ixx in increasing order and carry xx along ...
 *
       do k = 1,n
@@ -405,7 +409,7 @@
       ENDIF
  225  K = I
 *
-*---  Select a central element of the array and save it in location 
+*---  Select a central element of the array and save it in location
 *---  IT, TX.
 *
       IJ = I + IDINT( DBLE(J-I)*R )
@@ -423,7 +427,7 @@
          TX     = XX(IJ)
       ENDIF
       L=J
-*                           
+*
 *---  If last element of array is less than IT, swap with IT.
 *
       IF( IX(J).LT.IT ) THEN
@@ -446,13 +450,13 @@
          ENDIF
       ENDIF
 *
-*---  Find an element in the second half of the array which is 
+*---  Find an element in the second half of the array which is
 *---  smaller than IT.
 *
  240  L=L-1
       IF( IX(L).GT.IT ) GO TO 240
 *
-*---  Find an element in the first half of the array which is 
+*---  Find an element in the first half of the array which is
 *---  greater than IT.
 *
  245  K=K+1
@@ -541,7 +545,7 @@
       ENDIF
  225  K = I
 *
-*---  Select a central element of the array and save it in location 
+*---  Select a central element of the array and save it in location
 *---  IT, JT, TX.
 *
       IJ = I + IDINT( DBLE(J-I)*R )
@@ -563,7 +567,7 @@
          TX     = XX(IJ)
       ENDIF
       L=J
-*                           
+*
 *---  If last element of array is less than IT, swap with IT.
 *
       IF( IX(J).LT.IT ) THEN
@@ -592,13 +596,13 @@
          ENDIF
       ENDIF
 *
-*---  Find an element in the second half of the array which is 
+*---  Find an element in the second half of the array which is
 *---  smaller than IT.
 *
  240  L=L-1
       IF( IX(L).GT.IT ) GO TO 240
 *
-*---  Find an element in the first half of the array which is 
+*---  Find an element in the first half of the array which is
 *---  greater than IT.
 *
  245  K=K+1
@@ -667,7 +671,7 @@
 *----------------------------------------------------------------------|
 *----------------------------------------------------------------------|
       subroutine ZGCNVR( from,to,diag, nrow,ncol, nz, ia, ja, a, iwsp )
- 
+
       implicit none
       character        from*3, to*3, diag*1
       integer          nrow, ncol, nz, ia(*), ja(*), iwsp(*)
@@ -690,14 +694,14 @@
 *     to     : (input, character*3) the storage format holding the
 *              matrix on output. Same accepted values as above.
 *
-*     diag   : (input, character*1) specifies whether or not the 
-*              entire diagonal should be lodged, i.e., including 
+*     diag   : (input, character*1) specifies whether or not the
+*              entire diagonal should be lodged, i.e., including
 *              null diagonal entries. (This may be required by
 *              some applications that make use of the locations
 *              of diagonal elements.)
-*              diag = 'N', no specific attention is given to diagonal 
+*              diag = 'N', no specific attention is given to diagonal
 *                          elements.
-*              diag = 'D', the entire diagonal is lodged, including 
+*              diag = 'D', the entire diagonal is lodged, including
 *                          null elements on the diagonal.
 *              if from=to & diag='D', null diagonal entries are
 *              explicitly inserted in the actual matrix.
@@ -707,31 +711,31 @@
 *     ncol   : (input) number of columns in the matrix.
 *
 *     nz     : (input/output) number of non-zeros elements.
-*              If diag='D' and null diagonal entries are inserted, then 
+*              If diag='D' and null diagonal entries are inserted, then
 *              nz is updated on exit and contains the effective number
 *              of entries stored. In what follows, nz' (read nz prime)
 *              denotes the updated value of nz, nz <= nz' <= nz+n.
 *              If diag='N' then nz'=nz.
 *
 *     ia(*) : (input/output) of declared length .ge. nz'.
-*             On input, 
-*                if from='CRS', ia(1:nrow+1) contains pointers for the 
-*                beginning of each row. 
+*             On input,
+*                if from='CRS', ia(1:nrow+1) contains pointers for the
+*                beginning of each row.
 *                if from='COO', or 'CCS', ia(1:nz) contains row indices.
 *             On output,
-*                if to='CRS', ia(1:nrow+1) contains pointers for the 
-*                beginning of each row. 
+*                if to='CRS', ia(1:nrow+1) contains pointers for the
+*                beginning of each row.
 *                if to='COO' or 'CCS', ia(1:nz') contains row indices
 *                in increasing order in each column.
 *
 *     ja(*) : (input/output) of declared length .ge. nz'.
-*             On input, 
-*                if from='CRS', ja(1:ncol+1) contains pointers for the 
-*                beginning of each column. 
+*             On input,
+*                if from='CRS', ja(1:ncol+1) contains pointers for the
+*                beginning of each column.
 *                if from='COO' or 'CCS', ja(1:nz) contains col. indices.
 *             On output,
-*                if to='CRS', ja(1:ncol+1) contains pointers for the 
-*                beginning of each column. 
+*                if to='CRS', ja(1:ncol+1) contains pointers for the
+*                beginning of each column.
 *                if to='COO' or 'CCS', ja(1:nz') contains column indices
 *                in increasing order in each row.
 *
@@ -742,16 +746,18 @@
 *
 *----------------------------------------------------------------------|
 *     Roger B. Sidje (rbs@maths.uq.edu.au)
-*     Department of Mathematics, University of Queensland. 
+*     Department of Mathematics, University of Queensland.
 *     Brisbane QLD 4072, Australia. 1996.
 *----------------------------------------------------------------------|
 
       integer i, j, k, nn, iflag
-      character cpy_from*3, cpy_to*3, cpy_diag*1, c*1, S1*3, S2*3 
+      character cpy_from*3, cpy_to*3, cpy_diag*1, c*1, S1*3, S2*3
       logical LSAME
 
       intrinsic CHAR,ICHAR,LLE,LGE,MIN
       LSAME(S1,S2) = LLE(S1,S2).and.LGE(S1,S2)
+
+      external zcmpac
 *
 *---  upper case strings ...
 *
@@ -791,7 +797,7 @@
                ia(nn) = i
                nn = nn-1
             enddo
-         enddo 
+         enddo
       endif
       if ( LSAME(cpy_from,'CCS') ) then
 *---     expand ja indices ...
@@ -801,7 +807,7 @@
                ja(nn) = j
                nn = nn-1
             enddo
-         enddo 
+         enddo
       endif
 *
 *--   if requested, insert diagonal elements even if they are zero...
@@ -846,6 +852,8 @@
       integer          n, nx, ix(nx), ixx(nx), iwsp(n)
       complex*16       xx(nx)
       integer          k
+
+      external izsrt1, izsrt2
 *
 *---  sort ix and carry ixx and xx along ...
 *
@@ -863,7 +871,7 @@
       do k = n,1,-1
          ix(k) = ix(k+1)-iwsp(k)
       enddo
-* 
+*
 *---  sort ixx in increasing order and carry xx along ...
 *
       do k = 1,n
@@ -901,7 +909,7 @@
       ENDIF
  225  K = I
 *
-*---  Select a central element of the array and save it in location 
+*---  Select a central element of the array and save it in location
 *---  IT, TX.
 *
       IJ = I + IDINT( DBLE(J-I)*R )
@@ -919,7 +927,7 @@
          TX     = XX(IJ)
       ENDIF
       L=J
-*                           
+*
 *---  If last element of array is less than IT, swap with IT.
 *
       IF( IX(J).LT.IT ) THEN
@@ -942,13 +950,13 @@
          ENDIF
       ENDIF
 *
-*---  Find an element in the second half of the array which is 
+*---  Find an element in the second half of the array which is
 *---  smaller than IT.
 *
  240  L=L-1
       IF( IX(L).GT.IT ) GO TO 240
 *
-*---  Find an element in the first half of the array which is 
+*---  Find an element in the first half of the array which is
 *---  greater than IT.
 *
  245  K=K+1
@@ -1038,7 +1046,7 @@
       ENDIF
  225  K = I
 *
-*---  Select a central element of the array and save it in location 
+*---  Select a central element of the array and save it in location
 *---  IT, JT, TX.
 *
       IJ = I + IDINT( DBLE(J-I)*R )
@@ -1060,7 +1068,7 @@
          TX     = XX(IJ)
       ENDIF
       L=J
-*                           
+*
 *---  If last element of array is less than IT, swap with IT.
 *
       IF( IX(J).LT.IT ) THEN
@@ -1089,13 +1097,13 @@
          ENDIF
       ENDIF
 *
-*---  Find an element in the second half of the array which is 
+*---  Find an element in the second half of the array which is
 *---  smaller than IT.
 *
  240  L=L-1
       IF( IX(L).GT.IT ) GO TO 240
 *
-*---  Find an element in the first half of the array which is 
+*---  Find an element in the first half of the array which is
 *---  greater than IT.
 *
  245  K=K+1
@@ -1177,7 +1185,7 @@
 *
 *---  Arguments -------------------------------------------------------|
 *
-*     filename (input)  
+*     filename (input)
 *           name of the file containing the matrix.
 *           must end with a '$', i.e., filename is in the form: '...$'
 *
@@ -1188,7 +1196,7 @@
 *              'CRS' : Compressed Row Storage
 *              'CCS' : Compressed Column Storage (default H-B format)
 *
-*     n (input/output) 
+*     n (input/output)
 *           On input,  the maximum allowable order
 *           On output, the actual order of the matrix loaded
 *
@@ -1197,20 +1205,21 @@
 *           On output, the actual number of non zero entries
 *
 *     ia,ja,a (output)
-*           sparse matrix data stored in the format given in spformat 
+*           sparse matrix data stored in the format given in spformat
 *           sufficient room is needed to achieve this: each component
 *           must be of length >= nz. If the matrix is symmetric, both
 *           lower and upper parts are included explicitly
-*           
+*
 *     iwsp (workspace) of length >= n
 *
 *----------------------------------------------------------------------|
 *
       character        title*72, key*8, type*3, ptrfmt*16,
-     .                 indfmt*16, valfmt*20, rhsfmt*20, rhstyp*1 
+     .                 indfmt*16, valfmt*20, rhsfmt*20, rhstyp*1
       integer          totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow,
      .                 nrhs, nrhsix, i, j, k, io, nn, nnz
       intrinsic        INDEX
+      external dgcnvr
 *---
       i = INDEX( filename,'$' ) - 1
       if ( i.le.0 ) stop 'in LOADHB. Bad filename'
@@ -1226,14 +1235,14 @@
       if ( nn.gt.n ) stop 'in LOADHB. Please increase n'
       if ( nnz.gt.nz ) stop 'in LOADHB. Please increase nz'
 
-*---  leave if there is no values ... 
+*---  leave if there is no values ...
       if ( valcrd.le.0 ) stop 'Empty Harwell-Boeing matrix'
       if ( rhscrd.gt.0 ) then
          read( UNIT=7,FMT=11 ) rhstyp, nrhs, nrhsix
          print*,'There is a second hand'
       endif
 
-*---  read data... 
+*---  read data...
       read( UNIT=7,FMT=ptrfmt ) (ja(i), i = 1,nn+1)
       read( UNIT=7,FMT=indfmt ) (ia(i), i = 1,nnz)
       read( UNIT=7,FMT=valfmt ) (a(i),  i = 1,nnz)
@@ -1248,7 +1257,7 @@
                ja(k) = j
                k = k-1
             enddo
-         enddo 
+         enddo
 *---     insert the other half ...
          k = nnz
          do i = 1,k

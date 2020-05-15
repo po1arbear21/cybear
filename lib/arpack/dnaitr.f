@@ -268,7 +268,7 @@ c     | External Subroutines |
 c     %----------------------%
 c
       external   daxpy, dcopy, dscal, dgemv, dgetv0, dlabad,
-     &           dvout, dmout, ivout, second
+     &           dvout, dmout, ivout, second, dlascl
 c
 c     %--------------------%
 c     | External Functions |

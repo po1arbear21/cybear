@@ -12,6 +12,7 @@ program test
   use test_newton_m
   use test_matrix_m
   use test_qsort_m
+  use test_quadpack_m
   use test_vector_m
   use test_sqrtm_m
   use test_arnoldi_m
@@ -31,6 +32,7 @@ program test
   call test_newton
   call test_matrix
   call test_qsort
+  call test_quadpack
   call test_vector
   call test_sqrtm
   call test_arnoldi

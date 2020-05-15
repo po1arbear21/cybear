@@ -276,7 +276,8 @@ c     | External Subroutines |
 c     %----------------------%
 c
       external   dcopy  , dger   , dgeqr2 , dlacpy , dorm2r , dscal ,
-     &           dsesrt , dsteqr , dswap  , dvout  , ivout , dsortr
+     &           dsesrt , dsteqr , dswap  , dvout  , ivout , dsortr,
+     &           dsgets
 c
 c     %--------------------%
 c     | External Functions |

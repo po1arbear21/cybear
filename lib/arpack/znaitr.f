@@ -273,7 +273,7 @@ c     | External Subroutines |
 c     %----------------------%
 c
       external   zaxpy, zcopy, zscal, zdscal, zgemv, zgetv0,
-     &           dlabad, zvout, zmout, ivout, second
+     &           dlabad, zvout, zmout, ivout, second, dvout, zlascl
 c
 c     %--------------------%
 c     | External Functions |
