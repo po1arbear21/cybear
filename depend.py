@@ -338,9 +338,9 @@ for i in range(len(programs)):
   print("")
 for i in range(len(libraries)):
   print(".PHONY: " + libraries[i].name)
-  print(args.build_dir + libraries[i].name + ": $(ANCHORS_" + libraries[i].name + ") $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C) $(LIBS)")
-  print('\t@printf "%b" "$(FC_COL)ar$(NO_COL) rcs $(OU_COL)' + args.build_dir + libraries[i].name + '.a$(NO_COL) $(IN_COL)$(OBJECTS_' + libraries[i].name + ') $(OBJECTS_C) $(LIBS) $(EXT_LIBS)$(NO_COL)\\n\\n"')
-  print("\t@ar rcs " + args.build_dir + libraries[i].name + ".a $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C) $(LIBS) $(EXT_LIBS)")
+  print(args.build_dir + libraries[i].name + ": $(ANCHORS_" + libraries[i].name + ") $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C)")
+  print('\t@printf "%b" "$(FC_COL)ar$(NO_COL) rcs $(OU_COL)' + args.build_dir + libraries[i].name + '.a$(NO_COL) $(IN_COL)$(OBJECTS_' + libraries[i].name + ') $(OBJECTS_C)$(NO_COL)\\n\\n"')
+  print("\t@ar rcs " + args.build_dir + libraries[i].name + ".a $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C)")
   print("")
 
 # output anchor files
