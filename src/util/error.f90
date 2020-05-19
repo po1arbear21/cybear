@@ -1,5 +1,7 @@
 module error_m
+#ifdef __INTEL_COMPILER
   use ifcore
+#endif
   implicit none
 
   private
@@ -72,7 +74,13 @@ contains
       end if
 
       ! print traceback and stop program
+#ifdef __INTEL_COMPILER
       call tracebackqq()
+#endif
+#ifdef __GFORTRAN__
+      call backtrace()
+      call exit(1)
+#endif
     end if
   end subroutine
 
@@ -108,7 +116,13 @@ contains
     print "(3A, 1I6)", "file: ", file, "; line: ", line
     print *
 
+#ifdef __INTEL_COMPILER
     call tracebackqq()
+#endif
+#ifdef __GFORTRAN__
+    call backtrace()
+    call exit(1)
+#endif
   end subroutine
 
 end module

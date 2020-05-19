@@ -135,7 +135,7 @@ contains
     block
       integer           :: i, j
       type(dense_real)  :: d
-      real              :: val, mat(5,5), e(5), v(5), v_exp(5)
+      real              :: mat(5,5), e(5), v(5), v_exp(5)
       real, allocatable :: tmp(:,:)
       logical, allocatable :: sparsity(:,:)
       type(sparse_real)  :: s
@@ -236,7 +236,7 @@ contains
     block
       integer           :: i, j
       type(dense_real)  :: d, d2
-      real              :: val, mat(3,3), e(3), v(3), v_exp(3)
+      real              :: mat(3,3)
 
       call d%init(3)
       do i = 1, 3
@@ -259,7 +259,7 @@ contains
     block
       integer           :: i, j
       type(dense_real)  :: d1, d2, d3
-      real              :: val, mat1(3,3), mat2(3,3), mat3(3,3), e(3), v(3), v_exp(3)
+      real              :: mat1(3,3), mat2(3,3), mat3(3,3)
 
       call d1%init(3)
       do i = 1, 3
@@ -290,7 +290,7 @@ contains
     block
       integer           :: i, j
       type(dense_real)  :: d1, d2, d3
-      real              :: val, mat1(3,3), mat2(3,3), mat3(3,3)
+      real              :: mat1(3,3), mat2(3,3), mat3(3,3)
       type(sparse_real)  :: s1
       type(spbuild_real) :: sb1
 

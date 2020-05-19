@@ -264,7 +264,7 @@ c
 c           initializations
 c           ---------------
 c
-   10 l = dabs(omega)
+   10 l = nint(dabs(omega))
       dl = 2*l+1
       cycle = dl*pi/dabs(omega)
       ier = 0

@@ -108,8 +108,7 @@ contains
 
     ! 37 real elements
     block
-      integer :: perm(37)
-      real    :: ar(37), e(37)
+      real :: ar(37), e(37)
 
       ar = [0.8147, 0.9058, 0.1270, 0.9134, 0.6324, 0.0975, 0.2785, 0.5469, &
             0.9575, 0.9649, 0.1576, 0.9706, 0.9572, 0.4854, 0.8003, 0.1419, &
@@ -127,7 +126,6 @@ contains
 
     ! 17 strings
     block
-      integer      :: perm(17)
       type(string) :: s(17), e(17)
 
       s = [ string("nsthemzb"), string("nezlbflp"), string("shjfsiix"), string("jsmyblzt"), &

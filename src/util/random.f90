@@ -15,7 +15,7 @@ module random_m
     type(pcg64_state) :: state
       !! internal state
   contains
-    procedure :: init       => random_init
+    procedure :: init       => random_init_
     procedure :: next_int   => random_next_int
     procedure :: next_ints  => random_next_ints
     procedure :: next_real  => random_next_real
@@ -84,7 +84,7 @@ module random_m
 
 contains
 
-  subroutine random_init(this, seed, seq)
+  subroutine random_init_(this, seed, seq)
     !! initialize random number generator (applies seed and selects sequence)
     class(random),   intent(out) :: this
     integer(kind=8), intent(in)  :: seed(2)

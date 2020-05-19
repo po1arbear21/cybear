@@ -515,6 +515,7 @@ contains
     err   = ""
 
     ! work on copy; remove leading and trailing spaces
+    allocate (character(0) :: line) ! remove gfortran warning
     line     = trim(adjustl(line0))
     line_len = len_trim(line)
 
@@ -588,7 +589,7 @@ contains
           ! if no sections, add one without name
           if (sections%n == 0) then
             call sections%resize(1)
-            name = ""
+            allocate (character(0) :: name)
             call sections%d(1)%init(name)
           end if
 
@@ -619,6 +620,7 @@ contains
         end if
 
         ! get name of section
+        allocate (character(0) :: section_name) ! remove gfortran warning
         section_name = trim(adjustl(line(2:line_len-1)))
 
         ! create new section
@@ -649,7 +651,7 @@ contains
         ! if no sections, add one without name
         if (sections%n == 0) then
           call sections%resize(1)
-          name = ""
+          allocate (character(0) :: name)
           call sections%d(1)%init(name)
         end if
 

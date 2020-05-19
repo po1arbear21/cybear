@@ -24,7 +24,7 @@ module radau5_m
     (   1.0                    ) /    9.0           &
   ], [ 3, 3 ])
 
-  real, parameter, private :: G0   = 2.74888829595676675854321047154372d-01
+  real, parameter, private :: G0   = 2.74888829595676675854321047154372e-01
   real, parameter, private :: E(3) = [      &
       G0 * (-13.0 - 7.0 * sqrt(6.0)) / 3.0, &
       G0 * (-13.0 + 7.0 * sqrt(6.0)) / 3.0, &
@@ -107,7 +107,7 @@ contains
     nP = size(P)
 
     block
-      integer :: it, i, j, i0, i1
+      integer :: it
       real    :: newt_err, newt_err0, err_k
       real    :: f(nU,3), dfdz(nU,nU,3), dfdP(nU,nP,3)
       real    :: z(nU*3), h(nU*3,1), dhdz(nU*3,nU*3)
@@ -375,8 +375,8 @@ contains
       !! output scalar error estimate
 
     ! local variables
-    real    :: i, i0, i1, eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
-    integer :: ipiv(nU)
+    integer :: i, i0, i1, ipiv(nU)
+    real    :: eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
 
     ! delta U
     eU(:,1) = G0 * dxk * fk

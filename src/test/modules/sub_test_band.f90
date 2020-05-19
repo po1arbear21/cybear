@@ -138,7 +138,7 @@ contains
 
     ! to sparse
     block
-      type(sparse_real)    :: s, s_exp
+      type(sparse_real)    :: s
       type(spbuild_real)   :: sb
       real, allocatable    :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)

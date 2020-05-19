@@ -1,5 +1,5 @@
       DOUBLE PRECISION FUNCTION D1MACH(I)
-      INTEGER I
+      INTEGER(KIND=4) I
 C
 C  DOUBLE-PRECISION MACHINE CONSTANTS
 C
@@ -34,12 +34,12 @@ C
 C  COMMENTS JUST BEFORE THE END STATEMENT (LINES STARTING WITH *)
 C  GIVE C SOURCE FOR D1MACH.
 C
-      INTEGER SMALL(2)
-      INTEGER LARGE(2)
-      INTEGER RIGHT(2)
-      INTEGER DIVER(2)
-      INTEGER LOG10(2)
-      INTEGER SC, CRAY1(38), J
+      INTEGER(KIND=4) SMALL(2)
+      INTEGER(KIND=4) LARGE(2)
+      INTEGER(KIND=4) RIGHT(2)
+      INTEGER(KIND=4) DIVER(2)
+      INTEGER(KIND=4) LOG10(2)
+      INTEGER(KIND=4) SC, CRAY1(38), J
       COMMON /D9MACH/ CRAY1
 C/6S
 C/7S
@@ -447,42 +447,44 @@ C  ***  ISSUE STOP 779 IF ALL DATA STATEMENTS ARE COMMENTED...
             LARGE(2) = LARGE(2) - RIGHT(2)
             IF (LARGE(2) .EQ. 64 .AND. SMALL(2) .EQ. 0) THEN
                CRAY1(1) = 67291416
-               DO 10 J = 1, 20
- 10               CRAY1(J+1) = CRAY1(J) + CRAY1(J)
-               CRAY1(22) = CRAY1(21) + 321322
-               DO 20 J = 22, 37
- 20               CRAY1(J+1) = CRAY1(J) + CRAY1(J)
+               DO J = 1, 20
+                  CRAY1(J+1) = CRAY1(J) + CRAY1(J)
+               END DO
+               CRAY1(22) = CRAY1(21) + 321322_4
+               DO J = 22, 37
+                  CRAY1(J+1) = CRAY1(J) + CRAY1(J)
+               END DO
                IF (CRAY1(38) .EQ. SMALL(1)) THEN
 *                  *** CRAY ***
 *                 SMALL(1) = 2332160919536140288
                   SMALL(1) = 2332160
-                  SMALL(1) = 1000000*SMALL(1) + 919536
-                  SMALL(1) = 1000000*SMALL(1) + 140288
+                  SMALL(1) = 1000000_4*SMALL(1) + 919536_4
+                  SMALL(1) = 1000000_4*SMALL(1) + 140288_4
                   SMALL(2) = 0
 *                 LARGE(1) = 6917247552664371199
                   LARGE(1) = 6917247
-                  LARGE(1) = 1000000*LARGE(1) + 552664
-                  LARGE(1) = 1000000*LARGE(1) + 371199
+                  LARGE(1) = 1000000_4*LARGE(1) + 552664_4
+                  LARGE(1) = 1000000_4*LARGE(1) + 371199_4
 *                 LARGE(2) = 281474976710654
                   LARGE(2) = 28147497
-                  LARGE(2) = 10000000*LARGE(2) + 6710654
+                  LARGE(2) = 10000000_4*LARGE(2) + 6710654_4
 *                 RIGHT(1) = 4585649583081652224
                   RIGHT(1) = 4585649
-                  RIGHT(1) = 1000000*RIGHT(1) + 583081
-                  RIGHT(1) = 1000000*RIGHT(1) + 652224
+                  RIGHT(1) = 1000000_4*RIGHT(1) + 583081_4
+                  RIGHT(1) = 1000000_4*RIGHT(1) + 652224_4
                   RIGHT(2) = 0
 *                 DIVER(1) = 4585931058058362880
                   DIVER(1) = 4585931
-                  DIVER(1) = 1000000*DIVER(1) + 058058
-                  DIVER(1) = 1000000*DIVER(1) + 362880
+                  DIVER(1) = 1000000_4*DIVER(1) + 058058_4
+                  DIVER(1) = 1000000_4*DIVER(1) + 362880_4
                   DIVER(2) = 0
 *                 LOG10(1) = 4611574008272714703
                   LOG10(1) = 4611574
-                  LOG10(1) = 1000000*LOG10(1) +   8272
-                  LOG10(1) = 1000000*LOG10(1) + 714703
+                  LOG10(1) = 1000000_4*LOG10(1) +   8272_4
+                  LOG10(1) = 1000000_4*LOG10(1) + 714703_4
 *                 LOG10(2) = 272234615232940
                   LOG10(2) = 27223461
-                  LOG10(2) = 10000000*LOG10(2) + 5232940
+                  LOG10(2) = 10000000_4*LOG10(2) + 5232940_4
                ELSE
                   WRITE(*,9000)
                   STOP 779

@@ -14,7 +14,7 @@ module pardiso_m
   public :: pardiso_solve
 
   ! include pardiso interface
-#include 'mkl_pardiso.fi'
+#include "mkl_pardiso.fi"
 
   character(*), parameter :: PARDISO_ERROR(-12:0) = [                      &
     "pardiso_64 called from 32-bit library                              ", &
@@ -81,6 +81,10 @@ contains
       !! complex/real flag
     integer             :: h
       !! return pardiso handle (index)
+
+    if (.not. allocated(pardiso_handles%d)) then
+      call pardiso_handles%init(0, c = 4)
+    end if
 
     if (free_pardiso_handles%n > 0) then
       h = free_pardiso_handles%d(free_pardiso_handles%n)

@@ -15,7 +15,6 @@ contains
     ! testing sum
     block
       real, allocatable :: p(:)
-      integer :: K
       real :: res, res_exp, tol
 
       tol     = epsilon(1.0)
@@ -36,7 +35,6 @@ contains
     ! testing dot
     block
       real, allocatable :: x(:), y(:)
-      integer :: K
       real :: res, res_exp, tol
 
       tol     = epsilon(1.0)

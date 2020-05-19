@@ -701,6 +701,7 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
   integer                   :: i, j, funit_, status
   character(:), allocatable :: fmt_
 
+  allocate (character(0) :: fmt_) ! remove gfortran warning
   if (present(fmt)) then
     fmt_ = fmt
   else

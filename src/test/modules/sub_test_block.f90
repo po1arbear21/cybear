@@ -157,7 +157,7 @@ contains
 
     ! mul_vec
     block
-      real :: x(9), y0(9), y(9), y_exp(9), fact = -3
+      real :: x(9), y(9), y_exp(9), fact = -3
 
       x     = [(i, i=1, 9)]
       y     = [(i, i=11, 19)]
@@ -192,7 +192,7 @@ contains
 
     ! to sparse
     block
-      type(sparse_real)    :: s, s_exp
+      type(sparse_real)    :: s
       type(spbuild_real)   :: sb
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)

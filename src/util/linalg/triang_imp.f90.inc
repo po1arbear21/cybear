@@ -111,7 +111,7 @@ subroutine TRIANG_MUL_VEC(this, x, y, fact_y, trans)
   if (this%upper) uplo = 'U'
 
   ! BLAS doesnt offer fact_y feature...
-  if (present(fact_y)) y0 = y
+  if (present(fact_y)) allocate (y0(size(y)), source = y)
   y = x
   call trmv(this%d, y, uplo=uplo, trans=trans)
   if (present(fact_y)) y = y + fact_y*y0

@@ -204,11 +204,11 @@ subroutine BAND_FACTORIZE(this)
     this%f(-1:1,:) = this%d
 
     ! factorization
-    associate(n   => this%ncols,       &
-      &       du2 => this%f(-2,3:n  ), &
-      &       du  => this%f(-1,2:n  ), &
-      &       d   => this%f( 0,1:n  ), &
-      &       dl  => this%f( 1,1:n-1)  )
+    associate(n   => this%ncols,                &
+              du2 => this%f(-2,3:this%ncols  ), &
+              du  => this%f(-1,2:this%ncols  ), &
+              d   => this%f( 0,1:this%ncols  ), &
+              dl  => this%f( 1,1:this%ncols-1)  )
 
       call gttrf(dl, d, du, du2, ipiv=this%ipiv, info=info)
       if (info /= 0) call program_error("Tridiagonal Factorization error in LAPACK", code = info)
@@ -277,14 +277,14 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     ! called factorize before?
     ASSERT(allocated(this%f) .and. allocated(this%ipiv))
 
-    associate(n   => this%ncols,       &
-      &       du  => this%d(-1,2:n  ), &
-      &       d   => this%d( 0,1:n  ), &
-      &       dl  => this%d( 1,1:n-1), &
-      &       du2 => this%f(-2,3:n  ), &
-      &       duf => this%f(-1,2:n  ), &
-      &       df  => this%f( 0,1:n  ), &
-      &       dlf => this%f( 1,1:n-1)  )
+    associate(n   => this%ncols,                &
+              du  => this%d(-1,2:this%ncols  ), &
+              d   => this%d( 0,1:this%ncols  ), &
+              dl  => this%d( 1,1:this%ncols-1), &
+              du2 => this%f(-2,3:this%ncols  ), &
+              duf => this%f(-1,2:this%ncols  ), &
+              df  => this%f( 0,1:this%ncols  ), &
+              dlf => this%f( 1,1:this%ncols-1)  )
 
       x = rhs
       call gttrs(dlf, df, duf, du2, x, this%ipiv, trans=trans, info=info)
@@ -498,6 +498,7 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   integer                   :: i, j, k, status, funit_
   character(:), allocatable :: fmt_
 
+  allocate (character(0) :: fmt_) ! remove gfortran warning
   if (present(fmt)) then
     fmt_ = fmt
   else

@@ -333,14 +333,14 @@ print("")
 for i in range(len(programs)):
   print(".PHONY: " + programs[i].name)
   print(args.build_dir + programs[i].name + ": $(ANCHORS_" + programs[i].name + ") $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
-  print('\t@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) -I' + args.build_dir + ' -o $(OU_COL)' + args.build_dir + programs[i].name + '$(NO_COL) $(IN_COL)$(OBJECTS_' + programs[i].name + ') $(OBJECTS_C) $(LIBS)$(NO_COL)\\n\\n"')
-  print("\t@$(FC) $(FFLAGS) -I" + args.build_dir + " -o " + args.build_dir + programs[i].name + " $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
+  print('\t@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) -I' + args.build_dir + ' -o $(OU_COL)' + args.build_dir + programs[i].name + '$(NO_COL) $(IN_COL)$(OBJECTS_' + programs[i].name + ') $(OBJECTS_C) $(LIBS) $(EXT_LIBS)$(NO_COL)\\n\\n"')
+  print("\t@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) -I" + args.build_dir + " -o " + args.build_dir + programs[i].name + " $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS) $(EXT_LIBS)")
   print("")
 for i in range(len(libraries)):
   print(".PHONY: " + libraries[i].name)
   print(args.build_dir + libraries[i].name + ": $(ANCHORS_" + libraries[i].name + ") $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C) $(LIBS)")
-  print('\t@printf "%b" "$(FC_COL)ar$(NO_COL) rcs $(OU_COL)' + args.build_dir + libraries[i].name + '.a$(NO_COL) $(IN_COL)$(OBJECTS_' + libraries[i].name + ') $(OBJECTS_C)$(NO_COL)\\n\\n"')
-  print("\t@ar rcs " + args.build_dir + libraries[i].name + ".a $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C)")
+  print('\t@printf "%b" "$(FC_COL)ar$(NO_COL) rcs $(OU_COL)' + args.build_dir + libraries[i].name + '.a$(NO_COL) $(IN_COL)$(OBJECTS_' + libraries[i].name + ') $(OBJECTS_C) $(LIBS) $(EXT_LIBS)$(NO_COL)\\n\\n"')
+  print("\t@ar rcs " + args.build_dir + libraries[i].name + ".a $(OBJECTS_" + libraries[i].name + ") $(OBJECTS_C) $(LIBS) $(EXT_LIBS)")
   print("")
 
 # output anchor files

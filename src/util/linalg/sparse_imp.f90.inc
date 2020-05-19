@@ -782,8 +782,8 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
 
   ! work in parallel
   !$omp parallel default(none) &
-    private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
-    shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
+  !$omp private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
+  !$omp shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
 
   ! get current thread id
   thread_i = omp_get_thread_num() + 1
@@ -904,6 +904,7 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   integer                   :: i, j, status, funit_
   character(:), allocatable :: fmt_
 
+  allocate (character(0) :: fmt_) ! remove gfortran warning
   if (present(fmt)) then
     fmt_ = fmt
   else

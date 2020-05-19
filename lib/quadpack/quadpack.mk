@@ -3,7 +3,7 @@ QUADPACK_BUILD_DIR := $(BUILD_DIR)quadpack/
 QUADPACK_SOURCES   := $(shell find $(QUADPACK_SRC_DIR) -name '*.f')
 QUADPACK_OBJECTS   := $(addprefix $(QUADPACK_BUILD_DIR), $(notdir $(QUADPACK_SOURCES:.f=.o)))
 QUADPACK_LIB       := $(QUADPACK_BUILD_DIR)libquadpack.a
-QUADPACK_FFLAGS    := $(FFLAGS) -nogen-interfaces -warn nounused
+QUADPACK_FFLAGS    := $(FFLAGS) $(FINT64) $(FNOGENINTERFACES) $(FWARNNOUNUSED)
 LIBS               := $(LIBS) $(QUADPACK_LIB)
 
 dirs: $(QUADPACK_BUILD_DIR)

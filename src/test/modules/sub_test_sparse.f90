@@ -1,4 +1,5 @@
 submodule(test_matrix_m) test_sparse_m
+  use ieee_arithmetic
   use matrix_m
   implicit none
 
@@ -12,7 +13,6 @@ contains
 
     ! sparse builder: check if sparse builder created correct sparse matrix
     block
-      integer              :: i, j
       type(sparse_real)    :: sA
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
@@ -104,7 +104,7 @@ contains
       allocate(y(4))
 
       ! set y to nan
-      y = 0.0 / 0.0
+      y = ieee_value(y, ieee_quiet_nan)
 
       call get_test_matrix(sA)
       call sA%mul_vec(x, y)
@@ -132,7 +132,7 @@ contains
       allocate(y(4,3))
 
       ! set y to nan
-      y = 0.0 / 0.0
+      y = ieee_value(y, ieee_quiet_nan)
 
       call get_test_matrix(sA)
       call sA%mul_mat(x, y)

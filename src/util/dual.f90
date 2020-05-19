@@ -116,6 +116,7 @@ contains
 
     r%n  = x%n
     r%x  = x%x + y%x
+    allocate (r%dx(r%n))
     r%dx = x%dx + y%dx
   end function
 
@@ -128,6 +129,7 @@ contains
 
     r%n  = x%n
     r%x  = x%x + y
+    allocate (r%dx(r%n))
     r%dx = x%dx
   end function
 
@@ -149,6 +151,7 @@ contains
 
     r%n  = x%n
     r%x  = - x%x
+    allocate (r%dx(r%n))
     r%dx = - x%dx
   end function
 
@@ -191,6 +194,7 @@ contains
 
     r%n  = x%n
     r%x  = x%x * y%x
+    allocate (r%dx(r%n))
     r%dx = x%dx * y%x + x%x * y%dx
   end function
 
@@ -203,6 +207,7 @@ contains
 
     r%n  = x%n
     r%x  = x%x * y
+    allocate (r%dx(r%n))
     r%dx = x%dx * y
   end function
 
@@ -225,6 +230,7 @@ contains
 
     r%n = x%n
     r%x = x%x / y%x
+    allocate (r%dx(r%n))
     r%dx = x%dx / y%x - (x%x / y%x**2) * y%dx
   end function
 
@@ -237,6 +243,7 @@ contains
 
     r%n  = x%n
     r%x  = x%x / y
+    allocate (r%dx(r%n))
     r%dx = x%dx / y
   end function
 
@@ -249,6 +256,7 @@ contains
 
     r%n  = y%n
     r%x  = x / y%x
+    allocate (r%dx(r%n))
     r%dx = (- x / y%x**2) * y%dx
   end function
 
@@ -342,6 +350,7 @@ contains
 
     r%n  = x%n
     r%x  = sqrt(x%x)
+    allocate (r%dx(r%n))
     r%dx = x%dx / (2 * r%x)
   end function
 
@@ -353,6 +362,7 @@ contains
 
     r%n  = x%n
     r%x  = exp(x%x)
+    allocate (r%dx(r%n))
     r%dx = r%x * x%dx
   end function
 
@@ -364,6 +374,7 @@ contains
 
     r%n  = x%n
     r%x  = log(x%x)
+    allocate (r%dx(r%n))
     r%dx = x%dx / x%x
   end function
 
@@ -375,6 +386,7 @@ contains
 
     r%n  = x%n
     r%x  = sin(x%x)
+    allocate (r%dx(r%n))
     r%dx = cos(x%x) * x%dx
   end function
 
@@ -386,6 +398,7 @@ contains
 
     r%n  = x%n
     r%x  =   cos(x%x)
+    allocate (r%dx(r%n))
     r%dx = - sin(x%x) * x%dx
   end function
 
@@ -397,6 +410,7 @@ contains
 
     r%n  = x%n
     r%x  = tan(x%x)
+    allocate (r%dx(r%n))
     r%dx = x%dx / (cos(x%x)**2)
   end function
 

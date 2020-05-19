@@ -1,8 +1,9 @@
 module test_normalization_m
   use test_case_m
   use normalization_m
+#ifdef __INTEL_COMPILER
   use ifport
-
+#endif
   implicit none
 
   private

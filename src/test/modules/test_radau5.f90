@@ -20,7 +20,6 @@ contains
     block
       real, parameter   :: tol = 1e-10
       real              :: x0, x1, U0(1), P(1)
-      real              :: U1(1), dU1dU0(1,1), dU1dP(1,1), UA(1), dUAdU0(1,1), dUAdP(1,1)
       integer           :: i, nsmp
       real, allocatable :: xsmp(:), Usmp(:,:), dUsmpdU0(:,:,:), dUsmpdP(:,:,:)
       type(ode_options) :: opt
@@ -59,7 +58,6 @@ contains
       real, parameter   :: tol = 1e-10
       real              :: x0, x1, U0(2), P(1)
       real              :: A, B, dAdU0(2), dAdP, dBdU0(2), dBdP
-      real              :: U1(2), dU1dU0(2,2), dU1dP(2,1), UA(2), dUAdU0(2,2), dUAdP(2,1)
       integer           :: i, nsmp
       real, allocatable :: xsmp(:), Usmp(:,:), dUsmpdU0(:,:,:), dUsmpdP(:,:,:)
       type(ode_options) :: opt

@@ -13,6 +13,20 @@ module util_m
     module procedure :: hash_int32, hash_int64
   end interface
 
+  ! interfaces to C routines
+  interface
+    function c_hash_int32(i) result(h) bind(c)
+      import :: c_int32_t
+      integer(kind=c_int32_t), value, intent(in) :: i
+      integer(kind=c_int32_t)                    :: h
+    end function
+    function c_hash_int64(i) result(h) bind(c)
+      import :: c_int64_t
+      integer(kind=c_int64_t), value, intent(in) :: i
+      integer(kind=c_int64_t)                    :: h
+    end function
+  end interface
+
 contains
 
   pure function cstrlen(cstr) result(len)
@@ -94,14 +108,7 @@ contains
     integer(kind=4), intent(in) :: i
     integer(kind=4)             :: h
 
-    h = i + z'7f4a7c15'
-    h = ieor(h, shiftr(h, 17))
-    h = h * z'ed5ad4bb'
-    h = ieor(h, shiftr(h, 11))
-    h = h * z'ac4c1b51'
-    h = ieor(h, shiftr(h, 15))
-    h = h * z'31848bab'
-    h = ieor(h, shiftr(h, 14))
+    h = c_hash_int32(i)
   end function
 
   function hash_int64(i) result(h)
@@ -109,12 +116,7 @@ contains
     integer(kind=8), intent(in) :: i
     integer(kind=8)             :: h
 
-    h = i + z'9e3779b97f4a7c15'
-    h = ieor(h, shiftr(h, 30))
-    h = h * z'bf58476d1ce4e5b9'
-    h = ieor(h, shiftr(h, 27))
-    h = h * z'94d049bb133111eb'
-    h = ieor(h, shiftr(h, 31))
+    h = c_hash_int64(i)
   end function
 
   function bin_search(x, x1, mode) result(i)
