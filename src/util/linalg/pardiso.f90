@@ -181,6 +181,9 @@ contains
       p%factorized = .false.
     end associate
 
+    if (.not. allocated(free_pardiso_handles%d)) then
+      call free_pardiso_handles%init(0, c = 4)
+    end if
     call free_pardiso_handles%push(h)
     h = 0
   end subroutine
