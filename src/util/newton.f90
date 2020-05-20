@@ -233,7 +233,7 @@ contains
     x = x0
 
     ! newton-raphson iteration
-    do while (err > 0)
+    do while (err > opt%rtol)
       it = it + 1
 
       ! check for maximum number of iterations
@@ -254,12 +254,12 @@ contains
       call dfdx%solve_vec(f, dx)
 
       ! calculate new error
-      err     = maxval(abs(dx) - max(opt%rtol * abs(x), opt%atol))
+      err     = maxval(abs(dx) / (abs(x) + opt%atol / opt%rtol))
       abs_err = maxval(abs(dx))
 
       ! limit update
       if (abs_err .gt. opt%dx_lim) then
-          dx = dx * opt%dx_lim / abs_err
+        dx = dx * opt%dx_lim / abs_err
       end if
 
       ! update solution
