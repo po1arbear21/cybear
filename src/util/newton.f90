@@ -266,7 +266,7 @@ contains
       x = x - dx
 
       if (opt%log) then
-        print "(1A, 1I0, 1E24.16)", opt%msg, it, abs_err
+        print "(1A, 1I0, 1E24.16)", opt%msg, it, err
       end if
     end do
 
