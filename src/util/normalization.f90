@@ -179,6 +179,10 @@ contains
     real, parameter :: BOLTZ  = 1.380649000e-23/EC        ! Boltzmann's constant      [ eV/K    ]
     real, parameter :: EPS0   = 8.854187813e-12           ! vacuum permittivity       [ As/(Vm) ]
 
+    ! metric prefixes: INVERSE values for normalization
+    real, parameter :: CENTI = 1e2
+    real, parameter :: MICRO = 1e6
+
     ! local variables
     real :: meter, second, kilogram, volt, ampere, kelvin, diel
 
@@ -263,8 +267,10 @@ contains
     call this%unit_const%insert(string("m/s" ), meter / second      )
     call this%unit_const%insert(string("cm/s"), meter / second * 1e2)
 
-    call this%unit_const%insert(string("1/cm^2/s"), 1.0 / (meter**2 * 1e2  * second))
-    call this%unit_const%insert(string("1/um^2/s"), 1.0 / (meter**2 * 1e12 * second))
+    call this%unit_const%insert(string("cm^2/s"), (CENTI*meter)**2 / second))
+
+    call this%unit_const%insert(string("1/cm^2/s"), 1 / ((CENTI*meter)**2 * second))
+    call this%unit_const%insert(string("1/um^2/s"), 1 / ((MICRO*meter)**2 * second))
 
     call this%unit_const%insert(string("kg"    ), kilogram                         )
     call this%unit_const%insert(string("kg/m^3"), kilogram / meter**3              )
