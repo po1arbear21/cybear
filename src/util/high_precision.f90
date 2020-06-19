@@ -4,13 +4,11 @@ module high_precision_m
   implicit none
 
   private
-  public :: hp_dot
-  public :: hp_sum
-  public :: hp_to_real
-  public :: real_to_hp
-  public :: operator(+), operator(-)
-
   public :: hp_real
+  public :: hp_to_real, real_to_hp
+  public :: operator(+), operator(-)
+  public :: exp
+  public :: hp_sum, hp_dot
 
   type hp_real
     !! represents high precision value x + y
@@ -34,6 +32,10 @@ module high_precision_m
     module procedure :: hp_real_sub_rh
   end interface
 
+  interface exp
+    module procedure :: hp_exp
+  end interface
+
   interface hp_sum
     module procedure :: SumKvert
   end interface
@@ -46,7 +48,6 @@ contains
 
   elemental function TwoSum(a, b) result(h)
     !! error free transformation of the sum of two floating point numbers
-
     real, intent(in) :: a
     real, intent(in) :: b
     type(hp_real)    :: h
@@ -63,7 +64,6 @@ contains
 
   elemental function Split(a) result(h)
     !! error free splotting of float into two parts
-
     real, intent(in) :: a
     type(hp_real)    :: h
 
@@ -77,7 +77,6 @@ contains
 
   elemental function TwoProduct(a, b) result(h)
     !! multiply two real numbers with high precision (error free product)
-
     real, intent(in) :: a
     real, intent(in) :: b
     type(hp_real)    :: h
@@ -95,9 +94,105 @@ contains
     end associate
   end function
 
+  elemental function real_to_hp(r) result(h)
+    !! convert real to high precision real
+    real, intent(in) :: r
+    type(hp_real)    :: h
+
+    ! principal is r; correction zero
+    h%x = r
+    h%y = 0
+  end function
+
+  elemental function hp_to_real(h) result(r)
+    !! convert high precision real to real
+    type(hp_real), intent(in) :: h
+    real                      :: r
+
+    ! add principal and correction
+    r = h%x + h%y
+  end function
+
+  elemental function hp_real_add_hh(h1, h2) result(h3)
+    !! add two high precision reals
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3    = h1 + h2%x       ! calls around hp_real_add_hr
+    h3%y  = h3%y + h2%y
+  end function
+
+  elemental function hp_real_add_hr(h1, r2) result(h3)
+    !! add real to high precision real
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    h3 = TwoSum(h1%x, r2)
+
+    ! update correction
+    h3%y = h3%y + h1%y
+  end function
+
+  elemental function hp_real_add_rh(r1, h2) result(h3)
+    !! add high precision real to real
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+
+    h3 = h2 + r1          ! calls hp_real_add_hr
+  end function
+
+  elemental function hp_real_neg(h1) result(h2)
+    !! negate high precision real
+    type(hp_real), intent(in) :: h1
+    type(hp_real)             :: h2
+
+    ! negate principal and correction
+    h2%x = - h1%x
+    h2%y = - h1%y
+  end function
+
+  elemental function hp_real_sub_hh(h1, h2) result(h3)
+    !! subtract two high precision reals
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = h1 + (-h2)           ! calls hp_real_neg -> hp_real_add_hh
+  end function
+
+  elemental function hp_real_sub_hr(h1, r2) result(h3)
+    !! subtract real from high precision real
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    h3 = h1 + (-r2)           ! calls hp_real_add_hr
+  end function
+
+  elemental function hp_real_sub_rh(r1, h2) result(h3)
+    !! subtract high precision real from real
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = r1 + (-h2)           ! calls hp_real_neg -> hp_real_add_rh
+  end function
+
+  elemental function hp_exp(h) result(e)
+    !! high precision exponential function
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: e
+
+    ! exp(x + y) = exp(x) * exp(y)
+    e = TwoProduct(exp(h%x), exp(h%y))
+  end function
+
   function SumKvert(p, K) result(res)
     !! high precision K-fold summation.
-
     real              , intent(in)  :: p(:)
     integer, optional , intent(in)  :: K
       !! K-fold precision.
@@ -162,7 +257,6 @@ contains
 
   function DotK(x, y, K) result(res)
     !! high precision K-fold dot product.
-
     real              , intent(in)  :: x(:)
     real              , intent(in)  :: y(:)
     integer, optional , intent(in)  :: K
@@ -201,105 +295,6 @@ contains
     end do
     r(2*n) = p
     res = SumKvert(r, K_-1)
-  end function
-
-
-
-  elemental function real_to_hp(r) result(h)
-    !! convert real to high precision real
-
-    real, intent(in) :: r
-    type(hp_real)    :: h
-
-    ! principal is r; correction zero
-    h%x = r
-    h%y = 0
-  end function
-
-  elemental function hp_to_real(h) result(r)
-    !! convert high precision real to real
-
-    type(hp_real), intent(in) :: h
-    real                      :: r
-
-    ! add principal and correction
-    r = h%x + h%y
-  end function
-
-  elemental function hp_real_add_hh(h1, h2) result(h3)
-    !! add two high precision reals
-
-    type(hp_real), intent(in) :: h1
-    type(hp_real), intent(in) :: h2
-    type(hp_real)             :: h3
-
-    h3    = h1 + h2%x       ! calls around hp_real_add_hr
-    h3%y  = h3%y + h2%y
-  end function
-
-  elemental function hp_real_add_hr(h1, r2) result(h3)
-    !! add real to high precision real
-
-    type(hp_real), intent(in) :: h1
-    real,          intent(in) :: r2
-    type(hp_real)             :: h3
-
-    h3 = TwoSum(h1%x, r2)
-
-    ! update correction
-    h3%y = h3%y + h1%y
-  end function
-
-  elemental function hp_real_add_rh(r1, h2) result(h3)
-    !! add high precision real to real
-
-    real,          intent(in) :: r1
-    type(hp_real), intent(in) :: h2
-    type(hp_real)             :: h3
-
-
-    h3 = h2 + r1          ! calls hp_real_add_hr
-  end function
-
-  elemental function hp_real_neg(h1) result(h2)
-    !! negate high precision real
-
-    type(hp_real), intent(in) :: h1
-    type(hp_real)             :: h2
-
-    ! negate principal and correction
-    h2%x = - h1%x
-    h2%y = - h1%y
-  end function
-
-  elemental function hp_real_sub_hh(h1, h2) result(h3)
-    !! subtract two high precision reals
-
-    type(hp_real), intent(in) :: h1
-    type(hp_real), intent(in) :: h2
-    type(hp_real)             :: h3
-
-    h3 = h1 + (-h2)           ! calls hp_real_neg -> hp_real_add_hh
-  end function
-
-  elemental function hp_real_sub_hr(h1, r2) result(h3)
-    !! subtract real from high precision real
-
-    type(hp_real), intent(in) :: h1
-    real,          intent(in) :: r2
-    type(hp_real)             :: h3
-
-    h3 = h1 + (-r2)           ! calls hp_real_add_hr
-  end function
-
-  elemental function hp_real_sub_rh(r1, h2) result(h3)
-    !! subtract high precision real from real
-
-    real,          intent(in) :: r1
-    type(hp_real), intent(in) :: h2
-    type(hp_real)             :: h3
-
-    h3 = r1 + (-h2)           ! calls hp_real_neg -> hp_real_add_rh
   end function
 
 end module high_precision_m
