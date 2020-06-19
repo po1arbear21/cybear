@@ -2,6 +2,11 @@ module dual_m
   use high_precision_m
   implicit none
 
+  private
+  public :: dual
+  public :: operator(+), operator(-), operator(*), operator(/), operator(**)
+  public :: abs, sqrt, exp, log, sin, cos, tan
+
   type dual
     !! dual number type for automatic differentiation (forward mode)
 
@@ -47,37 +52,30 @@ module dual_m
     module procedure :: real_pow_dual
   end interface
 
-  intrinsic abs
   interface abs
     module procedure :: dual_abs
   end interface
 
-  intrinsic sqrt
   interface sqrt
     module procedure :: dual_sqrt
   end interface
 
-  intrinsic exp
   interface exp
     module procedure :: dual_exp
   end interface
 
-  intrinsic log
   interface log
     module procedure :: dual_log
   end interface
 
-  intrinsic sin
   interface sin
     module procedure :: dual_sin
   end interface
 
-  intrinsic cos
   interface cos
     module procedure :: dual_cos
   end interface
 
-  intrinsic tan
   interface tan
     module procedure :: dual_tan
   end interface
