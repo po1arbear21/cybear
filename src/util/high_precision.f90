@@ -13,11 +13,11 @@ module high_precision_m
   public :: hp_real
 
   type hp_real
-    !! represents high precision value x + c
+    !! represents high precision value x + y
 
-    real :: x
+    real :: x = 0.0
       !! principal value
-    real :: y
+    real :: y = 0.0
       !! correction value
   end type
 
