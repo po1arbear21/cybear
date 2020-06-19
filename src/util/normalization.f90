@@ -348,6 +348,8 @@ contains
     end associate
 
     call this%unit_const%insert(string("eps0"), diel)
+
+    call this%unit_const%insert(string("K"), kelvin)
   end subroutine
 
   subroutine normalization_destruct(this)
