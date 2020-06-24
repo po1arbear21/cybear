@@ -47,16 +47,18 @@ module newton_m
   end type
 
   abstract interface
-    subroutine newton1D_fun(x, p, f, dfdx, dfdp)
-      real,           intent(in)  :: x
+    subroutine newton1D_fun(x, p, f, ipar, dfdx, dfdp)
+      real,              intent(in)  :: x
         !! argument
-      real,           intent(in)  :: p(:)
+      real,              intent(in)  :: p(:)
         !! parameters
-      real,           intent(out) :: f
+      real,              intent(out) :: f
         !! output function value
-      real, optional, intent(out) :: dfdx
+      integer, optional, intent(in)  :: ipar(:)
+        !! integer parameters
+      real,    optional, intent(out) :: dfdx
         !! optional output derivative of f wrt x
-      real, optional, intent(out) :: dfdp(:)
+      real,    optional, intent(out) :: dfdp(:)
         !! optional output derivatives of f wrt p
     end subroutine
 
@@ -77,7 +79,7 @@ module newton_m
 
 contains
 
-  subroutine newton1D(fun, p, opt, x0, x, dxdp)
+  subroutine newton1D(fun, p, opt, x0, x, ipar, dxdp)
     !! get root of 1D function by newton iteration with bisection stabilization
     procedure(newton1D_fun)         :: fun
       !! pointer to function
@@ -89,7 +91,9 @@ contains
       !! first guess for solution
     real,               intent(out) :: x
       !! output solution
-    real, optional,     intent(out) :: dxdp(:)
+    integer, optional,  intent(in)  :: ipar(:)
+      !! integer function parameters
+    real,    optional,  intent(out) :: dxdp(:)
       !! optional output derivative of x wrt parameters
 
     ! local variables
@@ -112,8 +116,8 @@ contains
     bounded = .false.
     if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
       bounded = .true.
-      call fun(xmin, p, fmin)
-      call fun(xmax, p, fmax)
+      call fun(xmin, p, fmin, ipar=ipar)
+      call fun(xmax, p, fmax, ipar=ipar)
       if (sign(1.0, fmin) == sign(1.0,fmax)) then
         call program_error("solution bounds are invalid, no sign change")
       end if
@@ -149,7 +153,7 @@ contains
       end if
 
       ! evaluate function
-      call fun(x, p, f, dfdx = dfdx)
+      call fun(x, p, f, dfdx = dfdx, ipar=ipar)
 
       ! calculate newton update and new error
       dx   = f / dfdx
@@ -191,7 +195,7 @@ contains
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
-      call fun(x, p, f, dfdx = dfdx, dfdp = dfdp)
+      call fun(x, p, f, dfdx = dfdx, dfdp = dfdp, ipar=ipar)
       do i = 1, size(p)
         dxdp(i) = - dfdp(i) / dfdx
       end do

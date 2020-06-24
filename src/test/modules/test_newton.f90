@@ -15,14 +15,17 @@ contains
       type(newton1D_opt) :: opt
       real :: x, dxdp(2), xe, dxedp(2)
 
-      call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -1.0, xmax = 4.0, log = .true., msg = "poly1D: ")
-      call newton1D(poly1D, [3.0, 1.0], opt, 1.0, x, dxdp = dxdp)
-      print *
+      real,    parameter :: p(2)    = [3, 1]
+      integer, parameter :: ipar(1) = [-2]
 
-      ! expected values for f = (x - 3) * (4*x**2 + 1)
-      xe       = 3.0
-      dxedp(1) = 1.0
-      dxedp(2) = 0.0
+      ! expected values for f = (x - rp1*ip1) * (4*x**2 + rp2)
+      xe       = p(1)*ipar(1)
+      dxedp(1) = ipar(1)
+      dxedp(2) = 0
+
+      call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -10*abs(xe), xmax = 10*abs(xe), log = .true., msg = "poly1D: ")
+      call newton1D(poly1D, p, opt, -1.0, x, dxdp = dxdp, ipar = ipar)
+      print *
 
       call tc%assert_eq(   xe,    x, opt%atol, "newton1D: x" )
       call tc%assert_eq(dxedp, dxdp, opt%atol, "newton1D: dxdp")
@@ -51,23 +54,25 @@ contains
     call tc%finish()
   end subroutine
 
-  subroutine poly1D(x, p, f, dfdx, dfdp)
-    real,           intent(in)  :: x
+  subroutine poly1D(x, p, f, ipar, dfdx, dfdp)
+    real,              intent(in)  :: x
       !! argument
-    real,           intent(in)  :: p(:)
+    real,              intent(in)  :: p(:)
       !! parameters
-    real,           intent(out) :: f
+    real,              intent(out) :: f
       !! output function value
-    real, optional, intent(out) :: dfdx
+    integer, optional, intent(in)  :: ipar(:)
+      !! integer paramters
+    real,    optional, intent(out) :: dfdx
       !! optional output derivative of f wrt x
-    real, optional, intent(out) :: dfdp(:)
+    real,    optional, intent(out) :: dfdp(:)
       !! optional output derivatives of f wrt p
 
-    f    = (x - p(1)) * (4*x**2 + p(2))
-    if (present(dfdx)) dfdx = 4*x*(3*x - 2*p(1)) + p(2)
+    f = (x - p(1)*ipar(1)) * (4*x**2 + p(2))
+    if (present(dfdx)) dfdx = 4*x*(3*x - 2*p(1)*ipar(1)) + p(2)
     if (present(dfdp)) then
-      dfdp(1) = - (4*x**2 + p(2))
-      dfdp(2) = x - p(1)
+      dfdp(1) = - ipar(1)*(4*x**2 + p(2))
+      dfdp(2) = x - p(1)*ipar(1)
     end if
   end subroutine
 
