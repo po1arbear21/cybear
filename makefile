@@ -53,9 +53,6 @@ vpath %.c $(sort $(dir $(SOURCES_C)))
 OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # additional libraries
-#include lib/arpack/arpack.mk
-#include lib/expokit/expokit.mk
-#include lib/feast/feast.mk
 include lib/quadpack/quadpack.mk
 
 # generate targets and their dependencies (one target per program found in sources)
