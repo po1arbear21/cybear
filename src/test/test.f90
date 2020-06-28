@@ -1,4 +1,5 @@
 program test
+  use test_ilupack_m
   use test_poly_m
   use test_random_m
   use test_high_precision_m
@@ -17,8 +18,10 @@ program test
   use test_sqrtm_m
   use test_arnoldi_m
   use test_schur_m
+
   implicit none
 
+  call test_ilupack
   call test_poly
   call test_random
   call test_high_precision
