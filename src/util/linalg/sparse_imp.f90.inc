@@ -39,6 +39,7 @@
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
+#define SPARSE_DIAG          CONCAT3(sparse,T,diag)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
 #define SPARSE_ZERO          CONCAT3(sparse,zero,T)
 
@@ -941,6 +942,42 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
+subroutine SPARSE_DIAG(this, diag)
+  class(SPARSE_TYPE), intent(in)  :: this
+  TT                , intent(out) :: diag(:)
+    !! diagonal elements of matrix
+
+  integer :: i, i0, i1, j, n
+
+  n = min(this%nrows, this%ncols)
+  ASSERT(n == size(diag))
+
+  !$omp parallel do         &
+  !$omp default(none)       &
+  !$omp private(i,i0,i1,j)  &
+  !$omp shared(n,diag,this)
+  do i = 1, n
+    ! elements in row i. start at index i0, goes to i1
+    i0 = this%ia(i)
+    i1 = this%ia(i+1)-1
+
+    if (i1 < i0) then     ! no elements in row i == (i1=i0-1)
+      diag(i) = 0
+
+    else
+      ! find column subscript for diagonal entry
+      j = findloc(this%ja(i0:i1), i, dim=1)
+
+      if (0 == j) then    ! 0 is return value if value not found
+        diag(i) = 0
+      else
+        diag(i) = this%a(j + i0-1)
+      end if
+    end if
+  end do
+  !$omp end parallel do
+end subroutine
+
 function SPARSE_EYE(nrows, ncols) result(eye)
   !! sparse identity matrix
 
@@ -1379,6 +1416,7 @@ end subroutine
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
+#undef SPARSE_DIAG
 #undef SPARSE_EYE
 #undef SPARSE_ZERO
 
