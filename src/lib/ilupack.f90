@@ -46,7 +46,6 @@ module ilupack_m
       !! default: (500??)
     integer       :: nrestart
       !! restart length for GMRES
-      !! info: usual values 10..30
       !! default: 30
     real          :: droptol
       !! threshold for ILU
