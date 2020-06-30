@@ -6,7 +6,7 @@ submodule(test_matrix_m) test_sparse_m
 contains
 
   module subroutine test_sparse()
-    type(test_case)   :: tc
+    type(test_case) :: tc
 
     print "(1A)", "test_sparse"
     call tc%init("sparse")
@@ -197,6 +197,7 @@ contains
       call get_test_matrix(sA)
       call sA%factorize
       call sA%solve_vec(b, x)
+      call sA%destruct
 
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec")
     end block
@@ -225,6 +226,7 @@ contains
       call get_test_matrix(sA)
       call sA%factorize
       call sA%solve_mat(b, x)
+      call sA%destruct
 
       call tc%assert_eq(x_exp, x, 1e-12, "solve_mat")
     end block
@@ -368,6 +370,23 @@ contains
       d_exp = [0,2,0,0]
       call S%diag(d)
       call tc%assert_eq(d_exp, d, 1e-12, "diag")
+    end block
+
+    ! zero
+    block
+      integer, parameter :: n = 3
+      type(sparse_real)  :: z_sp
+      type(dense_real)   :: z_d
+      real, allocatable  :: z_exp(:,:)
+
+      z_sp = sparse_zero_real(n)
+
+      call z_d%init(n)
+      call z_sp%to_dense(z_d)
+
+      allocate (z_exp(n,n), source=0.0)
+
+      call tc%assert_eq(z_exp, z_d%d, epsilon(1.0), "zero(3)")
     end block
 
     call tc%finish

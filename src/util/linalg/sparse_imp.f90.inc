@@ -1013,19 +1013,19 @@ end function
 function SPARSE_ZERO(nrows, ncols) result(zero)
   !! empty sparse matrix
 
-  integer,            intent(in)  :: nrows
+  integer,           intent(in) :: nrows
     !! Number of rows
-  integer, optional,  intent(in)  :: ncols
+  integer, optional, intent(in) :: ncols
     !! Optional number of columns (default: ncols = nrows)
-  type(SPARSE_TYPE)               :: zero
+  type(SPARSE_TYPE)             :: zero
     !! return empty sparse matrix
 
   call zero%init(nrows, ncols = ncols)
 
   ! allocate csr memory
-  allocate (zero%ia(nrows), source = 1)
+  allocate (zero%ia(nrows+1), source = 1)
   allocate (zero%ja(0))
-  allocate (zero%a(0))
+  allocate (zero%a( 0))
 end function
 
 subroutine SPBUILD_INIT(this, s, n_per_row)
