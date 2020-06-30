@@ -59,10 +59,8 @@ vpath %.c $(sort $(dir $(SOURCES_C)))
 OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # additional libraries
-#include lib/arpack/arpack.mk
-#include lib/expokit/expokit.mk
-#include lib/feast/feast.mk
-include lib/quadpack/quadpack.mk
+include lib/ilupack/makefile
+include lib/quadpack/makefile
 
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
@@ -100,3 +98,17 @@ doc: all
 clean_all: clean
 
 .PHONY: all dirs doc clean clean_all
+
+
+#
+# DOCUMENTATION
+#
+# steps for compilation
+# 	1. create module interface files ".mod".
+# 		- reason for separating compilation from interface file generation: makes parallization of compilation possible.
+#		2. create anchor ".anc" files.
+# 		- reasons
+# 			1. barrier for parallel compilation s.t. all interface files are created first (no race conditions)
+# 			2. makes fortran "include" statements possible??
+#		3. create object files
+#
