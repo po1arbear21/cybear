@@ -10,6 +10,7 @@ FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -Wall -fopenmp \
             -I$(F95ROOT)/include/intel64/ilp64 -I$(MKLROOT)/include
 FDEBUG   := -O0 -g3 -ggdb -fcheck=all -fbacktrace -D DEBUG
 FRELEASE := -O3
+FPROFILE := -O3 -g -shared-libgcc
 
 # additional flags
 FINT64           := -fdefault-integer-8
@@ -24,6 +25,7 @@ CC       := gcc
 CFLAGS   := -march=native
 CDEBUG   := -O0 -g
 CRELEASE := -O3
+CPROFILE := -O3 -g -shared-libgcc
 
 # external libraries
 EXT_LIBS_DEBUG := \
@@ -45,3 +47,5 @@ EXT_LIBS_RELEASE := \
 		$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group \
 	-lgomp -lpthread -lm -ldl
+
+EXT_LIBS_PROFILE := $(EXT_LIBS_RELEASE)

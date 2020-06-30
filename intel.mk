@@ -6,6 +6,7 @@ FC       := ifort
 FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp -fp-model precise
 FDEBUG   := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG -init=huge
 FRELEASE := -O3 -mkl -ftz
+FPROFILE := -O3 -mkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2
 
 # additional flags
 FINT64           := -i8
@@ -20,6 +21,7 @@ CC       := icc
 CFLAGS   := -march=native
 CDEBUG   := -O0 -g
 CRELEASE := -O3
+CPROFILE := -O3 -g -shared-intel
 
 # external libraries
 EXT_LIBS_DEBUG := \
@@ -29,3 +31,5 @@ EXT_LIBS_DEBUG := \
 EXT_LIBS_RELEASE := \
 	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
 	$(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a
+
+EXT_LIBS_PROFILE := $(EXT_LIBS_RELEASE)

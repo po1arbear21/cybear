@@ -22,7 +22,13 @@ FFLAGS   := $(FFLAGS) $(FRELEASE)
 CFLAGS   := $(CFLAGS) $(CRELEASE)
 EXT_LIBS := $(EXT_LIBS_RELEASE)
 else
+ifeq ($(BUILD),profile)
+FFLAGS   := $(FFLAGS) $(FPROFILE)
+CFLAGS   := $(CFLAGS) $(CPROFILE)
+EXT_LIBS := $(EXT_LIBS_PROFILE)
+else
 $(error BUILD must be debug or release!)
+endif
 endif
 endif
 
