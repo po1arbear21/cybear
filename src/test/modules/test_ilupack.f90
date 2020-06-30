@@ -57,8 +57,8 @@ contains
     call ilu%factor(a, ia, ja)
 
     do i_rhs = 1, n_rhs
+      x = x_exp(1,i_rhs)
       call ilu%solve(a, ia, ja, b(:,i_rhs), x)
-
       call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "solving")
     end do
 

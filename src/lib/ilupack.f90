@@ -143,17 +143,17 @@ contains
     class(ilupack), intent(in) :: this
 
     print '(A)',        'ordering:      "' // this%ordering // '"'
-    print '(A,I6)',     'elbow:          ',   this%elbow
-    print '(A,I6)',     'lfil:           ',   this%lfil
-    print '(A,I6)',     'lfilS:          ',   this%lfilS
-    print '(A,I6)',     'matching:       ',   this%matching
-    print '(A,I6)',     'maxit:          ',   this%maxit
-    print '(A,I6)',     'nrestart:       ',   this%nrestart
+    print '(A,I)',      'elbow:          ',   this%elbow
+    print '(A,I)',      'lfil:           ',   this%lfil
+    print '(A,I)',      'lfilS:          ',   this%lfilS
+    print '(A,I)',      'matching:       ',   this%matching
+    print '(A,I)',      'maxit:          ',   this%maxit
+    print '(A,I)',      'nrestart:       ',   this%nrestart
     print '(A,E24.16)', 'droptol:        ',   this%droptol
     print '(A,E24.16)', 'droptolS:       ',   this%droptolS
     print '(A,E24.16)', 'condest:        ',   this%condest
     print '(A,E24.16)', 'restol:         ',   this%restol
-    print '(A,I6)',     'mixedprecision: ',   this%mixedprecision
+    print '(A,I)',      'mixedprecision: ',   this%mixedprecision
   end subroutine
 
   subroutine ilupack_factor(this, a, ia, ja)
