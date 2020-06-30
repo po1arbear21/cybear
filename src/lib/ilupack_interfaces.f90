@@ -15,9 +15,9 @@ module ilupack_interfaces_m
 
   interface
     subroutine dgnlamginit(n,        ia,      ja,       a,       matching, &
-      &                    ordering, droptol, droptolS, condest, restol,   &
-      &                    maxit,    elbow,   lfil,     lfilS,   nrestart  )
-
+                           ordering, droptol, droptolS, condest, restol,   &
+                           maxit,    elbow,   lfil,     lfilS,   nrestart, &
+                           mixedprecision, ind)
       integer       :: n
       integer       :: ia(*)
       integer       :: ja(*)
@@ -33,12 +33,15 @@ module ilupack_interfaces_m
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart
+      integer       :: mixedprecision
+      integer       :: ind(*)
     end subroutine
 
     function dgnlamgfactor(param,    prec,                                 &
-      &                    n,        ia,      ja,       a,       matching, &
-      &                    ordering, droptol, droptolS, condest, restol,   &
-      &                    maxit,    elbow,   lfil,     lfilS,   nrestart  ) result(ierr)
+                           n,        ia,      ja,       a,       matching, &
+                           ordering, droptol, droptolS, condest, restol,   &
+                           maxit,    elbow,   lfil,     lfilS,   nrestart, &
+                           mixedprecision, ind) result(ierr)
 
       integer       :: param
       integer       :: prec
@@ -57,6 +60,8 @@ module ilupack_interfaces_m
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart
+      integer       :: mixedprecision
+      integer       :: ind(*)
       integer       :: ierr
     end function
 
@@ -80,9 +85,10 @@ module ilupack_interfaces_m
     end function
 
     function dgnlamgsolver(param,    prec,    rhs,      sol,               &
-      &                    n,        ia,      ja,       a,       matching, &
-      &                    ordering, droptol, droptolS, condest, restol,   &
-      &                    maxit,    elbow,   lfil,     lfilS,   nrestart  ) result(ierr)
+                           n,        ia,      ja,       a,       matching, &
+                           ordering, droptol, droptolS, condest, restol,   &
+                           maxit,    elbow,   lfil,     lfilS,   nrestart, &
+                           mixedprecision, ind) result(ierr)
 
       integer       :: param
       integer       :: prec
@@ -103,6 +109,8 @@ module ilupack_interfaces_m
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart
+      integer       :: mixedprecision
+      integer       :: ind(*)
       integer       :: ierr
     end function
 

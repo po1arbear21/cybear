@@ -59,7 +59,6 @@ vpath %.c $(sort $(dir $(SOURCES_C)))
 OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # additional libraries
-include lib/ilupack/makefile
 include lib/quadpack/makefile
 
 # generate targets and their dependencies (one target per program found in sources)

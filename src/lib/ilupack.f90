@@ -60,7 +60,11 @@ module ilupack_m
     real          :: restol
       !! relative error for the backward error (SPD case: relative energy norm) used during the iterative solver
       !! default: sqrt(eps)
-
+    integer       :: mixedprecision
+      !! use single precision preconditioner if == 1
+      !! default: 0
+    integer, allocatable :: ind(:)
+      !! array of size n
   contains
     procedure :: init  => ilupack_opt_init
     procedure :: print => ilupack_opt_print
@@ -127,9 +131,12 @@ contains
 
     n = size(ia)-1
 
+    allocate (this%ind(n))
+
     call dgnlamginit(n,             ia,           ja,            a,            this%matching, &
-      &              this%ordering, this%droptol, this%droptolS, this%condest, this%restol,   &
-      &              this%maxit,    this%elbow,   this%lfil,     this%lfilS,   this%nrestart  )
+                     this%ordering, this%droptol, this%droptolS, this%condest, this%restol,   &
+                     this%maxit,    this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
+                     this%mixedprecision, this%ind)
 
   end function
 
@@ -138,17 +145,18 @@ contains
 
     class(ilupack_opt), intent(in) :: this
 
-    print '(A)',        'ordering: "' // this%ordering // '"'
-    print '(A,I)',      'elbow:     ',   this%elbow
-    print '(A,I)',      'lfil:      ',   this%lfil
-    print '(A,I)',      'lfilS:     ',   this%lfilS
-    print '(A,I)',      'matching:  ',   this%matching
-    print '(A,I)',      'maxit:     ',   this%maxit
-    print '(A,I)',      'nrestart:  ',   this%nrestart
-    print '(A,E20.10)', 'droptol:   ',   this%droptol
-    print '(A,E20.10)', 'droptolS:  ',   this%droptolS
-    print '(A,E20.10)', 'condest:   ',   this%condest
-    print '(A,E20.10)', 'restol:    ',   this%restol
+    print '(A)',        'ordering:      "' // this%ordering // '"'
+    print '(A,I6)',     'elbow:          ',   this%elbow
+    print '(A,I6)',     'lfil:           ',   this%lfil
+    print '(A,I6)',     'lfilS:          ',   this%lfilS
+    print '(A,I6)',     'matching:       ',   this%matching
+    print '(A,I6)',     'maxit:          ',   this%maxit
+    print '(A,I6)',     'nrestart:       ',   this%nrestart
+    print '(A,E24.16)', 'droptol:        ',   this%droptol
+    print '(A,E24.16)', 'droptolS:       ',   this%droptolS
+    print '(A,E24.16)', 'condest:        ',   this%condest
+    print '(A,E24.16)', 'restol:         ',   this%restol
+    print '(A,I6)',     'mixedprecision: ', this%mixedprecision
   end subroutine
 
   subroutine ilupack_init(this, a, ia, ja)
@@ -176,9 +184,10 @@ contains
     ASSERT(size(ia) == this%n+1)
 
     ierr = dgnlamgfactor(this%param,        this%prec,                                                                &
-      &                  this%n,            ia,               ja,                a,                this%opt%matching, &
-      &                  this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
-      &                  this%opt%maxit,    this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart  )
+                         this%n,            ia,               ja,                a,                this%opt%matching, &
+                         this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
+                         this%opt%maxit,    this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart, &
+                         this%opt%mixedprecision, this%opt%ind)
 
     if      ((ierr > -8) .and. (ierr < 0)) then
       call program_error("Error in ilupack: " // trim(ILUPACK_FACTOR_ERROR(ierr)))
@@ -225,9 +234,10 @@ contains
     this%it = this%opt%maxit
 
     ierr = dgnlamgsolver(this%param,        this%prec,        rhs,               sol,                                 &
-      &                  this%n,            ia,               ja,                a,                this%opt%matching, &
-      &                  this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
-      &                  this%it,           this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart  )
+                         this%n,            ia,               ja,                a,                this%opt%matching, &
+                         this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
+                         this%it,           this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart, &
+                         this%opt%mixedprecision, this%opt%ind)
 
     if      ((ierr >= -3) .and. (ierr < 0)) then
       call program_error("Error in ilupack: " // trim(ILUPACK_SOLVER_ERROR(ierr)))

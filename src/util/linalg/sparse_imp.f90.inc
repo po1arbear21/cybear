@@ -943,37 +943,28 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
 end subroutine
 
 subroutine SPARSE_DIAG(this, diag)
+  !! extract main diagonal of a sparse matrix
   class(SPARSE_TYPE), intent(in)  :: this
   TT                , intent(out) :: diag(:)
     !! diagonal elements of matrix
 
-  integer :: i, i0, i1, j, n
+  integer :: i, j, n
 
   n = min(this%nrows, this%ncols)
   ASSERT(n == size(diag))
 
-  !$omp parallel do         &
-  !$omp default(none)       &
-  !$omp private(i,i0,i1,j)  &
+  !$omp parallel do   &
+  !$omp default(none) &
+  !$omp private(i,j)  &
   !$omp shared(n,diag,this)
   do i = 1, n
-    ! elements in row i. start at index i0, goes to i1
-    i0 = this%ia(i)
-    i1 = this%ia(i+1)-1
-
-    if (i1 < i0) then     ! no elements in row i == (i1=i0-1)
-      diag(i) = 0
-
-    else
-      ! find column subscript for diagonal entry
-      j = findloc(this%ja(i0:i1), i, dim=1)
-
-      if (0 == j) then    ! 0 is return value if value not found
-        diag(i) = 0
-      else
-        diag(i) = this%a(j + i0-1)
-      end if
-    end if
+    diag(i) = 0
+    ! FIXME: binary search
+    do j = this%ia(i), this%ia(i+1)-1
+      if (this%ja(j) < i) cycle
+      if (this%ja(j) == i) diag(i) = this%a(j)
+      exit
+    end do
   end do
   !$omp end parallel do
 end subroutine

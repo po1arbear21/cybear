@@ -4,6 +4,11 @@ $(error GNU_F95ROOT is not set)
 endif
 F95ROOT := $(GNU_F95ROOT)
 
+# ILUPACK root directory
+ifndef ILUPACKROOT
+$(error ILUPACKROOT is not set)
+endif
+
 # gnu fortran compiler flags
 FC       := gfortran
 FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -Wall -fopenmp \
@@ -32,20 +37,37 @@ EXT_LIBS_DEBUG := \
 	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
   $(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
 	-Wl,--start-group \
+		$(ILUPACKROOT)/GNU64_long/libilupack.a \
+		$(ILUPACKROOT)/GNU64_long/libamd.a \
+		$(ILUPACKROOT)/GNU64_long/libblaslike.a \
+		$(ILUPACKROOT)/GNU64_long/libmetis.a \
+		$(ILUPACKROOT)/GNU64_long/libsparspak.a \
+		$(ILUPACKROOT)/GNU64_long/libmumps.a \
+	-Wl,--end-group \
+	-Wl,--start-group \
   	$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
   	$(MKLROOT)/lib/intel64/libmkl_sequential.a \
   	$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group \
-	-lgomp -lpthread -lm -ldl
+	-lgomp -lpthread -lm -ldl \
+
 
 EXT_LIBS_RELEASE := \
 	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
 	$(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
 	-Wl,--start-group \
+		$(ILUPACKROOT)/GNU64_long/libilupack.a \
+		$(ILUPACKROOT)/GNU64_long/libamd.a \
+		$(ILUPACKROOT)/GNU64_long/libblaslike.a \
+		$(ILUPACKROOT)/GNU64_long/libmetis.a \
+		$(ILUPACKROOT)/GNU64_long/libsparspak.a \
+		$(ILUPACKROOT)/GNU64_long/libmumps.a \
+	-Wl,--end-group \
+	-Wl,--start-group \
 		$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
 		$(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
 		$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group \
-	-lgomp -lpthread -lm -ldl
+	-lgomp -lpthread -lm -ldl \
 
 EXT_LIBS_PROFILE := $(EXT_LIBS_RELEASE)

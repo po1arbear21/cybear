@@ -1,6 +1,11 @@
 # F95 root directory
 F95ROOT := $(MKLROOT)
 
+# ILUPACK root directory
+ifndef ILUPACKROOT
+$(error ILUPACKROOT is not set)
+endif
+
 # intel fortran compiler flags
 FC       := ifort
 FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp -fp-model precise
@@ -26,10 +31,26 @@ CPROFILE := -O3 -g -shared-intel
 # external libraries
 EXT_LIBS_DEBUG := \
 	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
-  $(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a
+  $(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
+	-Wl,--start-group \
+		$(ILUPACKROOT)/INTEL64_long/libilupack.a \
+		$(ILUPACKROOT)/INTEL64_long/libamd.a \
+		$(ILUPACKROOT)/INTEL64_long/libblaslike.a \
+		$(ILUPACKROOT)/INTEL64_long/libmetis.a \
+		$(ILUPACKROOT)/INTEL64_long/libsparspak.a \
+		$(ILUPACKROOT)/INTEL64_long/libmumps.a \
+	-Wl,--end-group
 
 EXT_LIBS_RELEASE := \
 	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
-	$(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a
+	$(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
+	-Wl,--start-group \
+		$(ILUPACKROOT)/INTEL64_long/libilupack.a \
+		$(ILUPACKROOT)/INTEL64_long/libamd.a \
+		$(ILUPACKROOT)/INTEL64_long/libblaslike.a \
+		$(ILUPACKROOT)/INTEL64_long/libmetis.a \
+		$(ILUPACKROOT)/INTEL64_long/libsparspak.a \
+		$(ILUPACKROOT)/INTEL64_long/libmumps.a \
+	-Wl,--end-group
 
 EXT_LIBS_PROFILE := $(EXT_LIBS_RELEASE)
