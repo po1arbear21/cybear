@@ -11,14 +11,22 @@ module ilupack_m
 
   private
   public :: ilupack
-  public :: ilupack_opt
 
-  type ilupack_opt
-    !! ilupack options.
+  type ilupack
+    !! ilupack wrapper.
     !! usage:
-    !!    1. call init: sets default parameters
-    !!    [2. overwrite values manually]
+    !!    1. call init: sets default options
+    !!    [1b. overwrite option values manually]
+    !!    2. call factor
+    !!    [2a. call info: writes info about multilevel structure]
+    !!    [2b. get fill-in-factor]
+    !!    3. call solve
+    !!    [3b. call solver for multiple rhs]
+    !!    4. call delete
 
+    !
+    ! ilupack options (can be set manually)
+    !
     character(20) :: ordering
       !! string indicating which reordering to apply
       !! multilevel orderings
@@ -63,44 +71,34 @@ module ilupack_m
     integer       :: mixedprecision
       !! use single precision preconditioner if == 1
       !! default: 0
-    integer, allocatable :: ind(:)
-      !! array of size n
-  contains
-    procedure :: init  => ilupack_opt_init
-    procedure :: print => ilupack_opt_print
-  end type
 
-  type ilupack
-    !! ilupack wrapper.
-    !! usage:
-    !!    1. call init: sets default parameters
-    !!    [1b. overwrite opt values manually]
-    !!    2. call factor
-    !!    [2a. call info: writes info about multilevel structure]
-    !!    [2b. get fill-in-factor]
-    !!    3. call solve
-    !!    [3b. call solver for multiple rhs]
-    !!    4. call delete
-
-    type(ilupack_opt) :: opt
-
-    integer           :: n
+    !
+    ! parameters (should not be set manually)
+    !
+    integer :: n
       !! size of the system. matrix is of (nxn) size.
-    integer           :: it
+    integer :: it
       !! number of iterations at solver step
 
-    integer           :: param
+
+    !
+    ! ilupack workspace variables
+    !
+    integer, allocatable :: ind(:)
+      !! array of size n
+    integer              :: param
       !! parameter C-pointer casted to integer
-    integer           :: prec
+    integer              :: prec
       !! preconditioner C-pointer casted to integer
 
   contains
-    procedure :: init   => ilupack_init
-    procedure :: factor => ilupack_factor
-    procedure :: info   => ilupack_info
-    procedure :: nnz    => ilupack_nnz
-    procedure :: solve  => ilupack_solve
-    procedure :: delete => ilupack_delete
+    procedure :: init       => ilupack_init
+    procedure :: factor     => ilupack_factor
+    procedure :: info       => ilupack_info
+    procedure :: nnz        => ilupack_nnz
+    procedure :: solve      => ilupack_solve
+    procedure :: delete     => ilupack_delete
+    procedure :: print_opts => ilupack_print_opts
   end type
 
   character(*), parameter :: ILUPACK_FACTOR_ERROR(-7:-1) = [  &
@@ -119,31 +117,30 @@ module ilupack_m
 
 contains
 
-  function ilupack_opt_init(this, a, ia, ja) result(n)
+  subroutine ilupack_init(this, a, ia, ja)
     !! init ilupack options.
 
-    class(ilupack_opt), intent(out) :: this
-    real,               intent(in)  ::  a(:)
-    integer,            intent(in)  :: ia(:)
-    integer,            intent(in)  :: ja(:)
-    integer                         :: n
-      !! system size
+    class(ilupack), intent(out) :: this
+    real,           intent(in)  ::  a(:)
+    integer,        intent(in)  :: ia(:)
+    integer,        intent(in)  :: ja(:)
 
-    n = size(ia)-1
+    ASSERT(size(a) == size(ja))
 
-    allocate (this%ind(n))
+    this%n = size(ia)-1
+    allocate (this%ind(this%n))
 
-    call dgnlamginit(n,             ia,           ja,            a,            this%matching, &
-                     this%ordering, this%droptol, this%droptolS, this%condest, this%restol,   &
-                     this%maxit,    this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
-                     this%mixedprecision, this%ind)
+    call dgnlamginit(this%n,              ia,           ja,            a,            this%matching, &
+      &              this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
+      &              this%maxit,          this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
+      &              this%mixedprecision, this%ind                                                  )
 
-  end function
+  end subroutine
 
-  subroutine ilupack_opt_print(this)
+  subroutine ilupack_print_opts(this)
     !! print ilupack options.
 
-    class(ilupack_opt), intent(in) :: this
+    class(ilupack), intent(in) :: this
 
     print '(A)',        'ordering:      "' // this%ordering // '"'
     print '(A,I6)',     'elbow:          ',   this%elbow
@@ -156,20 +153,7 @@ contains
     print '(A,E24.16)', 'droptolS:       ',   this%droptolS
     print '(A,E24.16)', 'condest:        ',   this%condest
     print '(A,E24.16)', 'restol:         ',   this%restol
-    print '(A,I6)',     'mixedprecision: ', this%mixedprecision
-  end subroutine
-
-  subroutine ilupack_init(this, a, ia, ja)
-    !! init ilupack.
-
-    class(ilupack), intent(out) :: this
-    real,           intent(in)  ::  a(:)
-    integer,        intent(in)  :: ia(:)
-    integer,        intent(in)  :: ja(:)
-
-    ASSERT(size(a) == size(ja))
-
-    this%n = this%opt%init(a, ia, ja)
+    print '(A,I6)',     'mixedprecision: ',   this%mixedprecision
   end subroutine
 
   subroutine ilupack_factor(this, a, ia, ja)
@@ -183,11 +167,11 @@ contains
     ASSERT(size( a) == size(ja))
     ASSERT(size(ia) == this%n+1)
 
-    ierr = dgnlamgfactor(this%param,        this%prec,                                                                &
-                         this%n,            ia,               ja,                a,                this%opt%matching, &
-                         this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
-                         this%opt%maxit,    this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart, &
-                         this%opt%mixedprecision, this%opt%ind)
+    ierr = dgnlamgfactor(this%param,          this%prec,                                                &
+      &                  this%n,              ia,           ja,            a,            this%matching, &
+      &                  this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
+      &                  this%maxit,          this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
+      &                  this%mixedprecision, this%ind                                                  )
 
     if      ((ierr > -8) .and. (ierr < 0)) then
       call program_error("Error in ilupack: " // trim(ILUPACK_FACTOR_ERROR(ierr)))
@@ -231,17 +215,17 @@ contains
     ASSERT(size(rhs) == this%n  )
     ASSERT(size(sol) == this%n  )
 
-    this%it = this%opt%maxit
+    this%it = this%maxit
 
-    ierr = dgnlamgsolver(this%param,        this%prec,        rhs,               sol,                                 &
-                         this%n,            ia,               ja,                a,                this%opt%matching, &
-                         this%opt%ordering, this%opt%droptol, this%opt%droptolS, this%opt%condest, this%opt%restol,   &
-                         this%it,           this%opt%elbow,   this%opt%lfil,     this%opt%lfilS,   this%opt%nrestart, &
-                         this%opt%mixedprecision, this%opt%ind)
+    ierr = dgnlamgsolver(this%param,          this%prec,    rhs,           sol,                         &
+      &                  this%n,              ia,           ja,            a,            this%matching, &
+      &                  this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
+      &                  this%it,             this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
+      &                  this%mixedprecision, this%ind                                                  )
 
     if      ((ierr >= -3) .and. (ierr < 0)) then
       call program_error("Error in ilupack: " // trim(ILUPACK_SOLVER_ERROR(ierr)))
-    else if ( ierr <  -3                  ) then
+    else if ( ierr /=  0                  ) then
       call program_error("Error in ilupack: solver exited with error code " // int2str(ierr))
     end if
   end subroutine
