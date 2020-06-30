@@ -2,6 +2,7 @@
 
 module matrix_m
   use array_m
+  use bin_search_m
   use blas95
   use error_m
   use high_precision_m

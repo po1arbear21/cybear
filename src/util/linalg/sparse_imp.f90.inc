@@ -958,13 +958,15 @@ subroutine SPARSE_DIAG(this, diag)
   !$omp private(i,j)  &
   !$omp shared(n,diag,this)
   do i = 1, n
-    diag(i) = 0
-    ! FIXME: binary search
-    do j = this%ia(i), this%ia(i+1)-1
-      if (this%ja(j) < i) cycle
-      if (this%ja(j) == i) diag(i) = this%a(j)
-      exit
-    end do
+    ! get value closest to main diagonal
+    j = this%ia(i) + bin_search(this%ja(this%ia(i):this%ia(i+1)-1), i) - 1
+
+    ! output value only, if found exactly
+    if (this%ja(j) == i) then
+      diag(i) = this%a(j)
+    else
+      diag(i) = 0
+    end if
   end do
   !$omp end parallel do
 end subroutine

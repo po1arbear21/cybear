@@ -27,7 +27,7 @@ FFLAGS   := $(FFLAGS) $(FPROFILE)
 CFLAGS   := $(CFLAGS) $(CPROFILE)
 EXT_LIBS := $(EXT_LIBS_PROFILE)
 else
-$(error BUILD must be debug or release!)
+$(error BUILD must be debug, release or profile!)
 endif
 endif
 endif
