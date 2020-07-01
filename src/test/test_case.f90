@@ -756,9 +756,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(rpar)
           if (i < size(rpar)) then
-            write(*, fmt="(1E18.8, 1A)", advance="no") rpar(i), ", "
+            write(*, fmt="(1E24.16, 1A)", advance="no") rpar(i), ", "
           else
-            write(*, fmt="(1E18.8)") rpar(i)
+            write(*, fmt="(1E24.16)") rpar(i)
           end if
         end do
         print *
@@ -767,9 +767,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(cpar)
           if (i < size(cpar)) then
-            write(*, fmt="(2E18.8,A)", advance="no") cpar(i), ", "
+            write(*, fmt="(2E24.16,A)", advance="no") cpar(i), ", "
           else
-            write(*, fmt="(2E18.8)") cpar(i)
+            write(*, fmt="(2E24.16)") cpar(i)
           end if
         end do
         print *
