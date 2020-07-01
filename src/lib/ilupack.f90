@@ -13,21 +13,7 @@ module ilupack_m
   public :: ilupack_solve
   public :: get_ilupack_handle_ptr
 
-  type :: ilupack_handle
-    !! ilupack handle.
-    !! usage:
-    !!    1. call init: sets default options
-    !!    [1b. overwrite option values manually]
-    !!    2. call factor
-    !!    [2a. call info: writes info about multilevel structure]
-    !!    [2b. get fill-in-factor]
-    !!    3. call solve
-    !!    [3b. call solver for multiple rhs]
-    !!    4. call delete
-
-    logical :: cmplx
-      !! real or complex
-
+  type ilupack_handle
     ! ilupack options (can be set manually)
     character(20) :: ordering
       !! string indicating which reordering to apply
@@ -93,6 +79,8 @@ module ilupack_m
     integer, allocatable :: ja(:)
     real,    allocatable :: ar(:)
     complex, allocatable :: ac(:)
+    logical              :: cmplx
+      !! real or complex
 
   contains
     procedure :: print_opts => ilupack_print_opts

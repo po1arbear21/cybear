@@ -15,9 +15,10 @@ contains
 
     ! test ilupack_real
     block
-      integer              :: ilu, n, n_rhs, i_rhs
-      integer, allocatable :: ia(:), ja(:)
-      real,    allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
+      integer                           :: ilu, n, n_rhs, i_rhs
+      integer,              allocatable :: ia(:), ja(:)
+      real,                 allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
+      type(ilupack_handle), pointer     :: ilu_h
 
       !
       ! build matrix
@@ -56,7 +57,10 @@ contains
       ! ilu: init -> factor -> solve -> delete
       !
       ilu = create_ilupack_handle(ia, ja, a)
+      call get_ilupack_handle_ptr(ilu, ilu_h)
       call ilupack_factorize(ilu)
+
+      call tc%assert_eq(8, ilu_h%nnz(), "real nnz")
 
       do i_rhs = 1, n_rhs
         x = x_exp(1,i_rhs)
