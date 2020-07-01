@@ -53,12 +53,12 @@ contains
     !
     ! ilu: init -> factor -> solve -> delete
     !
-    call ilu%init(  a, ia, ja)
-    call ilu%factor(a, ia, ja)
+    call ilu%init(ia, ja, a)
+    call ilu%factor
 
     do i_rhs = 1, n_rhs
       x = x_exp(1,i_rhs)
-      call ilu%solve(a, ia, ja, b(:,i_rhs), x)
+      call ilu%solve(b(:,i_rhs), x)
       call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "solving")
     end do
 

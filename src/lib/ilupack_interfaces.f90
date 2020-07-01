@@ -29,7 +29,7 @@ module ilupack_interfaces_m
       real          :: condest
       real          :: restol
       integer       :: maxit
-      integer       :: elbow
+      real          :: elbow
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart
@@ -56,7 +56,7 @@ module ilupack_interfaces_m
       real          :: condest
       real          :: restol
       integer       :: maxit
-      integer       :: elbow
+      real          :: elbow
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart
@@ -105,7 +105,7 @@ module ilupack_interfaces_m
       real          :: condest
       real          :: restol
       integer       :: maxit
-      integer       :: elbow
+      real          :: elbow
       integer       :: lfil
       integer       :: lfilS
       integer       :: nrestart

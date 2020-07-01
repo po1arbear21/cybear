@@ -37,7 +37,7 @@ module ilupack_m
       !! 'metise'        Metis multilevel nested dissection by edges
       !! 'pq'            ddPQ strategy by Saad
       !! default: 'amd
-    integer       :: elbow
+    real          :: elbow
       !! elbow space factor for the fill computed during the ILU
       !! default: 10
     integer       :: lfil
@@ -86,10 +86,17 @@ module ilupack_m
     !
     integer, allocatable :: ind(:)
       !! array of size n
+      !! default: 0
     integer              :: param
       !! parameter C-pointer casted to integer
     integer              :: prec
       !! preconditioner C-pointer casted to integer
+
+    !
+    ! copy of ia,ja,a. factor rescales them...
+    !
+    integer, allocatable :: ia(:), ja(:)
+    real,    allocatable :: a(:)
 
   contains
     procedure :: init       => ilupack_init
@@ -117,20 +124,24 @@ module ilupack_m
 
 contains
 
-  subroutine ilupack_init(this, a, ia, ja)
+  subroutine ilupack_init(this, ia, ja, a)
     !! init ilupack options.
 
     class(ilupack), intent(out) :: this
-    real,           intent(in)  ::  a(:)
     integer,        intent(in)  :: ia(:)
     integer,        intent(in)  :: ja(:)
+    real,           intent(in)  ::  a(:)
 
     ASSERT(size(a) == size(ja))
 
     this%n = size(ia)-1
-    allocate (this%ind(this%n))
+    allocate (this%ind(this%n), source=0)
 
-    call dgnlamginit(this%n,              ia,           ja,            a,            this%matching, &
+    this%ia = ia
+    this%ja = ja
+    this%a  = a
+
+    call dgnlamginit(this%n,              this%ia,      this%ja,       this%a,       this%matching, &
       &              this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
       &              this%maxit,          this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
       &              this%mixedprecision, this%ind                                                  )
@@ -143,7 +154,7 @@ contains
     class(ilupack), intent(in) :: this
 
     print '(A)',        'ordering:      "' // this%ordering // '"'
-    print '(A,I24)',    'elbow:          ',   this%elbow
+    print '(A,E24.16)', 'elbow:          ',   this%elbow
     print '(A,I24)',    'lfil:           ',   this%lfil
     print '(A,I24)',    'lfilS:          ',   this%lfilS
     print '(A,I24)',    'matching:       ',   this%matching
@@ -156,19 +167,13 @@ contains
     print '(A,I24)',    'mixedprecision: ',   this%mixedprecision
   end subroutine
 
-  subroutine ilupack_factor(this, a, ia, ja)
+  subroutine ilupack_factor(this)
     class(ilupack), intent(inout) :: this
-    real,           intent(inout) ::  a(:)
-    integer,        intent(inout) :: ia(:)
-    integer,        intent(inout) :: ja(:)
 
     integer :: ierr
 
-    ASSERT(size( a) == size(ja))
-    ASSERT(size(ia) == this%n+1)
-
     ierr = dgnlamgfactor(this%param,          this%prec,                                                &
-      &                  this%n,              ia,           ja,            a,            this%matching, &
+      &                  this%n,              this%ia,      this%ja,       this%a,       this%matching, &
       &                  this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
       &                  this%maxit,          this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
       &                  this%mixedprecision, this%ind                                                  )
@@ -180,16 +185,10 @@ contains
     end if
   end subroutine
 
-  subroutine ilupack_info(this, a, ia, ja)
+  subroutine ilupack_info(this)
     class(ilupack), intent(in) :: this
-    real,           intent(in) ::  a(:)
-    integer,        intent(in) :: ia(:)
-    integer,        intent(in) :: ja(:)
 
-    ASSERT(size( a) == size(ja))
-    ASSERT(size(ia) == this%n+1)
-
-    call dgnlamginfo(this%param, this%prec, this%n, ia, ja, a)
+    call dgnlamginfo(this%param, this%prec, this%n, this%ia, this%ja, this%a)
   end subroutine
 
   integer function ilupack_nnz(this)
@@ -198,11 +197,8 @@ contains
     ilupack_nnz = dgnlamgnnz(this%param, this%prec)
   end function
 
-  subroutine ilupack_solve(this, a, ia, ja, rhs, sol)
+  subroutine ilupack_solve(this, rhs, sol)
     class(ilupack), intent(inout) :: this
-    real,           intent(in)    ::   a(:)
-    integer,        intent(in)    ::  ia(:)
-    integer,        intent(in)    ::  ja(:)
     real,           intent(in)    :: rhs(:)
       !! right hand side  of length n
     real,           intent(inout) :: sol(:)
@@ -210,15 +206,13 @@ contains
 
     integer :: ierr
 
-    ASSERT(size(  a) == size(ja))
-    ASSERT(size( ia) == this%n+1)
-    ASSERT(size(rhs) == this%n  )
-    ASSERT(size(sol) == this%n  )
+    ASSERT(size(rhs) == this%n)
+    ASSERT(size(sol) == this%n)
 
     this%it = this%maxit
 
     ierr = dgnlamgsolver(this%param,          this%prec,    rhs,           sol,                         &
-      &                  this%n,              ia,           ja,            a,            this%matching, &
+      &                  this%n,              this%ia,      this%ja,       this%a,       this%matching, &
       &                  this%ordering,       this%droptol, this%droptolS, this%condest, this%restol,   &
       &                  this%it,             this%elbow,   this%lfil,     this%lfilS,   this%nrestart, &
       &                  this%mixedprecision, this%ind                                                  )
