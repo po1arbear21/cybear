@@ -6,6 +6,7 @@ module matrix_m
   use blas95
   use error_m
   use high_precision_m
+  use ilupack_m
   use lapack95
   use omp_lib
   use pardiso_m
@@ -14,6 +15,7 @@ module matrix_m
   implicit none
 
   private
+  public :: SOLVER_PARDISO, SOLVER_ILUPACK, default_solver
   public :: matrix_real
   public :: matrix_cmplx
   public :: matrix_alc_real
@@ -42,6 +44,11 @@ module matrix_m
   public :: triang_cmplx
   public :: block_real
   public :: block_cmplx
+
+  ! sparse solvers
+  integer, parameter :: SOLVER_PARDISO = 1
+  integer, parameter :: SOLVER_ILUPACK = 2
+  integer            :: default_solver = SOLVER_PARDISO
 
 #define T real
 #define TT real

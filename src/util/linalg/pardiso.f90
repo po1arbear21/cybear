@@ -5,7 +5,7 @@ module pardiso_m
   use vector_m
   implicit none
 
-  !# Privat vor Staat (Olaf Scholz does not approve of this message)
+  ! Privat vor Staat (Olaf Scholz does not approve of this message)
 
   private
   public :: create_pardiso_handle
@@ -15,22 +15,6 @@ module pardiso_m
 
   ! include pardiso interface
 #include "mkl_pardiso.fi"
-
-  character(*), parameter :: PARDISO_ERROR(-12:0) = [                      &
-    "pardiso_64 called from 32-bit library                              ", &
-    "read/write error with OOC files                                    ", &
-    "error opening OOC files                                            ", &
-    "not enough memory for OOC                                          ", &
-    "32-bit integer overflow problem                                    ", &
-    "diagonal matrix is singular                                        ", &
-    "reordering failed                                                  ", &
-    "unclassified (internal) error                                      ", &
-    "zero pivot, numerical factorization or iterative refinement problem", &
-    "reordering problem                                                 ", &
-    "not enough memory                                                  ", &
-    "input inconsistent                                                 ", &
-    "no error                                                           "  &
-  ]
 
   type pardiso_handle
     type(MKL_PARDISO_HANDLE) :: pt(64)
@@ -67,6 +51,22 @@ module pardiso_m
     module procedure :: pardiso_solve_r
     module procedure :: pardiso_solve_c
   end interface
+
+  character(*), parameter :: PARDISO_ERROR(-12:0) = [                      &
+    "pardiso_64 called from 32-bit library                              ", &
+    "read/write error with OOC files                                    ", &
+    "error opening OOC files                                            ", &
+    "not enough memory for OOC                                          ", &
+    "32-bit integer overflow problem                                    ", &
+    "diagonal matrix is singular                                        ", &
+    "reordering failed                                                  ", &
+    "unclassified (internal) error                                      ", &
+    "zero pivot, numerical factorization or iterative refinement problem", &
+    "reordering problem                                                 ", &
+    "not enough memory                                                  ", &
+    "input inconsistent                                                 ", &
+    "no error                                                           "  &
+  ]
 
 contains
 

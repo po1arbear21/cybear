@@ -15,8 +15,7 @@ contains
 
     ! test ilupack_real
     block
-      type(ilupack_real)   :: ilu
-      integer              :: n, n_rhs, i_rhs
+      integer              :: ilu, n, n_rhs, i_rhs
       integer, allocatable :: ia(:), ja(:)
       real,    allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
 
@@ -56,22 +55,21 @@ contains
       !
       ! ilu: init -> factor -> solve -> delete
       !
-      call ilu%init(ia, ja, a)
-      call ilu%factor
+      ilu = create_ilupack_handle(ia, ja, a)
+      call ilupack_factorize(ilu)
 
       do i_rhs = 1, n_rhs
         x = x_exp(1,i_rhs)
-        call ilu%solve(b(:,i_rhs), x)
+        call ilupack_solve(ilu, b(:,i_rhs), x)
         call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "real solving")
       end do
 
-      call ilu%delete
+      call destruct_ilupack_handle(ilu)
     end block
 
     ! test ilupack_cmplx
     block
-      type(ilupack_cmplx)  :: ilu
-      integer              :: n, n_rhs, i_rhs
+      integer              :: ilu, n, n_rhs, i_rhs
       integer, allocatable :: ia(:), ja(:)
       complex, allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
 
@@ -107,16 +105,16 @@ contains
       !
       ! ilu: init -> factor -> solve -> delete
       !
-      call ilu%init(ia, ja, a)
-      call ilu%factor
+      ilu = create_ilupack_handle(ia, ja, a)
+      call ilupack_factorize(ilu)
 
       do i_rhs = 1, n_rhs
         x = 0
-        call ilu%solve(b(:,i_rhs), x)
+        call ilupack_solve(ilu, b(:,i_rhs), x)
         call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "complex solving")
       end do
 
-      call ilu%delete
+      call destruct_ilupack_handle(ilu)
     end block
 
     call tc%finish

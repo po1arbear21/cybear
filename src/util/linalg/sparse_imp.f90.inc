@@ -54,7 +54,7 @@
 #define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
 #define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
-subroutine SPARSE_INIT(this, nrows, ncols)
+subroutine SPARSE_INIT(this, nrows, ncols, solver)
   !! Initialize sparse matrix.
 
   class(SPARSE_TYPE), intent(out) :: this
@@ -63,9 +63,14 @@ subroutine SPARSE_INIT(this, nrows, ncols)
     !! Number of rows
   integer, optional,  intent(in)  :: ncols
     !! Optional: Number of columns (default: ncols = nrows)
+  integer, optional,  intent(in)  :: solver
+    !! Optional: SOLVER_PARDISO or SOLVER_ILUPACK (default: solver = default_solver)
 
   ! init base
   call this%init("", nrows, ncols = ncols)
+
+  this%solver = default_solver
+  if (present(solver)) this%solver = solver
 end subroutine
 
 subroutine SPARSE_DESTRUCT(this)
@@ -74,13 +79,7 @@ subroutine SPARSE_DESTRUCT(this)
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
 
-  ! deallocate CSR data
-  if (allocated(this%ia)) deallocate(this%ia)
-  if (allocated(this%ja)) deallocate(this%ja)
-  if (allocated(this%a )) deallocate(this%a )
-
-  ! destruct pardiso handle
-  if (this%pard > 0) call destruct_pardiso_handle(this%pard)
+  call this%reset()
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
@@ -105,7 +104,14 @@ subroutine SPARSE_RESET(this, only_factorization)
   end if
 
   ! destruct factorization
-  if (this%pard > 0) call destruct_pardiso_handle(this%pard)
+  if (this%solver_handle > 0) then
+    select case (this%solver)
+      case (SOLVER_PARDISO)
+        call destruct_pardiso_handle(this%solver_handle)
+      case (SOLVER_ILUPACK)
+        call destruct_ilupack_handle(this%solver_handle)
+    end select
+  end if
 end subroutine
 
 subroutine SPARSE_SCALE(this, fact)
@@ -117,7 +123,7 @@ subroutine SPARSE_SCALE(this, fact)
     !! Scaling factor
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%pard == 0)
+  ASSERT(this%solver_handle == 0)
 
   ! scale values
   this%a = fact * this%a
@@ -266,23 +272,34 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
 end subroutine
 
 subroutine SPARSE_FACTORIZE(this)
-  !! Factorize Matrix using PARDISO.
+  !! Factorize Matrix using PARDISO or ILUPACK.
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
 
-  ! h == 0 is default value for unfactorized
-  ASSERT(this%pard == 0)
+  ! make sure matrix is unfactorized
+  ASSERT(this%solver_handle == 0)
 
-  ! init pardiso
+  select case (this%solver)
+    case (SOLVER_PARDISO)
+      ! init pardiso
 #ifdef TCMPLX
-  this%pard = create_pardiso_handle(this%nrows, .true.)
+      this%solver_handle = create_pardiso_handle(this%nrows, .true.)
 #else
-  this%pard = create_pardiso_handle(this%nrows, .false.)
+      this%solver_handle = create_pardiso_handle(this%nrows, .false.)
 #endif
 
-  ! factorize with pardiso
-  call pardiso_factorize(this%pard, this%ia, this%ja, this%a)
+      ! factorize with pardiso
+      call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
+
+    case (SOLVER_ILUPACK)
+      ! init ilupack
+      this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
+
+      ! factorize with ilupack
+      call ilupack_factorize(this%solver_handle)
+
+  end select
 end subroutine
 
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -301,6 +318,9 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
+  ! make sure, matrix is factorized
+  ASSERT(this%solver_handle > 0)
+
   ! optional arguments
   if (present(trans)) then
     if (trans /= 'N') call program_error("Solving with transposed sparse matrix not implemented!")
@@ -309,8 +329,13 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
     if (.not. iter_refine) call program_error("Solving with sparse matrix without iterative refinement not implemented!")
   end if
 
-  ! solve system with pardiso
-  call pardiso_solve(this%pard, this%ia, this%ja, this%a, rhs, x)
+  ! solve system with pardiso/ilupack
+  select case (this%solver)
+    case (SOLVER_PARDISO)
+      call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
+    case (SOLVER_ILUPACK)
+      call ilupack_solve(this%solver_handle, rhs, x)
+  end select
 end subroutine
 
 subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
@@ -332,6 +357,9 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! local variables
   TT, allocatable :: rhs_(:), x_(:)
 
+  ! make sure, matrix is factorized
+  ASSERT(this%solver_handle > 0)
+
   ! optional arguments
   if (present(trans)) then
     if (trans /= 'N') call program_error("Solving with transposed sparse matrix not implemented!")
@@ -344,9 +372,14 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   allocate (rhs_(size(rhs,1) * size(rhs,2)))
   allocate (  x_(size(  x,1) * size(  x,2)))
 
-  ! solve with pardiso, pass right-hand sides one after another in 1D array
+  ! solve with pardiso/ilupack, pass right-hand sides one after another in 1D array
   rhs_ = reshape(rhs, [size(rhs,1) * size(rhs,2)])
-  call pardiso_solve(this%pard, this%ia, this%ja, this%a, rhs_, x_)
+  select case (this%solver)
+    case (SOLVER_PARDISO)
+      call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
+    case (SOLVER_ILUPACK)
+      call ilupack_solve(this%solver_handle, rhs_, x_)
+  end select
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine
 
@@ -470,7 +503,7 @@ subroutine SPARSE_TRANSPOSE(this)
   type(SPARSE_TYPE) :: s2
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%pard == 0)
+  ASSERT(this%solver_handle == 0)
 
   ! transpose matrix
   call this%transpose(s2)
@@ -556,7 +589,7 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
   ASSERT(this%ncols == s%ncols)
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%pard == 0)
+  ASSERT(this%solver_handle == 0)
 
   ! optional arguments
   fact_ = 1
@@ -661,7 +694,7 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   ASSERT(this%ncols == b%ncols)
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%pard == 0)
+  ASSERT(this%solver_handle == 0)
 
   ! optional arguments
   fact_ = 1

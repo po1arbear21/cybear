@@ -259,8 +259,10 @@ type, extends(MATRIX_TYPE) :: SPARSE_TYPE
   integer, allocatable :: ja(:)
   TT,      allocatable :: a(:)
 
-  integer              :: pard = 0
-    !! Handle to pardiso for solving
+  integer              :: solver = 0
+    !! SOLVER_PARDISO or SOLVER_ILUPACK
+  integer              :: solver_handle = 0
+    !! pardiso or ilupack solver handle
 contains
   procedure :: SPARSE_INIT
   generic   :: init         => SPARSE_INIT
