@@ -28,11 +28,11 @@ function BIN_SEARCH(x, x1, mode) result(i)
   i1 = size(x)
 
   ! test if x1 is outside of interval [x(1), x(end)]
-  if (x1 < x(i0)) then
+  if (x1 <= x(i0)) then
     i = i0
     return
   end if
-  if (x1 > x(i1)) then
+  if (x1 >= x(i1)) then
     i = i1
     return
   end if
