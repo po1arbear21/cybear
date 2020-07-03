@@ -43,7 +43,7 @@ all: dirs
 
 # directories
 BUILD_DIR := build/${COMPILER}/${BUILD}/
-TRASH_DIR := build/trash/
+TRASH_DIR := build/${COMPILER}/${BUILD}/trash/
 dirs: $(BUILD_DIR) $(TRASH_DIR)
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
