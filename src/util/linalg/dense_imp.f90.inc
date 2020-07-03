@@ -706,9 +706,9 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
     fmt_ = fmt
   else
 #ifdef TCMPLX
-    fmt_ = '(1A,E32.24,SP,E32.24,"i")'
+    fmt_ = '(A,ES24.16,SP,ES24.16,"i")'
 #else
-    fmt_ = '(1A,E32.24)'
+    fmt_ = '(A,ES24.16)'
 #endif
   end if
 

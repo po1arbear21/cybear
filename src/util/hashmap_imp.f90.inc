@@ -111,7 +111,7 @@ subroutine HASHMAP_INSERT(this, key, value, pos)
     call this%values%push(value)
     this%table(i) = this%keys%n
   else if (this%keys%d(this%table(i)) == key) then
-    print *, "key = ", key
+    print "(A,I0)", "key = ", key
     call program_error("key already exists!")
   else
     call program_error("table full!")

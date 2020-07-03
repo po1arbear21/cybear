@@ -8,7 +8,7 @@ contains
   subroutine test_math
     type(test_case) :: tc
 
-    print "(1A)", "test_math"
+    print "(A)", "test_math"
     call tc%init("math")
 
     ! cross product

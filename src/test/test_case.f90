@@ -73,7 +73,7 @@ contains
     class(test_case), intent(in) :: this
       !! Test case
 
-    print "(1A, 1I0, 1A, 1I0, 1A)", "  "//trim(this%name)//": ", this%passed_tests, "/", this%num_tests, " tests passed!"
+    print "(A,I0,A,I0,A)", "  "//trim(this%name)//": ", this%passed_tests, "/", this%num_tests, " tests passed!"
     print *
 
     if (this%passed_tests /= this%num_tests) call program_error("Test case "//trim(this%name)//" failed!")
@@ -111,7 +111,7 @@ contains
       call this%check(values(i), msg, msg2 = "assertion for array values failed; (row)", ipar = [i])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
-        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
         return
       end if
     end do
@@ -137,7 +137,7 @@ contains
         call this%check(values(i,j), msg, msg2 = "assertion for array values failed; (row, col)", ipar = [i, j])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
-          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
       end do
@@ -165,7 +165,7 @@ contains
           call this%check(values(i,j,k), msg, msg2 = "assertion for array values failed; (row, col, slice)", ipar = [i, j, k])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
-            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
             return
           end if
         end do
@@ -216,7 +216,7 @@ contains
                       msg2 = "array values differ; (row, expected, value)", ipar = [i, expected(i), values(i)])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
-        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
         return
       end if
     end do
@@ -253,7 +253,7 @@ contains
                         msg2 = "array values differ; (row, col, expected, value)", ipar = [i, j, expected(i,j), values(i,j)])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
-          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
       end do
@@ -295,7 +295,7 @@ contains
                           msg2 = "array values differ; (row, col, slice, expected, value)", ipar = [i, j, k, expected(i,j,k), values(i,j,k)])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
-            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
             return
           end if
         end do
@@ -350,7 +350,7 @@ contains
                       msg2 = "array values differ; (row; expected, value)", ipar = [i], rpar = [expected(i), values(i)])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
-        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
         return
       end if
     end do
@@ -389,7 +389,7 @@ contains
                         msg2 = "array values differ; (row, col; expected, value)", ipar = [i, j], rpar = [expected(i,j), values(i,j)])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
-          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
       end do
@@ -433,7 +433,7 @@ contains
                           msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], rpar = [expected(i,j,k), values(i,j,k)])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
-            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
             return
           end if
         end do
@@ -488,7 +488,7 @@ contains
                       msg2 = "array values differ; (row; expected, value)", ipar = [i], cpar = [expected(i), values(i)])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
-        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
         return
       end if
     end do
@@ -527,7 +527,7 @@ contains
                         msg2 = "array values differ; (row, col; expected, value)", ipar = [i, j], cpar = [expected(i,j), values(i,j)])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
-          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
       end do
@@ -571,7 +571,7 @@ contains
                           msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], cpar = [expected(i,j,k), values(i,j,k)])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
-            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
             return
           end if
         end do
@@ -622,7 +622,7 @@ contains
                       msg2 = "array values differ; (row)", ipar = [i])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
-        print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
         return
       end if
     end do
@@ -659,7 +659,7 @@ contains
                         msg2 = "array values differ; (row, col)", ipar = [i, j])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
-          print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
           return
         end if
       end do
@@ -701,7 +701,7 @@ contains
                           msg2 = "array values differ; (row, col, slice)", ipar = [i, j, k])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
-            print "(1A)", "    Failed for more than 5 elements, discontinue test!"
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
             return
           end if
         end do
@@ -738,16 +738,16 @@ contains
       this%passed_tests = this%passed_tests + 1
     else
       this%last_passed  = .false.
-      print "(1A)", "Test failed in "//trim(this%name)
-      print "(1A)", "  "//trim(msg)
-      if (present(msg2)) print "(1A)", "    "//trim(msg2)
+      print "(A)", "Test failed in "//trim(this%name)
+      print "(A)", "  "//trim(msg)
+      if (present(msg2)) print "(A)", "    "//trim(msg2)
       if (present(ipar)) then
-        write(*, fmt="(1A)", advance="no") "      "
+        write(*, fmt="(A)", advance="no") "      "
         do i = 1, size(ipar)
           if (i < size(ipar)) then
-            write(*, fmt="(1I0, 1A)", advance="no") ipar(i), ", "
+            write(*, fmt="(I0,A)", advance="no") ipar(i), ", "
           else
-            write(*, fmt="(1I0)") ipar(i)
+            write(*, fmt="(I0)") ipar(i)
           end if
         end do
         print *
@@ -756,9 +756,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(rpar)
           if (i < size(rpar)) then
-            write(*, fmt="(1E24.16, 1A)", advance="no") rpar(i), ", "
+            write(*, fmt="(ES24.16,A)", advance="no") rpar(i), ", "
           else
-            write(*, fmt="(1E24.16)") rpar(i)
+            write(*, fmt="(ES24.16)") rpar(i)
           end if
         end do
         print *
@@ -767,9 +767,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(cpar)
           if (i < size(cpar)) then
-            write(*, fmt="(2E24.16,A)", advance="no") cpar(i), ", "
+            write(*, fmt="(2ES24.16,A)", advance="no") cpar(i), ", "
           else
-            write(*, fmt="(2E24.16)") cpar(i)
+            write(*, fmt="(2ES24.16)") cpar(i)
           end if
         end do
         print *

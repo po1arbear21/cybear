@@ -52,8 +52,8 @@ module ode_m
         !! output derivatives of f wrt P (nU,nP)
     end subroutine
 
-    subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, &
-      P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
+    subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
+      P, opt, dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
       import ode_options, ode_fun
       procedure(ode_fun)               :: fun
         !! function to integrate
@@ -71,6 +71,8 @@ module ode_m
         !! dUk/dx
       real,              intent(in)    :: dfkdUk(:,:)
         !! derivatives of fk wrt Uk
+      real,              intent(in)    :: dfkdP(:,:)
+        !! derivatives of fk wrt P
       real,              intent(in)    :: polyk(:,:)
         !! interpolation polynomial (from previous step)
       real,              intent(in)    :: P(:)
@@ -87,6 +89,8 @@ module ode_m
         !! output dUn/dx
       real,              intent(out)   :: dfndUn(:,:)
         !! output derivatives of fn wrt Un
+      real,              intent(out)   :: dfndP(:,:)
+        !! output derivatives of fn wrt P
       real,              intent(out)   :: polyn(:,:)
         !! output interpolation polynomial for this step
       real,              intent(out)   :: dpolyndQ(:,:,:)
@@ -133,8 +137,8 @@ contains
       integer :: i, j, rejection_counter
       integer :: ismp, nsmp, dsmp, ismpmax
       real    :: x, xold, dxk, dxn, err
-      real    :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), polyk(nU,nS)
-      real    :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
+      real    :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), dfkdP(nU,nP), polyk(nU,nS)
+      real    :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), dfndP(nU,nP), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
       logical :: status
 
       ! initial x and dx
@@ -198,20 +202,20 @@ contains
       ! main loop
       do while (abs(x - x0) < abs(x1 - x0))
         ! kernel
-        call kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, P, opt, &
-                                  dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
+        call kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
+                                  dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
 
         if (.not. status) then
           ! reject step
           rejection_counter = rejection_counter + 1
           if (rejection_counter > opt%max_rejected) then
-            print "(1A, 1E64.56)", "x0 = ", x0
-            print "(1A, 1E64.56)", "x1 = ", x1
+            print "(A,ES24.16)", "x0 = ", x0
+            print "(A,ES24.16)", "x1 = ", x1
             do i = 1, nU
-              print "(1A, 1I1, 1A, 1E64.56)", "U0(", i, ") = ", U0(i)
+              print "(A,I1,A,ES24.16)", "U0(", i, ") = ", U0(i)
             end do
             do i = 1, nP
-              print "(1A, 1I1, 1A, 1E64.56)", "P(", i, ") = ", P(i)
+              print "(A,I1,A,ES24.16)", "P(", i, ") = ", P(i)
             end do
 
             call program_error("Can not solve ode, limit for rejected steps reached!")

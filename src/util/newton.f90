@@ -129,14 +129,14 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print *, "atol   = ", opt%atol
-        print *, "rtol   = ", opt%rtol
-        print *, "xmin   = ", xmin
-        print *, "xmax   = ", xmax
-        print *, "max_it = ", opt%max_it
-        print *, "x      = ", x
-        print *, "f      = ", f
-        print *, "err    = ", err
+        print "(A,ES24.16)", "atol   = ", opt%atol
+        print "(A,ES24.16)", "rtol   = ", opt%rtol
+        print "(A,ES24.16)", "xmin   = ", xmin
+        print "(A,ES24.16)", "xmax   = ", xmax
+        print "(A,I0)",      "max_it = ", opt%max_it
+        print "(A,ES24.16)", "x      = ", x
+        print "(A,ES24.16)", "f      = ", f
+        print "(A,ES24.16)", "err    = ", err
         call program_error("solution could not be found within maximum number of iterations")
       end if
 
@@ -181,7 +181,7 @@ contains
       x = x - dx
 
       if (opt%log) then
-        print "(1A, 1I0, 1E24.16)", opt%msg, it, err
+        print "(A,I0,ES24.16)", opt%msg, it, err
       end if
 
       ! exit if close to solution
@@ -242,11 +242,11 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print *, "atol    = ", opt%atol
-        print *, "rtol    = ", opt%rtol
-        print *, "max_it  = ", opt%max_it
-        print *, "err     = ", err
-        print *, "abs_err = ", abs_err
+        print "(A,ES24.16)", "atol    = ", opt%atol
+        print "(A,ES24.16)", "rtol    = ", opt%rtol
+        print "(A,I0)",      "max_it  = ", opt%max_it
+        print "(A,ES24.16)", "err     = ", err
+        print "(A,ES24.16)", "abs_err = ", abs_err
         call program_error("solution could not be found within maximum number of iterations")
       end if
 
@@ -270,7 +270,7 @@ contains
       x = x - dx
 
       if (opt%log) then
-        print "(1A, 1I0, 1E24.16)", opt%msg, it, err
+        print "(A,I0,ES24.16)", opt%msg, it, err
       end if
     end do
 

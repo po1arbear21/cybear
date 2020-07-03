@@ -11,7 +11,7 @@ contains
     type(test_case)   :: tc
     type(dense_real)  :: A, expmA
 
-    print "(1A)", "test_expm"
+    print "(A)", "test_expm"
     call tc%init("expm")
 
     ! A = magic(4) / 16 =

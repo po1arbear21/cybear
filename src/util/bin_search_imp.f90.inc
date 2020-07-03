@@ -68,7 +68,7 @@ function BIN_SEARCH(x, x1, mode) result(i)
 
     case default
       i = 0
-      print *, mode
+      print "(I0)", mode
       call program_error("unknown search mode")
 
   end select

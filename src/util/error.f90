@@ -67,10 +67,10 @@ contains
       if (present(line)) em%line = line
       call emsg%push(em)
     else
-      print *, msg
+      print "(A)", msg
 
       if (present(code)) then
-        print *, "error code: ", code
+        print "(A,I0)", "error code: ", code
       end if
 
       ! print traceback and stop program
@@ -111,9 +111,9 @@ contains
     integer,      intent(in) :: line
 
     print *
-    print *, expr
-    print *, "Assertion failed!"
-    print "(3A, 1I6)", "file: ", file, "; line: ", line
+    print "(A)", expr
+    print "(A)", "Assertion failed!"
+    print "(3A,I0)", "file: ", file, "; line: ", line
     print *
 
 #ifdef __INTEL_COMPILER

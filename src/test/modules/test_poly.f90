@@ -10,7 +10,7 @@ contains
   subroutine test_poly()
     type(test_case) :: tc
 
-    print "(1A)", "test_poly"
+    print "(A)", "test_poly"
     call tc%init("poly")
 
     ! 1D quadratic

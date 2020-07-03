@@ -9,7 +9,7 @@ contains
   subroutine test_high_precision()
     type(test_case) :: tc
 
-    print "(1A)", "test_high_precision"
+    print "(A)", "test_high_precision"
     call tc%init("high_precision")
 
     ! testing sum

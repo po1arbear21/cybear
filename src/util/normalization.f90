@@ -157,7 +157,7 @@ contains
       node => normconst%unit_const%find(string(unit))
     end if
     if (.not. associated(node)) then
-      print *, "Unit: " // trim(unit)
+      print "(A)", "Unit: "//trim(unit)
       call program_error("Unit not found in normalization object!")
     end if
 

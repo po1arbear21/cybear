@@ -9,7 +9,7 @@ contains
     type(band_real)      :: tri, band, penta, diag
     real, dimension(5,5) :: d_band
 
-    print "(1A)", "test_band"
+    print "(A)", "test_band"
     call tc%init("band")
 
     ! init examples of band matrices + factorize
