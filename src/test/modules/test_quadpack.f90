@@ -10,7 +10,7 @@ contains
     type(test_case) :: tc
     real            :: alpha, xmin, xmax, res, res_exp
 
-    print "(1A)", "test_quadpack"
+    print "(A)", "test_quadpack"
     call tc%init("quadpack")
 
     alpha   = 0.8

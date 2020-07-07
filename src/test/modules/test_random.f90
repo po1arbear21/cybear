@@ -12,7 +12,7 @@ contains
     ! integer            :: i, seed(2), funit
     ! real               :: x(N)
 
-    print "(1A)", "test_random"
+    print "(A)", "test_random"
     call tc%init("random")
 
     ! seed = [512323423456, 178234119012]
@@ -21,7 +21,7 @@ contains
 
     ! open (newunit = funit, file = "rand_pcg.asc", status = "replace", action = "write")
     ! do i = 1, N
-    !   write (funit, "(1E64.56)") x(i)
+    !   write (funit, "(ES24.16)") x(i)
     ! end do
     ! close (funit)
 

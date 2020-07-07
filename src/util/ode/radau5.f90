@@ -1,3 +1,5 @@
+#include "../macro.f90.inc"
+
 module radau5_m
   use lapack95
   use ode_m
@@ -12,16 +14,16 @@ module radau5_m
     (4.0 + sqrt(6.0)) / 10.0,          &
     1.0                                &
   ]
-  real, parameter, private :: A(3,3) = reshape([    &
-    (  88.0 -   7.0 * sqrt(6.0)) /  360.0,          &
-    ( 296.0 + 169.0 * sqrt(6.0)) / 1800.0,          &
-    (  16.0 -         sqrt(6.0)) /   36.0,          &
-    ( 296.0 - 169.0 * sqrt(6.0)) / 1800.0,          &
-    (  88.0 +   7.0 * sqrt(6.0)) /  360.0,          &
-    (  16.0 +         sqrt(6.0)) /   36.0,          &
-    (-  2.0 +   3.0 * sqrt(6.0)) /  225.0,          &
-    (-  2.0 -   3.0 * sqrt(6.0)) /  225.0,          &
-    (   1.0                    ) /    9.0           &
+  real, parameter, private :: A(3,3) = reshape([ &
+    (  88.0 -   7.0 * sqrt(6.0)) /  360.0,       &
+    ( 296.0 + 169.0 * sqrt(6.0)) / 1800.0,       &
+    (  16.0 -         sqrt(6.0)) /   36.0,       &
+    ( 296.0 - 169.0 * sqrt(6.0)) / 1800.0,       &
+    (  88.0 +   7.0 * sqrt(6.0)) /  360.0,       &
+    (  16.0 +         sqrt(6.0)) /   36.0,       &
+    (-  2.0 +   3.0 * sqrt(6.0)) /  225.0,       &
+    (-  2.0 -   3.0 * sqrt(6.0)) /  225.0,       &
+    (   1.0                    ) /    9.0        &
   ], [ 3, 3 ])
 
   real, parameter, private :: G0   = 2.74888829595676675854321047154372e-01
@@ -56,7 +58,8 @@ contains
     call ode_solve(radau5_kernel, 3, fun, x0, x1, xsmp, U0, P, opt, res)
   end subroutine
 
-  subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, polyk, P, opt, dxn, Un, dUndQ, fn, dfndUn, polyn, dpolyndQ, err, status)
+  subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
+    P, opt, dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
     !! kernel for radau5 ode solver
     procedure(ode_fun)               :: fun
       !! function to integrate
@@ -74,6 +77,8 @@ contains
       !! dUk/dx
     real,              intent(in)    :: dfkdUk(:,:)
       !! derivatives of fk wrt Uk
+    real,              intent(in)    :: dfkdP(:,:)
+      !! derivatives of fk wrt P
     real,              intent(in)    :: polyk(:,:)
       !! interpolation polynomial (from previous step)
     real,              intent(in)    :: P(:)
@@ -90,6 +95,8 @@ contains
       !! output dUn/dx
     real,              intent(out)   :: dfndUn(:,:)
       !! output derivatives of fn wrt Un
+    real,              intent(out)   :: dfndP(:,:)
+      !! output derivatives of fn wrt P
     real,              intent(out)   :: polyn(:,:)
       !! output interpolation polynomial for this step
     real,              intent(out)   :: dpolyndQ(:,:,:)
@@ -102,6 +109,8 @@ contains
     ! local variables
     integer :: nU, nP
 
+    IGNORE(dfkdP)
+
     ! get system size, number of parameters and number of stages
     nU = size(Uk)
     nP = size(P)
@@ -111,7 +120,7 @@ contains
       real    :: newt_err, newt_err0, err_k
       real    :: f(nU,3), dfdz(nU,nU,3), dfdP(nU,nP,3)
       real    :: z(nU*3), h(nU*3,1), dhdz(nU*3,nU*3)
-      real    :: dhdQ(nU*3,nu+nP), dzdQ(nu*3,nu+nP)
+      real    :: dhdQ(nU*3,nU+nP), dzdQ(nU*3,nU+nP)
 
       ! reset output
       dxn      = 0
@@ -129,12 +138,12 @@ contains
       newt_err0 = 2e99
       newt_err  = 1e99
       it = 0
-      do while (newt_err > 0)
+      do while (newt_err > opt%newton_rtol)
         ! count iterations
         it = it + 1
 
-        ! fail if too many iterations, or error grows
-        if ((it > opt%newton_max_it) .or. (newt_err > newt_err0)) then
+        ! fail if too many iterations
+        if (it > opt%newton_max_it) then
           ! try half step size next time
           dxn = 0.5 * dxk
 
@@ -154,7 +163,7 @@ contains
 
         ! get error
         newt_err0 = newt_err
-        newt_err  = maxval(abs(h(:,1)) - max(opt%newton_rtol * abs(z), opt%newton_atol))
+        newt_err  = maxval(abs(h(:,1)) / (abs(z) + opt%newton_atol / opt%newton_rtol))
 
         ! update z
         z = z - h(:,1)
@@ -189,9 +198,10 @@ contains
         ! get dUndQ
         dUndQ = dUkdQ + dzdQ((nU*2+1):(nU*3),:)
 
-        ! set fn and dfndUn
+        ! set fn, dfndUn and dfndP
         fn     = f(:,3)
         dfndUn = dfdz(:,:,3)
+        dfndP  = dfdP(:,:,3)
 
         ! new polynomial interpolation
         call interpolate(dxk, z(1:nU), z((nU+1):(2*nU)), z((2*nU+1):(3*nU)), &

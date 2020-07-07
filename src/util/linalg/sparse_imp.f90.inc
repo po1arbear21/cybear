@@ -944,9 +944,9 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   else
 #ifdef TCMPLX
     ! FIXME: check this
-    fmt_ = '(E32.24,SP,E32.24,"i")'
+    fmt_ = '(ES24.16,SP,ES24.16,"i")'
 #else
-    fmt_ = '(E32.24)'
+    fmt_ = '(ES24.16)'
 #endif
   end if
 
@@ -964,7 +964,7 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   do i = 1, this%nrows
     do j = this%ia(i), this%ia(i+1)-1
       ! write row and column
-      write(funit_, "(1I0,1A,1I0,1A)", advance = "no") i, " ", this%ja(j), " "
+      write(funit_, "(I0,A,I0,A)", advance = "no") i, " ", this%ja(j), " "
 
       ! write value
       write(funit_, fmt_) this%a(j)

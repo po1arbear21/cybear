@@ -479,7 +479,7 @@ contains
       ! check if line was valid
       if (.not. valid) then
         close(funit)
-        print "(1A, 1I0)", "Input error in line number ", line_number
+        print "(A,I0)", "Input error in line number ", line_number
         call program_error(err)
       end if
     end do
@@ -686,12 +686,12 @@ contains
 
     if (st < 0) then
       if (.not. present(status)) then
-        print *, section_name
+        print "(A)", section_name
         call program_error("section name not found")
       end if
     elseif (st > 0) then
       if (.not. present(status)) then
-        print *, section_name
+        print "(A)", section_name
         call program_error("multiple sections with this name found")
       end if
     end if
@@ -753,7 +753,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -789,7 +789,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -899,7 +899,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -949,7 +949,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -1056,7 +1056,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -1093,7 +1093,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -1190,7 +1190,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine
@@ -1226,7 +1226,7 @@ contains
     if (present(status)) then
       status = .false.
     else
-      print *, name
+      print "(A)", name
       call program_error("variable name not found")
     end if
   end subroutine

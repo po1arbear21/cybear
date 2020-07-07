@@ -11,7 +11,7 @@ contains
     real, allocatable     :: d0(:,:), Asqrt_exp(:,:)
     type(dense_real)      :: Asqrt
 
-    print "(1A)", "test_sqrtm"
+    print "(A)", "test_sqrtm"
     call tc%init("sqrtm")
 
     !

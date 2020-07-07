@@ -9,7 +9,7 @@ contains
     type(test_case)  :: tc
     type(vector_int) :: vec
 
-    print "(1A)", "test_vector"
+    print "(A)", "test_vector"
     call tc%init("vector")
 
     ! test1: init

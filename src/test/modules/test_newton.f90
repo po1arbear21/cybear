@@ -8,7 +8,7 @@ contains
   subroutine test_newton()
     type(test_case) :: tc
 
-    print "(1A)", "test_newton"
+    print "(A)", "test_newton"
     call tc%init("newton")
 
     block

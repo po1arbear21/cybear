@@ -12,7 +12,7 @@ contains
     real, allocatable :: d0(:,:)
     integer :: i, j
 
-    print "(1A)", "test_block"
+    print "(A)", "test_block"
     call tc%init("block")
 
     ! test init routine
