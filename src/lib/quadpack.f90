@@ -1,8 +1,9 @@
 module quadpack_m
+  use, intrinsic :: ieee_arithmetic
   implicit none
 
   private
-  public :: QUADPACK_ERROR, qags
+  public :: QUADPACK_ERROR, quadpack_int
 
   interface
     function quadpack_integrand(x) result(f)
@@ -20,11 +21,11 @@ module quadpack_m
     "input is invalid                       "      &
   ]
 
-  external :: dqags
+  external :: dqags, dqagi
 
 contains
 
-  subroutine qags(f, a, b, atol, rtol, result, aerr, neval, ier, limit, last)
+  subroutine quadpack_int(f, a, b, atol, rtol, result, aerr, neval, ier, limit, last)
     procedure(quadpack_integrand)  :: f
       !! function to integrate
     real,              intent(in)  :: a
@@ -49,10 +50,11 @@ contains
       !! optional, output number of subintervals used
 
     ! local variables
-    integer              :: neval_, ier_, limit_, lenw, last_
+    integer              :: neval_, ier_, limit_, lenw, last_, inf
     integer, allocatable :: iwork(:)
-    real                 :: aerr_
+    real                 :: aerr_, bnd
     real,    allocatable :: work(:)
+    logical              :: a_inf, b_inf
 
     limit_ = 4096
     if (present(limit)) limit_ = limit
@@ -60,7 +62,27 @@ contains
 
     allocate (iwork(limit_), work(lenw))
 
-    call dqags(f, a, b, atol, rtol, result, aerr_, neval_, ier_, limit_, lenw, last_, iwork, work)
+    a_inf = (ieee_class(a) == IEEE_NEGATIVE_INF)
+    b_inf = (ieee_class(b) == IEEE_POSITIVE_INF)
+
+    bnd = 0
+    if (a_inf .and. b_inf) then
+      inf = 2
+    elseif (a_inf) then
+      bnd = b
+      inf = -1
+    elseif (b_inf) then
+      bnd = a
+      inf = +1
+    else
+      inf = 0
+    end if
+
+    if (inf == 0) then
+      call dqags(f, a,   b,   atol, rtol, result, aerr_, neval_, ier_, limit_, lenw, last_, iwork, work)
+    else
+      call dqagi(f, bnd, inf, atol, rtol, result, aerr_, neval_, ier_, limit_, lenw, last_, iwork, work)
+    end if
 
     if (present(aerr )) aerr  = aerr_
     if (present(neval)) neval = neval_
