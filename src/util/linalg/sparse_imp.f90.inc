@@ -108,8 +108,10 @@ subroutine SPARSE_RESET(this, only_factorization)
     select case (this%solver)
       case (SOLVER_PARDISO)
         call destruct_pardiso_handle(this%solver_handle)
+#ifdef USE_ILUPACK
       case (SOLVER_ILUPACK)
         call destruct_ilupack_handle(this%solver_handle)
+#endif
     end select
   end if
 end subroutine
@@ -291,14 +293,14 @@ subroutine SPARSE_FACTORIZE(this)
 
       ! factorize with pardiso
       call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
-
+#ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       ! init ilupack
       this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
 
       ! factorize with ilupack
       call ilupack_factorize(this%solver_handle)
-
+#endif
   end select
 end subroutine
 
@@ -333,8 +335,10 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   select case (this%solver)
     case (SOLVER_PARDISO)
       call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
+#ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       call ilupack_solve(this%solver_handle, rhs, x)
+#endif
   end select
 end subroutine
 
@@ -377,8 +381,10 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   select case (this%solver)
     case (SOLVER_PARDISO)
       call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
+#ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       call ilupack_solve(this%solver_handle, rhs_, x_)
+#endif
   end select
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine

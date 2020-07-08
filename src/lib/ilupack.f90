@@ -1,3 +1,4 @@
+#ifdef USE_ILUPACK
 #include "../util/macro.f90.inc"
 
 module ilupack_m
@@ -396,3 +397,4 @@ contains
   end function
 
 end module
+#endif

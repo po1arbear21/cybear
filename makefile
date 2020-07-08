@@ -1,3 +1,20 @@
+# use ilupack ?
+ifdef USE_ILUPACK
+ifeq ($(USE_ILUPACK),true)
+ifndef ILUPACKROOT
+$(error ILUPACKROOT is not set)
+endif
+else
+ifneq ($(USE_ILUPACK),false)
+$(error USE_ILUPACK must be either true or false)
+endif
+endif
+else
+ifdef ILUPACKROOT
+USE_ILUPACK := true
+endif
+endif
+
 # compiler configuration (overwrite from command line)
 COMPILER := intel
 ifeq ($(COMPILER),intel)
@@ -59,7 +76,11 @@ vpath %.c $(sort $(dir $(SOURCES_C)))
 OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
 # additional libraries
-include lib/quadpack/makefile
+include lib/quadpack/quadpack.mk
+ifeq ($(COMPILER),gnu)
+include lib/blas95/blas95.mk
+include lib/lapack95/lapack95.mk
+endif
 
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend

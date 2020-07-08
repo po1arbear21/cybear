@@ -1,3 +1,4 @@
+#ifdef USE_ILUPACK
 module test_ilupack_m
 
   use test_case_m
@@ -125,3 +126,4 @@ contains
   end subroutine
 
 end module
+#endif

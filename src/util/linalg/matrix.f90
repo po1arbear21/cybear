@@ -6,7 +6,9 @@ module matrix_m
   use blas95
   use error_m
   use high_precision_m
+#ifdef USE_ILUPACK
   use ilupack_m
+#endif
   use lapack95
   use omp_lib
   use pardiso_m
@@ -15,7 +17,11 @@ module matrix_m
   implicit none
 
   private
-  public :: SOLVER_PARDISO, SOLVER_ILUPACK, default_solver
+  public :: SOLVER_PARDISO
+#ifdef USE_ILUPACK
+  public :: SOLVER_ILUPACK
+#endif
+  public :: default_solver
   public :: matrix_real
   public :: matrix_cmplx
   public :: matrix_alc_real
@@ -47,7 +53,9 @@ module matrix_m
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
+#ifdef USE_ILUPACK
   integer, parameter :: SOLVER_ILUPACK = 2
+#endif
   integer            :: default_solver = SOLVER_PARDISO
 
 #define T real

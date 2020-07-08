@@ -1,18 +1,6 @@
-# F95 root directory
-ifndef GNU_F95ROOT
-$(error GNU_F95ROOT is not set)
-endif
-F95ROOT := $(GNU_F95ROOT)
-
-# ILUPACK root directory
-ifndef ILUPACKROOT
-$(error ILUPACKROOT is not set)
-endif
-
 # gnu fortran compiler flags
 FC       := gfortran
-FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -Wall -fopenmp \
-            -I$(F95ROOT)/include/intel64/ilp64 -I$(MKLROOT)/include
+FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -I./build/gnu/F95 -Wall -fopenmp -I$(MKLROOT)/include
 FDEBUG   := -O0 -g3 -ggdb -fcheck=all -fbacktrace -D DEBUG
 FRELEASE := -O3
 FPROFILE := -O3 -g -shared-libgcc
@@ -32,10 +20,11 @@ CDEBUG   := -O0 -g
 CRELEASE := -O3
 CPROFILE := -O3 -g -shared-libgcc
 
-# external libraries
-EXT_LIBS_DEBUG := \
-	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
-  $(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
+# ILUPACK
+ifeq ($(USE_ILUPACK),true)
+FFLAGS := $(FFLAGS) -D USE_ILUPACK
+
+ILUPACK_LIBS := \
 	-Wl,--start-group \
 		$(ILUPACKROOT)/GNU64_long/libilupack.a \
 		$(ILUPACKROOT)/GNU64_long/libamd.a \
@@ -43,7 +32,14 @@ EXT_LIBS_DEBUG := \
 		$(ILUPACKROOT)/GNU64_long/libmetis.a \
 		$(ILUPACKROOT)/GNU64_long/libsparspak.a \
 		$(ILUPACKROOT)/GNU64_long/libmumps.a \
-	-Wl,--end-group \
+	-Wl,--end-group
+else
+ILUPACK_LIBS :=
+endif
+
+# external libraries
+EXT_LIBS_DEBUG := \
+	$(ILUPACK_LIBS) \
 	-Wl,--start-group \
   	$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
   	$(MKLROOT)/lib/intel64/libmkl_sequential.a \
@@ -51,18 +47,8 @@ EXT_LIBS_DEBUG := \
 	-Wl,--end-group \
 	-lgomp -lpthread -lm -ldl \
 
-
 EXT_LIBS_RELEASE := \
-	$(F95ROOT)/lib/intel64/libmkl_blas95_ilp64.a \
-	$(F95ROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
-	-Wl,--start-group \
-		$(ILUPACKROOT)/GNU64_long/libilupack.a \
-		$(ILUPACKROOT)/GNU64_long/libamd.a \
-		$(ILUPACKROOT)/GNU64_long/libblaslike.a \
-		$(ILUPACKROOT)/GNU64_long/libmetis.a \
-		$(ILUPACKROOT)/GNU64_long/libsparspak.a \
-		$(ILUPACKROOT)/GNU64_long/libmumps.a \
-	-Wl,--end-group \
+	$(ILUPACK_LIBS) \
 	-Wl,--start-group \
 		$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
 		$(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
