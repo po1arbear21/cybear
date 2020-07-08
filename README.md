@@ -48,11 +48,11 @@ $ make doc
 ```
 
 To use *gfortran* instead of *ifort* run once
-```
+```bash
 $ make blas95 lapack95 COMPILER=gnu
 ```
 After blas95 and lapack95 libraries have been created run
-```
+```bash
 $ make COMPILER=gnu
 ```
 
