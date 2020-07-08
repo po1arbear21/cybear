@@ -2,6 +2,22 @@
 
 Fortran project template that can be used for your own project.
 
+## Initialization
+1. Setup an account at git.rwth-aachen.de.
+2. Get invited to the ITHE group.
+3. Get invited to this project.
+4. Fork this project.
+5. Rename fork and change path.
+6. Clone the forked project: `$ git clone <url> <folder>`
+7. Set up the Fortran Basic repo as a remote such that you can pull new updates from time to time
+  * set up remote: `$ git remote add upstream git@git.rwth-aachen.de:ithe/fortran-basic`
+  * pull new updates:
+```bash
+$ git fetch upstream
+$ git checkout master
+$ git merge upstream/master
+```
+
 ## Usage
 ### Makefile
 To compile in (default) *debug* mode run
@@ -53,20 +69,4 @@ $ make COMPILER=gnu
 If *ILUPACKROOT* exists, it will automatically be enabled in your project. To disable ILUPACK you can use the option
 ```bash
 $ make USE_ILUPACK=false
-```
-
-## Initialization
-1. Setup an account at git.rwth-aachen.de.
-2. Get invited to the ITHE group.
-3. Get invited to this project.
-4. Fork this project.
-5. Rename fork and change path.
-6. Clone the forked project: `$ git clone <url> <folder>`
-7. Set up the Fortran Basic repo as a remote such that you can pull new updates from time to time
-  * set up remote: `$ git remote add upstream git@git.rwth-aachen.de:ithe/fortran-basic`
-  * pull new updates:
-```bash
-$ git fetch upstream
-$ git checkout master
-$ git merge upstream/master
 ```
