@@ -221,4 +221,71 @@ contains
     norm_inf = maxval(abs(arr))
   end function
 
+  pure function check_lin_dep(M, rtol) result(l)
+    !! Check if row vectors of M are linearly dependent
+    real,           intent(in) :: M(:,:)
+      !! input matrix
+    real, optional, intent(in) :: rtol
+      !! optional: relative tolerance (default: 1e-14)
+    logical                    :: l
+      !! return true if rows of M are lin. dep.; otherwise false
+
+    integer :: nrows, ncols, i, j, k, ipiv(size(M,1))
+    real    :: T(size(M,1),size(M,2)), tmp, rtol_
+
+    ! tolerance
+    rtol_ = 1e-14
+    if (present(rtol)) rtol_ = rtol
+
+    ! system size
+    nrows = size(M,1)
+    ncols = size(M,2)
+
+    ! init pivot indices
+    do i = 1, nrows
+      ipiv(i) = i
+    end do
+
+    ! work with copy of M
+    T = M
+
+    ! gauss elimination
+    do i = 1, nrows
+      ! find pivot
+      k = i
+      do j = i+1, nrows
+        if (abs(T(ipiv(j),i)) > abs(T(ipiv(k),i))) k = j
+      end do
+
+      ! virtually exchange row i with row k
+      if (k /= i) then
+        j       = ipiv(i)
+        ipiv(i) = ipiv(k)
+        ipiv(k) = j
+      end if
+
+      ! divide by pivot
+      T(ipiv(i),i+1:ncols) = T(ipiv(i),i+1:ncols) / T(ipiv(i),i)
+
+      ! gauss elimination for one column
+      do j = i+1, nrows
+        ! get norm of row for zero check
+        tmp = norm_inf(T(ipiv(j),:))
+
+        ! update row
+        do k = i+1, ncols
+          T(ipiv(j),k) = T(ipiv(j),k) - T(ipiv(i),k) * T(ipiv(j),i)
+        end do
+
+        ! check if row is zero => linearly dependent
+        if (maxval(abs(T(ipiv(j),i+1:ncols))) < 1e-14 * tmp) then
+          l = .true.
+          return
+        end if
+      end do
+    end do
+
+    l = .false.
+  end function
+
 end module

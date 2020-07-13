@@ -60,6 +60,22 @@ contains
       end do
     end block
 
+    ! check linear dependence
+    block
+      real    :: M(3,8)
+      logical :: l
+
+      M(1,:) = [0.3371, 0.6020, 0.0838, 0.9961, 0.1622, 0.2630, 0.2290, 0.0782]
+      M(2,:) = [0.7943, 0.6541, 0.9133, 0.4427, 0.3112, 0.6892, 0.1524, 0.1067]
+      M(3,:) = [2.1427, 3.0621, 1.2485, 4.4271, 0.9600, 1.7412, 1.0684, 0.4195]
+      l = check_lin_dep(M)
+      call tc%assert(l, "check linear dependence 1")
+
+      M(2,8) = M(2,8) + 0.1
+      l = check_lin_dep(M)
+      call tc%assert(.not. l, "check linear dependence 2")
+    end block
+
     call tc%finish
   end subroutine
 
