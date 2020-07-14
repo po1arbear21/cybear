@@ -230,55 +230,62 @@ contains
     logical                    :: l
       !! return true if rows of M are lin. dep.; otherwise false
 
-    integer :: nrows, ncols, i, j, k, ipiv(size(M,1))
-    real    :: T(size(M,1),size(M,2)), tmp, rtol_
-
-    ! tolerance
-    rtol_ = 1e-14
-    if (present(rtol)) rtol_ = rtol
+    integer :: nrows, ncols, ipiv(size(M,1)), row, row2, col, col2, pv, tmp
+    real    :: rtol_, T(size(M,1),size(M,2)), nrm
 
     ! system size
     nrows = size(M,1)
     ncols = size(M,2)
 
+    ! tolerance
+    rtol_ = 1e-14
+    if (present(rtol)) rtol_ = rtol
+
     ! init pivot indices
-    do i = 1, nrows
-      ipiv(i) = i
+    do row = 1, nrows
+      ipiv(row) = row
     end do
 
     ! work with copy of M
     T = M
 
     ! gauss elimination
-    do i = 1, nrows
+    col = 0
+    do row = 1, nrows
+      col = col + 1
+
       ! find pivot
-      k = i
-      do j = i+1, nrows
-        if (abs(T(ipiv(j),i)) > abs(T(ipiv(k),i))) k = j
+      do while (.true.)
+        pv = row
+        do row2 = row+1, nrows
+          if (abs(T(ipiv(row2),col)) > abs(T(ipiv(pv),col))) pv = row2
+        end do
+        if (T(ipiv(pv),col) /= 0.0) exit
+        col = col + 1
       end do
 
-      ! virtually exchange row i with row k
-      if (k /= i) then
-        j       = ipiv(i)
-        ipiv(i) = ipiv(k)
-        ipiv(k) = j
+      ! virtually exchange current row with pivot
+      if (pv /= row) then
+        tmp       = ipiv(row)
+        ipiv(row) = ipiv(pv)
+        ipiv(pv ) = tmp
       end if
 
       ! divide by pivot
-      T(ipiv(i),i+1:ncols) = T(ipiv(i),i+1:ncols) / T(ipiv(i),i)
+      T(ipiv(row),col+1:ncols) = T(ipiv(row),col+1:ncols) / T(ipiv(row),col)
 
       ! gauss elimination for one column
-      do j = i+1, nrows
-        ! get norm of row for zero check
-        tmp = norm_inf(T(ipiv(j),:))
+      do row2 = row+1, nrows
+        ! get row norm for zero check
+        nrm = norm_inf(T(ipiv(row2),col:ncols))
 
         ! update row
-        do k = i+1, ncols
-          T(ipiv(j),k) = T(ipiv(j),k) - T(ipiv(i),k) * T(ipiv(j),i)
+        do col2 = col+1, ncols
+          T(ipiv(row2),col2) = T(ipiv(row2),col2) - T(ipiv(row),col2) * T(ipiv(row2),col)
         end do
 
         ! check if row is zero => linearly dependent
-        if (maxval(abs(T(ipiv(j),i+1:ncols))) < 1e-14 * tmp) then
+        if (maxval(abs(T(ipiv(row2),col+1:ncols))) < rtol_ * nrm) then
           l = .true.
           return
         end if
