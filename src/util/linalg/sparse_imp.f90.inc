@@ -98,9 +98,9 @@ subroutine SPARSE_RESET(this, only_factorization)
 
   ! deallocate CSR data
   if (.not. only_fact) then
-    if (allocated(this%ia)) deallocate(this%ia)
-    if (allocated(this%ja)) deallocate(this%ja)
-    if (allocated(this%a )) deallocate(this%a )
+    if (allocated(this%ia)) deallocate (this%ia)
+    if (allocated(this%ja)) deallocate (this%ja)
+    if (allocated(this%a )) deallocate (this%a )
   end if
 
   ! destruct factorization
@@ -1081,9 +1081,9 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
   this%sp => s
 
   ! allocate data
-  allocate(this%cols(  s%nrows))
-  allocate(this%vals(  s%nrows))
-  allocate(this%filled(s%nrows))
+  allocate (this%cols(  s%nrows))
+  allocate (this%vals(  s%nrows))
+  allocate (this%filled(s%nrows))
   do i = 1, s%nrows
     call this%cols(i)%init(n = 0, c = c)
     call this%vals(i)%init(n = 0, c = c)
@@ -1091,8 +1091,8 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
   end do
 
   ! allocate row flags
-  allocate(this%sorted(s%nrows), source = .true.)
-  allocate(this%keep_struct(s%nrows), source = .true.)
+  allocate (this%sorted(s%nrows), source = .true.)
+  allocate (this%keep_struct(s%nrows), source = .true.)
 
   ! load existing data from sparse matrix
   call this%load()
@@ -1105,11 +1105,11 @@ subroutine SPBUILD_DESTRUCT(this)
     !! Sparse matrix builder
 
   nullify(this%sp)
-  if (allocated(this%cols)) deallocate(this%cols)
-  if (allocated(this%vals)) deallocate(this%vals)
-  if (allocated(this%filled)) deallocate(this%filled)
-  if (allocated(this%sorted)) deallocate(this%sorted)
-  if (allocated(this%keep_struct)) deallocate(this%keep_struct)
+  if (allocated(this%cols)) deallocate (this%cols)
+  if (allocated(this%vals)) deallocate (this%vals)
+  if (allocated(this%filled)) deallocate (this%filled)
+  if (allocated(this%sorted)) deallocate (this%sorted)
+  if (allocated(this%keep_struct)) deallocate (this%keep_struct)
 end subroutine
 
 subroutine SPBUILD_RESET(this)

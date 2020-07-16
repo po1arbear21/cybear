@@ -61,9 +61,9 @@ subroutine HESSENBERG_DESTRUCT(this)
   class(HESSENBERG_TYPE), intent(inout) :: this
     !! Hessenberg matrix
 
-  if (allocated(this%d   )) deallocate(this%d   )
-  if (allocated(this%f   )) deallocate(this%f   )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%d   )) deallocate (this%d   )
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine HESSENBERG_RESET(this, only_factorization)
@@ -85,8 +85,8 @@ subroutine HESSENBERG_RESET(this, only_factorization)
   end if
 
   ! reset factorization
-  if (allocated(this%f   )) deallocate(this%f   )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine HESSENBERG_SCALE(this, fact)
@@ -283,8 +283,8 @@ subroutine HESSENBERG_FACTORIZE(this)
   n = this%nrows
 
   ! allocate factorization if necessary
-  if (.not. allocated(this%f)) allocate(this%f(n,n))
-  if (.not. allocated(this%ipiv)) allocate(this%ipiv(n))
+  if (.not. allocated(this%f)) allocate (this%f(n,n))
+  if (.not. allocated(this%ipiv)) allocate (this%ipiv(n))
 
   ! init permutation vector
   do i = 1, n

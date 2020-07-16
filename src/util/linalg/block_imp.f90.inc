@@ -111,10 +111,10 @@ subroutine BLOCK_DESTRUCT(this)
   ! local variables
   integer :: ib, jb
 
-  if (allocated(this%i0)) deallocate(this%i0)
-  if (allocated(this%i1)) deallocate(this%i1)
-  if (allocated(this%j0)) deallocate(this%j0)
-  if (allocated(this%j1)) deallocate(this%j1)
+  if (allocated(this%i0)) deallocate (this%i0)
+  if (allocated(this%i1)) deallocate (this%i1)
+  if (allocated(this%j0)) deallocate (this%j0)
+  if (allocated(this%j1)) deallocate (this%j1)
 
   if (allocated(this%b)) then
     do ib = 1, this%nbrows
@@ -124,7 +124,7 @@ subroutine BLOCK_DESTRUCT(this)
         call this%b(ib,jb)%p%destruct()
       end do
     end do
-    deallocate(this%b)
+    deallocate (this%b)
   end if
 end subroutine
 
@@ -437,13 +437,13 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
     !! Block matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
     !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional, intent(in)     :: i0
+  integer, optional,  intent(in)    :: i0
     !! Optional: row offset in sparse matrix
-  integer, optional, intent(in)     :: j0
+  integer, optional,  intent(in)    :: j0
     !! Optional: col offset in sparse matrix
-  logical, optional, intent(in)     :: struct(:,:)
+  logical, optional,  intent(in)    :: struct(:,:)
     !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional, intent(in)     :: drop_zeros
+  logical, optional,  intent(in)    :: drop_zeros
     !! Optional: determine sparsity structure by checking for zero entries
 
   ! local variables
@@ -559,7 +559,7 @@ subroutine BLOCK_GET_DENSE(this, ib, jb, p)
     !! Output pointer to dense block
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate(DENSE_TYPE :: this%b(ib,jb)%p)
+  if (.not. allocated(this%b(ib,jb)%p)) allocate (DENSE_TYPE :: this%b(ib,jb)%p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -583,7 +583,7 @@ subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
     !! Output pointer to sparse block
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate(SPARSE_TYPE :: this%b(ib,jb)%p)
+  if (.not. allocated(this%b(ib,jb)%p)) allocate (SPARSE_TYPE :: this%b(ib,jb)%p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -607,7 +607,7 @@ subroutine BLOCK_GET_BAND(this, ib, jb, p)
     !! Output pointer to BAND block
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate(BAND_TYPE :: this%b(ib,jb)%p)
+  if (.not. allocated(this%b(ib,jb)%p)) allocate (BAND_TYPE :: this%b(ib,jb)%p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -631,7 +631,7 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
     !! Output pointer to BLOCK block
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate(BLOCK_TYPE :: this%b(ib,jb)%p)
+  if (.not. allocated(this%b(ib,jb)%p)) allocate (BLOCK_TYPE :: this%b(ib,jb)%p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)

@@ -51,7 +51,7 @@ subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   integer, optional, intent(in)  :: nupper
     !! Number of upper superdiagonals. >= 0
     !! (default: nlower)
-  TT, optional,      intent(in)  :: d0(:,:)
+  TT,      optional, intent(in)  :: d0(:,:)
     !! Initial data.
 
   integer :: nupper_
@@ -73,9 +73,9 @@ subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   if (present(d0)) then
     ASSERT(size(d0, 1) == nlower+nupper_+1)
     ASSERT(size(d0, 2) == nrows)
-    allocate(this%d(-nupper_:nlower,nrows), source=d0)
+    allocate (this%d(-nupper_:nlower,nrows), source=d0)
   else
-    allocate(this%d(-nupper_:nlower,nrows))
+    allocate (this%d(-nupper_:nlower,nrows))
     this%d = 0
   end if
 end subroutine
@@ -86,9 +86,9 @@ subroutine BAND_DESTRUCT(this)
   class(BAND_TYPE), intent(inout) :: this
     !! Band matrix
 
-  if (allocated(this%d   )) deallocate(this%d   )
-  if (allocated(this%f   )) deallocate(this%f   )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%d   )) deallocate (this%d   )
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine BAND_RESET(this, only_factorization)
@@ -109,8 +109,8 @@ subroutine BAND_RESET(this, only_factorization)
   end if
 
   ! reset factorization
-  if (allocated(this%f   )) deallocate(this%f   )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine BAND_SCALE(this, fact)
@@ -121,7 +121,7 @@ subroutine BAND_SCALE(this, fact)
   TT,               intent(in)    :: fact
     !! Scaling factor
 
-  ASSERT(.not. allocated(this%f))
+  ASSERT(.not. allocated(this%f   ))
   ASSERT(.not. allocated(this%ipiv))
 
   this%d = this%d * fact
@@ -198,8 +198,8 @@ subroutine BAND_FACTORIZE(this)
   if      (this%nupper + this%nlower == 0) then                   ! diagonal
     ! do nothing for diagonal matrix. no factorization needed.
   else if (this%nupper == 1 .and. this%nlower == 1) then          ! tridiagonal
-    if (.not. allocated(this%f))    allocate(this%f(-2:1,this%ncols))
-    if (.not. allocated(this%ipiv)) allocate(this%ipiv(this%ncols))
+    if (.not. allocated(this%f))    allocate (this%f(-2:1,this%ncols))
+    if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%ncols))
 
     this%f(-1:1,:) = this%d
 
@@ -215,8 +215,8 @@ subroutine BAND_FACTORIZE(this)
     end associate
   else                                                            ! general band matrix
     associate(kl => this%nlower, ku => this%nupper)
-      if (.not. allocated(this%f))    allocate(this%f(-(kl+ku):kl, this%ncols))
-      if (.not. allocated(this%ipiv)) allocate(this%ipiv(this%nrows))
+      if (.not. allocated(this%f))    allocate (this%f(-(kl+ku):kl, this%ncols))
+      if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%nrows))
 
       this%f(-ku:kl,:) = this%d
 
@@ -438,7 +438,7 @@ subroutine BAND_ADD_BAND(this, b, fact)
   if (this%nupper >= b%nupper .and. this%nlower >= b%nlower) then
     this%d(-b%nupper:b%nlower,1:this%ncols) = this%d(-b%nupper:b%nlower,1:this%ncols) + fact_ * b%d
   else
-    allocate(tmp(-max(this%nupper,b%nupper):max(this%nlower,b%nlower),1:this%ncols))
+    allocate (tmp(-max(this%nupper,b%nupper):max(this%nlower,b%nlower),1:this%ncols))
     tmp = 0
     tmp(-this%nupper:this%nlower,1:this%ncols) = this%d
     tmp(-b%nupper:b%nlower,1:this%ncols) = this%d(-b%nupper:b%nlower,1:this%ncols) + fact_*b%d

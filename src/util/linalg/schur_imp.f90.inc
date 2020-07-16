@@ -32,12 +32,12 @@ subroutine SCHUR_DENSE(A, V, U)
   H%d = A%d
 
   ! balance A: A2 = PAP^T
-  allocate(scale_(n))
+  allocate (scale_(n))
   call gebal(H%d, scale=scale_, job='P', info=info)   ! only permutation allowed
   ASSERT(info==0)
 
   ! reduce A to upper hessenberg form: A = V H V^H
-  allocate(tau(n-1))
+  allocate (tau(n-1))
   call gehrd(H%d, tau=tau, info=info)
   ASSERT(info==0)
 
@@ -107,13 +107,13 @@ subroutine SCHUR_HESSENBERG(H, Z, U, nonHessenberg)
 #ifdef TCMPLX
   block
     complex, allocatable :: w(:)
-    allocate(w(n))
+    allocate (w(n))
     call hseqr(U%d, w,      z=Z%d, info=info, compz=compz, job='S')
   end block
 #else
   block
     real, allocatable :: wr(:), wi(:)
-    allocate(wr(n), wi(n))
+    allocate (wr(n), wi(n))
     call hseqr(U%d, wr, wi, z=Z%d, info=info, compz=compz, job='S')
   end block
 #endif
