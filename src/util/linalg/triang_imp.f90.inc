@@ -51,7 +51,7 @@ subroutine TRIANG_DESTRUCT(this)
   class(TRIANG_TYPE), intent(inout) :: this
     !! Triangular matrix
 
-  if (allocated(this%d)) deallocate(this%d)
+  if (allocated(this%d)) deallocate (this%d)
 end subroutine
 
 subroutine TRIANG_RESET(this, only_factorization)

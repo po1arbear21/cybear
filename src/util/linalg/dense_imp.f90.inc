@@ -78,7 +78,7 @@ subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
   call this%init("", nrows, ncols=ncols_)
 
   ! allocate data
-  allocate(this%d(nrows,ncols_))
+  allocate (this%d(nrows,ncols_))
   this%d = 0
 end subroutine
 
@@ -88,9 +88,9 @@ subroutine DENSE_DESTRUCT(this)
   class(DENSE_TYPE), intent(inout) :: this
     !! Dense matrix
 
-  if (allocated(this%d   )) deallocate(this%d   )
-  if (allocated(this%lu  )) deallocate(this%lu  )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%d   )) deallocate (this%d   )
+  if (allocated(this%lu  )) deallocate (this%lu  )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine DENSE_RESET(this, only_factorization)
@@ -113,8 +113,8 @@ subroutine DENSE_RESET(this, only_factorization)
   end if
 
   ! reset factorization
-  if (allocated(this%lu  )) deallocate(this%lu  )
-  if (allocated(this%ipiv)) deallocate(this%ipiv)
+  if (allocated(this%lu  )) deallocate (this%lu  )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
 end subroutine
 
 subroutine DENSE_SCALE(this, fact)
@@ -179,8 +179,8 @@ subroutine DENSE_FACTORIZE(this)
   integer :: info
 
   ! allocate memory for factorization
-  if (.not. allocated(this%lu  )) allocate(this%lu(  this%nrows,this%ncols))
-  if (.not. allocated(this%ipiv)) allocate(this%ipiv(this%nrows))
+  if (.not. allocated(this%lu  )) allocate (this%lu(  this%nrows,this%ncols))
+  if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%nrows))
 
   ! factorization with lapack
   this%lu = this%d
