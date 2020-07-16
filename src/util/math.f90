@@ -271,9 +271,6 @@ contains
         ipiv(pv ) = tmp
       end if
 
-      ! divide by pivot
-      T(ipiv(row),col+1:ncols) = T(ipiv(row),col+1:ncols) / T(ipiv(row),col)
-
       ! gauss elimination for one column
       do row2 = row+1, nrows
         ! get row norm for zero check
@@ -281,7 +278,7 @@ contains
 
         ! update row
         do col2 = col+1, ncols
-          T(ipiv(row2),col2) = T(ipiv(row2),col2) - T(ipiv(row),col2) * T(ipiv(row2),col)
+          T(ipiv(row2),col2) = T(ipiv(row2),col2) - T(ipiv(row),col2) * T(ipiv(row2),col) / T(ipiv(row),col)
         end do
 
         ! check if row is zero => linearly dependent
