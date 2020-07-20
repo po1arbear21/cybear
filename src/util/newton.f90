@@ -253,6 +253,7 @@ contains
           call program_error("solution could not be found within maximum number of iterations")
         else
           print *, "solution could not be found within maximum number of iterations"
+          return
         end if
       end if
 
