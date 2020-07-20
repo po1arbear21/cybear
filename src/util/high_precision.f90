@@ -6,7 +6,7 @@ module high_precision_m
   private
   public :: hp_real
   public :: hp_to_real, real_to_hp
-  public :: operator(+), operator(-)
+  public :: operator(+), operator(-), operator(*)
   public :: exp
   public :: hp_sum, hp_dot
 
@@ -30,6 +30,12 @@ module high_precision_m
     module procedure :: hp_real_sub_hh
     module procedure :: hp_real_sub_hr
     module procedure :: hp_real_sub_rh
+  end interface
+
+  interface operator (*)
+    module procedure :: hp_real_mul_hh
+    module procedure :: hp_real_mul_hr
+    module procedure :: hp_real_mul_rh
   end interface
 
   interface exp
@@ -119,8 +125,9 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3    = h1 + h2%x       ! calls around hp_real_add_hr
-    h3%y  = h3%y + h2%y
+    h3 = TwoSum(h1%x, h2%x)
+    h3 = h3 + h1%y
+    h3 = h3 + h2%y
   end function
 
   elemental function hp_real_add_hr(h1, r2) result(h3)
@@ -141,8 +148,7 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-
-    h3 = h2 + r1          ! calls hp_real_add_hr
+    h3 = h2 + r1 ! calls hp_real_add_hr
   end function
 
   elemental function hp_real_neg(h1) result(h2)
@@ -180,6 +186,36 @@ contains
     type(hp_real)             :: h3
 
     h3 = r1 + (-h2)           ! calls hp_real_neg -> hp_real_add_rh
+  end function
+
+  elemental function hp_real_mul_hh(h1, h2) result(h3)
+    !! multiply two high precision reals
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = TwoProduct(h1%x, h2%x) &
+       + TwoProduct(h1%x, h2%y) &
+       + TwoProduct(h1%y, h2%x) &
+       + TwoProduct(h1%y, h2%y)
+  end function
+
+  elemental function hp_real_mul_hr(h1, r2) result(h3)
+    !! multiply high precision real by real
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    h3 = TwoProduct(h1%x, r2) + TwoProduct(h1%y, r2)
+  end function
+
+  elemental function hp_real_mul_rh(r1, h2) result(h3)
+    !! multiply real by high precision real
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = h2 * r1
   end function
 
   elemental function hp_exp(h) result(e)
