@@ -29,17 +29,21 @@ module newton_m
   type newton_opt
     !! options for multidimensional newton iteration
 
-    real    :: atol
-      !! absolute tolerance
-    real    :: rtol
-      !! relative tolerance
-    real    :: dx_lim
-      !! limit newton update
-    integer :: max_it
+    real, allocatable :: atol(:)
+      !! absolute solution tolerance
+    real, allocatable :: rtol(:)
+      !! relative solution tolerance
+    real, allocatable :: ftol(:)
+      !! absolute residual tolerance
+    real, allocatable :: dx_lim(:)
+      !! limit solution update
+    integer           :: max_it
       !! maximum number of iterations
 
     logical                   :: log
       !! enable/disable logging
+    logical                   :: error_if_not_converged
+      !! stop program if convergence failed
     character(:), allocatable :: msg
       !! message to print each iteration
   contains
@@ -218,13 +222,13 @@ contains
       !! optional output derivatives of x wrt p
 
     ! local variables
-    integer                         :: it
+    integer                         :: i, it
     real                            :: err, abs_err
     real,               allocatable :: f(:), dfdp(:,:), dx(:)
     class(matrix_real), pointer     :: dfdx
 
     ! allocate memory
-    allocate (f(   size(x)        ), source = 0.0)
+    allocate (f(   size(x)        ), source = 1e99)
     allocate (dfdp(size(x),size(p)), source = 0.0)
     allocate (dx(  size(x)        ), source = 0.0)
     nullify (dfdx)
@@ -237,17 +241,19 @@ contains
     x = x0
 
     ! newton-raphson iteration
-    do while (err > opt%rtol)
+    do while (all(err > opt%rtol) .or. (all(abs(f) < opt%ftol)))
       it = it + 1
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print "(A,ES24.16)", "atol    = ", opt%atol
-        print "(A,ES24.16)", "rtol    = ", opt%rtol
-        print "(A,I0)",      "max_it  = ", opt%max_it
+        print "(A,I0)",      "it      = ", it
         print "(A,ES24.16)", "err     = ", err
         print "(A,ES24.16)", "abs_err = ", abs_err
-        call program_error("solution could not be found within maximum number of iterations")
+        if (opt%error_if_not_converged) then
+          call program_error("solution could not be found within maximum number of iterations")
+        else
+          print *, "solution could not be found within maximum number of iterations"
+        end if
       end if
 
       ! evaluate function
@@ -262,15 +268,17 @@ contains
       abs_err = maxval(abs(dx))
 
       ! limit update
-      if (abs_err .gt. opt%dx_lim) then
-        dx = dx * opt%dx_lim / abs_err
-      end if
+      do i = 1, size(dx)
+        if (abs(dx(i)) > opt%dx_lim(i)) then
+          dx = dx * opt%dx_lim(i) / abs(dx(i))
+        end if
+      end do
 
       ! update solution
       x = x - dx
 
       if (opt%log) then
-        print "(A,I0,ES24.16)", opt%msg, it, err
+        print "(A,I0,2ES24.16)", opt%msg, it, err, abs_err
       end if
     end do
 
@@ -317,32 +325,44 @@ contains
     if (present(msg)) this%msg = msg
   end subroutine
 
-  subroutine newton_opt_init(this, atol, rtol, dx_lim, max_it, log, msg)
+  subroutine newton_opt_init(this, n, atol, rtol, ftol, dx_lim, max_it, log, error_if_not_converged, msg)
     !! initialize multidimensional newton iteration options
     class(newton_opt),      intent(out) :: this
-    real,         optional, intent(in)  :: atol
-      !! absolute tolerance (default: 1e-16)
-    real,         optional, intent(in)  :: rtol
-      !! relative tolerance (default: 1e-12)
-    real,         optional, intent(in)  :: dx_lim
+    integer,                intent(in)  :: n
+      !! system size
+    real,         optional, intent(in)  :: atol(:)
+      !! absolute solution tolerance (default: 1e-16)
+    real,         optional, intent(in)  :: rtol(:)
+      !! relative solution tolerance (default: 1e-12)
+    real,         optional, intent(in)  :: ftol(:)
+      !! absolute residual tolerance (default: 0.0)
+    real,         optional, intent(in)  :: dx_lim(:)
       !! limit for newton update (default: inf)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
     logical,      optional, intent(in)  :: log
       !! enable logging (default .false.)
+    logical,      optional, intent(in)  :: error_if_not_converged
+      !! stop program if no convergence (default .true.)
     character(*), optional, intent(in)  :: msg
       !! message to print each iteration if logging is enabled (default: "")
+
+    allocate (this%atol(n), this%rtol(n), this%ftol(n), this%dx_lim(n))
 
     this%atol = 1e-16
     if (present(atol)) this%atol = atol
     this%rtol = 1e-12
     if (present(rtol)) this%rtol = rtol
+    this%ftol = 0.0
+    if (present(ftol)) this%ftol = ftol
     this%dx_lim = ieee_value(1.0, ieee_positive_inf)
     if (present(dx_lim)) this%dx_lim = dx_lim
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
     this%log = .false.
     if (present(log)) this%log = log
+    this%error_if_not_converged = .true.
+    if (present(error_if_not_converged)) this%error_if_not_converged = error_if_not_converged
     this%msg = ""
     if (present(msg)) this%msg = msg
   end subroutine

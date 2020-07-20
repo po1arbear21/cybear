@@ -35,7 +35,7 @@ contains
       type(newton_opt) :: opt
       real :: x(2), dxdp(2,2), xe(2), dxedp(2,2)
 
-      call opt%init(atol = 1e-16, rtol = 1e-14, log = .true., msg = "poly2D: ")
+      call opt%init(2, atol = 1e-16 * [1.0, 1.0], rtol = 1e-14 * [1.0, 1.0], log = .true., msg = "poly2D: ")
       call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
       print *
 
@@ -47,8 +47,8 @@ contains
       dxedp(2,1) = 7.0
       dxedp(2,2) = 1.0
 
-      call tc%assert_eq(   xe,    x, opt%atol, "newton: x")
-      call tc%assert_eq(dxedp, dxdp, opt%atol, "newton: dxdp")
+      call tc%assert_eq(   xe,    x, opt%atol(1), "newton: x")
+      call tc%assert_eq(dxedp, dxdp, opt%atol(1), "newton: dxdp")
     end block
 
     call tc%finish()
