@@ -911,6 +911,14 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
   ia0(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr0%d(1:row_idx%n) - 1
   ia1(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr1%d(1:row_idx%n)
 
+  ! deallocate thread local memory (otherwise: memory leak!!!)
+  call     col%destruct
+  call     val%destruct
+  call row_idx%destruct
+  call colptr0%destruct
+  call colptr1%destruct
+  deallocate (row, fil)
+
   !$omp end parallel
 
   ! convert 4-array csr to 3-array csr
@@ -1308,7 +1316,7 @@ subroutine SPBUILD_SORT(this)
   ! sort rows in parallel
   !$omp parallel default(none) private(i, n, perm) shared(this)
 
-  ! allocate enough memory for permutation array
+  ! thread local memory: allocate enough memory for permutation array
   allocate (perm(maxval(this%cols%n)))
 
   !$omp do schedule(dynamic)
@@ -1328,6 +1336,10 @@ subroutine SPBUILD_SORT(this)
     this%filled(i)%d(1:n) = this%filled(i)%d(perm(1:n))
   end do
   !$omp end do
+
+  ! deallocate thread local memory (otherwise: memory leak!!!)
+  deallocate (perm)
+
   !$omp end parallel
 end subroutine
 
