@@ -241,7 +241,7 @@ contains
     x = x0
 
     ! newton-raphson iteration
-    do while (all(err > opt%rtol) .or. (all(abs(f) < opt%ftol)))
+    do while (any(err > opt%rtol) .and. any(abs(f) > opt%ftol))
       it = it + 1
 
       ! check for maximum number of iterations
