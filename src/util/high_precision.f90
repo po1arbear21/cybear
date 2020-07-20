@@ -6,7 +6,7 @@ module high_precision_m
   private
   public :: hp_real
   public :: hp_to_real, real_to_hp
-  public :: operator(+), operator(-), operator(*)
+  public :: operator(+), operator(-), operator(*), operator(/)
   public :: exp
   public :: hp_sum, hp_dot
 
@@ -36,6 +36,10 @@ module high_precision_m
     module procedure :: hp_real_mul_hh
     module procedure :: hp_real_mul_hr
     module procedure :: hp_real_mul_rh
+  end interface
+
+  interface operator (/)
+    module procedure :: hp_real_div_hr
   end interface
 
   interface exp
@@ -216,6 +220,15 @@ contains
     type(hp_real)             :: h3
 
     h3 = h2 * r1
+  end function
+
+  elemental function hp_real_div_hr(h1, r2) result(h3)
+    !! divide high precision real by real
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    h3 = h1 * (1.0 / r2)
   end function
 
   elemental function hp_exp(h) result(e)
