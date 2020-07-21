@@ -126,6 +126,47 @@ contains
     end if
   end function
 
+  elemental function expm1(x) result(e)
+    !! exp(x) - 1; accurate even for x close to 0
+    real, intent(in) :: x
+    real             :: e
+
+    if (ieee_class(x) == IEEE_POSITIVE_INF) then
+      e = x
+    else
+      e = exp(x)
+
+      if (e == 1.0) then
+        e = x
+      else if (e - 1.0 == - 1.0) then
+        e = -1
+      else
+        e = (e - 1.0) * x / log(e)
+      end if
+    end if
+  end function
+
+  elemental function log1p(x) result(l)
+    !! log(1 + x); accurate even for x close to 0
+    real, intent(in) :: x
+    real             :: l
+
+    real :: u, d
+
+    if (ieee_class(x) == IEEE_POSITIVE_INF) then
+      l = x
+    else
+      u = 1.0 + x
+      d = u - 1.0
+
+      if (d == 0) then
+        l = x
+      else
+        l = log(u) * x / d
+      end if
+    end if
+  end function
+
   pure function linspace(x0, x1, nx) result(x)
     !! create array of linear spaced values
 
