@@ -279,7 +279,7 @@ contains
       x = x - dx
 
       if (opt%log) then
-        print "(A,I0,2ES24.16)", opt%msg, it, err, abs_err
+        print "(A,I0,3ES25.16)", opt%msg, it, err, abs_err, maxval(abs(f))
       end if
     end do
 

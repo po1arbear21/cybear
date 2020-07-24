@@ -5,7 +5,27 @@ module math_m
   use ieee_arithmetic
   implicit none
 
+  private
+  public :: PI
+  public :: cross_product, cross_product_2d
+  public :: heaviside
+  public :: isinf
+  public :: ber, dberdx
+  public :: phi1, dphi1dx, phi2, dphi2dx
+  public :: expm1, log1p
+  public :: linspace, logspace
+  public :: eye_int, eye_real
+  public :: norm_inf
+  public :: check_lin_dep
+
   real, parameter :: PI = 3.141592653589793238462643
+
+  interface expm1
+    module procedure :: m_expm1
+  end interface
+  interface log1p
+    module procedure :: m_log1p
+  end interface
 
 contains
 
@@ -126,7 +146,7 @@ contains
     end if
   end function
 
-  elemental function expm1(x) result(e)
+  elemental function m_expm1(x) result(e)
     !! exp(x) - 1; accurate even for x close to 0
     real, intent(in) :: x
     real             :: e
@@ -146,7 +166,7 @@ contains
     end if
   end function
 
-  elemental function log1p(x) result(l)
+  elemental function m_log1p(x) result(l)
     !! log(1 + x); accurate even for x close to 0
     real, intent(in) :: x
     real             :: l

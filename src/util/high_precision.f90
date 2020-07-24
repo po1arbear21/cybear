@@ -1,14 +1,18 @@
 module high_precision_m
-  !! algorithms copied from "Accurate sum and dot prodcut" by ogita, rump and oishi
+  !! algorithms taken from:
+  !!   "Accurate sum and dot prodcut" by Ogita, Rump and Oishi
+  !!   "High precision evaluation of nonlinear functions" by Rump
   use error_m
+  use ieee_arithmetic
   implicit none
 
   private
   public :: hp_real
   public :: hp_to_real, real_to_hp
   public :: operator(+), operator(-), operator(*), operator(/)
-  public :: exp
+  public :: sqrt, exp, expm1
   public :: hp_sum, hp_dot
+  public :: TwoSum, TwoProduct
 
   type hp_real
     !! represents high precision value x + y
@@ -39,11 +43,21 @@ module high_precision_m
   end interface
 
   interface operator (/)
+    module procedure :: hp_real_div_hh
     module procedure :: hp_real_div_hr
+    module procedure :: hp_real_div_rh
+  end interface
+
+  interface sqrt
+    module procedure :: hp_sqrt
   end interface
 
   interface exp
     module procedure :: hp_exp
+  end interface
+
+  interface expm1
+    module procedure :: hp_expm1
   end interface
 
   interface hp_sum
@@ -73,7 +87,7 @@ contains
   end function
 
   elemental function Split(a) result(h)
-    !! error free splotting of float into two parts
+    !! error free splitting of float into two parts
     real, intent(in) :: a
     type(hp_real)    :: h
 
@@ -81,8 +95,21 @@ contains
     real, parameter :: factor = 134217729.0      ! 2^27+1
 
     c   = factor * a
-    h%x = c-(c-a)
-    h%y = a-h%x
+    h%x = c - (c - a)
+    h%y = a - h%x
+  end function
+
+  elemental function SplitQuad(a) result(h)
+    !! error free splitting of 128 bit float into two 64 bit floats
+    real(kind=16), intent(in) :: a
+    type(hp_real)             :: h
+
+    real(kind=16)            :: c
+    real(kind=16), parameter :: factor = 18014398509481985.0 ! 2^54+1
+
+    c   = factor * a
+    h%x = c - (c - a)
+    h%y = a - h%x
   end function
 
   elemental function TwoProduct(a, b) result(h)
@@ -129,9 +156,14 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = TwoSum(h1%x, h2%x)
-    h3 = h3 + h1%y
-    h3 = h3 + h2%y
+    real :: c
+
+    h3   = TwoSum(h1%x, h2%x)
+    c    = h3%y
+    h3   = TwoSum(h3%x, h1%y)
+    c    = c + h3%y
+    h3   = TwoSum(h3%x, h2%y)
+    h3%y = h3%y + c
   end function
 
   elemental function hp_real_add_hr(h1, r2) result(h3)
@@ -140,10 +172,12 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3 = TwoSum(h1%x, r2)
+    real :: c
 
-    ! update correction
-    h3%y = h3%y + h1%y
+    h3   = TwoSum(h1%x, r2)
+    c    = h3%y
+    h3   = TwoSum(h3%x, h1%y)
+    h3%y = h3%y + c
   end function
 
   elemental function hp_real_add_rh(r1, h2) result(h3)
@@ -171,7 +205,7 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = h1 + (-h2)           ! calls hp_real_neg -> hp_real_add_hh
+    h3 = h1 + (-h2) ! calls hp_real_neg -> hp_real_add_hh
   end function
 
   elemental function hp_real_sub_hr(h1, r2) result(h3)
@@ -189,7 +223,7 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = r1 + (-h2)           ! calls hp_real_neg -> hp_real_add_rh
+    h3 = r1 + (-h2) ! calls hp_real_neg, hp_real_add_rh
   end function
 
   elemental function hp_real_mul_hh(h1, h2) result(h3)
@@ -198,10 +232,14 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = TwoProduct(h1%x, h2%x) &
-       + TwoProduct(h1%x, h2%y) &
-       + TwoProduct(h1%y, h2%x) &
-       + TwoProduct(h1%y, h2%y)
+    real :: c
+
+    h3   = TwoProduct(h1%x, h2%x)
+    c    = h3%y
+    h3   = TwoSum(h3%x, h1%x*h2%y)
+    c    = c + h3%y
+    h3   = TwoSum(h3%x, h1%y*h2%x)
+    h3%y = h3%y + c
   end function
 
   elemental function hp_real_mul_hr(h1, r2) result(h3)
@@ -210,7 +248,12 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3 = TwoProduct(h1%x, r2) + TwoProduct(h1%y, r2)
+    real :: c
+
+    h3   = TwoProduct(h1%x, r2)
+    c    = h3%y
+    h3   = TwoSum(h3%x, h1%y*r2)
+    h3%y = h3%y + c
   end function
 
   elemental function hp_real_mul_rh(r1, h2) result(h3)
@@ -222,22 +265,104 @@ contains
     h3 = h2 * r1
   end function
 
+  elemental function hp_real_div_hh(h1, h2) result(h3)
+    !! divide two high precision reals
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    real :: c
+
+    ! first approximation
+    c = h1%x / h2%x
+
+    ! one step of newton iteration
+    h3 = c - (h2 * c - h1) / h2%x
+  end function
+
   elemental function hp_real_div_hr(h1, r2) result(h3)
     !! divide high precision real by real
     type(hp_real), intent(in) :: h1
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3 = h1 * (1.0 / r2)
+    h3%x = h1%x / r2
+    h3%y = h1%y / r2
+  end function
+
+  elemental function hp_real_div_rh(r1, h2) result(h3)
+    !! divide real by high precision real
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    real :: c
+
+    ! first approximation
+    c = r1 / h2%x
+
+    ! one step of newton iteration
+    h3 = c - (h2 * c - r1) / h2%x
+  end function
+
+  elemental function hp_sqrt(h) result(s)
+    !! high precision square root
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: s
+
+    ! first approximation
+    s = real_to_hp(sqrt(h%x))
+
+    ! one step of newton iteration
+    s = 0.5 * (s + h / s)
   end function
 
   elemental function hp_exp(h) result(e)
-    !! high precision exponential function
+    !! high precision exponential function (simply uses quadruple precision)
     type(hp_real), intent(in) :: h
     type(hp_real)             :: e
 
-    ! exp(x + y) = exp(x) * exp(y)
-    e = TwoProduct(exp(h%x), exp(h%y))
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = exp(tmp)
+
+    e = SplitQuad(tmp)
+  end function
+
+  elemental function hp_expm1(h) result(e)
+    !! high precision exp(h) - 1
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: e
+
+    real(kind=16) :: tmp, etmp
+
+    if (ieee_class(h%x) == IEEE_POSITIVE_INF) then
+      e%x = h%x
+      e%y = 0.0
+      return
+    end if
+    if (ieee_class(h%y) == IEEE_POSITIVE_INF) then
+      e%x = h%y
+      e%y = 0.0
+      return
+    end if
+
+    tmp = h%x
+    tmp = tmp + h%y
+
+    etmp = exp(tmp)
+
+    if (etmp == 1.0) then
+      e = h
+    else if (etmp - 1.0 == -1.0) then
+      e%x = -1.0
+      e%y =  0.0
+    else
+      tmp = (etmp - 1.0) * tmp / log(etmp)
+      e = SplitQuad(tmp)
+    end if
   end function
 
   function SumKvert(p, K) result(res)
