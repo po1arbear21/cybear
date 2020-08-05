@@ -1,7 +1,4 @@
-#include "macro.f90.inc"
-
 module dual_m
-  use error_m
   use high_precision_m
 
   implicit none
@@ -90,7 +87,7 @@ module dual_m
 
 contains
 
-  subroutine dual_init(this, n, x, i)
+  pure subroutine dual_init(this, n, x, i)
     !! initialize dual number
 
     class(dual),       intent(out) :: this
@@ -113,21 +110,19 @@ contains
     end if
   end subroutine
 
-  function dual_add_dual(x, y) result(r)
+  elemental function dual_add_dual(x, y) result(r)
     !! add two dual numbers
 
     type(dual), intent(in) :: x
     type(dual), intent(in) :: y
     type(dual)             :: r
 
-    ASSERT(x%n == y%n)
-
     r%n  = x%n
     r%x  = x%x  + y%x
     r%dx = x%dx + y%dx
   end function
 
-  function dual_add_real(x, y) result(r)
+  elemental function dual_add_real(x, y) result(r)
     !! add dual and real number
 
     type(dual), intent(in) :: x
@@ -139,7 +134,7 @@ contains
     r%dx = x%dx
   end function
 
-  function real_add_dual(x, y) result(r)
+  elemental function real_add_dual(x, y) result(r)
     !! add real and dual number
 
     real,       intent(in) :: x
@@ -149,7 +144,7 @@ contains
     r = y + x
   end function
 
-  function dual_neg(x) result(r)
+  elemental function dual_neg(x) result(r)
     !! negate dual number
 
     type(dual), intent(in) :: x
@@ -160,7 +155,7 @@ contains
     r%dx = - x%dx
   end function
 
-  function dual_sub_dual(x, y) result(r)
+  elemental function dual_sub_dual(x, y) result(r)
     !! subtract two dual numbers
 
     type(dual), intent(in) :: x
@@ -170,7 +165,7 @@ contains
     r = x + (-y)
   end function
 
-  function dual_sub_real(x, y) result(r)
+  elemental function dual_sub_real(x, y) result(r)
     !! subtract real from dual number
 
     type(dual), intent(in) :: x
@@ -180,7 +175,7 @@ contains
     r = x + (-y)
   end function
 
-  function real_sub_dual(x, y) result(r)
+  elemental function real_sub_dual(x, y) result(r)
     !! subtract dual from real number
 
     real,       intent(in) :: x
@@ -190,21 +185,19 @@ contains
     r = (-y) + x
   end function
 
-  function dual_mul_dual(x, y) result(r)
+  elemental function dual_mul_dual(x, y) result(r)
     !! multiply two dual numbers
 
     type(dual), intent(in) :: x
     type(dual), intent(in) :: y
     type(dual)             :: r
 
-    ASSERT(x%n == y%n)
-
     r%n  = x%n
     r%x  = x%x  * y%x
     r%dx = x%dx * y%x + x%x * y%dx
   end function
 
-  function dual_mul_real(x, y) result(r)
+  elemental function dual_mul_real(x, y) result(r)
     !! multiply dual with real number
 
     type(dual), intent(in) :: x
@@ -216,7 +209,7 @@ contains
     r%dx = x%dx * y
   end function
 
-  function real_mul_dual(x, y) result(r)
+  elemental function real_mul_dual(x, y) result(r)
     !! multiply real with dual number
 
     real,       intent(in) :: x
@@ -226,21 +219,19 @@ contains
     r = y * x
   end function
 
-  function dual_div_dual(x, y) result(r)
+  elemental function dual_div_dual(x, y) result(r)
     !! divide two dual numbers
 
     type(dual), intent(in) :: x
     type(dual), intent(in) :: y
     type(dual)             :: r
 
-    ASSERT(x%n == y%n)
-
     r%n  = x%n
     r%x  = x%x  / y%x
     r%dx = x%dx / y%x - (x%x / y%x**2) * y%dx
   end function
 
-  function dual_div_real(x, y) result(r)
+  elemental function dual_div_real(x, y) result(r)
     !! divide dual by real number
 
     type(dual), intent(in) :: x
@@ -252,7 +243,7 @@ contains
     r%dx = x%dx / y
   end function
 
-  function real_div_dual(x, y) result(r)
+  elemental function real_div_dual(x, y) result(r)
     !! divide real by dual number
 
     real,       intent(in) :: x
@@ -264,19 +255,17 @@ contains
     r%dx = (- x / y%x**2) * y%dx
   end function
 
-  function dual_pow_dual(x, y) result(r)
+  elemental function dual_pow_dual(x, y) result(r)
     !! raise a dual to the power of a dual number
 
     type(dual), intent(in) :: x
     type(dual), intent(in) :: y
     type(dual)             :: r
 
-    ASSERT(x%n == y%n)
-
     r = exp(log(x) * y)
   end function
 
-  function dual_pow_real(x, y) result(r)
+  elemental function dual_pow_real(x, y) result(r)
     !! raise a dual to the power of a real number
 
     type(dual), intent(in) :: x
@@ -286,15 +275,14 @@ contains
     r = exp(log(x) * y)
   end function
 
-  function dual_pow_int(x, y) result(r)
+  elemental function dual_pow_int(x, y) result(r)
     !! raise a dual number to the power of an integer
 
     type(dual), intent(in) :: x
     integer,    intent(in) :: y
     type(dual)             :: r
 
-    ! local variables
-    integer    :: p
+    integer :: p
 
     ! for negative integers: compute inverse first
     if      (y < 0) then
@@ -327,7 +315,7 @@ contains
     end select
   end function
 
-  function real_pow_dual(x, y) result(r)
+  elemental function real_pow_dual(x, y) result(r)
     !! raise real to the power of a dual number
 
     real,       intent(in) :: x
@@ -344,24 +332,15 @@ contains
     type(dual), intent(in) :: y(:)
     type(dual)             :: r
 
-    integer :: i, n
-
-    n = size(x)
-
-    ! check vector sizes align
-    ASSERT(n == size(y))
-
-    ! check number of variables is same
-    ASSERT(all([(x(1)%n == x(i)%n, i = 1, n)]))
-    ASSERT(all([(x(1)%n == y(i)%n, i = 1, n)]))
+    integer :: i
 
     call r%init(x(1)%n, 0.0)
-    do i = 1, n
+    do i = 1, size(x)
       r = r + x(i) * y(i)
     end do
   end function
 
-  function dual_abs(x) result(r)
+  elemental function dual_abs(x) result(r)
     !! get absolute value of dual number
 
     type(dual), intent(in) :: x
@@ -370,7 +349,7 @@ contains
     r = merge(x, -x, (x%x >= 0))
   end function
 
-  function dual_sqrt(x) result(r)
+  elemental function dual_sqrt(x) result(r)
     !! compute square root of dual number
 
     type(dual), intent(in) :: x
@@ -381,7 +360,7 @@ contains
     r%dx = x%dx / (2 * r%x)
   end function
 
-  function dual_exp(x) result(r)
+  elemental function dual_exp(x) result(r)
     !! compute exponential function of dual number
 
     type(dual), intent(in) :: x
@@ -392,7 +371,7 @@ contains
     r%dx = r%x * x%dx
   end function
 
-  function dual_log(x) result(r)
+  elemental function dual_log(x) result(r)
     !! compute natural logarithm of dual number
 
     type(dual), intent(in) :: x
@@ -403,7 +382,7 @@ contains
     r%dx = x%dx / x%x
   end function
 
-  function dual_sin(x) result(r)
+  elemental function dual_sin(x) result(r)
     !! compute sine of dual number
 
     type(dual), intent(in) :: x
@@ -414,7 +393,7 @@ contains
     r%dx = cos(x%x) * x%dx
   end function
 
-  function dual_cos(x) result(r)
+  elemental function dual_cos(x) result(r)
     !! compute cosine of dual number
 
     type(dual), intent(in) :: x
@@ -425,7 +404,7 @@ contains
     r%dx = - sin(x%x) * x%dx
   end function
 
-  function dual_tan(x) result(r)
+  elemental function dual_tan(x) result(r)
     !! compute tangent of dual number
 
     type(dual), intent(in) :: x

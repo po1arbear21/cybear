@@ -14,155 +14,205 @@ contains
 
     ! test addition
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 1.0, 1)
 
-      y = 3.0 + ((x + x) + 2.0)
+      y(0)  =  3.0       + (( x     +  x    ) +  2.0      )        ! test for single addition
+      y(1:) = [3.0, 3.0] + (([x, x] + [x, x]) + [2.0, 2.0])        ! test for elemental addition
 
-      call tc%assert_eq(7.0, y%x    , tol, "addition value")
-      call tc%assert_eq(2.0, y%dx(1), tol, "addition derivative")
+      do i = 0, 2
+        call tc%assert_eq(7.0, y(i)%x    , tol, "addition value"     )
+        call tc%assert_eq(2.0, y(i)%dx(1), tol, "addition derivative")
+      end do
     end block
 
     ! test subtraction
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 1.0, 1)
 
-      y = 5.0 - (((-x) - x) - 1.0)
+      y(0)  =  5.0       - (((- x    ) -  x    ) -  1.0      )
+      y(1:) = [5.0, 5.0] - (((-[x, x]) - [x, x]) - [1.0, 1.0])
 
-      call tc%assert_eq(8.0, y%x    , tol, "subtraction value")
-      call tc%assert_eq(2.0, y%dx(1), tol, "subtraction derivative")
+      do i = 0, 2
+        call tc%assert_eq(8.0, y(i)%x    , tol, "subtraction value"     )
+        call tc%assert_eq(2.0, y(i)%dx(1), tol, "subtraction derivative")
+      end do
     end block
 
     ! test multiplication
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 2.0, 1)
 
-      y = 4.0 * ((x * x) * 0.5)
+      y(0)  =  4.0       * ((x      *  x    ) *  0.5      )
+      y(1:) = [4.0, 4.0] * (([x, x] * [x, x]) * [0.5, 0.5])
 
-      call tc%assert_eq(8.0, y%x    , tol, "multiplication value")
-      call tc%assert_eq(8.0, y%dx(1), tol, "multiplication derivative")
+      do i = 0, 2
+        call tc%assert_eq(8.0, y(i)%x    , tol, "multiplication value"     )
+        call tc%assert_eq(8.0, y(i)%dx(1), tol, "multiplication derivative")
+      end do
     end block
 
     ! test division
     block
-      type(dual) :: x, y, z
+      integer    :: i
+      type(dual) :: x, y, z(0:2)
 
       call x%init(2, 4.0, 1)
       call y%init(2, 2.0, 2)
 
-      z = 1.0 / ((x / y) / 0.5)
+      z(0)  =  1.0       / (( x     /  y    ) /  0.5      )
+      z(1:) = [1.0, 1.0] / (([x, x] / [y, y]) / [0.5, 0.5])
 
-      call tc%assert_eq( 0.2500, z%x    , tol, "division value")
-      call tc%assert_eq(-0.0625, z%dx(1), tol, "division derivative 1")
-      call tc%assert_eq( 0.1250, z%dx(2), tol, "division derivative 2")
+      do i = 0, 2
+        call tc%assert_eq( 0.2500, z(i)%x    , tol, "division value"       )
+        call tc%assert_eq(-0.0625, z(i)%dx(1), tol, "division derivative 1")
+        call tc%assert_eq( 0.1250, z(i)%dx(2), tol, "division derivative 2")
+      end do
     end block
 
     ! test power
     block
-      type(dual) :: x, y, z
+      integer    :: i
+      type(dual) :: x, y, z(0:2)
 
       call x%init(2, 1.5, 1)
       call y%init(2, 2.0, 2)
 
+      z(0)  = ((( 2.0       **  x    ) **  y    ) **  0.25       ) **  4
+      z(1:) = ((([2.0, 2.0] ** [x, x]) ** [y, y]) ** [0.25, 0.25]) ** [4, 4]
 
-      z = (((2.0 ** x) ** y) ** 0.25) ** 4
-
-      call tc%assert_eq( 8.0           , z%x    , tol, "power value")
-      call tc%assert_eq(16.0 * log(2.0), z%dx(1), tol, "power derivative 1")
-      call tc%assert_eq(12.0 * log(2.0), z%dx(2), tol, "power derivative 2")
+      do i = 0, 2
+        call tc%assert_eq( 8.0           , z(i)%x    , tol, "power value"       )
+        call tc%assert_eq(16.0 * log(2.0), z(i)%dx(1), tol, "power derivative 1")
+        call tc%assert_eq(12.0 * log(2.0), z(i)%dx(2), tol, "power derivative 2")
+      end do
     end block
 
     ! test abs
     block
-      type(dual) :: x, y, z
+      integer    :: i
+      type(dual) :: x, y, z(0:2)
 
-      call x%init(1, 5.0, 1)
+      call x%init(1,  5.0, 1)
       call y%init(1, -5.0, 1)
 
-      z = abs(x)
-      call tc%assert_eq(5.0, z%x    , tol, "abs value 1")
-      call tc%assert_eq(1.0, z%dx(1), tol, "abs derivative 1")
+      z(0)  = abs(x     )
+      z(1:) = abs([x, x])
+      do i = 0, 2
+        call tc%assert_eq(5.0, z(i)%x    , tol, "abs value 1"     )
+        call tc%assert_eq(1.0, z(i)%dx(1), tol, "abs derivative 1")
+      end do
 
-      z = abs(y)
-      call tc%assert_eq( 5.0, z%x    , tol, "abs value 2")
-      call tc%assert_eq(-1.0, z%dx(1), tol, "abs derivative 2")
+      z(0)  = abs(y)
+      z(1:) = abs([y, y])
+      do i = 0, 2
+        call tc%assert_eq( 5.0, z(i)%x    , tol, "abs value 2"     )
+        call tc%assert_eq(-1.0, z(i)%dx(1), tol, "abs derivative 2")
+      end do
     end block
 
     ! test sqrt
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 9.0, 1)
 
-      y = sqrt(x)
+      y(0)  = sqrt(x)
+      y(1:) = sqrt([x, x])
 
-      call tc%assert_eq(3.0    , y%x    , tol, "sqrt value")
-      call tc%assert_eq(1.0/6.0, y%dx(1), tol, "sqrt derivative")
+      do i = 0, 2
+        call tc%assert_eq(3.0    , y(i)%x    , tol, "sqrt value"     )
+        call tc%assert_eq(1.0/6.0, y(i)%dx(1), tol, "sqrt derivative")
+      end do
     end block
 
     ! test exp
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 2.0, 1)
 
-      y = exp(x)
+      y(0)  = exp(x)
+      y(1:) = exp([x, x])
 
-      call tc%assert_eq(7.38905609893065, y%x    , tol, "exp value")
-      call tc%assert_eq(7.38905609893065, y%dx(1), tol, "exp derivative")
+      do i = 0, 2
+        call tc%assert_eq(7.38905609893065, y(i)%x    , tol, "exp value"     )
+        call tc%assert_eq(7.38905609893065, y(i)%dx(1), tol, "exp derivative")
+      end do
     end block
 
     ! test log
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 2.0, 1)
 
-      y = log(x)
+      y(0)  = log(x)
+      y(1:) = log([x, x])
 
-      call tc%assert_eq(0.6931471805599453, y%x    , tol, "log value")
-      call tc%assert_eq(0.5               , y%dx(1), tol, "log derivative")
+      do i = 0, 2
+        call tc%assert_eq(0.6931471805599453, y(i)%x    , tol, "log value"     )
+        call tc%assert_eq(0.5               , y(i)%dx(1), tol, "log derivative")
+      end do
     end block
 
     ! test sin
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 3.0, 1)
 
-      y = sin(x)
+      y(0)  = sin(x)
+      y(1:) = sin([x, x])
 
-      call tc%assert_eq( 0.1411200080598672, y%x    , tol, "sin value")
-      call tc%assert_eq(-0.9899924966004455, y%dx(1), tol, "sin derivative")
+      do i = 0, 2
+        call tc%assert_eq( 0.1411200080598672, y(i)%x    , tol, "sin value"     )
+        call tc%assert_eq(-0.9899924966004455, y(i)%dx(1), tol, "sin derivative")
+      end do
     end block
 
     ! test cos
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 3.0, 1)
 
-      y = cos(x)
+      y(0)  = cos(x)
+      y(1:) = cos([x, x])
 
-      call tc%assert_eq(-0.9899924966004455, y%x    , tol, "cos value")
-      call tc%assert_eq(-0.1411200080598672, y%dx(1), tol, "cos derivative")
+      do i = 0, 2
+        call tc%assert_eq(-0.9899924966004455, y(i)%x    , tol, "cos value"     )
+        call tc%assert_eq(-0.1411200080598672, y(i)%dx(1), tol, "cos derivative")
+      end do
     end block
 
     ! test tan
     block
-      type(dual) :: x, y
+      integer    :: i
+      type(dual) :: x, y(0:2)
 
       call x%init(1, 3.0, 1)
 
-      y = tan(x)
+      y(0)  = tan(x)
+      y(1:) = tan([x, x])
 
-      call tc%assert_eq(-0.1425465430742778, y%x    , tol, "tan value")
-      call tc%assert_eq( 1.0203195169424269, y%dx(1), tol, "tan derivative")
+      do i = 0, 2
+        call tc%assert_eq(-0.1425465430742778, y(i)%x    , tol, "tan value"     )
+        call tc%assert_eq( 1.0203195169424269, y(i)%dx(1), tol, "tan derivative")
+      end do
     end block
 
     ! test dot_product
@@ -175,6 +225,7 @@ contains
       ! simple test for simple 1-element sum
       allocate (x(1))
       call x(1)%init(1, 1.0, i=1)
+
       z = x .dot. x
 
       call tc%assert_eq(1.0, z%x,     tol, "dot product (1 element): value"     )
