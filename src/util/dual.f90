@@ -8,7 +8,7 @@ module dual_m
 
   private
   public dual
-  public operator(+), operator(-), operator(*), operator(/), operator(**)
+  public operator(+), operator(-), operator(*), operator(/), operator(**), operator(.dot.)
   public abs, sqrt, exp, log, sin, cos, tan
 
   type dual
@@ -54,6 +54,10 @@ module dual_m
     module procedure :: dual_pow_real
     module procedure :: dual_pow_int
     module procedure :: real_pow_dual
+  end interface
+
+  interface operator(.dot.)
+    module procedure :: dual_dot_product
   end interface
 
   interface abs
@@ -331,6 +335,30 @@ contains
     type(dual)             :: r
 
     r = exp(log(x) * y)
+  end function
+
+  function dual_dot_product(x, y) result(r)
+    !! dot product of two vectors
+
+    type(dual), intent(in) :: x(:)
+    type(dual), intent(in) :: y(:)
+    type(dual)             :: r
+
+    integer :: i, n
+
+    n = size(x)
+
+    ! check vector sizes align
+    ASSERT(n == size(y))
+
+    ! check number of variables is same
+    ASSERT(all([(x(1)%n == x(i)%n, i = 1, n)]))
+    ASSERT(all([(x(1)%n == y(i)%n, i = 1, n)]))
+
+    call r%init(x(1)%n, 0.0)
+    do i = 1, n
+      r = r + x(i) * y(i)
+    end do
   end function
 
   function dual_abs(x) result(r)

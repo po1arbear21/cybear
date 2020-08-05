@@ -165,7 +165,41 @@ contains
       call tc%assert_eq( 1.0203195169424269, y%dx(1), tol, "tan derivative")
     end block
 
-    call tc%finish()
+    ! test dot_product
+    block
+      integer                 :: i
+      integer,    parameter   :: n=5
+      type(dual), allocatable :: x(:), y(:)
+      type(dual)              :: z, z_exp
+
+      ! simple test for simple 1-element sum
+      allocate (x(1))
+      call x(1)%init(1, 1.0, i=1)
+      z = x .dot. x
+
+      call tc%assert_eq(1.0, z%x,     tol, "dot product (1 element): value"     )
+      call tc%assert_eq(2.0, z%dx(1), tol, "dot product (1 element): derivative")
+      deallocate (x)
+
+      ! more complex test. n-elements
+      allocate (x(n), y(n))
+      do i = 1, n
+        call x(i)%init(n,   real(i), i)
+        call y(i)%init(n, 2*real(i), i)
+      end do
+
+      z = x .dot. y
+
+      call z_exp%init(n, 0.0)
+      do i = 1, n
+        z_exp = z_exp + x(i) * y(i)
+      end do
+
+      call tc%assert_eq(z_exp%x,  z%x,  tol, "dot product (n elements): value"     )
+      call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product (n elements): derivative")
+    end block
+
+    call tc%finish
   end subroutine
 
 end module
