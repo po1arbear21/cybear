@@ -162,8 +162,7 @@ contains
       call tc%assert_eq(res_exp, res, tol, "dot3")
     end block
 
-    call tc%finish()
-    stop
+    call tc%finish
   end subroutine
 
 end module
