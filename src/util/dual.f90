@@ -1,11 +1,15 @@
+#include "macro.f90.inc"
+
 module dual_m
+  use error_m
   use high_precision_m
+
   implicit none
 
   private
-  public :: dual
-  public :: operator(+), operator(-), operator(*), operator(/), operator(**)
-  public :: abs, sqrt, exp, log, sin, cos, tan
+  public dual
+  public operator(+), operator(-), operator(*), operator(/), operator(**)
+  public abs, sqrt, exp, log, sin, cos, tan
 
   type dual
     !! dual number type for automatic differentiation (forward mode)
@@ -112,9 +116,10 @@ contains
     type(dual), intent(in) :: y
     type(dual)             :: r
 
+    ASSERT(x%n == y%n)
+
     r%n  = x%n
-    r%x  = x%x + y%x
-    allocate (r%dx(r%n))
+    r%x  = x%x  + y%x
     r%dx = x%dx + y%dx
   end function
 
@@ -127,7 +132,6 @@ contains
 
     r%n  = x%n
     r%x  = x%x + y
-    allocate (r%dx(r%n))
     r%dx = x%dx
   end function
 
@@ -147,9 +151,8 @@ contains
     type(dual), intent(in) :: x
     type(dual)             :: r
 
-    r%n  = x%n
+    r%n  =   x%n
     r%x  = - x%x
-    allocate (r%dx(r%n))
     r%dx = - x%dx
   end function
 
@@ -190,9 +193,10 @@ contains
     type(dual), intent(in) :: y
     type(dual)             :: r
 
+    ASSERT(x%n == y%n)
+
     r%n  = x%n
-    r%x  = x%x * y%x
-    allocate (r%dx(r%n))
+    r%x  = x%x  * y%x
     r%dx = x%dx * y%x + x%x * y%dx
   end function
 
@@ -204,8 +208,7 @@ contains
     type(dual)             :: r
 
     r%n  = x%n
-    r%x  = x%x * y
-    allocate (r%dx(r%n))
+    r%x  = x%x  * y
     r%dx = x%dx * y
   end function
 
@@ -226,9 +229,10 @@ contains
     type(dual), intent(in) :: y
     type(dual)             :: r
 
-    r%n = x%n
-    r%x = x%x / y%x
-    allocate (r%dx(r%n))
+    ASSERT(x%n == y%n)
+
+    r%n  = x%n
+    r%x  = x%x  / y%x
     r%dx = x%dx / y%x - (x%x / y%x**2) * y%dx
   end function
 
@@ -240,8 +244,7 @@ contains
     type(dual)             :: r
 
     r%n  = x%n
-    r%x  = x%x / y
-    allocate (r%dx(r%n))
+    r%x  = x%x  / y
     r%dx = x%dx / y
   end function
 
@@ -253,8 +256,7 @@ contains
     type(dual)             :: r
 
     r%n  = y%n
-    r%x  = x / y%x
-    allocate (r%dx(r%n))
+    r%x  =    x / y%x
     r%dx = (- x / y%x**2) * y%dx
   end function
 
@@ -264,6 +266,8 @@ contains
     type(dual), intent(in) :: x
     type(dual), intent(in) :: y
     type(dual)             :: r
+
+    ASSERT(x%n == y%n)
 
     r = exp(log(x) * y)
   end function
@@ -287,13 +291,12 @@ contains
 
     ! local variables
     integer    :: p
-    type(dual) :: r2
 
     ! for negative integers: compute inverse first
-    if (y < 0) then
+    if      (y < 0) then
       r = 1.0 / x
       p = -y
-    elseif (y > 0) then
+    else if (y > 0) then
       r = x
       p = y
     else
@@ -304,16 +307,19 @@ contains
 
     ! compute low integer powers by repeated multiplication; high powers by real power function
     select case (p)
-    case (2)
-      r = r * r
-    case (3)
-      r2 = r * r
-      r  = r2 * r
-    case (4)
-      r2 = r * r
-      r  = r2 * r2
-    case default
-      r = r ** real(p)
+      case (2)
+        r = r * r
+      case (3)
+        r  = (r * r) * r
+      case (4)
+        block
+          type(dual) :: r2
+
+          r2 = r * r
+          r  = r2 * r2
+        end block
+      case default
+        r = r ** real(p)
     end select
   end function
 
@@ -333,11 +339,7 @@ contains
     type(dual), intent(in) :: x
     type(dual)             :: r
 
-    if (x%x >= 0) then
-      r = x
-    else
-      r = - x
-    end if
+    r = merge(x, -x, (x%x >= 0))
   end function
 
   function dual_sqrt(x) result(r)
@@ -348,7 +350,6 @@ contains
 
     r%n  = x%n
     r%x  = sqrt(x%x)
-    allocate (r%dx(r%n))
     r%dx = x%dx / (2 * r%x)
   end function
 
@@ -360,7 +361,6 @@ contains
 
     r%n  = x%n
     r%x  = exp(x%x)
-    allocate (r%dx(r%n))
     r%dx = r%x * x%dx
   end function
 
@@ -372,7 +372,6 @@ contains
 
     r%n  = x%n
     r%x  = log(x%x)
-    allocate (r%dx(r%n))
     r%dx = x%dx / x%x
   end function
 
@@ -384,7 +383,6 @@ contains
 
     r%n  = x%n
     r%x  = sin(x%x)
-    allocate (r%dx(r%n))
     r%dx = cos(x%x) * x%dx
   end function
 
@@ -396,7 +394,6 @@ contains
 
     r%n  = x%n
     r%x  =   cos(x%x)
-    allocate (r%dx(r%n))
     r%dx = - sin(x%x) * x%dx
   end function
 
@@ -408,7 +405,6 @@ contains
 
     r%n  = x%n
     r%x  = tan(x%x)
-    allocate (r%dx(r%n))
     r%dx = x%dx / (cos(x%x)**2)
   end function
 
