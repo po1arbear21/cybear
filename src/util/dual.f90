@@ -87,7 +87,9 @@ module dual_m
 
 contains
 
-  pure subroutine dual_init(this, n, x, i)
+  ! BUG in gfortran: Dummy argument "this" cannot be polymorphic and intent(out) for pure rountine.
+  !                  Thus, we implemented some workarounds in this module.
+  subroutine dual_init(this, n, x, i)
     !! initialize dual number
 
     class(dual),       intent(out) :: this
@@ -293,7 +295,12 @@ contains
       p = y
     else
       ! x**0 = 1
-      call r%init(x%n, 1.0)
+
+      ! BUG in gfortran: dual_init cannot be pure in gfortran
+      ! call r%init(x%n, 1.0)
+
+      ! workaround
+      r = (0.0 * x) + 1.0
       return
     end if
 
@@ -334,7 +341,12 @@ contains
 
     integer :: i
 
-    call r%init(x(1)%n, 0.0)
+    ! BUG in gfortran: dual_init cannot be pure in gfortran
+    ! call r%init(x(1)%n, 0.0)
+
+    ! workaround
+    r = 0.0 * x(1)
+
     do i = 1, size(x)
       r = r + x(i) * y(i)
     end do
