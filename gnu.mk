@@ -1,6 +1,6 @@
 # gnu fortran compiler flags
 FC       := gfortran
-FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -I./build/gnu/F95 -Wall -fopenmp -I$(MKLROOT)/include
+FFLAGS   := -cpp -ffree-line-length-none -I./ -march=native -I./build/gnu/F95 -Wall -fopenmp -I$(MKLROOT)/include -fuse-ld=bfd
 FDEBUG   := -O0 -g3 -ggdb -fcheck=all -fbacktrace -D DEBUG
 FRELEASE := -O3
 FPROFILE := -O3 -g -shared-libgcc
