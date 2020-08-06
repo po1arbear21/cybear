@@ -87,7 +87,7 @@ contains
 
     ! hp exponential
     block
-      type(hp_real) :: h1, h2, h2_exp, h3
+      type(hp_real) :: h1, h2, h2_exp
 
       h1 = TwoSum(1.234567890123453,6.234578902142152e-12)
       h2 = exp(h1)
