@@ -358,7 +358,15 @@ contains
     type(dual), intent(in) :: x
     type(dual)             :: r
 
-    r = merge(x, -x, (x%x >= 0))
+    ! BUG in gfortran: merge seems broken
+    ! r = merge(x, -x, (x%x >= 0))
+
+    ! workaround
+    if (x%x >= 0) then
+      r =  x
+    else
+      r = -x
+    end if
   end function
 
   elemental function dual_sqrt(x) result(r)
