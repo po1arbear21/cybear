@@ -108,8 +108,8 @@ contains
     real(kind=16), parameter :: factor = 18014398509481985.0 ! 2^54+1
 
     c   = factor * a
-    h%x = c - (c - a)
-    h%y = a - h%x
+    h%x = real(c - (c - a))
+    h%y = real(a - h%x)
   end function
 
   elemental function TwoProduct(a, b) result(h)
