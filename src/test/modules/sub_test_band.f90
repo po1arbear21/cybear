@@ -5,17 +5,17 @@ submodule(test_matrix_m) test_band_m
 contains
 
   module subroutine test_band
-    type(test_case)      :: tc
-    type(band_real)      :: tri, band, penta, diag
     real, dimension(5,5) :: d_band
+    type(band_real)      :: tri, band, penta, diag
+    type(test_case)      :: tc
 
     print "(A)", "test_band"
     call tc%init("band")
 
     ! init examples of band matrices + factorize
     block
+      integer           :: i
       real, allocatable :: d0(:,:)
-      integer :: i
 
       ! diagonal =
       !   1   0   0   0   0
@@ -333,6 +333,53 @@ contains
       mat_exp = reshape([1,0,0,0, 3,3,0,0, 2,1,6,0, 0,7,0,9], [4,4])
 
       call tc%assert_eq(mat_exp, d%d, 1e-12, "add_elem: nlower=0, nupper=2")
+    end block
+
+    ! reset_row
+    block
+      integer          :: i, j, k
+      real             :: val(5), val_exp(5)
+      type(band_real)  :: b0, b
+      type(dense_real) :: d, d0
+
+      call  d%init(5)
+      call d0%init(5)
+
+      do i = 1, 4             ! loop 4 basic band matrices
+        select case(i)
+          case (1)
+            b0 = diag
+          case (2)
+            b0 = tri
+          case (3)
+            b0 = penta
+          case (4)
+            b0 = band
+        end select
+
+        call d0%reset
+        call b0%to_dense(d0)                        ! save their dense representation for value comparisons
+
+        do j = 1, 5                                 ! reset row j of b0
+          b = b0                                    ! always start w/ fresh b0 s.t. we just reset row j
+          call b%reset_row(j)
+
+          call d%reset
+          call b%to_dense(d)                        ! d will be dense representation of b0 where row j was resetted
+
+          do k = 1, 5                               ! compare all rows k of b and b0 (take care to overwrite row j of b0)
+            val = d%d(k,:)
+
+            if (j == k) then
+              val_exp = 0
+            else
+              val_exp = d0%d(k,:)
+            end if
+
+            call tc%assert_eq(val_exp, val, 1e-12, "reset_row")
+          end do
+        end do
+      end do
     end block
 
     call tc%finish

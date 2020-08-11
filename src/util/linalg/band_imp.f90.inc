@@ -18,6 +18,7 @@
 #define BAND_INIT            CONCAT3(band,T,init)
 #define BAND_DESTRUCT        CONCAT3(band,T,destruct)
 #define BAND_RESET           CONCAT3(band,T,reset)
+#define BAND_RESET_ROW       CONCAT3(band,T,reset_row)
 #define BAND_SCALE           CONCAT3(band,T,scale)
 #define BAND_MUL_VEC         CONCAT3(band,T,mul_vec)
 #define BAND_MUL_MAT         CONCAT3(band,T,mul_mat)
@@ -107,6 +108,35 @@ subroutine BAND_RESET(this, only_factorization)
   if (.not. only_fact) then
     this%d = 0
   end if
+
+  ! reset factorization
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
+end subroutine
+
+subroutine BAND_RESET_ROW(this, i)
+  !! Reset i-th row to zero and its factorization.
+
+  class(BAND_TYPE),  intent(inout) :: this
+    !! Band matrix
+  integer,           intent(in)    :: i
+    !! i-th row
+
+  integer :: j, j0, j1
+#ifdef TCMPLX
+  complex :: zero
+#else
+  real    :: zero
+#endif
+
+  zero = 0
+
+  j0 = max(1,          i-this%nlower)
+  j1 = min(this%ncols, i+this%nupper)
+
+  do j = j0, j1
+    call this%set_elem(i, j, zero)
+  end do
 
   ! reset factorization
   if (allocated(this%f   )) deallocate (this%f   )
@@ -614,6 +644,7 @@ end function
 #undef BAND_INIT
 #undef BAND_DESTRUCT
 #undef BAND_RESET
+#undef BAND_RESET_ROW
 #undef BAND_SCALE
 #undef BAND_MUL_VEC
 #undef BAND_MUL_MAT

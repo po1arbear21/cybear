@@ -96,6 +96,7 @@
 #define BAND_INIT            CONCAT3(band,T,init)
 #define BAND_DESTRUCT        CONCAT3(band,T,destruct)
 #define BAND_RESET           CONCAT3(band,T,reset)
+#define BAND_RESET_ROW       CONCAT3(band,T,reset_row)
 #define BAND_SCALE           CONCAT3(band,T,scale)
 #define BAND_MUL_VEC         CONCAT3(band,T,mul_vec)
 #define BAND_MUL_MAT         CONCAT3(band,T,mul_mat)
@@ -364,6 +365,7 @@ contains
   generic   :: init      => BAND_INIT
   procedure :: destruct  => BAND_DESTRUCT
   procedure :: reset     => BAND_RESET
+  procedure :: reset_row => BAND_RESET_ROW
   procedure :: scale     => BAND_SCALE
   procedure :: mul_vec   => BAND_MUL_VEC
   procedure :: mul_mat   => BAND_MUL_MAT
@@ -666,6 +668,7 @@ end interface
 #undef BAND_INIT
 #undef BAND_DESTRUCT
 #undef BAND_RESET
+#undef BAND_RESET_ROW
 #undef BAND_SCALE
 #undef BAND_MUL_VEC
 #undef BAND_MUL_MAT
