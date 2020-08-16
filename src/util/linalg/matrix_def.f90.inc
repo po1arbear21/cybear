@@ -79,6 +79,7 @@
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 #define SPARSE_DIAG          CONCAT3(sparse,T,diag)
+#define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
@@ -294,6 +295,7 @@ contains
   procedure :: mul_sparse   => SPARSE_MUL_SPARSE
   procedure :: output       => SPARSE_OUTPUT
   procedure :: diag         => SPARSE_DIAG
+  procedure :: nnz          => SPARSE_NNZ
 end type
 
 type SPBUILD_TYPE
@@ -651,6 +653,7 @@ end interface
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
 #undef SPARSE_DIAG
+#undef SPARSE_NNZ
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT

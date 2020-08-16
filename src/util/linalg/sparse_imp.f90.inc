@@ -40,6 +40,7 @@
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 #define SPARSE_DIAG          CONCAT3(sparse,T,diag)
+#define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
 #define SPARSE_ZERO          CONCAT3(sparse,zero,T)
 
@@ -1018,6 +1019,26 @@ subroutine SPARSE_DIAG(this, diag)
   !$omp end parallel do
 end subroutine
 
+integer function SPARSE_NNZ(this, only_nonzeros) result(nnz)
+  !! computes number of non-zero elements
+
+  class(SPARSE_TYPE), intent(in) :: this
+  logical, optional,  intent(in) :: only_nonzeros
+    !! assume that all entries of sparse matrix are non-zero. thus, is much faster.
+    !! default: false
+
+  logical :: only_nonzeros_
+
+  only_nonzeros_ = .false.
+  if (present(only_nonzeros)) only_nonzeros_ = only_nonzeros
+
+  if (only_nonzeros_) then
+    nnz = size(this%a)
+  else
+    nnz = count(abs(this%a) > 0.0)
+  end if
+end function
+
 function SPARSE_EYE(nrows, ncols) result(eye)
   !! sparse identity matrix
 
@@ -1461,6 +1482,7 @@ end subroutine
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
 #undef SPARSE_DIAG
+#undef SPARSE_NNZ
 #undef SPARSE_EYE
 #undef SPARSE_ZERO
 

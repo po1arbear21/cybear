@@ -389,6 +389,42 @@ contains
       call tc%assert_eq(z_exp, z_d%d, epsilon(1.0), "zero(3)")
     end block
 
+    ! nnz
+    block
+      type(sparse_real)  :: s
+      type(spbuild_real) :: spb
+
+      call get_test_matrix(s)
+      call tc%assert_eq(6, s%nnz(), "nnz")
+
+      call get_test_matrix(s)
+      call tc%assert_eq(6, s%nnz(only_nonzeros=.true.), "nnz")
+
+      call get_test_matrix2(s)
+      call tc%assert_eq(5, s%nnz(), "nnz")
+
+      call get_test_matrix2(s)
+      call tc%assert_eq(5, s%nnz(only_nonzeros=.true.), "nnz")
+
+      ! test matrix also includes 0 entries
+      ! S = [ 0  1  2]
+      !     [-3  0  4]
+      !     [ 5 -6  0]
+      call s%init(3)
+      call spb%init(s)
+      call spb%add(1, 2,  1.0)
+      call spb%add(1, 3,  2.0)
+      call spb%add(2, 1, -3.0)
+      call spb%add(2, 2,  0.0)   ! 0 entry !!!
+      call spb%add(2, 3,  4.0)
+      call spb%add(3, 1,  5.0)
+      call spb%add(3, 2, -6.0)
+      call spb%add(3, 3, -0.0)   ! 0 entry !!!
+      call spb%save
+
+      call tc%assert_eq(6, s%nnz(), "nnz")
+    end block
+
     call tc%finish
   end subroutine
 
