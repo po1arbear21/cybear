@@ -287,8 +287,12 @@ contains
     call this%unit_const%insert(string("kg/m^3"),  kilogram       /        meter **3 )
     call this%unit_const%insert(string("g/cm^3"), (kilogram/KILO) / (CENTI*meter)**3 )
 
-    call this%unit_const%insert(string("V"    ),       volt                  )
-    call this%unit_const%insert(string("mV"   ), MILLI*volt                  )
+    call this%unit_const%insert(string("kV"   ),  KILO*volt)
+    call this%unit_const%insert(string("V"    ),       volt)
+    call this%unit_const%insert(string("mV"   ), MILLI*volt)
+    call this%unit_const%insert(string("uV"   ), MICRO*volt)
+    call this%unit_const%insert(string("nV"   ),  NANO*volt)
+
     call this%unit_const%insert(string("V/m"  ),       volt  /        meter  )
     call this%unit_const%insert(string("V/cm" ),       volt  / (CENTI*meter) )
     call this%unit_const%insert(string("kV/cm"), (KILO*volt) / (CENTI*meter) )
