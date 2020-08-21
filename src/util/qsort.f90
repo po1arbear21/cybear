@@ -1,5 +1,10 @@
+#include "macro.f90.inc"
+
 module qsort_m
+
+  use error_m
   use string_m
+
   implicit none
 
   interface qsort
