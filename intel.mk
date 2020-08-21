@@ -1,6 +1,6 @@
 # intel fortran compiler flags
 FC       := ifort
-FFLAGS   := -march=native -real-size 64 -i8 -fpp -warn all -qopenmp -fp-model precise
+FFLAGS   := -march=native -fpp -warn all -qopenmp -fp-model precise
 FDEBUG   := -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -D DEBUG -init=huge
 FRELEASE := -O3 -mkl -ftz
 FPROFILE := -O3 -mkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2

@@ -435,9 +435,8 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   logical, optional,  intent(in)    :: drop_zeros
     !! optional: determine sparsity structure by checking for zero entries
 
-  ! local variables
-  integer          :: i, j, i0_, j0_
-  logical          :: drop_zeros_
+  integer :: i, j, i0_, j0_
+  logical :: drop_zeros_
 
   ! optional arguments
   drop_zeros_ = .false.
@@ -454,7 +453,7 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
       ! check structure
       if (present(struct)) then
         if (.not. struct(i,this%ja(j))) cycle
-      elseif (drop_zeros_) then
+      else if (drop_zeros_) then
         if (this%a(j) == 0) cycle
       end if
 
@@ -944,12 +943,11 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
     !! Sparse matrix
   character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
-  integer,          optional, intent(in) :: funit
+  integer,      optional, intent(in) :: funit
     !! File unit (alternative: provide file name)
   character(*), optional, intent(in) :: fmt
     !! Value format string
 
-  ! local variables
   integer                   :: i, j, status, funit_
   character(:), allocatable :: fmt_
 
