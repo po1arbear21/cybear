@@ -173,24 +173,34 @@ contains
       !! temperature
 
     ! constants
-    real, parameter :: EC     = 1.602176634e-19           ! elementary charge         [ As      ]
-    real, parameter :: EM     = 9.109383632e-31           ! electron rest mass        [ kg      ]
-    real, parameter :: PLANCK = 6.626070150e-34/(2*PI*EC) ! reduced Planck's constant [ eVs     ]
-    real, parameter :: BOLTZ  = 1.380649000e-23/EC        ! Boltzmann's constant      [ eV/K    ]
-    real, parameter :: EPS0   = 8.854187813e-12           ! vacuum permittivity       [ As/(Vm) ]
+    real, parameter :: EC     = 1.602176634e-19           ! elementary charge         [ As   ]
+      !! exact
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?e
+    real, parameter :: EM     = 9.1093837015e-31          ! electron rest mass        [ kg   ]
+      !! rel err: 3e-10
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?me
+    real, parameter :: PLANCK = 1.054571817e-34/EC        ! reduced Planck's constant [ eVs  ]
+      !! exact
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?hbar
+    real, parameter :: BOLTZ  = 1.380649e-23/EC           ! Boltzmann's constant      [ eV/K ]
+      !! exact
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?k
+    real, parameter :: EPS0   = 8.8541878128e-12          ! vacuum permittivity       [ F/m  ]
+      !! rel err: 1.5e-10
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?ep0
 
     ! metric prefixes: INVERSE values for normalization
-    real, parameter :: TERA  = 1e-12
-    real, parameter :: GIGA  = 1e-9
-    real, parameter :: MEGA  = 1e-6
-    real, parameter :: KILO  = 1e-3
+    real, parameter :: TERA = 1e-12
+    real, parameter :: GIGA = 1e-9
+    real, parameter :: MEGA = 1e-6
+    real, parameter :: KILO = 1e-3
 
-    real, parameter :: CENTI  = 1e2
-    real, parameter :: MILLI  = 1e3
-    real, parameter :: MICRO  = 1e6
-    real, parameter :: NANO   = 1e9
-    real, parameter :: PICO   = 1e12
-    real, parameter :: FEMTO  = 1e15
+    real, parameter :: CENTI = 1e2
+    real, parameter :: MILLI = 1e3
+    real, parameter :: MICRO = 1e6
+    real, parameter :: NANO  = 1e9
+    real, parameter :: PICO  = 1e12
+    real, parameter :: FEMTO = 1e15
 
     ! local variables
     real :: meter, second, kilogram, volt, ampere, kelvin, diel
