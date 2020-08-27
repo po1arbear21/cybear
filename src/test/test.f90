@@ -1,4 +1,5 @@
 program test
+
 #ifdef USE_ILUPACK
   use test_ilupack_m
 #endif
@@ -20,6 +21,9 @@ program test
   use test_sqrtm_m
   use test_arnoldi_m
   use test_schur_m
+  use test_plotmtv_m
+  use test_util_m
+
   implicit none
 
 #ifdef USE_ILUPACK
@@ -43,4 +47,7 @@ program test
   call test_sqrtm
   call test_arnoldi
   call test_schur
+  call test_plotmtv
+  call test_util
+
 end program

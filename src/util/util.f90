@@ -61,10 +61,13 @@ contains
     cstr(size(cstr)) = c_null_char
   end function
 
-  function int2str(i) result(str)
-    !! convert integer to string
-    integer, intent(in)       :: i
-    character(:), allocatable :: str
+  function int2str(i, min_len) result(str)
+    !! convert integer to string. adds leading zeros if necessary.
+
+    integer, intent(in)              :: i
+    integer, intent(in), optional    :: min_len
+      !! minimal string length, including negative sign. (adds leading zeros)
+    character(:),        allocatable :: str
 
     character(24) :: tmp
 
@@ -74,6 +77,21 @@ contains
     ! adjustl: leading blanks cut and appended at end
     ! trim:    remove trailing blanks
     str = trim(adjustl(tmp))
+
+    if (present(min_len)) then
+      if (i >= 0) then
+        do while (len(str) < min_len)
+          str = '0' // str
+        end do
+
+      else
+        str = str(2:)       ! stripping neg sign
+        do while (len(str) < min_len-1)
+          str = '0' // str
+        end do
+        str = '-' // str
+      end if
+    end if
   end function
 
   function select_int(flags, ints) result(t)
