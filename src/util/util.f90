@@ -79,18 +79,11 @@ contains
     str = trim(adjustl(tmp))
 
     if (present(min_len)) then
-      if (i >= 0) then
-        do while (len(str) < min_len)
-          str = '0' // str
-        end do
-
-      else
-        str = str(2:)       ! stripping neg sign
-        do while (len(str) < min_len-1)
-          str = '0' // str
-        end do
-        str = '-' // str
-      end if
+      if (i < 0) str = str(2:)       ! stripping neg sign
+      do while (len(str) < merge(min_len, min_len-1, i >= 0))
+        str = '0' // str
+      end do
+      if (i < 0) str = '-' // str
     end if
   end function
 
