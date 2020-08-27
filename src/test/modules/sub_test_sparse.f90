@@ -99,15 +99,29 @@ contains
       type(sparse_real) :: sA
       real, allocatable :: x(:), y(:), y_exp(:)
 
-      x     = [1,-2,3,-4]
+      ! test: y <- A*x
+      x     = [ 1, -2, 3,  -4]
       y_exp = [-3, -8, 3, -22]
-      allocate(y(4))
+      allocate (y(4))
 
-      ! set y to nan
-      y = ieee_value(y, ieee_quiet_nan)
+      y = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
 
       call get_test_matrix(sA)
       call sA%mul_vec(x, y)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
+
+      ! test: y <- A*x -2y
+      y     = [ 1,  0, 0,  -1]
+      y_exp = [-5, -8, 3, -20]
+
+      call sA%mul_vec(x, y, fact_y=-2.0)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
+
+      ! test: y <- (A^t)*x -2y
+      y     = [ 1,   0, 0,  -1]
+      y_exp = [-1, -10, 3, -18]
+
+      call sA%mul_vec(x, y, fact_y=-2.0, trans='T')
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
     end block
 

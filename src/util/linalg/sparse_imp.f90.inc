@@ -146,10 +146,12 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
     !! If present, scale existing data in y and add result of multiplication
   character, optional, intent(in)    :: trans
     !! Transpose flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! 'N':   y =                     this  * x + fact_y * y
+    !! 'T':   y =           transpose(this) * x + fact_y * y
+    !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
-  ! local variables
-  integer   :: i, j
   character :: trans_
+  integer   :: i, j
 
   ! y scaling factor
   if (present(fact_y)) then
@@ -1097,7 +1099,6 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
   integer, optional,         intent(in)  :: n_per_row
     !! Optional: provide hint for number of elements per row (default: 8)
 
-  ! local variables
   integer :: i, c
 
   ! number of elements per row
@@ -1112,17 +1113,17 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
   allocate (this%vals(  s%nrows))
   allocate (this%filled(s%nrows))
   do i = 1, s%nrows
-    call this%cols(i)%init(n = 0, c = c)
-    call this%vals(i)%init(n = 0, c = c)
+    call this%cols(i)%init(  n = 0, c = c)
+    call this%vals(i)%init(  n = 0, c = c)
     call this%filled(i)%init(n = 0, c = c)
   end do
 
   ! allocate row flags
-  allocate (this%sorted(s%nrows), source = .true.)
+  allocate (this%sorted(s%nrows),      source = .true.)
   allocate (this%keep_struct(s%nrows), source = .true.)
 
   ! load existing data from sparse matrix
-  call this%load()
+  call this%load
 end subroutine
 
 subroutine SPBUILD_DESTRUCT(this)
@@ -1131,11 +1132,11 @@ subroutine SPBUILD_DESTRUCT(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  nullify(this%sp)
-  if (allocated(this%cols)) deallocate (this%cols)
-  if (allocated(this%vals)) deallocate (this%vals)
-  if (allocated(this%filled)) deallocate (this%filled)
-  if (allocated(this%sorted)) deallocate (this%sorted)
+  nullify (this%sp)
+  if (allocated(this%cols       )) deallocate (this%cols       )
+  if (allocated(this%vals       )) deallocate (this%vals       )
+  if (allocated(this%filled     )) deallocate (this%filled     )
+  if (allocated(this%sorted     )) deallocate (this%sorted     )
   if (allocated(this%keep_struct)) deallocate (this%keep_struct)
 end subroutine
 
@@ -1312,14 +1313,13 @@ subroutine SPBUILD_ADD(this, row, col, val)
   TT,                  intent(in)    :: val
     !! New value
 
-  ! local variables
   TT :: fact
 
   ! set scaling factor to 1 both for real and complex values
   fact = 1
 
   ! add value
-  call this%set(row, col ,val, fact = fact)
+  call this%set(row, col, val, fact = fact)
 end subroutine
 
 subroutine SPBUILD_SORT(this)
@@ -1328,7 +1328,6 @@ subroutine SPBUILD_SORT(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  ! local variables
   integer              :: i, n
   integer, allocatable :: perm(:)
 
@@ -1368,14 +1367,13 @@ subroutine SPBUILD_LOAD(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  ! local variables
   integer :: i, j
 
   ! load all rows
   do i = 1, this%sp%nrows
     ! delete values
-    call this%cols(i)%resize(0)
-    call this%vals(i)%resize(0)
+    call this%cols(  i)%resize(0)
+    call this%vals(  i)%resize(0)
     call this%filled(i)%resize(0)
 
     ! reset row flags
@@ -1385,9 +1383,9 @@ subroutine SPBUILD_LOAD(this)
     ! add values from csr (if not empty)
     if (allocated(this%sp%ia)) then
       do j = this%sp%ia(i), this%sp%ia(i+1)-1
-        call this%cols(i)%push(this%sp%ja(j))
-        call this%vals(i)%push(this%sp%a(j))
-        call this%filled(i)%push(.true.)
+        call this%cols(  i)%push(this%sp%ja(j))
+        call this%vals(  i)%push(this%sp%a( j))
+        call this%filled(i)%push(.true.       )
       end do
     end if
   end do
