@@ -1,6 +1,9 @@
 submodule(test_matrix_m) test_sparse_m
+
   use ieee_arithmetic
   use matrix_m
+  use math_m,         only: PI
+
   implicit none
 
 contains
@@ -96,33 +99,69 @@ contains
 
     ! mul_vec
     block
+      integer           :: i, n
       type(sparse_real) :: sA
       real, allocatable :: x(:), y(:), y_exp(:)
 
-      ! test: y <- A*x
-      x     = [ 1, -2, 3,  -4]
-      y_exp = [-3, -8, 3, -22]
+      x= [ 1, -2, 3,  -4]
       allocate (y(4))
 
-      y = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
+      ! test: y <- A*x
+      y     = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
+      y_exp = [-3, -8, 3, -22]
 
       call get_test_matrix(sA)
       call sA%mul_vec(x, y)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 1")
 
       ! test: y <- A*x -2y
       y     = [ 1,  0, 0,  -1]
       y_exp = [-5, -8, 3, -20]
 
       call sA%mul_vec(x, y, fact_y=-2.0)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 2")
+
+      ! test: y <- (A^t)*x
+      y     = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
+      y_exp = [1, -10, 3, -20]
+
+      call sA%mul_vec(x, y, trans='T')
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 3")
 
       ! test: y <- (A^t)*x -2y
       y     = [ 1,   0, 0,  -1]
       y_exp = [-1, -10, 3, -18]
 
       call sA%mul_vec(x, y, fact_y=-2.0, trans='T')
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec")
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 4")
+
+
+      ! tests using large matrix
+      ! expected solutions are too long to include here. just compare the sum
+      n = 500
+      call get_test_matrix3(500, sA)
+      deallocate (x, y)
+      x = sin([( (4*PI*i)/n, i=1,n )])    ! x(1)~0, x(n)=sin(4PI)=0. two full periods
+      allocate (y(n))
+
+      ! test: y <- A*x
+      call sA%mul_vec(x, y)
+      call tc%assert_eq(-6.418833765673056e+05, sum(y), 1e-7, "mul_vec 5")
+
+      ! test: y <- A*x -3y
+      y = [(i, i=1,n)]
+      call sA%mul_vec(x, y, fact_y=-3.0)
+      call tc%assert_eq(-1.017633376567306e+06, sum(y), 1e-6, "mul_vec 6")
+
+      ! test: y <- (A^t)*x
+      y = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
+      call sA%mul_vec(x, y, trans='T')
+      call tc%assert_eq(1.601097642095075e+08,  sum(y), 1e-4, "mul_vec 7")
+
+      ! test: y <- (A^t)*x +4y
+      y = [(2*i, i=1,n)]
+      call sA%mul_vec(x, y, fact_y=4.0, trans='T')
+      call tc%assert_eq(1.611117642095075e+08,  sum(y), 1e-4, "mul_vec 8")
     end block
 
     ! mul_mat
@@ -130,6 +169,7 @@ contains
       type(sparse_real) :: sA
       real, allocatable :: x(:,:), y(:,:), y_exp(:,:)
 
+      ! test 1
       ! x = A(:,1:3) =
       !  1     2     0
       !  0     4     0
@@ -150,7 +190,49 @@ contains
 
       call get_test_matrix(sA)
       call sA%mul_mat(x, y)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_mat")
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_mat 1")
+
+      ! test 2: using trans, fact_y option for small matrices
+      ! y <- transpose(A)*B -2*A = transpose(A)*x-2*y
+      block
+        type(dense_real)  :: dA, dB
+        type(sparse_real) :: sB
+
+        call get_test_matrix2(sB)
+        call dA%init(4)
+        call dB%init(4)
+        call sA%to_dense(dA)
+        call sB%to_dense(dB)
+
+        ! y = transpose(A)*B -2*A =
+        ! -2    -4     5     1
+        ! -1     0    10     2
+        !  0     0    -2    -3
+        ! -5    -2     0   -10
+        x     = dB%d
+        y     = dA%d
+        y_exp = reshape([-2,-1, 0,-5,-4, 0, 0,-2, 5,10,-2, 0, 1, 2,-3,-10], [4,4])
+        call sA%mul_mat(x, y, fact_y=-2.0, trans='T')
+
+        call tc%assert_eq(y_exp, y, 1e-12, "mul_mat 2")
+      end block
+
+      ! test 3: using trans, fact_y option for large matrices
+      ! y <- transpose(A)*A -10^5 * A
+      block
+        type(dense_real)   :: dA
+        integer, parameter :: n=500
+
+        call get_test_matrix3(n, sA)
+        call dA%init(n)
+        call sA%to_dense(dA)
+
+        x = dA%d
+        y = dA%d
+        call sA%mul_mat(x, y, fact_y=-1e5, trans='T')
+
+        call tc%assert_eq(1.684838714750912e+15, sum(y), 1e2, "mul_mat 3")
+      end block
     end block
 
     ! mul_sparse
@@ -160,6 +242,7 @@ contains
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
 
+      ! test 1: small matrices. check each entry
       ! B =
       !  0     0     5     1
       !  0     2     0     0
@@ -194,9 +277,21 @@ contains
       call get_test_matrix(sA)
       call sA%mul_sparse(sB, sC)
 
-      call tc%assert_eq(a_exp,  sC%a, 1e-12, "mul sparse: a")
-      call tc%assert_eq(ia_exp, sC%ia,       "mul sparse: ia")
-      call tc%assert_eq(ja_exp, sC%ja,       "mul sparse: ja")
+      call tc%assert_eq(a_exp,  sC%a, 1e-12, "mul sparse 1: a")
+      call tc%assert_eq(ia_exp, sC%ia,       "mul sparse 1: ia")
+      call tc%assert_eq(ja_exp, sC%ja,       "mul sparse 1: ja")
+
+      ! test 2: large matrices. check sum of entries
+      ! C <- A*A
+      block
+        integer, parameter :: n=500
+
+        call get_test_matrix3(n, sA)
+        call get_test_matrix3(n, sB)
+        call sA%mul_sparse(sB, sC)
+
+        call tc%assert_eq(8.913712864525120e+14, sum(sC%a), 1e2, "mul sparse 2")
+      end block
     end block
 
     ! solve_vec
@@ -489,6 +584,31 @@ contains
     call sbuild%add(2, 2,  2.0)
     call sbuild%add(3, 4, -3.0)
     call sbuild%add(4, 1, -1.0)
+
+    call sbuild%save
+  end subroutine
+
+  subroutine get_test_matrix3(n, S)
+    !! some large sparse matrix
+
+    integer,           intent(in)  :: n
+      !! matrix dimension
+    type(sparse_real), intent(out) :: S
+
+    integer :: i, j
+    type(spbuild_real) :: sbuild
+
+    ! S_ij = {i+2*j-i**2    if    (i+j)%31 == 0
+    !        {0             else
+
+    call S%init(n)
+    call sbuild%init(S)
+
+    do i = 1, n
+      do j = 1, n
+        if (mod(i+j, 31) == 0) call sbuild%add(i, j, real(i+2*j-i**2))
+      end do
+    end do
 
     call sbuild%save
   end subroutine

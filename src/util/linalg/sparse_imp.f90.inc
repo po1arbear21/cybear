@@ -174,34 +174,45 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
     !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
     do i = 1, this%nrows
       do j = this%ia(i), this%ia(i+1)-1
-      y(i) = y(i) + this%a(j) * x(this%ja(j))
+        y(i) = y(i) + this%a(j) * x(this%ja(j))
       end do
     end do
     !$omp end parallel do
+
   else
+    ! fixme y_tmp is unnecessary! use directly y whereever there is y_tmp now. (in reduction and assignments). yields catastrophic compiler error for ifort ...
+    block
+      TT, allocatable :: y_tmp(:)
+
+      allocate (y_tmp(size(y)))
+      y_tmp = 0
+
 #ifdef TCMPLX
-    if (trans_ == 'C') then
-      ! matrix vector multiplication with complex conjugated transposed matrix
-      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
-      do i = 1, this%nrows
-        do j = this%ia(i), this%ia(i+1)-1
-          y(this%ja(j)) = y(this%ja(j)) + conjg(this%a(j)) * x(i)
+      if (trans_ == 'C') then
+        ! matrix vector multiplication with complex conjugated transposed matrix
+        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+        do i = 1, this%nrows
+          do j = this%ia(i), this%ia(i+1)-1
+            y_tmp(this%ja(j)) = y_tmp(this%ja(j)) + conjg(this%a(j)) * x(i)
+          end do
         end do
-      end do
-      !$omp end parallel do
-    else
+        !$omp end parallel do
+
+      else
 #endif
-      ! matrix vector multiplication with transposed matrix
-      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
-      do i = 1, this%nrows
-        do j = this%ia(i), this%ia(i+1)-1
-          y(this%ja(j)) = y(this%ja(j)) + this%a(j) * x(i)
+        ! matrix vector multiplication with transposed matrix
+        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+        do i = 1, this%nrows
+          do j = this%ia(i), this%ia(i+1)-1
+            y_tmp(this%ja(j)) = y_tmp(this%ja(j)) + this%a(j) * x(i)
+          end do
         end do
-      end do
-      !$omp end parallel do
+        !$omp end parallel do
 #ifdef TCMPLX
-    end if
+      end if
 #endif
+      y = y + y_tmp
+    end block
   end if
 end subroutine
 
@@ -219,10 +230,12 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
     !! If present, scale existing data in y and add result of multiplication
   character, optional, intent(in)    :: trans
     !! Transpose flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
+    !! 'N':   y =                     this  * x + fact_y * y
+    !! 'T':   y =           transpose(this) * x + fact_y * y
+    !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
-  ! local variables
-  integer   :: i, j
   character :: trans_
+  integer   :: i, j
 
   ! y scaling factor
   if (present(fact_y)) then
@@ -249,30 +262,41 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
       end do
     end do
     !$omp end parallel do
+
   else
+    ! fixme y_tmp is unnecessary! use directly y whereever there is y_tmp now. (in reduction and assignments). yields catastrophic compiler error for ifort ...
+    block
+      real, allocatable :: y_tmp(:,:)
+
+      allocate (y_tmp(size(y, dim=1), size(y, dim=2)))
+      y_tmp = 0
+
 #ifdef TCMPLX
-    if (trans_ == 'C') then
-      ! matrix matrix multiplication with complex conjugated transposed matrix
-      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
-      do i = 1, this%nrows
-        do j = this%ia(i), this%ia(i+1)-1
-          y(this%ja(j),:) = y(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
+      if (trans_ == 'C') then
+        ! matrix matrix multiplication with complex conjugated transposed matrix
+        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+        do i = 1, this%nrows
+          do j = this%ia(i), this%ia(i+1)-1
+            y_tmp(this%ja(j),:) = y_tmp(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
+          end do
         end do
-      end do
-      !$omp end parallel do
-    else
+        !$omp end parallel do
+
+      else
 #endif
-      ! matrix matrix multiplication with transposed matrix
-      !$omp parallel do default(none) private(i, j) shared(this, x, y) schedule(dynamic)
-      do i = 1, this%nrows
-        do j = this%ia(i), this%ia(i+1)-1
-          y(this%ja(j),:) = y(this%ja(j),:) + this%a(j) * x(i,:)
+        ! matrix matrix multiplication with transposed matrix
+        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+        do i = 1, this%nrows
+          do j = this%ia(i), this%ia(i+1)-1
+            y_tmp(this%ja(j),:) = y_tmp(this%ja(j),:) + this%a(j) * x(i,:)
+          end do
         end do
-      end do
-      !$omp end parallel do
+        !$omp end parallel do
 #ifdef TCMPLX
-    end if
+      end if
 #endif
+      y = y + y_tmp
+    end block
   end if
 end subroutine
 
@@ -404,8 +428,9 @@ subroutine SPARSE_TO_DENSE(this, d, i0, j0)
   integer, optional,  intent(in)    :: j0
     !! optional: col offset in second matrix (default 1)
 
-  ! local variables
-  integer          :: i, j, i0_, j0_
+  integer :: i, j, i0_, j0_
+
+  ASSERT(allocated(d%d))
 
   ! optional arguments
   i0_ = 1
@@ -797,7 +822,6 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
   type(SPARSE_TYPE),  intent(out) :: s3
     !! Output sparse third matrix
 
-  ! local variables
   integer              :: i, j, k, num_threads, thread_i, icol0, icol1
   TT                   :: next_val
   integer, allocatable :: ia0(:), ia1(:), ja(:), thread_n(:), thread_i0(:), thread_i1(:)
