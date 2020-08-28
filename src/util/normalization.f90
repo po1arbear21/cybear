@@ -173,19 +173,19 @@ contains
       !! temperature
 
     ! constants
-    real, parameter :: EC     = 1.602176634e-19           ! elementary charge         [ As   ]
+    real, parameter :: EC     = 1.602176634e-19               ! elementary charge         [ As   ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?e
-    real, parameter :: EM     = 9.1093837015e-31          ! electron rest mass        [ kg   ]
+    real, parameter :: EM     = 9.1093837015e-31              ! electron rest mass        [ kg   ]
       !! rel err: 3e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?me
-    real, parameter :: PLANCK = 1.054571817e-34/EC        ! reduced Planck's constant [ eVs  ]
+    real, parameter :: PLANCK = 6.62607015e-34 / (2*PI*EC)    ! reduced Planck's constant [ eVs  ]
       !! exact
-      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?hbar
-    real, parameter :: BOLTZ  = 1.380649e-23/EC           ! Boltzmann's constant      [ eV/K ]
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?h
+    real, parameter :: BOLTZ  = 1.380649e-23/EC               ! Boltzmann's constant      [ eV/K ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?k
-    real, parameter :: EPS0   = 8.8541878128e-12          ! vacuum permittivity       [ F/m  ]
+    real, parameter :: EPS0   = 8.8541878128e-12              ! vacuum permittivity       [ F/m  ]
       !! rel err: 1.5e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?ep0
 
@@ -285,8 +285,10 @@ contains
       call this%unit_const%insert(string("THz"), TERA*hertz )
     end associate
 
-    call this%unit_const%insert(string("m/s" ),        meter  / second )
-    call this%unit_const%insert(string("cm/s"), (CENTI*meter) / second )
+    call this%unit_const%insert(string("m/s"    ),         meter     / second    )
+    call this%unit_const%insert(string("cm/s"   ),  (CENTI*meter)    / second    )
+    call this%unit_const%insert(string("m^2/s^2"),         meter**2  / second**2 )
+    call this%unit_const%insert(string("cm^2/s^2"), (CENTI*meter)**2 / second**2 )
 
     call this%unit_const%insert(string("cm^2/s"), (CENTI*meter)**2 / second )
 
