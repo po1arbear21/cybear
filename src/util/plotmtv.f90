@@ -2,15 +2,18 @@
 
 module plotmtv_m
 
+  use filesystem_m, only: create_parent_dir
   use error_m
 
   implicit none
 
   private
-  public write_plotmtv
-  public plotmtv_opts
+  public plotmtv
+  public plotset_options
+  public curve_options
+  public view3d_options
 
-  type plotset_opts
+  type plotset_options
     ! Plot Titles
     character(:), allocatable :: xlabel, ylabel, zlabel
     character(:), allocatable :: toplabel, subtitle, comment
@@ -40,10 +43,10 @@ module plotmtv_m
     logical, allocatable :: xabs, yabs, zabs
     logical, allocatable :: overlay
   contains
-    procedure :: write => plotset_opts_write
+    procedure :: write => plotset_options_write
   end type
 
-  type curve_opts
+  type curve_options
     ! Line Options
     character(:), allocatable :: linelabel
     integer,      allocatable :: linewidth, linetype, linecolor
@@ -54,10 +57,10 @@ module plotmtv_m
     ! Fill Options
     integer, allocatable :: filltype, fillcolor
   contains
-    procedure :: write => curve_opts_write
+    procedure :: write => curve_options_write
   end type
 
-  type view3d_opts
+  type view3d_options
     ! View Point
     real, allocatable :: eyepos_x, eyepos_y, eyepos_z
     real, allocatable :: viewcenter_x, viewcenter_y, viewcenter_z
@@ -71,16 +74,23 @@ module plotmtv_m
     ! Miscellaneous Options
     logical, allocatable :: leftworld, hiddenline, paintcube, axisguides
   contains
-    procedure :: write => view3d_opts_write
+    procedure :: write => view3d_options_write
   end type
 
-  type plotmtv_opts
-    type(plotset_opts) :: ps
-    type(curve_opts)   :: c
-    type(view3d_opts)  :: v3
+  type plotmtv
+    private
+    logical :: file_open
+      !! is a file opened?
+    integer :: iounit
+      !! file unit
+    logical :: three_dim
+      !! is it a 3d (true) or 2d (false) plot?
 
   contains
-    procedure, private :: write => plotmtv_opts_write
+    procedure :: init         => plotmtv_init
+    procedure :: write_header => plotmtv_write_header
+    procedure :: write_curve  => plotmtv_write_curve
+    procedure :: close        => plotmtv_close
   end type
 
   ! internal routines. can write any option, e.g. '% grid = True' or '% xlabel = "my x"'
@@ -93,85 +103,145 @@ module plotmtv_m
 
 contains
 
-  subroutine write_plotmtv(fname, x, y, z, opts)
-    !! writes data to file.
-    !! options may be specified (otherwise default values from plotmtv are used).
+  subroutine plotmtv_init(this, fname)
+    !! inits plotmtv. creates file handler
 
-    character(*),       intent(in)           :: fname
+    class(plotmtv), intent(out) :: this
+    character(*),   intent(in)  :: fname
       !! file name, e.g. 'output/folder/my_data.asc'
-    real,               intent(in)           :: x(:), y(:)
-      !! data
-    real,               intent(in), optional :: z(:)
-      !! z-data is optional
-    type(plotmtv_opts), intent(in), optional :: opts
-      !! options for plotmtv
 
-    integer :: iounit, ios, i
-
-    ASSERT(size(x) == size(y))
-    if (present(z)) then
-      ASSERT(size(x) == size(z))
-    end if
+    integer :: ios
 
     call create_parent_dir(fname)
 
-    open (newunit=iounit, file=fname, iostat=ios, action='WRITE')
+    open (newunit=this%iounit, file=fname, iostat=ios, action='WRITE')
     if (ios /= 0) call program_error("Error opening file")
+    this%file_open = .true.
+  end subroutine
 
-    write (iounit, '(A)') '$ DATA=CURVE' // merge('3D', '2D', present(z))
-    write (iounit, *)
+  subroutine plotmtv_close(this)
+    !! closes file handler
 
-    if (present(opts)) call opts%write(iounit)
+    class(plotmtv), intent(inout) :: this
+
+    integer :: ios
+
+    if (this%file_open) then
+      close (unit=this%iounit, iostat=ios)
+      if (ios /= 0) call program_error("Error closing file")
+
+      this%file_open = .false.
+
+    else
+      print *, 'Cannot close a file as none is open!'
+    end if
+  end subroutine
+
+  subroutine plotmtv_write_header(this, three_dim, plotset_opts, view3d_opts, gl_curve_opts)
+    class(plotmtv),        intent(inout)          :: this
+    logical,               intent(in),   optional :: three_dim
+      !! is it 3d (true) or 2d (false) plot?
+      !! default: 2d
+    type(plotset_options), intent(in),   optional :: plotset_opts
+      !! plotset options
+    type(view3d_options),  intent(in),   optional :: view3d_opts
+      !! 3D view options
+    type(curve_options),   intent(in),   optional :: gl_curve_opts
+      !! global curve options
+
+    if (.not. this%file_open) call program_error('call init beforehand to open a file!')
+
+    ! 3d plot?
+    this%three_dim = .false.
+    if (present(three_dim)) this%three_dim = three_dim
+
+    ! view3d only if 3d plot
+    if (present(view3d_opts) .and. (.not. this%three_dim)) call program_error('view3d options mustnt be supplied for 3d plot!')
+
+    write (this%iounit, '(A)') '$ DATA=CURVE' // merge('3D', '2D', this%three_dim)
+    write (this%iounit, *)
+
+    if (present(plotset_opts) ) call plotset_opts%write( this%iounit        )
+    if (present(view3d_opts)  ) call view3d_opts%write(  this%iounit        )
+    if (present(gl_curve_opts)) call gl_curve_opts%write(this%iounit, .true.)
+  end subroutine
+
+  subroutine plotmtv_write_curve(this, x, y, z, opts)
+    !! write data for a curve, consisting of 2 or three data points per line.
+
+    class(plotmtv),      intent(in)           :: this
+    real,                intent(in)           :: x(:), y(:)
+    real,                intent(in), optional :: z(:)
+    type(curve_options), intent(in), optional :: opts
+
+    integer :: i
+
+    if (.not. this%file_open) call program_error('call init beforehand to open a file!')
+
+    ! check header/curve dimensions are same
+    if (this%three_dim .neqv. present(z)) call program_error('header specified a 2d/3d plot but curve is of opposite dimension!')
+
+    ! check data have same lengths
+    if (size(x) /= size(y)) call program_error('x, y arrays are of different lengths!')
+    if (present(z)) then
+      if (size(x) /= size(z)) call program_error('x, z arrays are of different lengths!')
+    end if
+
+    if (present(opts)) call opts%write(this%iounit, .false.)
 
     do i = 1, size(x)
-      if (present(z)) then
-        write (iounit, *) x(i), y(i), z(i)
+      if (this%three_dim) then
+        write (this%iounit, *) x(i), y(i), z(i)
       else
-        write (iounit, *) x(i), y(i)
+        write (this%iounit, *) x(i), y(i)
       end if
     end do
 
-    close (unit=iounit, iostat=ios)
-    if (ios /= 0) call program_error("Error closing file")
+    write (this%iounit, *)
   end subroutine
 
-  subroutine plotmtv_opts_write(this, iounit)
-    !! write options to file.
-
-    class(plotmtv_opts), intent(in) :: this
-    integer,             intent(in) :: iounit
-      !! file io unit
-
-    call this%ps%write(iounit)
-    call this%c%write( iounit)
-    call this%v3%write(iounit)
-  end subroutine
-
-  subroutine curve_opts_write(this, iounit)
+  subroutine curve_options_write(this, iounit, global)
     !! write curve options to file.
 
-    class(curve_opts), intent(in) :: this
-    integer,           intent(in) :: iounit
+    class(curve_options), intent(in) :: this
+    integer,              intent(in) :: iounit
       !! file io unit
+    logical,              intent(in) :: global
+      !! is this a global curve option?
 
-    call write_line(iounit, "linelabel", this%linelabel)
-    call write_line(iounit, "linewidth", this%linewidth)
-    call write_line(iounit, "linetype",  this%linetype )
-    call write_line(iounit, "linecolor", this%linecolor)
+    character(:), allocatable :: gl_cstr
 
-    call write_line(iounit, "markertype",  this%markertype )
-    call write_line(iounit, "markercolor", this%markercolor)
-    call write_line(iounit, "markersize",  this%markersize )
+    ! preprend a 'd' for global options
+    allocate (character(0) :: gl_cstr)      ! remove gfortran warning
+    gl_cstr = ''
+    if (global) gl_cstr = 'd'
 
-    call write_line(iounit, "filltype",  this%filltype )
-    call write_line(iounit, "fillcolor", this%fillcolor)
+    ! linelabel only for non-global curve options
+    if (global) then
+      call write_line(iounit, gl_cstr//"linelabel", this%linelabel)
+    else
+      if (allocated(this%linelabel)) call program_error('global curve options mustnt have a linelabel!')
+    end if
+
+    call write_line(iounit, gl_cstr//"linewidth", this%linewidth)
+    call write_line(iounit, gl_cstr//"linetype",  this%linetype )
+    call write_line(iounit, gl_cstr//"linecolor", this%linecolor)
+
+    call write_line(iounit, gl_cstr//"markertype",  this%markertype )
+    call write_line(iounit, gl_cstr//"markercolor", this%markercolor)
+    call write_line(iounit, gl_cstr//"markersize",  this%markersize )
+
+    call write_line(iounit, gl_cstr//"filltype",  this%filltype )
+    call write_line(iounit, gl_cstr//"fillcolor", this%fillcolor)
+
+    if (global) write (iounit, *)
   end subroutine
 
-  subroutine view3d_opts_write(this, iounit)
+  subroutine view3d_options_write(this, iounit)
     !! write view3d options to file.
 
-    class(view3d_opts), intent(in) :: this
-    integer,            intent(in) :: iounit
+    class(view3d_options), intent(in) :: this
+    integer,               intent(in) :: iounit
       !! file io unit
 
     call write_line(iounit, "eyepos.x",     this%eyepos_x    )
@@ -196,13 +266,15 @@ contains
     call write_line(iounit, "hiddenline", this%hiddenline)
     call write_line(iounit, "paintcube",  this%paintcube )
     call write_line(iounit, "axisguides", this%axisguides)
+
+    write (iounit, *)
   end subroutine
 
-  subroutine plotset_opts_write(this, iounit)
+  subroutine plotset_options_write(this, iounit)
     !! write plotset options to file.
 
-    class(plotset_opts), intent(in) :: this
-    integer,             intent(in) :: iounit
+    class(plotset_options), intent(in) :: this
+    integer,                intent(in) :: iounit
       !! file io unit
 
     call write_line(iounit, "xlabel",          this%xlabel         )
@@ -257,6 +329,8 @@ contains
     call write_line(iounit, "yabs",    this%yabs   )
     call write_line(iounit, "zabs",    this%zabs   )
     call write_line(iounit, "overlay", this%overlay)
+
+    write (iounit, *)
   end subroutine
 
   subroutine write_line_char(iounit, name, value)
@@ -289,18 +363,6 @@ contains
     real,         intent(in), allocatable :: value
 
     if (allocated(value)) write (iounit, '(A, E15.5)') '% ' // name // ' = ', value
-  end subroutine
-
-  subroutine create_parent_dir(fname)
-    !! makes sure that the parent directory exists
-
-    character(*), intent(in) :: fname
-      !! file name, e.g. 'output/folder/my_data.asc'
-
-    integer :: i
-
-    i = scan(fname, '/', back=.true.)
-    if (i /= 0) call execute_command_line("mkdir -p " // fname(:i))
   end subroutine
 
 end module
