@@ -11,7 +11,6 @@ contains
 
   subroutine test_plotmtv()
     type(test_case) :: tc
-    type(plotmtv)   :: pmtv
 
     print "(A)", "test_plotmtv"
     call tc%init("plotmtv")
@@ -26,10 +25,7 @@ contains
       x     = [-1,   0,   2,  4]
       y     = [-5, -10, -15, 20]
 
-      call pmtv%init(fname)
-      call pmtv%write_header
-      call pmtv%write_curve(x, y)
-      call pmtv%close
+      call plotmtv_write(fname, x, y)
 
       ! compare data
       block
@@ -60,10 +56,7 @@ contains
       opts%ylabel   = "my y data"
       opts%grid     = .true.
 
-      call pmtv%init(fname)
-      call pmtv%write_header(plotset_opts=opts)
-      call pmtv%write_curve(x, y)
-      call pmtv%close
+      call plotmtv_write(fname, x, y, plotset_opts=opts)
 
       ! compare data
       block
@@ -106,10 +99,7 @@ contains
       c_opts%markersize = 3
       c_opts%filltype   = 6
 
-      call pmtv%init(fname)
-      call pmtv%write_header(plotset_opts=ps_opts)
-      call pmtv%write_curve(x, y, opts=c_opts)
-      call pmtv%close
+      call plotmtv_write(fname, x, y, plotset_opts=ps_opts, curve_opts=c_opts)
 
       ! compare data
       block
@@ -143,6 +133,7 @@ contains
       character(:), allocatable :: fname
       real,         allocatable :: x(:), y(:), z(:)
       real,         allocatable :: xyz_tot(:,:,:)
+      type(plotmtv)             :: pmtv
       type(plotset_options)     :: ps_opts
       type(curve_options)       :: c_opts, gl_c_opts, c_opts_tot(4)
       type(view3d_options)      :: v3_opts

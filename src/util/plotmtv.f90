@@ -8,6 +8,7 @@ module plotmtv_m
   implicit none
 
   private
+  public plotmtv_write
   public plotmtv
   public plotset_options
   public curve_options
@@ -102,6 +103,27 @@ module plotmtv_m
   end interface
 
 contains
+
+  subroutine plotmtv_write(fname, x, y, plotset_opts, curve_opts)
+    !! simple 2d write routine.
+    !! wrapper around more involved plotmtv type.
+
+    character(*),          intent(in)           :: fname
+      !! file name, e.g. 'output/folder/my_data.asc'
+    real,                  intent(in)           :: x(:), y(:)
+      !! data arrays (of same length!)
+    type(plotset_options), intent(in), optional :: plotset_opts
+      !! plotset options
+    type(curve_options),   intent(in), optional :: curve_opts
+      !! curve options
+
+    type(plotmtv) :: p
+
+    call p%init(fname)
+    call p%write_header(plotset_opts=plotset_opts)
+    call p%write_curve(x, y, opts=curve_opts)
+    call p%close
+  end subroutine
 
   subroutine plotmtv_init(this, fname)
     !! inits plotmtv. creates file handler
