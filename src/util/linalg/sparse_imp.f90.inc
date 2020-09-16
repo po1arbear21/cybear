@@ -1189,10 +1189,11 @@ subroutine SPBUILD_RESET_ROW(this, row)
     ! reset data while keeping structure
     this%vals(  row)%d(1:this%vals(  row)%n) = 0
     this%filled(row)%d(1:this%filled(row)%n) = .false.
+
   else
     ! reset data without keeping structure
-    call this%cols(row)%resize(0)
-    call this%vals(row)%resize(0)
+    call this%cols(  row)%resize(0)
+    call this%vals(  row)%resize(0)
     call this%filled(row)%resize(0)
     this%sorted(row)      = .true.
     this%keep_struct(row) = .true.
@@ -1318,6 +1319,16 @@ subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   ASSERT(j0_ <= this%sp%ncols)
   ASSERT(j1_ > 0)
   ASSERT(j1_ <= this%sp%ncols)
+
+  ! setting whole row -> reset previous data of that row.
+  ! thus, making sure row is sorted.
+  if ((1 == j0_) .and. (this%sp%ncols == j1_)) then
+    call this%cols(  row)%reset
+    call this%vals(  row)%reset
+    call this%filled(row)%reset
+    this%sorted(row)      = .true.
+    this%keep_struct(row) = .true.
+  end if
 
   ! insert values
   do j = j0_, j1_

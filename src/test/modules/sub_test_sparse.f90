@@ -32,7 +32,7 @@ contains
       call tc%assert_eq(ja_exp, sA%ja,       "sparse_builder to sparse: ja")
     end block
 
-    ! sparse builder: reset row + set
+    ! sparse builder: set -> reset row
     block
       type(spbuild_real)   :: sb
       type(sparse_real)    :: sp
@@ -95,6 +95,80 @@ contains
       call tc%assert_eq(a_exp,  sp%a, 1e-12, "sparse_builder%set to sparse: a")
       call tc%assert_eq(ia_exp, sp%ia,       "sparse_builder%set to sparse: ia")
       call tc%assert_eq(ja_exp, sp%ja,       "sparse_builder%set to sparse: ja")
+    end block
+
+    ! sparse builder: set -> reset row -> set_row
+    block
+      integer              :: row, j0, j1
+      real, allocatable    :: vals(:)
+      type(dense_real)     :: d_exp, d
+      type(sparse_real)    :: sp
+      type(spbuild_real)   :: sb
+
+      ! A =
+      !  1     2     0     0
+      !  0     4     0     0
+      !  0     0     1     0
+      !  0     1     0     5
+      !
+      ! a  = [1 2 4 1 1 5]
+      ! ia = [1 3 4 5 7]
+      ! ja = [1 2 2 3 2 4]
+
+      call sp%init(4)
+      call sb%init(sp)
+      call d_exp%init(4)
+      call d%init(4)
+
+      call sb%add(1, 1, 1.0)
+      call sb%add(1, 2, 2.0)
+      call sb%add(2, 2, 4.0)
+      call sb%add(3, 3, 1.0)
+      call sb%add(4, 2, 1.0)
+      call sb%add(4, 4, 5.0)
+
+      call sb%save
+      call sp%to_dense(d_exp)
+
+      !
+      ! test 1: reset row 1 -> set_row(1)
+      !
+      ! A =
+      !  6     0     7     8
+      !  0     4     0     0
+      !  0     0     1     0
+      !  0     1     0     5
+      row  = 1
+      vals = [6, 0, 7, 8]
+      ! sb%keep_struct(row) = .false.
+      call sb%reset_row(row)
+      call sb%set_row(row, vals)
+      call sb%save
+      call sp%to_dense(d)
+      d_exp%d(row,:) = vals
+
+      call tc%assert_eq(d_exp%d,  d%d, 1e-12, "sparse_builder: set -> reset_row -> set_row: 1: full row")
+
+      !
+      ! test 2: reset row 3 -> set_row using column arguments
+      !
+      ! A =
+      !  6     0     7     8
+      !  0     4     0     0
+      !  0     9    10     0
+      !  0     1     0     5
+      row  = 3
+      j0   = 2
+      j1   = 3
+      vals = [9, 10]
+      sb%keep_struct(row) = .false.     ! needed if resetting only slice of row and there was data before
+      call sb%reset_row(row)
+      call sb%set_row(row, vals, j0=j0, j1=j1)
+      call sb%save
+      call sp%to_dense(d)
+      d_exp%d(row,j0:j1) = vals
+
+      call tc%assert_eq(d_exp%d,  d%d, 1e-12, "sparse_builder: set -> reset_row -> set_row: 2: slice of row")
     end block
 
     ! mul_vec
