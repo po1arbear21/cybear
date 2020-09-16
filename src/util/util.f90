@@ -79,11 +79,35 @@ contains
     str = trim(adjustl(tmp))
 
     if (present(min_len)) then
-      if (i < 0) str = str(2:)       ! stripping neg sign
+      ! stripping neg sign
+      ! if (i < 0) str = str(2:)    ! yields gfortran warning ...
+      ! workaround
+      block
+        character(:), allocatable :: str_tmp
+
+        allocate (character(0) :: str_tmp)
+        if (i < 0) then
+          str_tmp = str(2:)
+          str     = str_tmp
+        end if
+      end block
+
       do while (len(str) < merge(min_len, min_len-1, i >= 0))
         str = '0' // str
       end do
-      if (i < 0) str = '-' // str
+
+      ! prepend neg sign
+      ! if (i < 0) str = '-' // str   ! yields gfortran warning ...
+      ! workaround
+      block
+        character(:), allocatable :: str_tmp
+
+        allocate (character(0) :: str_tmp)
+        if (i < 0) then
+          str_tmp = '-' // str
+          str     = str_tmp
+        end if
+      end block
     end if
   end function
 
