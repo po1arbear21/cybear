@@ -266,7 +266,7 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   else
     ! fixme y_tmp is unnecessary! use directly y whereever there is y_tmp now. (in reduction and assignments). yields catastrophic compiler error for ifort ...
     block
-      real, allocatable :: y_tmp(:,:)
+      TT, allocatable :: y_tmp(:,:)
 
       allocate (y_tmp(size(y, dim=1), size(y, dim=2)))
       y_tmp = 0
