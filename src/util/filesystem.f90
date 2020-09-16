@@ -22,6 +22,7 @@ contains
     character(:), allocatable :: tmp_fname
 
     ! create temp file and save its file name in tmp_fname
+    allocate (character(0) :: tmp_fname)      ! remove gfortran warning
     tmp_fname = "/tmp/tmp142789.fname"
 
     call execute_command_line("mktemp > " // tmp_fname, cmdstat=istat)
