@@ -384,8 +384,7 @@ contains
       call sA%destruct
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: default solver")
 
-      ! test 2: specifying pardiso solver
-      x = 0
+      ! test 2: using pardiso solver
       call get_test_matrix(sA)
       sA%solver=SOLVER_PARDISO
       call sA%factorize
@@ -393,14 +392,36 @@ contains
       call sA%destruct
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: pardiso solver")
 
-      ! test 3: specifying ilupack solver
-      x = 0
+      ! test 3: using ilupack solver
       call get_test_matrix(sA)
       sA%solver=SOLVER_ILUPACK
       call sA%factorize
       call sA%solve_vec(b, x)
       call sA%destruct
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
+
+      ! test 4: using ilupack solver, changing ilupack parameters
+      block
+        use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
+
+        type(ilupack_handle), pointer :: ilu
+
+        call get_test_matrix(sA)
+        sA%solver=SOLVER_ILUPACK
+        call sA%init_solver
+
+        call get_ilupack_handle_ptr(sA%solver_handle, ilu)
+        ilu%elbow    = 10
+        ilu%droptol  = 3e-2
+        ilu%droptolS = ilu%droptol / 10
+        ilu%matching = 0
+        ilu%restol   = 1e-14
+
+        call sA%factorize
+        call sA%solve_vec(b, x)
+        call sA%destruct
+        call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
+      end block
     end block
 
     ! solve_mat

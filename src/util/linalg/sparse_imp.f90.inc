@@ -16,6 +16,7 @@
 #define BLOCK_TYPE           CONCAT(block,T)
 
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
+#define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
 #define SPARSE_DESTRUCT      CONCAT3(sparse,T,destruct)
 #define SPARSE_RESET         CONCAT3(sparse,T,reset)
 #define SPARSE_SCALE         CONCAT3(sparse,T,scale)
@@ -296,38 +297,47 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine SPARSE_FACTORIZE(this)
-  !! Factorize Matrix using PARDISO or ILUPACK.
+subroutine SPARSE_INIT_SOLVER(this)
+  !! creates solver handle
+  !!
+  !! this routine exists s.t. one can init ilupack, then get its handler and change parameters.
 
   class(SPARSE_TYPE), intent(inout) :: this
-    !! Sparse matrix
 
   ! make sure matrix is unfactorized
   ASSERT(this%solver_handle == 0)
 
   select case (this%solver)
     case (SOLVER_PARDISO)
-      ! init pardiso
 #ifdef TCMPLX
-      this%solver_handle = create_pardiso_handle(this%nrows, .true.)
+      this%solver_handle = create_pardiso_handle(this%nrows, .true. )
 #else
       this%solver_handle = create_pardiso_handle(this%nrows, .false.)
 #endif
 
-      ! factorize with pardiso
+#ifdef USE_ILUPACK
+    case (SOLVER_ILUPACK)
+      this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
+#endif
+  end select
+end subroutine
+
+subroutine SPARSE_FACTORIZE(this)
+  !! Factorize Matrix using PARDISO or ILUPACK.
+
+  class(SPARSE_TYPE), intent(inout) :: this
+    !! Sparse matrix
+
+  if (this%solver_handle == 0) call this%init_solver
+
+  select case (this%solver)
+    case (SOLVER_PARDISO)
       call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
 
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
-      ! init ilupack
-      this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
-
-      ! factorize with ilupack
       call ilupack_factorize(this%solver_handle)
 #endif
-
-    case default
-      call program_error('solver set incorrectly.')
   end select
 end subroutine
 
@@ -1492,6 +1502,7 @@ end subroutine
 #undef BLOCK_TYPE
 
 #undef SPARSE_INIT
+#undef SPARSE_INIT_SOLVER
 #undef SPARSE_DESTRUCT
 #undef SPARSE_RESET
 #undef SPARSE_SCALE

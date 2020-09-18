@@ -55,6 +55,7 @@
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
+#define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
 #define SPARSE_DESTRUCT      CONCAT3(sparse,T,destruct)
 #define SPARSE_RESET         CONCAT3(sparse,T,reset)
 #define SPARSE_SCALE         CONCAT3(sparse,T,scale)
@@ -268,6 +269,7 @@ type, extends(MATRIX_TYPE) :: SPARSE_TYPE
 contains
   procedure :: SPARSE_INIT
   generic   :: init         => SPARSE_INIT
+  procedure :: init_solver  => SPARSE_INIT_SOLVER
   procedure :: destruct     => SPARSE_DESTRUCT
   procedure :: reset        => SPARSE_RESET
   procedure :: scale        => SPARSE_SCALE
@@ -632,6 +634,7 @@ end interface
 
 #undef SPARSE_TYPE
 #undef SPARSE_INIT
+#undef SPARSE_INIT_SOLVER
 #undef SPARSE_DESTRUCT
 #undef SPARSE_RESET
 #undef SPARSE_SCALE
