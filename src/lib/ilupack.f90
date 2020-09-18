@@ -2,20 +2,23 @@
 #include "../util/macro.f90.inc"
 
 module ilupack_m
+
   use error_m
   use util_m
+
   implicit none
 
   private
-  public :: ilupack_handle
-  public :: create_ilupack_handle
-  public :: destruct_ilupack_handle
-  public :: ilupack_factorize
-  public :: ilupack_solve
-  public :: get_ilupack_handle_ptr
+  public ilupack_handle
+  public create_ilupack_handle
+  public destruct_ilupack_handle
+  public ilupack_factorize
+  public ilupack_solve
+  public get_ilupack_handle_ptr
 
   type ilupack_handle
     ! ilupack options (can be set manually)
+
     character(20) :: ordering
       !! string indicating which reordering to apply
       !! multilevel orderings
@@ -137,18 +140,19 @@ contains
 
   function create_ilupack_handle_rc() result(h)
     !! get free ilupack integer handle
+
     integer :: h
 
-    if (.not. allocated(ilupack_handles%d)) then
-      call ilupack_handles%init(0, c = 4)
-    end if
+    if (.not. allocated(ilupack_handles%d)) call ilupack_handles%init(0, c = 4)
 
     if (free_ilupack_handles%n > 0) then
       h = free_ilupack_handles%d(free_ilupack_handles%n)
       call free_ilupack_handles%resize(free_ilupack_handles%n-1)
+
     else
       block
         type(ilupack_handle) :: p
+
         call ilupack_handles%push(p)
       end block
       h = ilupack_handles%n
@@ -157,6 +161,7 @@ contains
 
   function create_ilupack_handle_r(ia, ja, a) result(h)
     !! create real ilupack handle
+
     integer, intent(in) :: ia(:)
     integer, intent(in) :: ja(:)
     real,    intent(in) :: a(:)
@@ -187,6 +192,7 @@ contains
 
   function create_ilupack_handle_c(ia, ja, a) result(h)
     !! create complex ilupack handle
+
     integer, intent(in) :: ia(:)
     integer, intent(in) :: ja(:)
     complex, intent(in) :: a(:)
@@ -233,9 +239,7 @@ contains
       if (allocated(p%ac )) deallocate (p%ac)
     end associate
 
-    if (.not. allocated(free_ilupack_handles%d)) then
-      call free_ilupack_handles%init(0, c = 4)
-    end if
+    if (.not. allocated(free_ilupack_handles%d)) call free_ilupack_handles%init(0, c = 4)
     call free_ilupack_handles%push(h)
     h = 0
   end subroutine
@@ -253,6 +257,7 @@ contains
           &                  p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
           &                  p%maxit,          p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
           &                  p%mixedprecision, p%ind                                         )
+
       else
         ierr = dgnlamgfactor(p%param,          p%prec,                                       &
           &                  p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
@@ -271,6 +276,7 @@ contains
 
   subroutine ilupack_solve_r(h, b, x)
     !! Solve real system with ILUPACK.
+
     integer, intent(in)  :: h
       !! ilupack handle (index)
     real,    intent(in)  :: b(:)
@@ -291,6 +297,9 @@ contains
         i0 = i1 + 1
         i1 = i1 + p%n
 
+        ! initial guess
+        call dgnlamgsol(p%param, p%prec, b(i0:i1), x(i0:i1), p%n)
+
         p%it = p%maxit
         ierr = dgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
           &                  p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
@@ -309,6 +318,7 @@ contains
 
   subroutine ilupack_solve_c(h, b, x)
     !! Solve complex system with ILUPACK.
+
     integer, intent(in)  :: h
       !! ilupack handle (index)
     complex, intent(in)  :: b(:)
@@ -329,6 +339,9 @@ contains
         i0 = i1 + 1
         i1 = i1 + p%n
 
+        ! initial guess
+        call zgnlamgsol(p%param, p%prec, b(i0:i1), x(i0:i1), p%n)
+
         p%it = p%maxit
         ierr = zgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
           &                  p%n,              p%ia,      p%ja,       p%ac,      p%matching, &
@@ -347,6 +360,7 @@ contains
 
   subroutine get_ilupack_handle_ptr(h, ilu)
     !! get pointer to ilupack object handle (change options, print info etc.)
+
     integer,                       intent(in)  :: h
       !! integer ilupack handle
     type(ilupack_handle), pointer, intent(out) :: ilu
@@ -357,6 +371,7 @@ contains
 
   subroutine ilupack_print_opts(this)
     !! Print ilupack options.
+
     class(ilupack_handle), intent(in) :: this
 
     print '(A)',         'ordering:      "' // this%ordering // '"'
@@ -375,6 +390,7 @@ contains
 
   subroutine ilupack_info(this)
     !! Print ILUPACK information.
+
     class(ilupack_handle), intent(in) :: this
 
     if (this%cmplx) then
@@ -386,6 +402,7 @@ contains
 
   function ilupack_nnz(this) result(nnz)
     !! Number of non-zero entries.
+
     class(ilupack_handle), intent(in) :: this
     integer                           :: nnz
 

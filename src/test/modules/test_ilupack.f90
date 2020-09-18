@@ -64,7 +64,6 @@ contains
       call tc%assert_eq(8, ilu_h%nnz(), "real nnz")
 
       do i_rhs = 1, n_rhs
-        x = x_exp(1,i_rhs)
         call ilupack_solve(ilu, b(:,i_rhs), x)
         call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "real solving")
       end do
@@ -114,7 +113,6 @@ contains
       call ilupack_factorize(ilu)
 
       do i_rhs = 1, n_rhs
-        x = 0
         call ilupack_solve(ilu, b(:,i_rhs), x)
         call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "complex solving")
       end do
