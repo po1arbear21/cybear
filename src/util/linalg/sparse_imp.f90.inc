@@ -55,7 +55,7 @@
 #define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
 #define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
-subroutine SPARSE_INIT(this, nrows, ncols, solver)
+subroutine SPARSE_INIT(this, nrows, ncols)
   !! Initialize sparse matrix.
 
   class(SPARSE_TYPE), intent(out) :: this
@@ -64,14 +64,10 @@ subroutine SPARSE_INIT(this, nrows, ncols, solver)
     !! Number of rows
   integer, optional,  intent(in)  :: ncols
     !! Optional: Number of columns (default: ncols = nrows)
-  integer, optional,  intent(in)  :: solver
-    !! Optional: SOLVER_PARDISO or SOLVER_ILUPACK (default: solver = default_solver)
 
   ! init base
   call this%init("", nrows, ncols = ncols)
-
   this%solver = default_solver
-  if (present(solver)) this%solver = solver
 end subroutine
 
 subroutine SPARSE_DESTRUCT(this)
@@ -320,6 +316,7 @@ subroutine SPARSE_FACTORIZE(this)
 
       ! factorize with pardiso
       call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
+
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       ! init ilupack
@@ -328,6 +325,9 @@ subroutine SPARSE_FACTORIZE(this)
       ! factorize with ilupack
       call ilupack_factorize(this%solver_handle)
 #endif
+
+    case default
+      call program_error('solver set incorrectly.')
   end select
 end subroutine
 

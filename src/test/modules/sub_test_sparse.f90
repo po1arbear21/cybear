@@ -370,19 +370,37 @@ contains
 
     ! solve_vec
     block
-      real, allocatable :: b(:), x(:), x_exp(:)
-      type(sparse_real) :: sA
+      real, allocatable  :: b(:), x(:), x_exp(:)
+      type(sparse_real)  :: sA
 
       b     = [1, 3, 0, -2]
       x_exp = [-0.5, 0.75, 0.0, -0.55]
-      allocate(x(4))
+      allocate (x(4))
 
+      ! test 1: using default solver
       call get_test_matrix(sA)
       call sA%factorize
       call sA%solve_vec(b, x)
       call sA%destruct
+      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: default solver")
 
-      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec")
+      ! test 2: specifying pardiso solver
+      x = 0
+      call get_test_matrix(sA)
+      sA%solver=SOLVER_PARDISO
+      call sA%factorize
+      call sA%solve_vec(b, x)
+      call sA%destruct
+      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: pardiso solver")
+
+      ! test 3: specifying ilupack solver
+      x = 0
+      call get_test_matrix(sA)
+      sA%solver=SOLVER_ILUPACK
+      call sA%factorize
+      call sA%solve_vec(b, x)
+      call sA%destruct
+      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
     end block
 
     ! solve_mat
