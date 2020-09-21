@@ -64,6 +64,7 @@
 #define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
 #define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
 #define SPARSE_SOLVE_MAT     CONCAT3(sparse,T,solve_mat)
+#define SPARSE_TO_BAND       CONCAT3(sparse,T,to_band)
 #define SPARSE_TO_DENSE      CONCAT3(sparse,T,to_dense)
 #define SPARSE_TO_SPARSE     CONCAT3(sparse,T,to_sparse)
 #ifdef TCMPLX
@@ -278,6 +279,7 @@ contains
   procedure :: factorize    => SPARSE_FACTORIZE
   procedure :: solve_vec    => SPARSE_SOLVE_VEC
   procedure :: solve_mat    => SPARSE_SOLVE_MAT
+  procedure :: to_band      => SPARSE_TO_BAND
   procedure :: to_dense     => SPARSE_TO_DENSE
   procedure :: to_sparse    => SPARSE_TO_SPARSE
 #ifdef TCMPLX
@@ -643,6 +645,7 @@ end interface
 #undef SPARSE_FACTORIZE
 #undef SPARSE_SOLVE_VEC
 #undef SPARSE_SOLVE_MAT
+#undef SPARSE_TO_BAND
 #undef SPARSE_TO_DENSE
 #undef SPARSE_TO_SPARSE
 #undef SPARSE_TO_REAL

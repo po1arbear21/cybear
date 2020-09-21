@@ -647,6 +647,69 @@ contains
       call tc%assert_eq(6, s%nnz(), "nnz")
     end block
 
+    ! to_band
+    block
+      type(band_real)   :: b
+      type(sparse_real) :: s
+
+      !
+      ! test 1: set band equal sparse, not insertion as block anywhere
+      !
+      call get_test_matrix(s)
+      call b%init(4, 2, nupper=1)
+      call s%to_band(b)
+
+      ! just for testing purposes
+      block
+        real, allocatable :: d_exp(:,:)
+
+        allocate (d_exp(4,4))
+        d_exp(1,:) = [0, 2, 0, 0]
+        d_exp(2,:) = [1, 4, 1, 5]
+        d_exp(3,:) = 0
+        d_exp(4,:) = [0, 1, 0, 0]
+
+        call tc%assert_eq(d_exp, b%d, 1e-12, "to_band: no insertion arguments")
+      end block
+
+      !
+      ! test 2: insert sparse into band
+      !
+      call get_test_matrix(s)
+      call b%init(7, 3, nupper=0)
+      b%d = -1                          ! just for testing purposes: to see which data will get overwritten
+      call s%to_band(b, i0=3, j0=2)
+
+      ! just for testing purposes
+      block
+        integer :: i, j
+        type(dense_real)  :: d
+        real, allocatable :: d_exp(:,:)
+
+        allocate (d_exp(7,7), source=0.0)
+
+        ! set default value "-1" for bands
+        do i = 1, 7
+          do j = 1, 7
+            if (j > i) exit
+            if (j < i-3) cycle
+            d_exp(i,j) = -1
+          end do
+        end do
+
+        ! insert values from test matrix
+        d_exp(3  ,2:3) = [1, 2]
+        d_exp(4  ,3  ) =     4
+        d_exp(5  ,4  ) =        1
+        d_exp(6  ,3  ) =     1
+        d_exp(6  ,5  ) =          5
+
+        call d%init(7)
+        call b%to_dense(d)
+        call tc%assert_eq(d_exp, d%d, 1e-12, "to_band: insert sparse into band")
+      end block
+    end block
+
     call tc%finish
   end subroutine
 

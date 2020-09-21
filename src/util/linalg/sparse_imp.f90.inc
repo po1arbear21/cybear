@@ -25,6 +25,7 @@
 #define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
 #define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
 #define SPARSE_SOLVE_MAT     CONCAT3(sparse,T,solve_mat)
+#define SPARSE_TO_BAND       CONCAT3(sparse,T,to_band)
 #define SPARSE_TO_DENSE      CONCAT3(sparse,T,to_dense)
 #define SPARSE_TO_SPARSE     CONCAT3(sparse,T,to_sparse)
 #ifdef TCMPLX
@@ -424,6 +425,36 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 #endif
   end select
   x = reshape(x_, [size(x,1), size(x,2)])
+end subroutine
+
+subroutine SPARSE_TO_BAND(this, b, i0, j0)
+  !! Insert sparse matrix into a band matrix.
+
+  class(SPARSE_TYPE), intent(in)    :: this
+    !! Sparse matrix (unchanged)
+  type(BAND_TYPE),    intent(inout) :: b
+    !! Band matrix (updated)
+  integer, optional,  intent(in)    :: i0
+    !! optional: row offset in second matrix (default 1)
+  integer, optional,  intent(in)    :: j0
+    !! optional: col offset in second matrix (default 1)
+
+  integer :: i, j, i0_, j0_
+
+  ASSERT(allocated(b%d))
+
+  ! optional arguments
+  i0_ = 1
+  if (present(i0)) i0_ = i0
+  j0_ = 1
+  if (present(j0)) j0_ = j0
+
+  ! insert values into band matrix
+  do i = 1, this%nrows
+    do j = this%ia(i), this%ia(i+1)-1
+      call b%set_elem(i0_+i-1, j0_+this%ja(j)-1, this%a(j))
+    end do
+  end do
 end subroutine
 
 subroutine SPARSE_TO_DENSE(this, d, i0, j0)
@@ -1511,6 +1542,7 @@ end subroutine
 #undef SPARSE_FACTORIZE
 #undef SPARSE_SOLVE_VEC
 #undef SPARSE_SOLVE_MAT
+#undef SPARSE_TO_BAND
 #undef SPARSE_TO_DENSE
 #undef SPARSE_TO_SPARSE
 #undef SPARSE_TO_REAL
