@@ -689,7 +689,8 @@ contains
         print "(A)", section_name
         call program_error("section name not found")
       end if
-    elseif (st > 0) then
+
+    else if (st > 0) then
       if (.not. present(status)) then
         print "(A)", section_name
         call program_error("multiple sections with this name found")
@@ -699,22 +700,20 @@ contains
 
   subroutine input_file_get_sections(this, section_name, section_ids)
     !! get all section indices with this name
+
     class(input_file),    intent(in)  :: this
     character(*),         intent(in)  :: section_name
       !! name of section to search
     integer, allocatable, intent(out) :: section_ids(:)
       !! output indices
 
-    ! local variables
     integer          :: i
     type(vector_int) :: sv
 
     ! collect sections with this name
     call sv%init(0, c = this%sections%n)
     do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        call sv%push(i)
-      end if
+      if (this%sections%d(i)%name == section_name) call sv%push(i)
     end do
 
     ! output section ids

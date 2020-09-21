@@ -46,13 +46,15 @@ contains
       allocate(val_arr(n),   val_arr_exp(n),   nval_arr(n))
       allocate(val_mat(n,n), val_mat_exp(n,n), nval_mat(n,n))
 
+      allocate (character(0) :: unit)      ! remove gfortran warning
+
       do i_unit = 1, 3
-        select case(i_unit)
-          case(1)
+        select case (i_unit)
+          case (1)
             unit = unit_A_cm
-          case(2)
+          case (2)
             unit = unit_cm
-          case(3)
+          case (3)
             unit = unit_eV
         end select
 
@@ -82,9 +84,9 @@ contains
       end do
     end block
 
-    call destruct_normconst()
+    call destruct_normconst
 
-    call tc%finish()
+    call tc%finish
   end subroutine
 
 end module
