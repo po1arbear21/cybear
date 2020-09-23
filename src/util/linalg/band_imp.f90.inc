@@ -62,7 +62,7 @@ subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   nupper_ = nlower
   if (present(nupper)) nupper_ = nupper
   ASSERT(nupper_ >= 0)
-  ASSERT(nlower+nupper_+1 <= nrows)
+  ASSERT(nlower+nupper_+1 <= 2*nrows-1)
 
   ! init base
   call this%init("", nrows, ncols=nrows)
