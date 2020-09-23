@@ -1,5 +1,6 @@
 program test
 
+  use test_matop_m
 #ifdef USE_ILUPACK
   use test_ilupack_m
 #endif
@@ -26,6 +27,7 @@ program test
 
   implicit none
 
+  call test_matop
 #ifdef USE_ILUPACK
   call test_ilupack
 #endif
