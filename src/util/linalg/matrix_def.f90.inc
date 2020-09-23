@@ -118,6 +118,8 @@
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
+#define BAND_SET_DIAG_ARR    CONCAT3(band,T,set_diag_arr)
+#define BAND_SET_DIAG_VAL    CONCAT3(band,T,set_diag_val)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
@@ -345,6 +347,7 @@ type, extends(MATRIX_TYPE) :: BAND_TYPE
   !!          |       a_12  a_23  a_34 |    ! <- row -1
   !!  A_bs =  | a_11  a_22  a_33  a_44 |    ! <- row 0
   !!          \ a_21  a_32  a_43       /    ! <- row 1
+  !!  fixme numbering should be reversed b.c. matlab uses row>0 for upper diagonals. has effect on set_diag routines.
   !!
   !! LAPACK's band storage
   !!
@@ -385,12 +388,13 @@ contains
 #else
   procedure :: to_cmplx  => BAND_TO_CMPLX
 #endif
-  procedure :: BAND_ADD_BAND
-  procedure :: BAND_ADD_BAND3
+  procedure :: BAND_ADD_BAND, BAND_ADD_BAND3
   generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
   procedure :: add_elem  => BAND_ADD_ELEM
   procedure :: get_elem  => BAND_GET_ELEM
   procedure :: set_elem  => BAND_SET_ELEM
+  procedure :: BAND_SET_DIAG_VAL, BAND_SET_DIAG_ARR
+  generic   :: set_diag  => BAND_SET_DIAG_VAL, BAND_SET_DIAG_ARR
   procedure :: output    => BAND_OUTPUT
 end type
 
@@ -693,6 +697,8 @@ end interface
 #undef BAND_ADD_ELEM
 #undef BAND_GET_ELEM
 #undef BAND_SET_ELEM
+#undef BAND_SET_DIAG_ARR
+#undef BAND_SET_DIAG_VAL
 #undef BAND_OUTPUT
 
 #undef HESSENBERG_TYPE

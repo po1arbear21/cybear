@@ -32,7 +32,8 @@ contains
       !   0   11    7    3    0
       !   0    0   12    8    4
       !   0    0    0   13    9
-      d0 = reshape([(i, i=0,14)], [3,5], order=[2,1])
+      d0      = reshape([(i, i=0,14)], [3,5], order=[2,1])
+      d0(3,5) = 0
       call tri%init(5, 1, d0=d0)
       call tri%factorize
 
@@ -380,6 +381,37 @@ contains
           end do
         end do
       end do
+    end block
+
+    ! set diag
+    block
+      integer :: i
+      type(band_real) :: b, b_exp
+
+      ! test 1: build diagonal diag
+      call b%init(5, 0)
+      call b%set_diag(real([1, -2, 3, -4, 5]))
+      call tc%assert_eq(diag%d, b%d, 1e-12, "set_diag_arr: build diag")
+
+      ! test 2: build tridiagonal tri
+      call b%init(5, 1)
+      call b%set_diag([(real(i), i= 1,  4)], k=-1)
+      call b%set_diag([(real(i), i= 5,  9)]      )
+      call b%set_diag([(real(i), i=10, 13)], k= 1)
+      call tc%assert_eq(tri%d, b%d, 1e-12, "set_diag_arr: build tri")
+
+      ! test 3: build
+      ! [1 2 0]
+      ! [4 1 3]
+      ! [5 4 1]
+      call b%init(    3, 2, nupper=1)
+      call b_exp%init(3, 2, nupper=1, d0=reshape(real([0,2,3, 1,1,1, 4,4,0, 5,0,0]), [4,3], order=[2,1]))
+
+      call b%set_diag([2.0, 3.0], k=-1)
+      call b%set_diag(1.0)
+      call b%set_diag(4.0, k=1)
+      call b%set_diag(5.0, k=2)
+      call tc%assert_eq(b_exp%d, b%d, 1e-12, "set_diag_{arr,val}: test 3")
     end block
 
     call tc%finish

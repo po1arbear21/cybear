@@ -37,6 +37,8 @@
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
+#define BAND_SET_DIAG_ARR    CONCAT3(band,T,set_diag_arr)
+#define BAND_SET_DIAG_VAL    CONCAT3(band,T,set_diag_val)
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 #define BAND_EYE             CONCAT3(band,eye,T)
 
@@ -588,8 +590,8 @@ function BAND_GET_ELEM(this, i, j) result(x)
   TT                           :: x
     !! matrix element
 
-  ASSERT(-this%nupper <= i-j .and. i-j <= this%nlower)
-  ASSERT(           1 <= j   .and.   j <= this%ncols )
+  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
 
   x = this%d(i-j,j)
 end function
@@ -603,10 +605,57 @@ subroutine BAND_SET_ELEM(this, i, j, x)
   TT,               intent(in)    :: x
     !! matrix element to set
 
-  ASSERT(-this%nupper <= i-j .and. i-j <= this%nlower)
-  ASSERT(           1 <= j   .and.   j <= this%ncols )
+  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
 
   this%d(i-j,j) = x
+end subroutine
+
+subroutine BAND_SET_DIAG_VAL(this, val, k)
+  !! inserts same value on the k-th diagonal.
+
+  class(BAND_TYPE), intent(inout)        :: this
+  TT,               intent(in)           :: val
+    !! value
+  integer,          intent(in), optional :: k
+    !! k-th diagonal.
+    !! k>0 lower diagonal, k<0 upper diagonal.
+    !! ATTENTION: opposite to numbering in matlab!
+    !! default: 0 == main diagonal
+
+  integer :: k_, i
+
+  k_ = 0
+  if (present(k)) k_ = k
+
+  ! create array of length: n-|k|
+  call this%set_diag([(val, i=1,this%nrows-abs(k_))], k=k_)
+end subroutine
+
+subroutine BAND_SET_DIAG_ARR(this, vals, k)
+  !! inserts values on the k-th diagonal.
+
+  class(BAND_TYPE), intent(inout)        :: this
+  TT,               intent(in)           :: vals(:)
+    !! values
+  integer,          intent(in), optional :: k
+    !! k-th diagonal.
+    !! k>0 lower diagonal, k<0 upper diagonal.
+    !! ATTENTION: opposite to numbering in matlab!
+    !! default: 0 == main diagonal
+
+  integer :: k_, i1, i2, n
+
+  k_ = 0
+  if (present(k)) k_ = k
+
+  ASSERT((-k_ <= this%nupper) .and. (k_ <= this%nlower))
+
+  n  = this%nrows
+  i1 = merge(1, 1-k_, k_>=0)
+  i2 = merge(n, n-k_, k_<=0)
+
+  this%d(k_,i1:i2) = vals
 end subroutine
 
 function BAND_EYE(nrows) result(eye)
@@ -660,5 +709,7 @@ end function
 #undef BAND_ADD_ELEM
 #undef BAND_GET_ELEM
 #undef BAND_SET_ELEM
+#undef BAND_SET_DIAG_ARR
+#undef BAND_SET_DIAG_VAL
 #undef BAND_OUTPUT
 #undef BAND_EYE
