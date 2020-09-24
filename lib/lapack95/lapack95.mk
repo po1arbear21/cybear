@@ -1,10 +1,7 @@
 LAPACK95_SRC_DIR   := $(dir $(lastword $(MAKEFILE_LIST)))
-LAPACK95_BUILD_DIR := build/${COMPILER}/F95
+LAPACK95_BUILD_DIR := $(F95_BUILD_DIR)
 LAPACK95_LIB       := $(LAPACK95_BUILD_DIR)/lapack95.a
 LIBS               := $(LIBS) $(LAPACK95_LIB)
-
-$(LAPACK95_BUILD_DIR):
-	@mkdir -p $(LAPACK95_BUILD_DIR)
 
 $(LAPACK95_LIB):
 	cd $(LAPACK95_SRC_DIR) && make libintel64 INSTALL_DIR=../../$(LAPACK95_BUILD_DIR) interface=ilp64 FC=gfortran

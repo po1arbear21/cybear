@@ -1,10 +1,7 @@
 BLAS95_SRC_DIR   := $(dir $(lastword $(MAKEFILE_LIST)))
-BLAS95_BUILD_DIR := build/${COMPILER}/F95
+BLAS95_BUILD_DIR := $(F95_BUILD_DIR)
 BLAS95_LIB       := $(BLAS95_BUILD_DIR)/blas95.a
 LIBS             := $(LIBS) $(BLAS95_LIB)
-
-$(BLAS95_BUILD_DIR):
-	@mkdir -p $(BLAS95_BUILD_DIR)
 
 $(BLAS95_LIB):
 	cd $(BLAS95_SRC_DIR) && make libintel64 INSTALL_DIR=../../$(BLAS95_BUILD_DIR) interface=ilp64 FC=gfortran

@@ -78,6 +78,13 @@ OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 # additional libraries
 include lib/quadpack/quadpack.mk
 ifeq ($(COMPILER),gnu)
+
+# needs to be outside blas95,lapack95 makefiles, otherwise makefile warnings.
+F95_BUILD_DIR := build/${COMPILER}/F95
+
+$(F95_BUILD_DIR):
+	@mkdir -p $(F95_BUILD_DIR)
+
 include lib/blas95/blas95.mk
 include lib/lapack95/lapack95.mk
 endif
