@@ -172,15 +172,11 @@ contains
 
         ! If RCI_REQUEST==1, then compute the vector A*TMP(IPAR(22))
         case (1)
-          ! write (*,'(1A, 1I6, 1E18.8)') '[gmres] count, err_res', itercount, dpar(5)
-          ! print *, '[gmres] matvec ...'
-          ! if (timing) t = dclock()
           associate (v_in  => tmp(opts%ipar(22):opts%ipar(22)+(n-1)), &
             &        v_out => tmp(opts%ipar(23):opts%ipar(23)+(n-1))  )
 
             call mulvec%exec(v_in, v_out)
           end associate
-          ! if (timing) t_matvec = t_matvec + (dclock() - t)
           itercount = itercount + 1
 
         ! stopping test
@@ -190,16 +186,11 @@ contains
         ! apply preconditioner
         case (3)
           if (.not. present(precon)) call program_error('preconditioner rountine not supplied but requested!!')
-          ! print *, '[gmres] precond ...'
-          ! if (.not. (present(precon) .or. present(ILU))) call program_error('preconditioner rountine not supplied but requested!!')
-          ! if (timing) t = dclock()
-
           associate (bb => tmp(opts%ipar(22):opts%ipar(22)+(n-1)), &
             &        xx => tmp(opts%ipar(23):opts%ipar(23)+(n-1))  )
 
             call precon%exec(bb, xx)
           end associate
-          ! if (timing) t_precon = t_precon + (dclock() - t)
 
         ! vector zero test
         case (4)
