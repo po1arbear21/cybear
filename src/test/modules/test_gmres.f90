@@ -77,6 +77,7 @@ contains
       call opts%check(x, b)
       opts%ipar( 9) = 1
       opts%ipar(10) = 0
+      opts%ipar(11) = 1
       opts%ipar(12) = 1
       opts%dpar( 1) = 1e-13
       call gmres(opts, b, Aop, x, precon=prec_op)

@@ -15,8 +15,41 @@ module gmres_m
   type gmres_options
     integer :: ipar(128)
       !! mkl's gmres ipar
+      !!
+      !! ipar( 4): current iteration number
+      !! ipar( 5): maximal iteration number
+      !! ipar( 8): stopping test wrt iteration number
+      !!             == 0: doesnt perform  stopping test
+      !!             /= 0:        performs stopping test: ipar(4) <= ipar(5)                  *default*
+      !! ipar( 9): stopping test wrt residual
+      !!             == 0: doesnt perform  stopping test                                      *default*
+      !!             /= 0:        performs stopping test: dpar(5) <= dpar(4)
+      !! ipar(10): user defined stopping test
+      !!             == 0: user-defined stopping test is not requested
+      !!             /= 0: user-defined stopping test is     requested                        *default*
+      !! ipar(11): preconditioning
+      !!             == 0: preconditioning is not used                                        *default*
+      !!             /= 0: preconditioning is     used
+      !! ipar(12): zero-norm test of vector
+      !!             == 0: user-defined zero-norm test is requested                           *default*
+      !!             /= 0: automatic    zero-norm test is performed: dpar(7) <= dpar(8)
+      !! ipar(13): solution vector
+      !!             <  0: x and b not updated
+      !!             == 0: writes solution into argument x                                    *default*
+      !!             >  0: writes solution into argument b
+      !! ipar(15): non-restarted gmres iterations
+
     real    :: dpar(128)
       !! mkl's gmres dpar
+      !!
+      !! dpar(1): relative residual tolerance. default: 1e-6
+      !! dpar(2): absolute residual tolerance. default: 0.0
+      !! dpar(3): work variable = 2-norm of initial residual.
+      !! dpar(4): work variable = dpar(1)*dpar(3)+dpar(2)
+      !! dpar(5): work variable = 2-norm of current residual
+      !! dpar(7): work variable = 2-norm of currently generated vector
+      !! dpar(8): tolerance for zero-norm test
+
   contains
     procedure :: init  => gmres_options_init
     procedure :: check => gmres_options_check
@@ -151,6 +184,13 @@ contains
 
     n = size(x)
     ASSERT(n == size(b))
+
+    ! check precon flag
+    if (present(precon)) then
+      if (opts%ipar(11) == 0) print *, '[gmres] WARN! Preconditioner supplied to gmres but not turned on according to options?!'
+    else
+      if (opts%ipar(11) /= 0) call program_error('precon requested by ipar but not supplied!')
+    end if
 
     ! init vars: dfgmres_init sets first elements to 0. we do that here manually.
     allocate (tmp(tmp_size(n, opts%ipar(15))), source=0.0)
