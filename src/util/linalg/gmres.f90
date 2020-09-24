@@ -51,9 +51,10 @@ module gmres_m
       !! dpar(8): tolerance for zero-norm test
 
   contains
-    procedure :: init  => gmres_options_init
-    procedure :: check => gmres_options_check
-    procedure :: print => gmres_options_print
+    procedure :: init   => gmres_options_init
+    procedure :: check  => gmres_options_check
+    procedure :: print  => gmres_options_print
+    procedure :: pprint => gmres_options_pprint
   end type
 
   interface
@@ -159,6 +160,39 @@ contains
     end do
   end subroutine
 
+  subroutine gmres_options_pprint(this)
+    !! **pretty** prints parameters but only those that correspond to user-changeable data, e.g. ipar(16:128) are
+    !! work variables.
+
+    class(gmres_options), intent(in) :: this
+
+    print *, 'ipar( 1) - system size:                                  ',  this%ipar( 1)
+    print *, 'ipar( 3) - rci_request:                                  ',  this%ipar( 3)
+    print *, 'ipar( 4) - current iteration number:                     ',  this%ipar( 4)
+    print *, 'ipar( 5) - maximal iteration number:                     ',  this%ipar( 5)
+    print *, 'ipar( 8) - performing stopping test wrt iteration number?', (this%ipar( 8) /= 0)
+    print *, 'ipar( 9) - performing stopping test wrt residual?        ', (this%ipar( 9) /= 0)
+    print *, 'ipar(10) - requesting user-defined stopping test?        ', (this%ipar(10) /= 0)
+    print *, 'ipar(11) - preconditioning used?                         ', (this%ipar(11) /= 0)
+    print *, 'ipar(12) - automatic zero-norm test?                     ', (this%ipar(12) /= 0)
+    if      (this%ipar(13) < 0) then
+      print *, 'ipar(13) - x and b not updated'
+    else if (this%ipar(13) == 0) then
+      print *, 'ipar(13) - writing solution into x'
+    else
+      print *, 'ipar(13) - writing solution into b'
+    end if
+    print *, 'ipar(15) - number of non-restarted iterations:           ', this%ipar(15)
+
+    print *, 'dpar(1) - relative residual tolerance:       ', this%dpar(1)
+    print *, 'dpar(2) - absolute residual tolerance:       ', this%dpar(2)
+    print *, 'dpar(3) - initial residual:                  ', this%dpar(3)
+    print *, 'dpar(4) - total residual tolerance:          ', this%dpar(4)
+    print *, 'dpar(5) - current residual:                  ', this%dpar(5)
+    print *, 'dpar(7) - norm of currently generated vector:', this%dpar(7)
+    print *, 'dpar(8) - zero-norm tolerance:               ', this%dpar(8)
+  end subroutine
+
   subroutine gmres(opts, b, mulvec, x, precon)
     !! wrapper around mkl's dfgmres.
     !!
@@ -184,6 +218,10 @@ contains
 
     n = size(x)
     ASSERT(n == size(b))
+
+    ! (ipar(13) > 0) == (write solution into b)
+    !     not implemented as b has intent(in)
+    if (ipar(13) > 0) call program_error('writing solution into b is not supported.')
 
     ! check precon flag
     if (present(precon)) then
