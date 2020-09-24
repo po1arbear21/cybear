@@ -1,0 +1,231 @@
+#include "../macro.f90.inc"
+
+module gmres_m
+
+  use error_m
+  use matop_m, only: matop_real
+  use util_m,  only: int2str
+
+  implicit none
+
+  private
+  public gmres
+  public gmres_options
+
+  type gmres_options
+    integer :: ipar(128)
+      !! mkl's gmres ipar
+    real    :: dpar(128)
+      !! mkl's gmres dpar
+  contains
+    procedure :: init  => gmres_options_init
+    procedure :: check => gmres_options_check
+    procedure :: print => gmres_options_print
+  end type
+
+  interface
+    ! - copied from /opt/exports/intel20/compilers_and_libraries_2020.1.217/linux/mkl/include/mkl_rci.fi
+    ! - added kind information and changed formatting
+    ! - including interfaces by '#include "mkl_rci.fi"' doesnt work for gfortran b.c. real data type is in interfaces
+    !   defined as double precision which is real(kind=16) when using "-fdefault-real-8" compiler flag
+
+    subroutine dfgmres(n, x, b, rci_request, ipar, dpar, tmp)
+      integer(kind=8) :: n, rci_request, ipar(*)
+      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+    end subroutine
+
+    subroutine dfgmres_init(n, x, b, rci_request, ipar, dpar, tmp)
+      integer(kind=8) :: n, rci_request, ipar(*)
+      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+    end subroutine
+
+    subroutine dfgmres_check(n, x, b, rci_request, ipar, dpar, tmp)
+      integer(kind=8) :: n, rci_request, ipar(*)
+      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+    end subroutine
+
+    subroutine dfgmres_get(n, x, b, rci_request, ipar, dpar, tmp, itercount)
+      integer(kind=8) :: n, rci_request, itercount, ipar(*)
+      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+    end subroutine
+
+  end interface
+
+contains
+
+  subroutine gmres_options_init(this, x, b)
+    !! inits parameters ipar, dpar using mkl's dfgmres_init.
+
+    class(gmres_options), intent(out) :: this
+    real,                 intent(in)  :: x(:)
+      !! initial guess
+    real,                 intent(in)  :: b(:)
+      !! rhs
+
+    integer           :: n, ipar15, rci_request
+    real, allocatable :: tmp_dummy(:)
+      !! dummy variable. init sets first couple elements to 0. will be done manually in gmres call...
+
+    n = size(x)
+    ASSERT(n == size(b))
+
+    ! FIXME why do we need to set this beforehand? maybe whole calling structure should be differnt?
+    !   reason: - dfgmres_init needs tmp to be of right size.
+    !           - correct size can be computed by ipar(15) which is not set before calling init???
+    !           - thus, set it here manually
+    ipar15 = min(150, n)      ! default value according to mkl's documentation
+
+    allocate (tmp_dummy(tmp_size(n, ipar15)))
+
+    ! gmres init call
+    call dfgmres_init(n, x, b, rci_request, this%ipar, this%dpar, tmp_dummy)
+    if (rci_request /= 0) call program_error('gmres init failed. rci_request: ' // int2str(rci_request))
+  end subroutine
+
+  subroutine gmres_options_check(this, x, b)
+    !! checks parameters ipar, dpar using mkl's dfgmres_check.
+
+
+    class(gmres_options), intent(inout) :: this
+    real,                 intent(in)    :: x(:)
+      !! initial guess
+    real,                 intent(in)    :: b(:)
+      !! rhs
+
+    integer           :: n, rci_request
+    real, allocatable :: tmp_dummy(:)
+      !! dummy variable. init sets first couple elements to 0. will be done manually in gmres call...
+
+    n = size(x)
+    ASSERT(n == size(b))
+
+    ! init vars: dfgmres_init sets first elements to 0. we do that here manually.
+    allocate (tmp_dummy(tmp_size(n, this%ipar(15))), source=0.0)
+
+    ! dfgmres_init sets it to 0
+    rci_request = 0
+
+    ! check params
+    call dfgmres_check(n, x, b, rci_request, this%ipar, this%dpar, tmp_dummy)
+    if (rci_request /= 0) call program_error('gmres check params failed. rci_request: ' // int2str(rci_request))
+  end subroutine
+
+  subroutine gmres_options_print(this)
+    !! prints parameters but only those that correspond to user-changeable data, e.g. ipar(16:128) are work variables.
+
+    class(gmres_options), intent(in) :: this
+
+    integer :: i
+
+    do i = 1, 15
+      print '(A, I5, I5     )', ' i, ipar(i)', i, this%ipar(i)
+    end do
+
+    do i = 1, 8
+      print '(A, I5, ES24.16)', ' i, dpar(i)', i, this%dpar(i)
+    end do
+  end subroutine
+
+  subroutine gmres(opts, b, mulvec, x, precon)
+    !! wrapper around mkl's dfgmres.
+    !!
+    !! solves Ax=b and optionally, uses a preconditioner P.
+
+    type(gmres_options), intent(inout)        :: opts
+      !! parameters ipar, dpar.
+      !! inout: gmres calls change some of them, e.g. work variables and iteration count.
+    real,                intent(in)           :: b(:)
+      !! rhs
+    class(matop_real),   intent(in)           :: mulvec
+      !! matrix vector operation: x \mapsto A*x
+      !! reason for class: either use already defined single_matop or derive your own.
+    real,                intent(inout)        :: x(:)
+      !! on input:  inital guess x_0
+      !! on output: solution x
+    class(matop_real),   intent(in), optional :: precon
+      !! matrix vector operation: x \mapsto P*x
+      !! reason for class: either use already defined single_matop or derive your own, e.g. derive a matop for mkl's ILUt.
+
+    integer           :: rci_request, itercount, n
+    real, allocatable :: tmp(:)
+
+    n = size(x)
+    ASSERT(n == size(b))
+
+    ! init vars: dfgmres_init sets first elements to 0. we do that here manually.
+    allocate (tmp(tmp_size(n, opts%ipar(15))), source=0.0)
+
+    ! dfgmres_init, dfgmres_check return rci_req==0 if no errors occured
+    rci_request = 0
+
+    itercount = 0
+
+    ! gmres solution process
+    LOOP: do
+      ! Compute the solution by RCI (P)FGMRES solver
+      call dfgmres(n, x, b, rci_request, opts%ipar, opts%dpar, tmp)
+
+      select case (rci_request)
+        ! If RCI_REQUEST==0, then the solution was found with the required precision
+        case (0)
+          exit
+
+        ! If RCI_REQUEST==1, then compute the vector A*TMP(IPAR(22))
+        case (1)
+          ! write (*,'(1A, 1I6, 1E18.8)') '[gmres] count, err_res', itercount, dpar(5)
+          ! print *, '[gmres] matvec ...'
+          ! if (timing) t = dclock()
+          associate (v_in  => tmp(opts%ipar(22):opts%ipar(22)+(n-1)), &
+            &        v_out => tmp(opts%ipar(23):opts%ipar(23)+(n-1))  )
+
+            call mulvec%exec(v_in, v_out)
+          end associate
+          ! if (timing) t_matvec = t_matvec + (dclock() - t)
+          itercount = itercount + 1
+
+        ! stopping test
+        case (2)
+          call program_error('user-defined stopping test not supplied but requested!!')
+
+        ! apply preconditioner
+        case (3)
+          if (.not. present(precon)) call program_error('preconditioner rountine not supplied but requested!!')
+          ! print *, '[gmres] precond ...'
+          ! if (.not. (present(precon) .or. present(ILU))) call program_error('preconditioner rountine not supplied but requested!!')
+          ! if (timing) t = dclock()
+
+          associate (bb => tmp(opts%ipar(22):opts%ipar(22)+(n-1)), &
+            &        xx => tmp(opts%ipar(23):opts%ipar(23)+(n-1))  )
+
+            call precon%exec(bb, xx)
+          end associate
+          ! if (timing) t_precon = t_precon + (dclock() - t)
+
+        ! vector zero test
+        case (4)
+          call program_error('user-defined zero vector test not supplied but requested!!')
+
+        ! If RCI_REQUEST=anything else, then DFGMRES subroutine failed
+        case default
+          print *, '[gmres] gmres loop failed. rci_request: ' // int2str(rci_request)
+          exit LOOP
+      end select
+    end do LOOP
+
+    ! get solution
+    call dfgmres_get(n, x, b, rci_request, opts%ipar, opts%dpar, tmp, itercount)
+    if (rci_request /= 0) call program_error('gmres get failed. rci_request: ' // int2str(rci_request))
+  end subroutine
+
+  integer function tmp_size(n, ipar15)
+    !! mkl's gmres needs a work variable "tmp". this function computes its size according to mkl documentation.
+
+    integer, intent(in) :: n
+      !! system size
+    integer, intent(in) :: ipar15
+      !! ipar(15). see mkl documentation
+
+    tmp_size = n*(2*ipar15+1) + (ipar15*(ipar15+9))/2 + 1
+  end function
+
+end module

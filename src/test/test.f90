@@ -1,5 +1,6 @@
 program test
 
+  use test_gmres_m
   use test_matop_m
 #ifdef USE_ILUPACK
   use test_ilupack_m
@@ -27,6 +28,7 @@ program test
 
   implicit none
 
+  call test_gmres
   call test_matop
 #ifdef USE_ILUPACK
   call test_ilupack
