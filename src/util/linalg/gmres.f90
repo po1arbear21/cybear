@@ -221,7 +221,7 @@ contains
 
     ! (ipar(13) > 0) == (write solution into b)
     !     not implemented as b has intent(in)
-    if (ipar(13) > 0) call program_error('writing solution into b is not supported.')
+    if (opts%ipar(13) > 0) call program_error('writing solution into b is not supported.')
 
     ! check precon flag
     if (present(precon)) then
