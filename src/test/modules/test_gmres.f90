@@ -70,7 +70,8 @@ contains
       ! works b.c. A is a diagonally dominant matrix
       call prec_b%init(n, 0)
       call prec_b%set_diag(10.0)
-      call prec_op%init(prec_b)
+      call prec_b%factorize
+      call prec_op%init(prec_b, inv=.true.)
 
       x = x0
       call opts%init( x, b)
