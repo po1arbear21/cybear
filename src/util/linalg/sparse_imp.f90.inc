@@ -114,7 +114,7 @@ subroutine SPARSE_RESET(this, only_factorization)
     end select
   end if
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine SPARSE_SCALE(this, fact)
@@ -343,7 +343,7 @@ subroutine SPARSE_FACTORIZE(this)
 #endif
   end select
 
-  this%is_factorized = .true.
+  this%factorized = .true.
 end subroutine
 
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -362,7 +362,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
-  if (.not. this%is_factorized) call program_error("Call factorize before!")
+  ASSERT(this%factorized)
 
   ! optional arguments
   if (present(trans)) then
@@ -402,7 +402,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! local variables
   TT, allocatable :: rhs_(:), x_(:)
 
-  if (.not. this%is_factorized) call program_error("Call factorize before!")
+  ASSERT(this%factorized)
 
   ! optional arguments
   if (present(trans)) then

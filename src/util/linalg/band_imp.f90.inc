@@ -93,7 +93,7 @@ subroutine BAND_DESTRUCT(this)
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine BAND_RESET(this, only_factorization)
@@ -117,7 +117,7 @@ subroutine BAND_RESET(this, only_factorization)
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine BAND_RESET_ROW(this, i)
@@ -148,7 +148,7 @@ subroutine BAND_RESET_ROW(this, i)
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine BAND_SCALE(this, fact)
@@ -264,7 +264,7 @@ subroutine BAND_FACTORIZE(this)
     end associate
   end if
 
-  this%is_factorized = .true.
+  this%factorized = .true.
 end subroutine
 
 subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -315,16 +315,16 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     end do
 
   else if ((this%nupper == 1) .and. (this%nlower == 1)) then      ! tridiagonal
-    if (.not. this%is_factorized) call program_error("Call factorize before!")
+    ASSERT(this%factorized)
 
     associate(n   => this%ncols,                &
-              du  => this%d(-1,2:this%ncols  ), &
-              d   => this%d( 0,1:this%ncols  ), &
-              dl  => this%d( 1,1:this%ncols-1), &
-              du2 => this%f(-2,3:this%ncols  ), &
-              duf => this%f(-1,2:this%ncols  ), &
-              df  => this%f( 0,1:this%ncols  ), &
-              dlf => this%f( 1,1:this%ncols-1)  )
+      &       du  => this%d(-1,2:this%ncols  ), &
+      &       d   => this%d( 0,1:this%ncols  ), &
+      &       dl  => this%d( 1,1:this%ncols-1), &
+      &       du2 => this%f(-2,3:this%ncols  ), &
+      &       duf => this%f(-1,2:this%ncols  ), &
+      &       df  => this%f( 0,1:this%ncols  ), &
+      &       dlf => this%f( 1,1:this%ncols-1)  )
 
       x = rhs
       call gttrs(dlf, df, duf, du2, x, this%ipiv, trans=trans, info=info)
@@ -337,7 +337,7 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     end associate
 
   else                                                            ! general band matrix
-    if (.not. this%is_factorized) call program_error("Call factorize before!")
+    ASSERT(this%factorized)
 
     x = rhs
     call gbtrs(this%f, x, this%ipiv, kl=this%nlower, trans=trans, info=info)

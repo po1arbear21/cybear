@@ -127,7 +127,7 @@ subroutine BLOCK_DESTRUCT(this)
     deallocate (this%b)
   end if
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine BLOCK_RESET(this, only_factorization)
@@ -148,7 +148,7 @@ subroutine BLOCK_RESET(this, only_factorization)
     end do
   end do
 
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine BLOCK_SCALE(this, fact)
@@ -382,7 +382,7 @@ subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! local variables
   integer :: ib
 
-  if (.not. this%is_factorized) call program_error("Call factorize before!")
+  ASSERT(this%factorized)
 
   if (this%diag) then
     do ib = 1, this%nbrows

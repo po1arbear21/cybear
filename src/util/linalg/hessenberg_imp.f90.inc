@@ -64,7 +64,7 @@ subroutine HESSENBERG_DESTRUCT(this)
   if (allocated(this%d   )) deallocate (this%d   )
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine HESSENBERG_RESET(this, only_factorization)
@@ -88,7 +88,7 @@ subroutine HESSENBERG_RESET(this, only_factorization)
   ! reset factorization
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
-  this%is_factorized = .false.
+  this%factorized = .false.
 end subroutine
 
 subroutine HESSENBERG_SCALE(this, fact)
@@ -330,7 +330,7 @@ subroutine HESSENBERG_FACTORIZE(this)
     end do
   end if
 
-  this%is_factorized = .true.
+  this%factorized = .true.
 end subroutine
 
 subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -379,7 +379,7 @@ subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   integer :: i, j, n, nrhs
   logical :: iter_refine_
 
-  if (.not. this%is_factorized) call program_error("Call factorize before!")
+  ASSERT(this%factorized)
 
   ! optional arguments
   if (present(trans)) then

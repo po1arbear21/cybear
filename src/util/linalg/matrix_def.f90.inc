@@ -190,8 +190,8 @@ type, abstract :: MATRIX_TYPE
     !! Number of rows
   integer :: ncols
     !! Number of columns
-  logical :: is_factorized
-    !! is matrix factorized and ready to solve?
+  logical :: factorized
+    !! Is matrix factorized and ready to solve?
 contains
   procedure :: MATRIX_INIT
   generic   :: init => MATRIX_INIT
@@ -483,7 +483,6 @@ type, extends(MATRIX_TYPE) :: BLOCK_TYPE
   ! flags
   logical :: diag
   logical :: tridiag
-  logical :: factorized
 contains
   procedure :: BLOCK_INIT
   generic   :: init           => BLOCK_INIT

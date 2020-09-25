@@ -43,6 +43,8 @@ subroutine TRIANG_INIT(this, n, upper)
   ! allocate memory
   allocate (this%d(n,n))
   this%d = 0                ! inserts 0, regardless of type
+
+  this%factorized = .true.
 end subroutine
 
 subroutine TRIANG_DESTRUCT(this)
