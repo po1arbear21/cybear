@@ -44,7 +44,7 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   integer,           intent(in)  :: row_dim(:)
     !! Number of Rows for each block
   integer, optional, intent(in)  :: col_dim(:)
-    !! Number of Columns for each block
+    !! Number of Columns for each block (default: row_dim)
   logical, optional, intent(in)  :: diag
     !! diagonal block matrix flag (default: false)
   logical, optional, intent(in)  :: tridiag
@@ -126,6 +126,8 @@ subroutine BLOCK_DESTRUCT(this)
     end do
     deallocate (this%b)
   end if
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine BLOCK_RESET(this, only_factorization)
@@ -145,6 +147,8 @@ subroutine BLOCK_RESET(this, only_factorization)
       call this%b(ib,jb)%p%reset(only_factorization = only_factorization)
     end do
   end do
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine BLOCK_SCALE(this, fact)
@@ -377,6 +381,8 @@ subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   ! local variables
   integer :: ib
+
+  if (.not. this%is_factorized) call program_error("Call factorize before!")
 
   if (this%diag) then
     do ib = 1, this%nbrows

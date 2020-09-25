@@ -43,6 +43,8 @@ subroutine MATRIX_INIT(this, dum, nrows, ncols)
 
   ASSERT(this%nrows > 0)
   ASSERT(this%ncols > 0)
+
+  this%is_factorized = .false.
 end subroutine
 
 #undef T

@@ -64,6 +64,7 @@ subroutine HESSENBERG_DESTRUCT(this)
   if (allocated(this%d   )) deallocate (this%d   )
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+  this%is_factorized = .false.
 end subroutine
 
 subroutine HESSENBERG_RESET(this, only_factorization)
@@ -87,6 +88,7 @@ subroutine HESSENBERG_RESET(this, only_factorization)
   ! reset factorization
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+  this%is_factorized = .false.
 end subroutine
 
 subroutine HESSENBERG_SCALE(this, fact)
@@ -283,13 +285,11 @@ subroutine HESSENBERG_FACTORIZE(this)
   n = this%nrows
 
   ! allocate factorization if necessary
-  if (.not. allocated(this%f)) allocate (this%f(n,n))
-  if (.not. allocated(this%ipiv)) allocate (this%ipiv(n))
+  if (.not. allocated(this%f   )) allocate (this%f(   n,n))
+  if (.not. allocated(this%ipiv)) allocate (this%ipiv(n  ))
 
   ! init permutation vector
-  do i = 1, n
-    this%ipiv(i) = i
-  end do
+  this%ipiv = [(i, i=1,n)]
 
   ! init factorization by original matrix
   this%f = this%d
@@ -329,6 +329,8 @@ subroutine HESSENBERG_FACTORIZE(this)
       this%f(i-1,1:i-1) = this%f(i-1,1:i-1) - this%f(i-1,i) * this%f(i,1:i-1)
     end do
   end if
+
+  this%is_factorized = .true.
 end subroutine
 
 subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -376,6 +378,8 @@ subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! local variables
   integer :: i, j, n, nrhs
   logical :: iter_refine_
+
+  if (.not. this%is_factorized) call program_error("Call factorize before!")
 
   ! optional arguments
   if (present(trans)) then

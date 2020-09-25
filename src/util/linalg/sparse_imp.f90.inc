@@ -113,6 +113,8 @@ subroutine SPARSE_RESET(this, only_factorization)
 #endif
     end select
   end if
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine SPARSE_SCALE(this, fact)
@@ -340,6 +342,8 @@ subroutine SPARSE_FACTORIZE(this)
       call ilupack_factorize(this%solver_handle)
 #endif
   end select
+
+  this%is_factorized = .true.
 end subroutine
 
 subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -358,8 +362,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
-  ! make sure, matrix is factorized
-  ASSERT(this%solver_handle > 0)
+  if (.not. this%is_factorized) call program_error("Call factorize before!")
 
   ! optional arguments
   if (present(trans)) then
@@ -399,8 +402,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! local variables
   TT, allocatable :: rhs_(:), x_(:)
 
-  ! make sure, matrix is factorized
-  ASSERT(this%solver_handle > 0)
+  if (.not. this%is_factorized) call program_error("Call factorize before!")
 
   ! optional arguments
   if (present(trans)) then

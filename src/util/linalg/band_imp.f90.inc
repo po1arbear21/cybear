@@ -92,6 +92,8 @@ subroutine BAND_DESTRUCT(this)
   if (allocated(this%d   )) deallocate (this%d   )
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine BAND_RESET(this, only_factorization)
@@ -114,6 +116,8 @@ subroutine BAND_RESET(this, only_factorization)
   ! reset factorization
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine BAND_RESET_ROW(this, i)
@@ -143,6 +147,8 @@ subroutine BAND_RESET_ROW(this, i)
   ! reset factorization
   if (allocated(this%f   )) deallocate (this%f   )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+
+  this%is_factorized = .false.
 end subroutine
 
 subroutine BAND_SCALE(this, fact)
@@ -257,6 +263,8 @@ subroutine BAND_FACTORIZE(this)
       if (info /= 0) call program_error("Bandmatrix Factorization error in LAPACK", code = info)
     end associate
   end if
+
+  this%is_factorized = .true.
 end subroutine
 
 subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -305,9 +313,9 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     do i = 1, size(x, 2)
       x(:,i) = rhs(:,i) / this%d(0,:)
     end do
-  else if (this%nupper == 1 .and. this%nlower == 1) then          ! tridiagonal
-    ! called factorize before?
-    ASSERT(allocated(this%f) .and. allocated(this%ipiv))
+
+  else if ((this%nupper == 1) .and. (this%nlower == 1)) then      ! tridiagonal
+    if (.not. this%is_factorized) call program_error("Call factorize before!")
 
     associate(n   => this%ncols,                &
               du  => this%d(-1,2:this%ncols  ), &
@@ -327,9 +335,9 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
         if (info /= 0) call program_error("Tridiagonal Iterative Refinement error in LAPACK", code = info)
       end if
     end associate
+
   else                                                            ! general band matrix
-    ! called factorize before?
-    ASSERT(allocated(this%f) .and. allocated(this%ipiv))
+    if (.not. this%is_factorized) call program_error("Call factorize before!")
 
     x = rhs
     call gbtrs(this%f, x, this%ipiv, kl=this%nlower, trans=trans, info=info)

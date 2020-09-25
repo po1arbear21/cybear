@@ -91,6 +91,7 @@ subroutine DENSE_DESTRUCT(this)
   if (allocated(this%d   )) deallocate (this%d   )
   if (allocated(this%lu  )) deallocate (this%lu  )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+  this%is_factorized = .false.
 end subroutine
 
 subroutine DENSE_RESET(this, only_factorization)
@@ -115,6 +116,7 @@ subroutine DENSE_RESET(this, only_factorization)
   ! reset factorization
   if (allocated(this%lu  )) deallocate (this%lu  )
   if (allocated(this%ipiv)) deallocate (this%ipiv)
+  this%is_factorized = .false.
 end subroutine
 
 subroutine DENSE_SCALE(this, fact)
@@ -186,6 +188,8 @@ subroutine DENSE_FACTORIZE(this)
   this%lu = this%d
   call getrf(this%lu, ipiv = this%ipiv, info = info)
   if (info /= 0) call program_error("Dense Factorization error in LAPACK", code = info)
+
+  this%is_factorized = .true.
 end subroutine
 
 subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
@@ -231,7 +235,7 @@ subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   integer :: info
   logical :: iter_refine_
 
-  ASSERT(allocated(this%lu) .and. allocated(this%ipiv))
+  if (.not. this%is_factorized) call program_error("Call factorize before!")
 
   ! optional arguments
   iter_refine_ = .true.

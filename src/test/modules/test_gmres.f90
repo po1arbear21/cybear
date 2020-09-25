@@ -64,13 +64,12 @@ contains
       type(band_real)         :: prec_b
       type(single_matop_real) :: prec_op
 
-
       ! preconditioner: diagonal part of A
       !   P = diag(A)
       ! works b.c. A is a diagonally dominant matrix
       call prec_b%init(n, 0)
       call prec_b%set_diag(10.0)
-      call prec_b%factorize
+      call prec_b%factorize()
       call prec_op%init(prec_b, inv=.true.)
 
       x = x0
