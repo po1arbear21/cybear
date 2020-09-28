@@ -1100,7 +1100,7 @@ integer function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   if (present(only_nonzeros)) only_nonzeros_ = only_nonzeros
 
   if (only_nonzeros_) then
-    nnz = size(this%a)
+    nnz = this%ia(this%nrows+1)-1
   else
     nnz = count(abs(this%a) > 0.0)
   end if
