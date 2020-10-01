@@ -8,9 +8,10 @@ contains
 
   module subroutine test_block
     type(test_case)   :: tc
-    type(block_real)  :: M
-    real, allocatable :: d0(:,:)
-    integer :: i, j
+
+    integer                  :: i, j
+    real, allocatable        :: d0(:,:)
+    type(block_real), target :: M
 
     print "(A)", "test_block"
     call tc%init("block")
