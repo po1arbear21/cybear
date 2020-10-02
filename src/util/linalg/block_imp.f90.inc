@@ -19,6 +19,7 @@
 #define BLOCK_INIT           CONCAT3(block,T,init)
 #define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
 #define BLOCK_RESET          CONCAT3(block,T,reset)
+#define BLOCK_DELETE_BLOCK   CONCAT3(block,T,delete_block)
 #define BLOCK_SCALE          CONCAT3(block,T,scale)
 #define BLOCK_MUL_VEC        CONCAT3(block,T,mul_vec)
 #define BLOCK_MUL_MAT        CONCAT3(block,T,mul_mat)
@@ -126,6 +127,22 @@ subroutine BLOCK_DESTRUCT(this)
     end do
     deallocate (this%b)
   end if
+
+  this%factorized = .false.
+end subroutine
+
+subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
+  !! Deletes block (ib, jb).
+  !!
+  !! Necessary in case one "get"s a block but doesnt insert any data (e.g. 0 matrix).
+  !! Then delete that block. Otherwise an error is thrown.
+
+  class(BLOCK_TYPE), intent(inout) :: this
+    !! Block matrix
+  integer,           intent(in)    :: ib, jb
+    !! row/col index.
+
+  deallocate (this%b(ib,jb)%p)
 
   this%factorized = .false.
 end subroutine
@@ -706,6 +723,7 @@ end subroutine
 #undef BLOCK_INIT
 #undef BLOCK_DESTRUCT
 #undef BLOCK_RESET
+#undef BLOCK_DELETE_BLOCK
 #undef BLOCK_SCALE
 #undef BLOCK_MUL_VEC
 #undef BLOCK_MUL_MAT

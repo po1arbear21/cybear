@@ -239,6 +239,44 @@ contains
       call tc%assert_eq(ja_exp, s%ja,       "to sparse: ja")
     end block
 
+    ! delete_block
+    block
+      type(block_real)           :: A
+      type(spbuild_real)         :: Asb
+      type(sparse_real)          :: Asp
+      type(sparse_real), pointer :: Abl
+
+      !     //  \       \
+      ! A = |\  /       |
+      !     |/1  \ /1  \|
+      !     \\  1/ \  1//
+      !
+      !                        /           \
+      ! 2x delete_block -> A = |           |
+      !                        |/1  \      |
+      !                        \\  1/      /
+
+      call A%init([2, 2])
+
+      call A%get(1, 1, Abl)   ! A allocates block
+      call A%get(2, 1, Abl)   ! A allocates block
+      Abl = sparse_eye_real(2)
+      call A%get(2, 2, Abl)   ! A allocates block
+      Abl = sparse_eye_real(2)
+
+      call A%delete_block(1, 1)      ! necessary, otherwise error
+      call A%delete_block(2, 2)      ! just here for testing
+
+      call Asp%init(4)
+      call Asb%init(Asp)
+      call A%to_sparse(Asb)
+      call Asb%save()
+
+      call tc%assert_eq([1.0, 1.0],      Asp%a, 1e-12, "delete block: a" )
+      call tc%assert_eq([1, 1, 1, 2, 3], Asp%ia,       "delete block: ia")
+      call tc%assert_eq([1, 2],          Asp%ja,       "delete block: ja")
+    end block
+
     call tc%finish
   end subroutine
 

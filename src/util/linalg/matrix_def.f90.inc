@@ -166,6 +166,7 @@
 #define BLOCK_INIT           CONCAT3(block,T,init)
 #define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
 #define BLOCK_RESET          CONCAT3(block,T,reset)
+#define BLOCK_DELETE_BLOCK   CONCAT3(block,T,delete_block)
 #define BLOCK_SCALE          CONCAT3(block,T,scale)
 #define BLOCK_MUL_VEC        CONCAT3(block,T,mul_vec)
 #define BLOCK_MUL_MAT        CONCAT3(block,T,mul_mat)
@@ -490,6 +491,7 @@ contains
   generic   :: init           => BLOCK_INIT
   procedure :: destruct       => BLOCK_DESTRUCT
   procedure :: reset          => BLOCK_RESET
+  procedure :: delete_block   => BLOCK_DELETE_BLOCK
   procedure :: scale          => BLOCK_SCALE
   procedure :: mul_vec        => BLOCK_MUL_VEC
   procedure :: mul_mat        => BLOCK_MUL_MAT
@@ -742,6 +744,7 @@ end interface
 #undef BLOCK_INIT
 #undef BLOCK_DESTRUCT
 #undef BLOCK_RESET
+#undef BLOCK_DELETE_BLOCK
 #undef BLOCK_SCALE
 #undef BLOCK_MUL_VEC
 #undef BLOCK_MUL_MAT
