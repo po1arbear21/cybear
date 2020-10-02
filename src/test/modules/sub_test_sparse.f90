@@ -578,6 +578,26 @@ contains
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3: ja")
     end block
 
+    ! from_diag
+    block
+      integer                       :: i
+      integer,          parameter   :: n = 10
+      real,             allocatable :: x(:), y(:), y_exp(:), diag(:)
+      type(sparse_real)             :: S
+
+      diag = [(real(i)*2.3456, i = 1, n)]
+      call S%from_diag(diag)
+
+      allocate (x(n), y(n), y_exp(n))
+      do i = 1, n
+        x    = 0
+        x(i) = 1
+        y_exp    = 0
+        y_exp(i) = diag(i)
+        call S%mul_vec(x, y)
+        call tc%assert_eq(y_exp, y, 1e-12, "from_diag")
+      end do
+    end block
 
     ! to_diag
     block

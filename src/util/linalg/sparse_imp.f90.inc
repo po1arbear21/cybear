@@ -41,6 +41,7 @@
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
+#define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
 #define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
@@ -1057,6 +1058,24 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
+subroutine SPARSE_FROM_DIAG(this, diag)
+  !! creates a quadratic diagonal matrix given the diagonals as an array.
+
+  class(SPARSE_TYPE), intent(out) :: this
+    !! sparse diagonal matrix
+  TT,                 intent(in)  :: diag(:)
+    !! diagonal array
+
+  integer :: i, n
+
+  n = size(diag)
+
+  call this%init(n)
+
+  this%a  = diag
+  this%ia = [(i, i = 1, n+1)]
+  this%ja = [(i, i = 1, n  )]
+end subroutine
 
 subroutine SPARSE_TO_DIAG(this, diag)
   !! extract main diagonal of a sparse matrix
@@ -1559,6 +1578,7 @@ end subroutine
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
+#undef SPARSE_FROM_DIAG
 #undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
 #undef SPARSE_EYE
