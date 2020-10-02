@@ -710,6 +710,59 @@ contains
       end block
     end block
 
+    ! eye
+    block
+      integer            :: i, ncols
+      integer, parameter :: nrows = 10
+      real, allocatable  :: x(:), y(:), y_exp(:)
+      type(sparse_real)  :: S
+
+      ! test 1: only supply nrows
+      S = sparse_eye_real(nrows)
+
+      allocate (x(nrows), y(nrows), y_exp(nrows))
+      do i = 1, nrows
+        x     = 0
+        x(i)  = 1
+        y_exp = x
+        call S%mul_vec(x, y)
+
+        call tc%assert_eq(y_exp, y, 1e-12, "eye: only nrows")
+      end do
+      deallocate (x, y, y_exp)
+
+      ! test 2: nrows > ncols
+      ncols = nrows-2
+      S = sparse_eye_real(nrows, ncols=ncols)
+
+      allocate (x(ncols), y(nrows), y_exp(nrows))
+      do i = 1, ncols
+        x    = 0
+        x(i) = 1
+        y_exp(:ncols)   = x
+        y_exp(ncols+1:) = 0
+        call S%mul_vec(x, y)
+
+        call tc%assert_eq(y_exp, y, 1e-12, "eye: nrows>ncols")
+      end do
+      deallocate (x, y, y_exp)
+
+      ! test 2: nrows < ncols
+      ncols = nrows+2
+      S = sparse_eye_real(nrows, ncols=ncols)
+
+      allocate (x(ncols), y(nrows), y_exp(nrows))
+      do i = 1, ncols
+        x     = 0
+        x(i)  = 1
+        y_exp = x(:nrows)
+        call S%mul_vec(x, y)
+
+        call tc%assert_eq(y_exp, y, 1e-12, "eye: nrows<ncols")
+      end do
+      deallocate (x, y, y_exp)
+    end block
+
     call tc%finish
   end subroutine
 
