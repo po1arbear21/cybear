@@ -80,7 +80,7 @@
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
-#define SPARSE_DIAG          CONCAT3(sparse,T,diag)
+#define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
@@ -302,7 +302,7 @@ contains
   generic   :: add_band     => SPARSE_ADD_BAND, SPARSE_ADD_BAND3
   procedure :: mul_sparse   => SPARSE_MUL_SPARSE
   procedure :: output       => SPARSE_OUTPUT
-  procedure :: diag         => SPARSE_DIAG
+  procedure :: to_diag      => SPARSE_TO_DIAG
   procedure :: nnz          => SPARSE_NNZ
 end type
 
@@ -663,7 +663,7 @@ end interface
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_OUTPUT
-#undef SPARSE_DIAG
+#undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
 
 #undef SPBUILD_TYPE

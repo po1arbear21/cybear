@@ -578,20 +578,21 @@ contains
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3: ja")
     end block
 
-    ! diag
+
+    ! to_diag
     block
       type(sparse_real) :: S
       real              :: d_exp(4), d(4)
 
       call get_test_matrix(S)
       d_exp = [1,4,1,5]
-      call S%diag(d)
-      call tc%assert_eq(d_exp, d, 1e-12, "diag")
+      call S%to_diag(d)
+      call tc%assert_eq(d_exp, d, 1e-12, "to_diag")
 
       call get_test_matrix2(S)
       d_exp = [0,2,0,0]
-      call S%diag(d)
-      call tc%assert_eq(d_exp, d, 1e-12, "diag")
+      call S%to_diag(d)
+      call tc%assert_eq(d_exp, d, 1e-12, "to_diag")
     end block
 
     ! zero
