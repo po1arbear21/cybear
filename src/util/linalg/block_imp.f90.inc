@@ -36,6 +36,7 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 #define BLOCK_SET            CONCAT3(block,T,set)
+#define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
 
 subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   !! Initialize Block matrix.
@@ -141,6 +142,8 @@ subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
     !! Block matrix
   integer,           intent(in)    :: ib, jb
     !! row/col index.
+
+  ASSERT(this%block_allowed(ib, jb))
 
   deallocate (this%b(ib,jb)%p)
 
@@ -581,6 +584,8 @@ subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   type(DENSE_TYPE), pointer, intent(out)   :: p
     !! Output pointer to dense block
 
+  ASSERT(this%block_allowed(ib, jb))
+
   ! allocate if block not already allocated
   if (.not. allocated(this%b(ib,jb)%p)) allocate (DENSE_TYPE :: this%b(ib,jb)%p)
 
@@ -604,6 +609,8 @@ subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
     !! Block col
   type(SPARSE_TYPE), pointer, intent(out)   :: p
     !! Output pointer to sparse block
+
+  ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
   if (.not. allocated(this%b(ib,jb)%p)) allocate (SPARSE_TYPE :: this%b(ib,jb)%p)
@@ -629,6 +636,8 @@ subroutine BLOCK_GET_BAND(this, ib, jb, p)
   type(BAND_TYPE), pointer,  intent(out)   :: p
     !! Output pointer to BAND block
 
+  ASSERT(this%block_allowed(ib, jb))
+
   ! allocate if block not already allocated
   if (.not. allocated(this%b(ib,jb)%p)) allocate (BAND_TYPE :: this%b(ib,jb)%p)
 
@@ -652,6 +661,8 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
     !! Block col
   type(BLOCK_TYPE), pointer, intent(out)   :: p
     !! Output pointer to BLOCK block
+
+  ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
   if (.not. allocated(this%b(ib,jb)%p)) allocate (BLOCK_TYPE :: this%b(ib,jb)%p)
@@ -678,14 +689,7 @@ subroutine BLOCK_SET(this, ib, jb, b, fact)
   TT, optional,       intent(in)    :: fact
     !! Scaling factor (default: 1)
 
-  ! check that ib,jb are in correct ranges (by block counts and by diag/tridiag flags)
-  ASSERT((ib >= 1) .and. (ib <= this%nbrows))
-  ASSERT((jb >= 1) .and. (jb <= this%nbcols))
-  if (this%diag) then
-    ASSERT(ib == jb)
-  else if (this%tridiag) then
-    ASSERT(abs(ib-jb) <= 1)
-  end if
+  ASSERT(this%block_allowed(ib, jb))
 
   ! destruct old block
   if (allocated(this%b(ib,jb)%p)) then
@@ -698,6 +702,28 @@ subroutine BLOCK_SET(this, ib, jb, b, fact)
   ! scaling
   if (present(fact)) call this%b(ib,jb)%p%scale(fact)
 end subroutine
+
+function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
+  !! Checks if block given by row ib, col jb is allowed (bounds, diag, tridiag?)
+
+  class(BLOCK_TYPE), intent(in) :: this
+    !! Block matrix
+  integer,           intent(in) :: ib
+    !! Block row
+  integer,           intent(in) :: jb
+    !! Block col
+  logical                       :: tf
+    !! Is block (ib,jb) allowed to be used?
+
+  tf =      ((ib >= 1) .and. (ib <= this%nbrows)) &
+    & .and. ((jb >= 1) .and. (jb <= this%nbcols))
+
+  if      (this%diag   ) then
+    tf = tf .and. (ib == jb)
+  else if (this%tridiag) then
+    tf = tf .and. (abs(ib-jb) <= 1)
+  end if
+end function
 
 #undef T
 #undef TT
@@ -740,3 +766,4 @@ end subroutine
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
 #undef BLOCK_SET
+#undef BLOCK_BLOCK_ALLOWED

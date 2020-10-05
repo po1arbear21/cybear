@@ -183,6 +183,7 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 #define BLOCK_SET            CONCAT3(block,T,set)
+#define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
 
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
@@ -508,6 +509,8 @@ contains
   procedure :: BLOCK_GET_BLOCK
   generic   :: get            => BLOCK_GET_DENSE, BLOCK_GET_SPARSE, BLOCK_GET_BAND, BLOCK_GET_BLOCK
   procedure :: set            => BLOCK_SET
+
+  procedure, private :: block_allowed => BLOCK_BLOCK_ALLOWED
 end type
 
 interface
@@ -761,3 +764,4 @@ end interface
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
 #undef BLOCK_SET
+#undef BLOCK_BLOCK_ALLOWED
