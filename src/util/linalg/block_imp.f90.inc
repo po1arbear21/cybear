@@ -37,6 +37,7 @@
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 #define BLOCK_SET            CONCAT3(block,T,set)
 #define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
+#define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
 
 subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   !! Initialize Block matrix.
@@ -183,6 +184,7 @@ subroutine BLOCK_SCALE(this, fact)
   integer :: ib, jb
 
   ASSERT(.not. this%factorized)
+  ASSERT(this%check_sizes())
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
@@ -210,6 +212,8 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   character :: trans_
   TT        :: one
   integer   :: ib, jb
+
+  ASSERT(this%check_sizes())
 
   ! optional arguments
   if (present(fact_y)) then
@@ -282,6 +286,8 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   character :: trans_
   TT        :: one
   integer   :: ib, jb
+
+  ASSERT(this%check_sizes())
 
   ! optional arguments
   if (present(fact_y)) then
@@ -376,6 +382,8 @@ subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   ! local variables
   integer :: ib
 
+  ASSERT(this%check_sizes())
+
   if (this%diag) then
     do ib = 1, this%nbrows
       call this%b(ib,ib)%p%solve_vec(rhs(this%i0(ib):this%i1(ib)), x(this%j0(ib):this%j1(ib)), trans = trans, iter_refine = iter_refine)
@@ -403,6 +411,7 @@ subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   integer :: ib
 
   ASSERT(this%factorized)
+  ASSERT(this%check_sizes())
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -433,6 +442,8 @@ subroutine BLOCK_TO_DENSE(this, d, i0, j0)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ASSERT(this%check_sizes())
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bj0 => this%j0)
@@ -484,6 +495,8 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ASSERT(this%check_sizes())
 
   ! insert elements blockwise
   associate (bi0 => this%i0, bi1 => this%i1, bj0 => this%j0, bj1 => this%j1)
@@ -725,6 +738,30 @@ function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
   end if
 end function
 
+function BLOCK_CHECK_SIZES(this) result(tf)
+  !! Checks if the allocated matrix blocks have correct sizes.
+
+  class(BLOCK_TYPE), intent(in) :: this
+  logical                       :: tf
+    !! Have all allocated blocks the correct dimensions?
+
+  integer :: ib, jb
+
+  do ib = 1, this%nbrows
+    do jb = 1, this%nbcols
+      if (allocated(this%b(ib,jb)%p)) then
+        if (this%i1(ib)-this%i0(ib)+1 /= this%b(ib,jb)%p%nrows) call program_error('block (ib,jb)=(' // int2str(ib) // &
+          & ',' // int2str(jb) // ') has wrong nrows.')
+
+        if (this%j1(jb)-this%j0(jb)+1 /= this%b(ib,jb)%p%ncols) call program_error('block (ib,jb)=(' // int2str(ib) // &
+          & ',' // int2str(jb) // ') has wrong ncols.')
+      end if
+    end do
+  end do
+
+  tf = .true.
+end function
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -767,3 +804,4 @@ end function
 #undef BLOCK_GET_BLOCK
 #undef BLOCK_SET
 #undef BLOCK_BLOCK_ALLOWED
+#undef BLOCK_CHECK_SIZES

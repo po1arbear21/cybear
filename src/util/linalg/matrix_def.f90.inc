@@ -184,6 +184,7 @@
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 #define BLOCK_SET            CONCAT3(block,T,set)
 #define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
+#define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
 
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
@@ -511,6 +512,7 @@ contains
   procedure :: set            => BLOCK_SET
 
   procedure, private :: block_allowed => BLOCK_BLOCK_ALLOWED
+  procedure, private :: check_sizes   => BLOCK_CHECK_SIZES
 end type
 
 interface
@@ -765,3 +767,4 @@ end interface
 #undef BLOCK_GET_BLOCK
 #undef BLOCK_SET
 #undef BLOCK_BLOCK_ALLOWED
+#undef BLOCK_CHECK_SIZES

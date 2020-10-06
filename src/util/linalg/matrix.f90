@@ -1,6 +1,7 @@
 #include "../macro.f90.inc"
 
 module matrix_m
+
   use array_m
   use bin_search_m
   use blas95
@@ -13,7 +14,9 @@ module matrix_m
   use omp_lib
   use pardiso_m
   use qsort_m
+  use util_m,           only: int2str
   use vector_m
+
   implicit none
 
   private
