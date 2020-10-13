@@ -240,9 +240,9 @@ contains
 
     ! linelabel only for non-global curve options
     if (global) then
-      call write_line(iounit, gl_cstr//"linelabel", this%linelabel)
-    else
       if (allocated(this%linelabel)) call program_error('global curve options mustnt have a linelabel!')
+    else
+      call write_line(iounit, gl_cstr//"linelabel", this%linelabel)
     end if
 
     call write_line(iounit, gl_cstr//"linewidth", this%linewidth)
