@@ -277,6 +277,22 @@ contains
       call tc%assert_eq([1, 2],          Asp%ja,       "delete block: ja")
     end block
 
+    ! set_ptr
+    block
+      type(dense_real), target :: ext_A
+
+      d0 = reshape([1,0,0,2,3,5,0,4,6], [3,3])
+      call ext_A%init(d0)
+      call M%set_ptr(1, 1, ext_A)
+      call M%set_ptr(1, 2, ext_A)
+      call M%set_ptr(2, 1, ext_A)
+
+      ! destruct should not delete ext_A
+      call M%destruct()
+
+      call tc%assert_eq(3, ext_A%nrows, "set_ptr")
+    end block
+
     call tc%finish
   end subroutine
 

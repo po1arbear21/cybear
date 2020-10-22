@@ -36,6 +36,8 @@
 #define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
 #define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
 #define BLOCK_SET            CONCAT3(block,T,set)
+#define BLOCK_SET_PTR        CONCAT3(block,T,set_ptr)
+#define BLOCK_COPY           CONCAT3(block,T,copy)
 #define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
 #define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
 
@@ -88,7 +90,8 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   end do
 
   ! allocate data
-  allocate (this%b(this%nbrows,this%nbcols))
+  allocate (this%b(  this%nbrows,this%nbcols))
+  allocate (this%alc(this%nbrows,this%nbcols), source = .false.)
 
   ! diag, tridiag
   this%diag = .false.
@@ -122,9 +125,12 @@ subroutine BLOCK_DESTRUCT(this)
   if (allocated(this%b)) then
     do ib = 1, this%nbrows
       do jb = 1, this%nbcols
-        if (.not. allocated(this%b(ib,jb)%p)) cycle
+        if (.not. this%alc(ib,jb)) cycle
+        if (.not. associated(this%b(ib,jb)%p)) cycle
 
         call this%b(ib,jb)%p%destruct()
+        deallocate (this%b(ib,jb)%p)
+        this%alc(ib,jb) = .false.
       end do
     end do
     deallocate (this%b)
@@ -146,7 +152,12 @@ subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
 
   ASSERT(this%block_allowed(ib, jb))
 
-  deallocate (this%b(ib,jb)%p)
+  if (this%alc(ib,jb)) then
+    if (associated(this%b(ib,jb)%p)) deallocate (this%b(ib,jb)%p)
+    this%alc(ib,jb) = .false.
+  else
+    this%b(ib,jb)%p => null()
+  end if
 
   this%factorized = .false.
 end subroutine
@@ -164,7 +175,7 @@ subroutine BLOCK_RESET(this, only_factorization)
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
-      if (.not. allocated(this%b(ib,jb)%p)) cycle
+      if (.not. associated(this%b(ib,jb)%p)) cycle
       call this%b(ib,jb)%p%reset(only_factorization = only_factorization)
     end do
   end do
@@ -188,7 +199,7 @@ subroutine BLOCK_SCALE(this, fact)
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
-      if (.not. allocated(this%b(ib,jb)%p)) cycle
+      if (.not. associated(this%b(ib,jb)%p)) cycle
       call this%b(ib,jb)%p%scale(fact)
     end do
   end do
@@ -231,17 +242,17 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
     if (trans_ == 'N') then
       do ib = 1, this%nbrows
         if (this%diag) then
-          if (.not. allocated(this%b(ib,ib)%p)) cycle
+          if (.not. associated(this%b(ib,ib)%p)) cycle
           call this%b(ib,ib)%p%mul_vec(x(j0(ib):j1(ib)), y(i0(ib):i1(ib)), fact_y = one, trans = trans)
         elseif (this%tridiag) then
           do jb = ib - 1, ib + 1
             if ((jb < 1) .or. (jb > this%nbcols)) cycle
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_vec(x(j0(jb):j1(jb)), y(i0(ib):i1(ib)), fact_y = one, trans = trans)
           end do
         else
           do jb = 1, this%nbcols
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_vec(x(j0(jb):j1(jb)), y(i0(ib):i1(ib)), fact_y = one, trans = trans)
           end do
         end if
@@ -249,17 +260,17 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
     else
       do jb = 1, this%nbcols
         if (this%diag) then
-          if (.not. allocated(this%b(jb,jb)%p)) cycle
+          if (.not. associated(this%b(jb,jb)%p)) cycle
           call this%b(jb,jb)%p%mul_vec(x(i0(jb):i1(jb)), y(j0(jb):j1(jb)), fact_y = one, trans = trans)
         elseif (this%tridiag) then
           do ib = jb - 1, jb + 1
             if ((ib < 1) .or. (ib > this%nbrows)) cycle
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_vec(x(i0(ib):i1(ib)), y(j0(jb):j1(jb)), fact_y = one, trans = trans)
           end do
         else
           do ib = 1, this%nbrows
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_vec(x(i0(ib):i1(ib)), y(j0(jb):j1(jb)), fact_y = one, trans = trans)
           end do
         end if
@@ -305,17 +316,17 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
     if (trans_ == 'N') then
       do ib = 1, this%nbrows
         if (this%diag) then
-          if (.not. allocated(this%b(ib,ib)%p)) cycle
+          if (.not. associated(this%b(ib,ib)%p)) cycle
           call this%b(ib,ib)%p%mul_mat(x(j0(ib):j1(ib),:), y(i0(ib):i1(ib),:), fact_y = one, trans = trans)
         elseif (this%tridiag) then
           do jb = ib - 1, ib + 1
             if ((jb < 1) .or. (jb > this%nbcols)) cycle
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_mat(x(j0(jb):j1(jb),:), y(i0(ib):i1(ib),:), fact_y = one, trans = trans)
           end do
         else
           do jb = 1, this%nbcols
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_mat(x(j0(jb):j1(jb),:), y(i0(ib):i1(ib),:), fact_y = one, trans = trans)
           end do
         end if
@@ -323,17 +334,17 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
     else
       do jb = 1, this%nbcols
         if (this%diag) then
-          if (.not. allocated(this%b(jb,jb)%p)) cycle
+          if (.not. associated(this%b(jb,jb)%p)) cycle
           call this%b(jb,jb)%p%mul_mat(x(i0(jb):i1(jb),:), y(j0(jb):j1(jb),:), fact_y = one, trans = trans)
         elseif (this%tridiag) then
           do ib = jb - 1, jb + 1
             if ((ib < 1) .or. (ib > this%nbrows)) cycle
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_mat(x(i0(ib):i1(ib),:), y(j0(jb):j1(jb),:), fact_y = one, trans = trans)
           end do
         else
           do ib = 1, this%nbrows
-            if (.not. allocated(this%b(ib,jb)%p)) cycle
+            if (.not. associated(this%b(ib,jb)%p)) cycle
             call this%b(ib,jb)%p%mul_mat(x(i0(ib):i1(ib),:), y(j0(jb):j1(jb),:), fact_y = one, trans = trans)
           end do
         end if
@@ -355,7 +366,7 @@ subroutine BLOCK_FACTORIZE(this)
 
   if (this%diag) then
     do ib = 1, this%nbrows
-      if (.not. allocated(this%b(ib,ib)%p)) call program_error("Can not factorize diagonal block matrix with empty block on main diag!")
+      if (.not. associated(this%b(ib,ib)%p)) call program_error("Can not factorize diagonal block matrix with empty block on main diag!")
       call this%b(ib,ib)%p%factorize()
     end do
   else
@@ -449,17 +460,17 @@ subroutine BLOCK_TO_DENSE(this, d, i0, j0)
   associate (bi0 => this%i0, bj0 => this%j0)
     do ib = 1, this%nbrows
       if (this%diag) then
-        if (.not. allocated(this%b(ib,ib)%p)) cycle
+        if (.not. associated(this%b(ib,ib)%p)) cycle
         call this%b(ib,ib)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(ib)-1)
       elseif (this%tridiag) then
         do jb = ib - 1, ib + 1
           if ((jb < 1) .or. (jb > this%nbcols)) cycle
-          if (.not. allocated(this%b(ib,jb)%p)) cycle
+          if (.not. associated(this%b(ib,jb)%p)) cycle
           call this%b(ib,jb)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1)
         end do
       else
         do jb = 1, this%nbcols
-          if (.not. allocated(this%b(ib,jb)%p)) cycle
+          if (.not. associated(this%b(ib,jb)%p)) cycle
           call this%b(ib,jb)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1)
         end do
       end if
@@ -502,7 +513,7 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   associate (bi0 => this%i0, bi1 => this%i1, bj0 => this%j0, bj1 => this%j1)
     do ib = 1, this%nbrows
       if (this%diag) then
-        if (.not. allocated(this%b(ib,ib)%p)) cycle
+        if (.not. associated(this%b(ib,ib)%p)) cycle
         if (present(struct)) then
           call this%b(ib,ib)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(ib)-1, struct = struct(bi0(ib):bi1(ib), bj0(ib):bj1(ib)))
         else
@@ -511,7 +522,7 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
       elseif (this%tridiag) then
         do jb = ib - 1, ib + 1
           if ((jb < 1) .or. (jb > this%nbcols)) cycle
-          if (.not. allocated(this%b(ib,jb)%p)) cycle
+          if (.not. associated(this%b(ib,jb)%p)) cycle
           if (present(struct)) then
             call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
           else
@@ -520,7 +531,7 @@ subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
         end do
       else
         do jb = 1, this%nbcols
-          if (.not. allocated(this%b(ib,jb)%p)) cycle
+          if (.not. associated(this%b(ib,jb)%p)) cycle
           if (present(struct)) then
             call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
           else
@@ -588,7 +599,7 @@ end subroutine
 subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   !! Return pointer to dense block.
 
-  class(BLOCK_TYPE), target, intent(inout) :: this
+  class(BLOCK_TYPE),         intent(inout) :: this
     !! Block matrix
   integer,                   intent(in)    :: ib
     !! Block row
@@ -600,7 +611,10 @@ subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate (DENSE_TYPE :: this%b(ib,jb)%p)
+  if (.not. associated(this%b(ib,jb)%p)) then
+    this%alc(ib,jb) = .true.
+    allocate (DENSE_TYPE :: this%b(ib,jb)%p)
+  end if
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -614,7 +628,7 @@ end subroutine
 subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
   !! Return pointer to sparse block.
 
-  class(BLOCK_TYPE), target,  intent(inout) :: this
+  class(BLOCK_TYPE),          intent(inout) :: this
     !! Block matrix
   integer,                    intent(in)    :: ib
     !! Block row
@@ -626,7 +640,10 @@ subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
   ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate (SPARSE_TYPE :: this%b(ib,jb)%p)
+  if (.not. associated(this%b(ib,jb)%p)) then
+    this%alc(ib,jb) = .true.
+    allocate (SPARSE_TYPE :: this%b(ib,jb)%p)
+  end if
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -640,7 +657,7 @@ end subroutine
 subroutine BLOCK_GET_BAND(this, ib, jb, p)
   !! Return pointer to BAND block.
 
-  class(BLOCK_TYPE), target, intent(inout) :: this
+  class(BLOCK_TYPE),         intent(inout) :: this
     !! Block matrix
   integer,                   intent(in)    :: ib
     !! Block row
@@ -652,7 +669,10 @@ subroutine BLOCK_GET_BAND(this, ib, jb, p)
   ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate (BAND_TYPE :: this%b(ib,jb)%p)
+  if (.not. associated(this%b(ib,jb)%p)) then
+    this%alc(ib,jb) = .true.
+    allocate (BAND_TYPE :: this%b(ib,jb)%p)
+  end if
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -666,7 +686,7 @@ end subroutine
 subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   !! Return pointer to BLOCK block.
 
-  class(BLOCK_TYPE), target, intent(inout) :: this
+  class(BLOCK_TYPE),         intent(inout) :: this
     !! Block matrix
   integer,                   intent(in)    :: ib
     !! Block row
@@ -678,7 +698,10 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   ASSERT(this%block_allowed(ib, jb))
 
   ! allocate if block not already allocated
-  if (.not. allocated(this%b(ib,jb)%p)) allocate (BLOCK_TYPE :: this%b(ib,jb)%p)
+  if (.not. associated(this%b(ib,jb)%p)) then
+    this%alc(ib,jb) = .true.
+    allocate (BLOCK_TYPE :: this%b(ib,jb)%p)
+  end if
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
@@ -690,8 +713,7 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
 end subroutine
 
 subroutine BLOCK_SET(this, ib, jb, b, fact)
-  !! Set one specific block.
-
+  !! Set one specific block (deep copy)
   class(BLOCK_TYPE),  intent(inout) :: this
     !! Block matrix
   integer,            intent(in)    :: ib
@@ -705,15 +727,91 @@ subroutine BLOCK_SET(this, ib, jb, b, fact)
   ASSERT(this%block_allowed(ib, jb))
 
   ! destruct old block
-  if (allocated(this%b(ib,jb)%p)) then
-    call this%b(ib,jb)%p%destruct()
+  if (this%alc(ib,jb)) then
+    if (associated(this%b(ib,jb)%p)) then
+      call this%b(ib,jb)%p%destruct()
+      deallocate (this%b(ib,jb)%p)
+    end if
+    this%alc(ib,jb) = .false.
   end if
 
-  ! set block
-  this%b(ib,jb)%p = b
+  ! copy block
+  this%alc(ib,jb) = .true.
+  select type (b)
+    class is (BLOCK_TYPE)
+      allocate (BLOCK_TYPE :: this%b(ib,jb)%p)
+      select type (this_b => this%b(ib,jb)%p)
+        type is (BLOCK_TYPE)
+          call b%copy(this_b)
+      end select
+    class default
+      allocate (this%b(ib,jb)%p, source = b)
+  end select
 
   ! scaling
   if (present(fact)) call this%b(ib,jb)%p%scale(fact)
+end subroutine
+
+subroutine BLOCK_SET_PTR(this, ib, jb, b)
+  !! Set one specific block by pointer
+  class(BLOCK_TYPE),          intent(inout) :: this
+    !! Block matrix
+  integer,                    intent(in)    :: ib
+    !! Block row
+  integer,                    intent(in)    :: jb
+    !! Block col
+  class(MATRIX_TYPE), target, intent(in)    :: b
+
+  ASSERT(this%block_allowed(ib, jb))
+
+  ! destruct old block
+  if (this%alc(ib,jb)) then
+    if (associated(this%b(ib,jb)%p)) then
+      call this%b(ib,jb)%p%destruct()
+      deallocate (this%b(ib,jb)%p)
+    end if
+    this%alc(ib,jb) = .false.
+  end if
+
+  ! set pointer
+  this%b(ib,jb)%p => b
+end subroutine
+
+subroutine BLOCK_COPY(this, copy)
+  !! create deep copy of this block matrix (shallow copy for non-owned pointers)
+  class(BLOCK_TYPE), intent(in)  :: this
+  type(BLOCK_TYPE),  intent(out) :: copy
+    !! output deep copy
+
+  integer :: ib, jb
+
+  ! initialize copy
+  call copy%init(this%i1-this%i0+1, this%j1-this%j0+1, diag = this%diag, tridiag = this%tridiag)
+
+  do ib = 1, this%nbrows
+    do jb = 1, this%nbcols
+      if (this%alc(ib,jb)) then
+        ! deep copy
+        copy%alc(ib,jb) = .true.
+
+        select type (p => this%b(ib,jb)%p)
+          class is (BLOCK_TYPE)
+            allocate (BLOCK_TYPE :: copy%b(ib,jb)%p)
+            select type (copy_b => copy%b(ib,jb)%p)
+              type is (BLOCK_TYPE)
+                call p%copy(copy_b)
+            end select
+
+          class default
+            allocate (copy%b(ib,jb)%p, source = p)
+
+        end select
+      else
+        ! shallow copy (pointer only)
+        copy%b(ib,jb)%p => this%b(ib,jb)%p
+      end if
+    end do
+  end do
 end subroutine
 
 function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
@@ -749,7 +847,7 @@ function BLOCK_CHECK_SIZES(this) result(tf)
 
   do ib = 1, this%nbrows
     do jb = 1, this%nbcols
-      if (allocated(this%b(ib,jb)%p)) then
+      if (associated(this%b(ib,jb)%p)) then
         if (this%i1(ib)-this%i0(ib)+1 /= this%b(ib,jb)%p%nrows) call program_error('block (ib,jb)=(' // int2str(ib) // &
           & ',' // int2str(jb) // ') has wrong nrows.')
 
@@ -803,5 +901,7 @@ end function
 #undef BLOCK_GET_BAND
 #undef BLOCK_GET_BLOCK
 #undef BLOCK_SET
+#undef BLOCK_SET_PTR
+#undef BLOCK_COPY
 #undef BLOCK_BLOCK_ALLOWED
 #undef BLOCK_CHECK_SIZES
