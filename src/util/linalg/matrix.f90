@@ -33,10 +33,18 @@ module matrix_m
   public :: matrix_ptr_cmplx
   public :: dense_real
   public :: dense_cmplx
+  public :: dense_alc_real
+  public :: dense_alc_cmplx
+  public :: dense_ptr_real
+  public :: dense_ptr_cmplx
   public :: dense_eye_real
   public :: dense_eye_cmplx
   public :: sparse_real
   public :: sparse_cmplx
+  public :: sparse_alc_real
+  public :: sparse_alc_cmplx
+  public :: sparse_ptr_real
+  public :: sparse_ptr_cmplx
   public :: sparse_eye_real
   public :: sparse_eye_cmplx
   public :: sparse_zero_real
@@ -45,14 +53,30 @@ module matrix_m
   public :: spbuild_cmplx
   public :: band_real
   public :: band_cmplx
+  public :: band_alc_real
+  public :: band_alc_cmplx
+  public :: band_ptr_real
+  public :: band_ptr_cmplx
   public :: band_eye_real
   public :: band_eye_cmplx
   public :: hessenberg_real
   public :: hessenberg_cmplx
+  public :: hessenberg_alc_real
+  public :: hessenberg_alc_cmplx
+  public :: hessenberg_ptr_real
+  public :: hessenberg_ptr_cmplx
   public :: triang_real
   public :: triang_cmplx
+  public :: triang_alc_real
+  public :: triang_alc_cmplx
+  public :: triang_ptr_real
+  public :: triang_ptr_cmplx
   public :: block_real
   public :: block_cmplx
+  public :: block_alc_real
+  public :: block_alc_cmplx
+  public :: block_ptr_real
+  public :: block_ptr_cmplx
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
