@@ -441,7 +441,7 @@ end subroutine
 subroutine DENSE_ADD_SPARSE(this, s, fact)
   !! Add dense and sparse matrix, store result in dense matrix.
   !!
-  !! operation:  D <- D + fact S
+  !! operation:  D <- D + fact * S
 
   class(DENSE_TYPE), intent(inout) :: this
     !! Dense matrix D (updated)
@@ -459,6 +459,9 @@ subroutine DENSE_ADD_SPARSE(this, s, fact)
   ASSERT(.not. allocated(this%lu))
   ASSERT(.not. allocated(this%ipiv))
 
+  ! do nothing if s is empty
+  if (s%is_empty()) return
+
   ! optional arguments
   fact_ = 1
   if (present(fact)) fact_ = fact
@@ -474,7 +477,7 @@ end subroutine
 subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
   !! Add dense and sparse matrix, store result in another dense matrix.
   !!
-  !! operation:  d3 <- fact1 d1 + fact2 s2
+  !! operation:  d3 <- fact1 * this + fact2 * s2
 
   class(DENSE_TYPE), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)
@@ -501,7 +504,9 @@ subroutine DENSE_ADD_SPARSE3(this, s2, d3, fact1, fact2)
   call d3%init(fact1_ * this%d)
 
   ! add sparse matrix to d3
-  call d3%add_sparse(s2, fact = fact2)
+  if (.not. s2%is_empty()) then
+    call d3%add_sparse(s2, fact = fact2)
+  end if
 end subroutine
 
 subroutine DENSE_ADD_BAND(this, b, fact)

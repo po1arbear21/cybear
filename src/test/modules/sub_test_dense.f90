@@ -288,17 +288,18 @@ contains
 
     ! add sparse
     block
-      integer           :: i, j
-      type(dense_real)  :: d1, d2, d3
-      real              :: mat1(3,3), mat2(3,3), mat3(3,3)
+      integer            :: i, j
+      type(dense_real)   :: d1, d2, d3
+      real               :: mat1(3,3), mat2(3,3), mat3(3,3)
       type(sparse_real)  :: s1
       type(spbuild_real) :: sb1
 
-      ! build sparse s1, mat1
+      ! init matrices
       call s1%init(3)
-      call sb1%init(s1)
-
       call d1%init(3)
+      call d3%init(3)
+
+      ! build d1
       do i = 1, 3
         do j = 1, 3
           d1%d(i,j) = i-2*j
@@ -306,6 +307,14 @@ contains
       end do
       mat1 = d1%d
 
+      ! test adding empty sparse matrix to d1
+      call d1%add_sparse(s1)
+      call tc%assert_eq(d1%d, mat1, 1e-16, "add empty sparse")
+      call d1%add_sparse(s1, d3, fact1=2.5, fact2=7.8)
+      call tc%assert_eq(d3%d, 2.5 * mat1, 1e-16, "add empty sparse3")
+
+      ! build sparse s1
+      call sb1%init(s1)
       call d1%to_sparse(sb1)
       call sb1%save
 
@@ -323,7 +332,6 @@ contains
       mat2 = mat2 + 3*mat1
       call tc%assert_eq(d2%d, mat2, 1e-12, "add sparse")
 
-      call d3%init(3)
       call d2%add_sparse(s1, d3, fact1=3.0, fact2=2.0)
       mat3 = 3*mat2 + 2*mat1
       call tc%assert_eq(d3%d, mat3, 1e-12, "add sparse3")

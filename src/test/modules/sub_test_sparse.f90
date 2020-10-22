@@ -174,41 +174,55 @@ contains
     ! mul_vec
     block
       integer           :: i, n
-      type(sparse_real) :: sA
+      type(sparse_real) :: sA, sE
       real, allocatable :: x(:), y(:), y_exp(:)
 
       x= [ 1, -2, 3,  -4]
       allocate (y(4))
 
-      ! test: y <- A*x
-      y     = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
-      y_exp = [-3, -8, 3, -22]
-
+      ! get matrices
+      call get_empty_matrix(sE)
       call get_test_matrix(sA)
+
+      ! test: y <- A*x
+      y     = ieee_value(y, ieee_quiet_nan)
+      y_exp = [0.0, 0.0, 0.0, 0.0]
+      call sE%mul_vec(x, y)
+      call tc%assert_eq(y_exp, y, 0.0, "mul_vec empty 1")
+      y     = ieee_value(y, ieee_quiet_nan)
+      y_exp = [-3.0, -8.0, 3.0, -22.0]
       call sA%mul_vec(x, y)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 1")
 
       ! test: y <- A*x -2y
-      y     = [ 1,  0, 0,  -1]
-      y_exp = [-5, -8, 3, -20]
-
+      y     = [ 1.0, 0.0, 0.0, -1.0]
+      y_exp = [-2.0, 0.0, 0.0,  2.0]
+      call sE%mul_vec(x, y, fact_y=-2.0)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec empty 2")
+      y     = [ 1.0,  0.0, 0.0, - 1.0]
+      y_exp = [-5.0, -8.0, 3.0, -20.0]
       call sA%mul_vec(x, y, fact_y=-2.0)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 2")
 
       ! test: y <- (A^t)*x
-      y     = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
-      y_exp = [1, -10, 3, -20]
-
+      y     = ieee_value(y, ieee_quiet_nan)
+      y_exp = [0.0, 0.0, 0.0, 0.0]
+      call sE%mul_vec(x, y, trans='T')
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec empty 3")
+      y     = ieee_value(y, ieee_quiet_nan)
+      y_exp = [1.0, -10.0, 3.0, -20.0]
       call sA%mul_vec(x, y, trans='T')
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 3")
 
       ! test: y <- (A^t)*x -2y
-      y     = [ 1,   0, 0,  -1]
-      y_exp = [-1, -10, 3, -18]
-
+      y     = [ 1.0, 0.0, 0.0, -1.0]
+      y_exp = [-2.0, 0.0, 0.0,  2.0]
+      call sE%mul_vec(x, y, fact_y=-2.0, trans='T')
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec empty 4")
+      y     = [ 1.0,   0.0, 0.0,  -1.0]
+      y_exp = [-1.0, -10.0, 3.0, -18.0]
       call sA%mul_vec(x, y, fact_y=-2.0, trans='T')
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec 4")
-
 
       ! tests using large matrix
       ! expected solutions are too long to include here. just compare the sum
@@ -240,7 +254,7 @@ contains
 
     ! mul_mat
     block
-      type(sparse_real) :: sA
+      type(sparse_real) :: sA, sE
       real, allocatable :: x(:,:), y(:,:), y_exp(:,:)
 
       ! test 1
@@ -251,16 +265,21 @@ contains
       !  0     1     0
       x = reshape([1, 0, 0, 0, 2, 4, 0, 1, 0, 0, 1, 0], [4,3])
 
+      ! set y to nan
+      allocate(y(4,3))
+      y = ieee_value(y, ieee_quiet_nan)
+
+      allocate (y_exp(4,3), source = 0.0)
+      call get_empty_matrix(sE)
+      call sE%mul_mat(x, y)
+      call tc%assert_eq(y_exp, y, 0.0, "mul_mat empty")
+
       ! y = A*A(:,1:3) =
       !  1    10     0
       !  0    16     0
       !  0     0     1
       !  0     9     0
       y_exp = reshape([1, 0, 0, 0, 10, 16, 0, 9, 0, 0, 1, 0], [4,3])
-      allocate(y(4,3))
-
-      ! set y to nan
-      y = ieee_value(y, ieee_quiet_nan)
 
       call get_test_matrix(sA)
       call sA%mul_mat(x, y)
@@ -311,10 +330,13 @@ contains
 
     ! mul_sparse
     block
-      type(sparse_real)    :: sA, sB, sC
+      type(sparse_real)    :: sA, sB, sC, sE
       type(spbuild_real)   :: sbuild
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
+
+      call get_empty_matrix(sE)
+      call get_test_matrix(sA)
 
       ! test 1: small matrices. check each entry
       ! B =
@@ -332,7 +354,15 @@ contains
       call sbuild%add(3, 4, -3.0)
       call sbuild%add(4, 1, -1.0)
 
-      call sbuild%save
+      call sbuild%save()
+
+      ! C = A*E
+      call sA%mul_sparse(sE, sC)
+      call tc%assert(sC%is_empty(), "mul sparse empty 1")
+
+      ! C = E*A
+      call sE%mul_sparse(sA, sC)
+      call tc%assert(sC%is_empty(), "mul sparse empty 2")
 
       ! C = A*B =
       !  0     4     5     1
@@ -348,7 +378,6 @@ contains
       ia_exp = [1, 4, 5, 6, 8]
       ja_exp = [2, 3, 4, 2, 4, 1, 2]
 
-      call get_test_matrix(sA)
       call sA%mul_sparse(sB, sC)
 
       call tc%assert_eq(a_exp,  sC%a, 1e-12, "mul sparse 1: a")
@@ -455,12 +484,33 @@ contains
 
     ! add_sparse: A <- A + fact * B
     block
-      type(sparse_real)    :: A, B
+      type(sparse_real)    :: sA, sB, sE, sE2
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
 
-      call get_test_matrix2(A)
-      call get_test_matrix(B)
+      call get_test_matrix2(sA)
+      call get_test_matrix(sB)
+      call get_empty_matrix(sE)
+
+      a_exp  = sA%a
+      ia_exp = sA%ia
+      ja_exp = sA%ja
+      call sA%add_sparse(sE, fact=-1.5)
+      call tc%assert_eq(a_exp,  sA%a,  0.0, "add_sparse empty 1: a")
+      call tc%assert_eq(ia_exp, sA%ia,      "add_sparse empty 1: ia")
+      call tc%assert_eq(ja_exp, sA%ja,      "add_sparse empty 1: ja")
+
+      call get_test_matrix2(sA)
+      a_exp = 3 * sA%a
+      call sE%add_sparse(sA, fact=3.0)
+      call tc%assert_eq(a_exp,  sE%a,  0.0, "add_sparse empty 2: a")
+      call tc%assert_eq(ia_exp, sE%ia,      "add_sparse empty 2: ia")
+      call tc%assert_eq(ja_exp, sE%ja,      "add_sparse empty 2: ja")
+
+      call get_empty_matrix(sE)
+      call get_empty_matrix(sE2)
+      call sE%add_sparse(sE2, fact=9.5)
+      call tc%assert(sE%is_empty(), "add_sparse empty 3")
 
       ! A - 2 * B =
       !  -2    -4     5     1
@@ -475,21 +525,34 @@ contains
       a_exp  = [-2,-4,5,1,-6,-2,-3,-1,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call A%add_sparse(B, fact=-2.0)
+      call sA%add_sparse(sB, fact=-2.0)
 
-      call tc%assert_eq(a_exp,  A%a, 1e-12, "add_sparse: a")
-      call tc%assert_eq(ia_exp, A%ia,       "add_sparse: ia")
-      call tc%assert_eq(ja_exp, A%ja,       "add_sparse: ja")
+      call tc%assert_eq(a_exp,  sA%a, 1e-12, "add_sparse: a")
+      call tc%assert_eq(ia_exp, sA%ia,       "add_sparse: ia")
+      call tc%assert_eq(ja_exp, sA%ja,       "add_sparse: ja")
     end block
 
     ! add_sparse3: C <- fact1 * A + fact2 * B
     block
-      type(sparse_real)    :: A, B, C
+      type(sparse_real)    :: sA, sB, sC, sE
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
 
-      call get_test_matrix(A)
-      call get_test_matrix2(B)
+      call get_test_matrix(sA)
+      call get_test_matrix2(sB)
+      call get_empty_matrix(sE)
+
+      call sA%add_sparse(sE, sC, fact1=3.0, fact2=-5.0)
+      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 1: a")
+      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 1: a")
+      call tc%assert_eq(   sA%ia, sC%ia,       "add_sparse3 empty 1: ia")
+      call tc%assert_eq(   sA%ja, sC%ja,       "add_sparse3 empty 1: ja")
+
+      call sE%add_sparse(sA, sC, fact1=-5.0, fact2=3.0)
+      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 2: a")
+      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 2: a")
+      call tc%assert_eq(   sA%ia, sC%ia,       "add_sparse3 empty 2: ia")
+      call tc%assert_eq(   sA%ja, sC%ja,       "add_sparse3 empty 2: ja")
 
       ! 3*B-2*A=
       !  -2    -4    15     3
@@ -503,11 +566,11 @@ contains
       a_exp  = [-2,-4,15,3,-2,-2,-9,-3,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call B%add_sparse(A, C, fact1=3.0, fact2=-2.0)
+      call sB%add_sparse(sA, sC, fact1=3.0, fact2=-2.0)
 
-      call tc%assert_eq(a_exp,  C%a, 1e-12, "add_sparse: a")
-      call tc%assert_eq(ia_exp, C%ia,       "add_sparse: ia")
-      call tc%assert_eq(ja_exp, C%ja,       "add_sparse: ja")
+      call tc%assert_eq(a_exp,  sC%a, 1e-12, "add_sparse3: a")
+      call tc%assert_eq(ia_exp, sC%ia,       "add_sparse3: ia")
+      call tc%assert_eq(ja_exp, sC%ja,       "add_sparse3: ja")
     end block
 
     ! add_band: S <- S + fact * B
@@ -516,8 +579,6 @@ contains
       type(band_real)      :: B
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
-
-      call get_test_matrix(S)
 
       ! B =
       !  3    -2     0     0
@@ -529,6 +590,22 @@ contains
       B%d( 0, : ) = 3.0
       B%d(+1,1:3) = -1.0
 
+      ! 2*B =
+      !  6    -4     0     0
+      ! -2     6    -4     0
+      !  0    -2     6    -4
+      !  0     0    -2     6
+      a_exp = [6, -4, -2, 6, -4, -2, 6, -4, -2, 6]
+      ia_exp = [1, 3, 6, 9, 11]
+      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
+      call get_empty_matrix(S)
+      call S%add_band(B, 2.0)
+      call tc%assert_eq(a_exp,  S%a, 1e-16, "add_band empty: a")
+      call tc%assert_eq(ia_exp, S%ia,       "add_band empty: ia")
+      call tc%assert_eq(ja_exp, S%ja,       "add_band empty: ja")
+
+      call get_test_matrix(S)
+
       ! S+2*B=
       !  7    -2     0     0
       ! -2    10    -4     0
@@ -538,7 +615,6 @@ contains
       ia_exp = [1, 3,  6,  9, 12]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
       call S%add_band(B, 2.0)
-
       call tc%assert_eq(a_exp,  S%a, 1e-12, "add_band: a")
       call tc%assert_eq(ia_exp, S%ia,       "add_band: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band: ja")
@@ -551,8 +627,6 @@ contains
       real,    allocatable :: a_exp(:)
       integer, allocatable :: ia_exp(:), ja_exp(:)
 
-      call get_test_matrix(S)
-
       ! B =
       !  3    -2     0     0
       ! -1     3    -2     0
@@ -562,6 +636,22 @@ contains
       B%d(-1,2:4) = -2.0
       B%d( 0, : ) = 3.0
       B%d(+1,1:3) = -1.0
+
+      ! 2*B =
+      !  6    -4     0     0
+      ! -2     6    -4     0
+      !  0    -2     6    -4
+      !  0     0    -2     6
+      a_exp = [6, -4, -2, 6, -4, -2, 6, -4, -2, 6]
+      ia_exp = [1, 3, 6, 9, 11]
+      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
+      call get_empty_matrix(S)
+      call S%add_band(B, S2, fact1 = 1e99, fact2 = 2.0)
+      call tc%assert_eq(a_exp,  S2%a, 1e-16, "add_band3 empty: a")
+      call tc%assert_eq(ia_exp, S2%ia,       "add_band3 empty: ia")
+      call tc%assert_eq(ja_exp, S2%ja,       "add_band3 empty: ja")
+
+      call get_test_matrix(S)
 
       ! -1*S + 2*B=
       !  5    -6     0     0
@@ -604,6 +694,11 @@ contains
       type(sparse_real) :: S
       real              :: d_exp(4), d(4)
 
+      call get_empty_matrix(S)
+      d_exp = [0,0,0,0]
+      call S%to_diag(d)
+      call tc%assert_eq(d_exp, d, 0.0, "to_diag")
+
       call get_test_matrix(S)
       d_exp = [1,4,1,5]
       call S%to_diag(d)
@@ -637,17 +732,20 @@ contains
       type(sparse_real)  :: s
       type(spbuild_real) :: spb
 
-      call get_test_matrix(s)
-      call tc%assert_eq(6, s%nnz(), "nnz")
+      call get_empty_matrix(s)
+      call tc%assert_eq(0, s%nnz(), "nnz 1")
 
       call get_test_matrix(s)
-      call tc%assert_eq(6, s%nnz(only_nonzeros=.true.), "nnz")
+      call tc%assert_eq(6, s%nnz(), "nnz 2")
+
+      call get_test_matrix(s)
+      call tc%assert_eq(6, s%nnz(only_nonzeros=.true.), "nnz 3")
 
       call get_test_matrix2(s)
-      call tc%assert_eq(5, s%nnz(), "nnz")
+      call tc%assert_eq(5, s%nnz(), "nnz 4")
 
       call get_test_matrix2(s)
-      call tc%assert_eq(5, s%nnz(only_nonzeros=.true.), "nnz")
+      call tc%assert_eq(5, s%nnz(only_nonzeros=.true.), "nnz 5")
 
       ! test matrix also includes 0 entries
       ! S = [ 0  1  2]
@@ -665,7 +763,7 @@ contains
       call spb%add(3, 3, -0.0)   ! 0 entry !!!
       call spb%save
 
-      call tc%assert_eq(6, s%nnz(), "nnz")
+      call tc%assert_eq(6, s%nnz(), "nnz 6")
     end block
 
     ! to_band
@@ -787,6 +885,12 @@ contains
     call tc%finish
   end subroutine
 
+  subroutine get_empty_matrix(S)
+    type(sparse_real), intent(out) :: S
+
+    call S%init(4)
+  end subroutine
+
   subroutine get_test_matrix(S)
     type(sparse_real), intent(out) :: S
 
@@ -812,7 +916,7 @@ contains
     call sbuild%add(4, 2, 1.0)
     call sbuild%add(4, 4, 5.0)
 
-    call sbuild%save
+    call sbuild%save()
   end subroutine
 
   subroutine get_test_matrix2(S)
@@ -835,7 +939,7 @@ contains
     call sbuild%add(3, 4, -3.0)
     call sbuild%add(4, 1, -1.0)
 
-    call sbuild%save
+    call sbuild%save()
   end subroutine
 
   subroutine get_test_matrix3(n, S)
@@ -860,7 +964,7 @@ contains
       end do
     end do
 
-    call sbuild%save
+    call sbuild%save()
   end subroutine
 
 end submodule

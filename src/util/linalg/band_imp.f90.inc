@@ -586,6 +586,9 @@ subroutine BAND_ADD_ELEM(this, i, j, x)
   TT,               intent(in)    :: x
     !! matrix element to add
 
+  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
+
   this%d(i-j,j) = this%get_elem(i,j) + x
 end subroutine
 

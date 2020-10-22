@@ -44,6 +44,7 @@
 #define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
 #define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
+#define SPARSE_IS_EMPTY      CONCAT3(sparse,T,is_empty)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
 #define SPARSE_ZERO          CONCAT3(sparse,zero,T)
 
@@ -83,14 +84,13 @@ subroutine SPARSE_DESTRUCT(this)
 end subroutine
 
 subroutine SPARSE_RESET(this, only_factorization)
-  !! Reset sparse matrix to zero (optionally only the factorization).
+  !! Reset sparse matrix to empty state (optionally only the factorization).
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
   logical, optional,  intent(in)    :: only_factorization
     !! Reset only factorization data (default: false)
 
-  ! local variables
   logical :: only_fact
 
   only_fact = .false.
@@ -130,7 +130,7 @@ subroutine SPARSE_SCALE(this, fact)
   ASSERT(this%solver_handle == 0)
 
   ! scale values
-  this%a = fact * this%a
+  if (.not. this%is_empty()) this%a = fact * this%a
 end subroutine
 
 subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
@@ -160,6 +160,9 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   else
     y = 0
   end if
+
+  ! ignore x if matrix is empty
+  if (this%is_empty()) return
 
   ! transpose flag
   trans_ = 'N'
@@ -245,6 +248,9 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
     y = 0
   end if
 
+  ! ignore x if matrix is empty
+  if (this%is_empty()) return
+
   ! transpose flag
   trans_ = 'N'
   if (present(trans)) trans_ = trans
@@ -308,8 +314,9 @@ subroutine SPARSE_INIT_SOLVER(this)
 
   class(SPARSE_TYPE), intent(inout) :: this
 
-  ! make sure matrix is unfactorized
+  ! make sure matrix is unfactorized and not empty
   ASSERT(this%solver_handle == 0)
+  ASSERT(.not. this%is_empty())
 
   select case (this%solver)
     case (SOLVER_PARDISO)
@@ -363,6 +370,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
+  ! matrix must be factorized before solving
   ASSERT(this%factorized)
 
   ! optional arguments
@@ -400,9 +408,9 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
-  ! local variables
   TT, allocatable :: rhs_(:), x_(:)
 
+  ! matrix must be factorized before solving
   ASSERT(this%factorized)
 
   ! optional arguments
@@ -444,6 +452,7 @@ subroutine SPARSE_TO_BAND(this, b, i0, j0)
 
   integer :: i, j, i0_, j0_
 
+  ASSERT(.not. this%is_empty())
   ASSERT(allocated(b%d))
 
   ! optional arguments
@@ -474,6 +483,7 @@ subroutine SPARSE_TO_DENSE(this, d, i0, j0)
 
   integer :: i, j, i0_, j0_
 
+  ASSERT(.not. this%is_empty())
   ASSERT(allocated(d%d))
 
   ! optional arguments
@@ -508,6 +518,8 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
 
   integer :: i, j, i0_, j0_
   logical :: drop_zeros_
+
+  ASSERT(.not. this%is_empty())
 
   ! optional arguments
   drop_zeros_ = .false.
@@ -547,9 +559,11 @@ subroutine SPARSE_TO_REAL(this, s)
   call s%init(this%nrows, ncols = this%ncols)
 
   ! copy csr
-  allocate (s%ia(size(this%ia)), source = this%ia     )
-  allocate (s%ja(size(this%ja)), source = this%ja     )
-  allocate (s%a( size(this%a )), source = real(this%a))
+  if (.not. this%is_empty()) then
+    allocate (s%ia(size(this%ia)), source = this%ia     )
+    allocate (s%ja(size(this%ja)), source = this%ja     )
+    allocate (s%a( size(this%a )), source = real(this%a))
+  end if
 end subroutine
 #else
 subroutine SPARSE_TO_CMPLX(this, s)
@@ -564,9 +578,11 @@ subroutine SPARSE_TO_CMPLX(this, s)
   call s%init(this%nrows, ncols = this%ncols)
 
   ! copy csr
-  allocate (s%ia(size(this%ia)), source = this%ia      )
-  allocate (s%ja(size(this%ja)), source = this%ja      )
-  allocate (s%a( size(this%a )), source = cmplx(this%a))
+  if (.not. this%is_empty()) then
+    allocate (s%ia(size(this%ia)), source = this%ia      )
+    allocate (s%ja(size(this%ja)), source = this%ja      )
+    allocate (s%a( size(this%a )), source = cmplx(this%a))
+  end if
 end subroutine
 #endif
 
@@ -576,7 +592,6 @@ subroutine SPARSE_TRANSPOSE(this)
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix
 
-  ! local variables
   type(SPARSE_TYPE) :: s2
 
   ! h == 0 is default value for unfactorized
@@ -588,9 +603,11 @@ subroutine SPARSE_TRANSPOSE(this)
   ! copy transposed matrix
   this%nrows = s2%nrows
   this%ncols = s2%ncols
-  this%ia    = s2%ia
-  this%ja    = s2%ja
-  this%a     = s2%a
+  if (.not. s2%is_empty()) then
+    this%ia    = s2%ia
+    this%ja    = s2%ja
+    this%a     = s2%a
+  end if
 end subroutine
 
 subroutine SPARSE_TRANSPOSE2(this, s2)
@@ -601,10 +618,15 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
   type(SPARSE_TYPE),  intent(out) :: s2
     !! Output transposed sparse matrix
 
-  ! local variables
   integer                        :: i, j, k
   type(vector_int),  allocatable :: col(:)
   type(VECTOR_TYPE), allocatable :: val(:)
+
+  ! init s2
+  call s2%init(this%ncols, ncols = this%nrows)
+
+  ! do not copy values of an empty matrix
+  if (this%is_empty()) return
 
   ! allocate memory
   allocate (col(this%ncols))
@@ -621,9 +643,6 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
       call val(this%ja(j))%push(this%a(j))
     end do
   end do
-
-  ! init s2
-  call s2%init(this%ncols, ncols = this%nrows)
 
   ! allocate memory for csr
   allocate (s2%ia(s2%nrows + 1))
@@ -655,7 +674,6 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
   TT, optional,       intent(in)    :: fact
     !! Second sparse matrix scaling factor (default: 1)
 
-  ! local variables
   integer              :: i, j1, j2
   TT                   :: fact_
   integer, allocatable :: ia(:)
@@ -668,9 +686,20 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
   ! h == 0 is default value for unfactorized
   ASSERT(this%solver_handle == 0)
 
+  ! do nothing if s is empty
+  if (s%is_empty()) return
+
   ! optional arguments
   fact_ = 1
   if (present(fact)) fact_ = fact
+
+  ! simply copy and scale s if this matrix is empty
+  if (this%is_empty()) then
+    this%ia = s%ia
+    this%ja = s%ja
+    this%a  = s%a * fact_
+    return
+  end if
 
   ! allocate memory
   allocate (ia(this%nrows + 1))
@@ -738,20 +767,26 @@ subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
   ASSERT(this%nrows == s2%nrows)
   ASSERT(this%ncols == s2%ncols)
 
-  ! s3 = fact1 * this + fact2 * s2
+  ! init result matrix
   call s3%init(this%nrows, ncols = this%ncols)
-  s3%ia = this%ia
-  s3%ja = this%ja
-  if (present(fact1)) then
-    s3%a = fact1 * this%a
-  else
-    s3%a = this%a
+
+  ! s3 = fact1 * this + fact2 * s2
+  if (.not. this%is_empty()) then
+    s3%ia = this%ia
+    s3%ja = this%ja
+    if (present(fact1)) then
+      s3%a = fact1 * this%a
+    else
+      s3%a = this%a
+    end if
   end if
   call s3%add_sparse(s2, fact = fact2)
 end subroutine
 
 subroutine SPARSE_ADD_BAND(this, b, fact)
   !! Add sparse and band matrix, store result in sparse matrix.
+  !!
+  !! operation: this <- this + fact * b
 
   class(SPARSE_TYPE), intent(inout) :: this
     !! Sparse matrix (updated)
@@ -760,7 +795,6 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   TT, optional,       intent(in)    :: fact
     !! Band matrix scaling factor (default: 1)
 
-  ! local variables
   integer              :: i, j1, j2
   integer, allocatable :: ia(:)
   TT                   :: fact_
@@ -776,6 +810,13 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   ! optional arguments
   fact_ = 1
   if (present(fact)) fact_ = fact
+
+  ! if this is empty, set to zero matrix first
+  if (this%is_empty()) then
+    allocate (this%ia(this%nrows+1), source = 1)
+    allocate (this%ja(0))
+    allocate (this%a( 0))
+  end if
 
   ! allocate memory
   allocate (ia(this%nrows + 1))
@@ -827,6 +868,8 @@ end subroutine
 
 subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
   !! Add sparse and band matrix, store result in sparse third matrix.
+  !!
+  !! operation: s3 <- fact1 * this + fact2 * b2
 
   class(SPARSE_TYPE), intent(in)  :: this
     !! Sparse first matrix (unchanged)
@@ -844,12 +887,14 @@ subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
 
   ! s3 = fact1 * this + fact2 * s2
   call s3%init(this%nrows, ncols = this%ncols)
-  s3%ia = this%ia
-  s3%ja = this%ja
-  if (present(fact1)) then
-    s3%a = fact1 * this%a
-  else
-    s3%a = this%a
+  if (.not. this%is_empty()) then
+    s3%ia = this%ia
+    s3%ja = this%ja
+    if (present(fact1)) then
+      s3%a = fact1 * this%a
+    else
+      s3%a = this%a
+    end if
   end if
   call s3%add_band(b2, fact = fact2)
 end subroutine
@@ -879,6 +924,9 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
 
   ! init s3
   call s3%init(this%nrows, ncols = s2%ncols)
+
+  ! return empty s3 if this or s2 is empty
+  if (this%is_empty() .or. s2%is_empty()) return
 
   ! allocate memory for global 4-array csr row pointers
   allocate (ia0(s3%nrows))
@@ -1044,15 +1092,17 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   end if
 
   ! output csr
-  do i = 1, this%nrows
-    do j = this%ia(i), this%ia(i+1)-1
-      ! write row and column
-      write(funit_, "(I0,A,I0,A)", advance = "no") i, " ", this%ja(j), " "
+  if (.not. this%is_empty()) then
+    do i = 1, this%nrows
+      do j = this%ia(i), this%ia(i+1)-1
+        ! write row and column
+        write (funit_, "(I0,A,I0,A)", advance = "no") i, " ", this%ja(j), " "
 
-      ! write value
-      write(funit_, fmt_) this%a(j)
+        ! write value
+        write (funit_, fmt_) this%a(j)
+      end do
     end do
-  end do
+  end if
 
   ! close file if openend here
   if (present(file)) close(funit_)
@@ -1089,6 +1139,12 @@ subroutine SPARSE_TO_DIAG(this, diag)
   n = min(this%nrows, this%ncols)
   ASSERT(n == size(diag))
 
+  ! empty matrix => zero diagonal
+  if (this%is_empty()) then
+    diag = 0
+    return
+  end if
+
   !$omp parallel do   &
   !$omp default(none) &
   !$omp private(i,j)  &
@@ -1117,13 +1173,31 @@ integer function SPARSE_NNZ(this, only_nonzeros) result(nnz)
 
   logical :: only_nonzeros_
 
-  only_nonzeros_ = .false.
-  if (present(only_nonzeros)) only_nonzeros_ = only_nonzeros
-
-  if (only_nonzeros_) then
-    nnz = this%ia(this%nrows+1)-1
+  if (this%is_empty()) then
+    nnz = 0
   else
-    nnz = count(abs(this%a) > 0.0)
+    only_nonzeros_ = .false.
+    if (present(only_nonzeros)) only_nonzeros_ = only_nonzeros
+
+    if (only_nonzeros_) then
+      nnz = this%ia(this%nrows+1)-1
+    else
+      nnz = count(abs(this%a) > 0.0)
+    end if
+  end if
+end function
+
+function SPARSE_IS_EMPTY(this) result(empty)
+  !! check if sparse matrix is empty (CSR not allocated)
+
+  class(SPARSE_TYPE), intent(in) :: this
+  logical                        :: empty
+    !! return true if CSR is not allocated, false otherwise
+
+  if ((.not. allocated(this%ia)) .or. (.not. allocated(this%ja)) .or. (.not. allocated(this%a))) then
+    empty = .true.
+  else
+    empty = .false.
   end if
 end function
 
@@ -1137,7 +1211,6 @@ function SPARSE_EYE(nrows, ncols) result(eye)
   type(SPARSE_TYPE)               :: eye
     !! return sparse identity matrix
 
-  ! local variables
   integer :: i, n
 
   call eye%init(nrows, ncols = ncols)
@@ -1160,7 +1233,7 @@ function SPARSE_EYE(nrows, ncols) result(eye)
 end function
 
 function SPARSE_ZERO(nrows, ncols) result(zero)
-  !! empty sparse matrix
+  !! create empty sparse matrix
 
   integer,           intent(in) :: nrows
     !! Number of rows
@@ -1280,7 +1353,6 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
   logical, optional,   intent(in)    :: search
     !! Search for existing value instead of appending to end of row (default: true)
 
-  ! local variables
   TT      :: fact_
   logical :: search_
   integer :: i, l, r, m
@@ -1371,7 +1443,6 @@ subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   integer, optional,   intent(in)    :: j1
     !! End column index (default: this%sp%ncols)
 
-  ! local variables
   integer :: j, j0_, j1_
 
   ! optional arguments
@@ -1581,6 +1652,7 @@ end subroutine
 #undef SPARSE_FROM_DIAG
 #undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
+#undef SPARSE_IS_EMPTY
 #undef SPARSE_EYE
 #undef SPARSE_ZERO
 

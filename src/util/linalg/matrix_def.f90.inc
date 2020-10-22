@@ -83,6 +83,7 @@
 #define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
 #define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
+#define SPARSE_IS_EMPTY      CONCAT3(sparse,T,is_empty)
 
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define SPBUILD_INIT         CONCAT3(spbuild,T,init)
@@ -309,6 +310,7 @@ contains
   procedure :: from_diag    => SPARSE_FROM_DIAG
   procedure :: to_diag      => SPARSE_TO_DIAG
   procedure :: nnz          => SPARSE_NNZ
+  procedure :: is_empty     => SPARSE_IS_EMPTY
 end type
 
 type SPBUILD_TYPE
@@ -675,6 +677,7 @@ end interface
 #undef SPARSE_FROM_DIAG
 #undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
+#undef SPARSE_IS_EMPTY
 
 #undef SPBUILD_TYPE
 #undef SPBUILD_INIT
