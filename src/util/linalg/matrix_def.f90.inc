@@ -24,6 +24,8 @@
 #define MATRIX_TO_SPARSE     CONCAT3(matrix,T,to_sparse)
 
 #define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_ALC_TYPE       CONCAT(dense_alc,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
 #define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
 #define DENSE_INIT_BY_SIZE   CONCAT3(dense,T,init_by_size)
 #define DENSE_DESTRUCT       CONCAT3(dense,T,destruct)
@@ -54,6 +56,8 @@
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
 
 #define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_ALC_TYPE      CONCAT(sparse_alc,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
 #define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
 #define SPARSE_DESTRUCT      CONCAT3(sparse,T,destruct)
@@ -98,6 +102,8 @@
 #define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
 #define BAND_TYPE            CONCAT(band,T)
+#define BAND_ALC_TYPE        CONCAT(band_alc,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BAND_INIT            CONCAT3(band,T,init)
 #define BAND_DESTRUCT        CONCAT3(band,T,destruct)
 #define BAND_RESET           CONCAT3(band,T,reset)
@@ -125,6 +131,8 @@
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 
 #define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_ALC_TYPE  CONCAT(hessenberg_alc,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
 #define HESSENBERG_INIT      CONCAT3(hessenberg,T,init)
 #define HESSENBERG_DESTRUCT  CONCAT3(hessenberg,T,destruct)
 #define HESSENBERG_RESET     CONCAT3(hessenberg,T,reset)
@@ -145,6 +153,8 @@
 #endif
 
 #define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_ALC_TYPE      CONCAT(triang_alc,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 #define TRIANG_INIT          CONCAT3(triang,T,init)
 #define TRIANG_DESTRUCT      CONCAT3(triang,T,destruct)
 #define TRIANG_RESET         CONCAT3(triang,T,reset)
@@ -164,6 +174,8 @@
 #endif
 
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_ALC_TYPE       CONCAT(block_alc,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
 #define BLOCK_INIT           CONCAT3(block,T,init)
 #define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
 #define BLOCK_RESET          CONCAT3(block,T,reset)
@@ -265,6 +277,14 @@ contains
   procedure :: output     => DENSE_OUTPUT
 end type
 
+type DENSE_ALC_TYPE
+  type(DENSE_TYPE), allocatable :: p
+end type
+
+type DENSE_PTR_TYPE
+  type(DENSE_TYPE), pointer :: p => null()
+end type
+
 type, extends(MATRIX_TYPE) :: SPARSE_TYPE
   !! Sparse matrix type in CSR format.
 
@@ -311,6 +331,14 @@ contains
   procedure :: to_diag      => SPARSE_TO_DIAG
   procedure :: nnz          => SPARSE_NNZ
   procedure :: is_empty     => SPARSE_IS_EMPTY
+end type
+
+type SPARSE_ALC_TYPE
+  type(SPARSE_TYPE), allocatable :: p
+end type
+
+type SPARSE_PTR_TYPE
+  type(SPARSE_TYPE), pointer :: p => null()
 end type
 
 type SPBUILD_TYPE
@@ -407,6 +435,14 @@ contains
   procedure :: output    => BAND_OUTPUT
 end type
 
+type BAND_ALC_TYPE
+  type(BAND_TYPE), allocatable :: p
+end type
+
+type BAND_PTR_TYPE
+  type(BAND_TYPE), pointer :: p => null()
+end type
+
 type, extends(MATRIX_TYPE) :: HESSENBERG_TYPE
   ! upper or lower hessenberg matrix
   logical :: upper
@@ -439,6 +475,14 @@ contains
   procedure :: is_triang => HESSENBERG_IS_TRIANG
 end type
 
+type HESSENBERG_ALC_TYPE
+  type(HESSENBERG_TYPE), allocatable :: p
+end type
+
+type HESSENBERG_PTR_TYPE
+  type(HESSENBERG_TYPE), pointer :: p => null()
+end type
+
 type, extends(MATRIX_TYPE) :: TRIANG_TYPE
   logical         :: upper
     !! upper or lower triangular matrix
@@ -464,6 +508,14 @@ contains
 #else
   procedure :: to_cmplx  => TRIANG_TO_CMPLX
 #endif
+end type
+
+type TRIANG_ALC_TYPE
+  type(TRIANG_TYPE), allocatable :: p
+end type
+
+type TRIANG_PTR_TYPE
+  type(TRIANG_TYPE), pointer :: p => null()
 end type
 
 type, extends(MATRIX_TYPE) :: BLOCK_TYPE
@@ -515,6 +567,14 @@ contains
 
   procedure, private :: block_allowed => BLOCK_BLOCK_ALLOWED
   procedure, private :: check_sizes   => BLOCK_CHECK_SIZES
+end type
+
+type BLOCK_ALC_TYPE
+  type(BLOCK_TYPE), allocatable :: p
+end type
+
+type BLOCK_PTR_TYPE
+  type(BLOCK_TYPE), pointer :: p => null()
 end type
 
 interface
@@ -624,6 +684,8 @@ end interface
 #undef MATRIX_TO_SPARSE
 
 #undef DENSE_TYPE
+#undef DENSE_ALC_TYPE
+#undef DENSE_PTR_TYPE
 #undef DENSE_INIT_BY_DATA
 #undef DENSE_INIT_BY_SIZE
 #undef DENSE_DESTRUCT
@@ -651,6 +713,8 @@ end interface
 #undef DENSE_OUTPUT
 
 #undef SPARSE_TYPE
+#undef SPARSE_ALC_TYPE
+#undef SPARSE_PTR_TYPE
 #undef SPARSE_INIT
 #undef SPARSE_INIT_SOLVER
 #undef SPARSE_DESTRUCT
@@ -692,6 +756,8 @@ end interface
 #undef SPBUILD_SAVE
 
 #undef BAND_TYPE
+#undef BAND_ALC_TYPE
+#undef BAND_PTR_TYPE
 #undef BAND_INIT
 #undef BAND_DESTRUCT
 #undef BAND_RESET
@@ -716,6 +782,8 @@ end interface
 #undef BAND_OUTPUT
 
 #undef HESSENBERG_TYPE
+#undef HESSENBERG_ALC_TYPE
+#undef HESSENBERG_PTR_TYPE
 #undef HESSENBERG_INIT
 #undef HESSENBERG_DESTRUCT
 #undef HESSENBERG_RESET
@@ -733,6 +801,8 @@ end interface
 #undef HESSENBERG_TO_CMPLX
 
 #undef TRIANG_TYPE
+#undef TRIANG_ALC_TYPE
+#undef TRIANG_PTR_TYPE
 #undef TRIANG_INIT
 #undef TRIANG_DESTRUCT
 #undef TRIANG_RESET
@@ -749,6 +819,8 @@ end interface
 #undef TRIANG_TO_CMPLX
 
 #undef BLOCK_TYPE
+#undef BLOCK_ALC_TYPE
+#undef BLOCK_PTR_TYPE
 #undef BLOCK_INIT
 #undef BLOCK_DESTRUCT
 #undef BLOCK_RESET

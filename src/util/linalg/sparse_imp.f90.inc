@@ -1030,11 +1030,11 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
   ia1(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr1%d(1:row_idx%n)
 
   ! deallocate thread local memory (otherwise: memory leak!!!)
-  call     col%destruct
-  call     val%destruct
-  call row_idx%destruct
-  call colptr0%destruct
-  call colptr1%destruct
+  call     col%destruct()
+  call     val%destruct()
+  call row_idx%destruct()
+  call colptr0%destruct()
+  call colptr1%destruct()
   deallocate (row, fil)
 
   !$omp end parallel
