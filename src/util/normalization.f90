@@ -218,6 +218,7 @@ contains
     call this%unit_const%init()
 
     call this%unit_const%insert(string("1"), 1.0)
+    call this%unit_const%insert(string("deg"), 180 / PI)
 
     call this%unit_const%insert(string("m"   ),        meter     )
     call this%unit_const%insert(string("m^2" ),        meter**2  )

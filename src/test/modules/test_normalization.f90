@@ -1,5 +1,6 @@
 module test_normalization_m
   use test_case_m
+  use math_m
   use normalization_m
 #ifdef __INTEL_COMPILER
   use ifport
@@ -17,7 +18,6 @@ contains
 
     print "(A)", "test_normalization"
     call tc%init("normalization")
-
 
     call init_normconst(T_K)
 
@@ -82,6 +82,14 @@ contains
         val_mat  = denorm(nval_mat, unit)
         call tc%assert_eq(val_mat_exp, val_mat, 1e-13, "denorm(norm(matrix))")
       end do
+    end block
+
+    ! check deg
+    block
+      real :: deg
+
+      deg = norm(45.0, "deg")
+      call tc%assert_eq(PI/4.0, deg, 1e-14, "norming degrees")
     end block
 
     call destruct_normconst
