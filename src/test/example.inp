@@ -10,11 +10,13 @@ scaling fact = 2.0
        0.5, 0.6, 0.7, 0.8, 0.9 : um
   idx = 2, 4, 3, 2, 2, -1
 
-! comment lol
+[volt]
+  #load_csv(table.csv)
+
+! comment
 [transport]
   x_width = 1 : um
-! comment lel
-  y_dir = true
+  y_dir = true ! comment
 
 [region]
   poisson = true

@@ -59,15 +59,18 @@ module input_m
     character(:), allocatable  :: name
       !! File name
     character(:), allocatable  :: default
-      !! default file name
+      !! Default file name
+    character(:), allocatable  :: directory
+      !! Directory
     type(vector_input_section) :: sections
       !! Sections in this file
     type(vector_input_section) :: default_sections
       !! Default values for sections
   contains
     private
-    procedure :: load         => input_file_load
-    procedure :: parse_line   => input_file_parse_line
+    procedure :: load       => input_file_load
+    procedure :: parse_line => input_file_parse_line
+    procedure :: load_csv   => input_file_load_csv
 
     procedure :: input_file_get_int
     procedure :: input_file_get_int_arr
@@ -407,10 +410,20 @@ contains
     character(*), optional, intent(in)  :: default
       !! filename for default sections
 
+    integer :: i
+
     ! save names
     this%name    = name
     this%default = ""
     if (present(default)) this%default = default
+
+    ! get directory
+    i = scan(name, "/", back = .true.)
+    if (i > 1) then
+      this%directory = name(1:i)
+    else
+      this%directory = ""
+    end if
 
     ! load default file
     if (present(default)) then
@@ -483,7 +496,6 @@ contains
         call program_error(err)
       end if
     end do
-
   end subroutine
 
   subroutine input_file_parse_line(this, sections, line0, cont_lines, valid, err, default_sections)
@@ -606,6 +618,46 @@ contains
     ! skip empty lines
     if (line == "") return
 
+    ! macro (only #load_csv(example.csv) supported right now)
+    if (line(1:1) == '#') then
+      ! remove # symbol
+      if (line_len < 2) then
+        valid = .false.
+        err = "macro name missing"
+        return
+      end if
+      line = adjustl(line(2:))
+      line_len = len_trim(line)
+
+      ! get macro name
+      i = scan(line, '(')
+      if (i == 0) i = len_trim(line)
+      if (i < 2) then
+        valid = .false.
+        err = "macro name error"
+        return
+      end if
+      name = line(1:i-1)
+
+      if (name == "load_csv") then
+        if ((line(line_len:line_len) /= ')') .or. (i > line_len-2)) then
+          valid = .false.
+          err = "load_csv macro error"
+          return
+        end if
+
+        ! get file name
+        name = trim(adjustl(line(i+1:line_len-1)))
+        call this%load_csv(sections, this%directory//name, valid, err)
+      else
+        valid = .false.
+        err = "unknown macro "//name
+        return
+      end if
+
+      return
+    end if
+
     ! check for new section
     block
       character(:), allocatable :: section_name
@@ -661,6 +713,206 @@ contains
     end block
   end subroutine
 
+  subroutine input_file_load_csv(this, sections, filename, valid, err)
+    !! load csv file and insert variables into current section
+    class(input_file),                    intent(inout) :: this
+    type(vector_input_section),           intent(inout) :: sections
+      !! Input sections
+    character(*),                         intent(in)    :: filename
+      !! csv filename
+    logical,                              intent(out)   :: valid
+      !! Output if parsing was successful (valid syntax)
+    character(:), allocatable,            intent(out)   :: err
+      !! Error string
+
+    integer                        :: funit, line_number, status, nvar, i, j
+    character(10)                  :: lfmt
+    character(32)                  :: snum
+    character(:),      allocatable :: tmp
+    character(MAX_LINE_LEN)        :: line
+    real                           :: val
+    type(vector_int)               :: sep
+    type(string),      allocatable :: names(:), units(:)
+    type(vector_real), allocatable :: data(:)
+    type(input_var)                :: v
+
+    IGNORE(this)
+
+    ! assume valid syntax; change later if invalid
+    valid = .true.
+    err   = ""
+
+    ! line format
+    write(lfmt, "(A,I0,A)") "(A", MAX_LINE_LEN, ")"
+
+    ! open file
+    open(newunit = funit, file = trim(filename), status = "old", action = "read")
+
+    ! read first line (header)
+    read(funit, fmt = lfmt, iostat = status) line
+    if (status < 0) then
+      close(funit)
+      valid = .false.
+      err = "load_csv("//filename//"): No header line"
+      return
+    elseif (status > 0) then
+      ! IO error
+      close(funit)
+      valid = .false.
+      err = "load_csv("//filename//"): IO Error"
+      return
+    end if
+
+    ! separate line at each ',' character
+    call sep%init(0, c = 8)
+    call sep%push(0)
+    do i = 1, len_trim(line)
+      if (line(i:i) == ',') call sep%push(i)
+    end do
+    call sep%push(len_trim(line)+1)
+
+    ! number of variables
+    nvar = sep%n-1
+
+    ! allocate
+    allocate (names(nvar))
+    allocate (units(nvar))
+    allocate (data(nvar))
+
+    ! get names and units, init data vectors
+    do i = 1, nvar
+      if (sep%d(i)+1 > sep%d(i+1)-1) then
+        close(funit)
+        valid = .false.
+        err = "load_csv("//filename//"): Error in header line: Name empty"
+        return
+      end if
+      tmp = adjustl(trim(line(sep%d(i)+1:sep%d(i+1)-1)))
+      if (len_trim(tmp) < 1) then
+        close(funit)
+        valid = .false.
+        err = "load_csv("//filename//"): Error in header line: Name empty"
+        return
+      end if
+
+      ! split at ':'
+      j = scan(tmp, ':')
+      if (j == 0) then
+        names(i)%s = tmp
+        units(i)%s = "1"
+      else
+        if (j == 1) then
+          close(funit)
+          valid = .false.
+          err = "load_csv("//filename//"): Error in header line: Name empty"
+          return
+        end if
+        if (j == len_trim(tmp)) then
+          close(funit)
+          valid = .false.
+          err = "load_csv("//filename//"): Error in header line: Unit empty"
+          return
+        end if
+        names(i)%s = adjustl(trim(tmp(1:j-1)))
+        units(i)%s = adjustl(trim(tmp(j+1:len_trim(tmp))))
+      end if
+
+      call data(i)%init(0, c = 256)
+    end do
+
+    ! first data line
+    line_number = 1
+
+    ! read and parse lines
+    do
+      ! read one line
+      read(funit, fmt = lfmt, iostat = status) line
+      if (status < 0) then
+        ! end of file reached
+        close(funit)
+        exit
+      elseif (status > 0) then
+        ! IO error
+        close(funit)
+        valid = .false.
+        err = "load_csv("//filename//"): IO Error"
+        return
+      end if
+      line_number = line_number + 1
+      write (snum, "(I0)") line_number
+
+      ! separate line at ',' characters
+      call sep%resize(0)
+      call sep%push(0)
+      do i = 1, len_trim(line)
+        if (line(i:i) == ',') call sep%push(i)
+      end do
+      call sep%push(len_trim(line)+1)
+      if (sep%n < nvar + 1) then
+        close(funit)
+        valid = .false.
+        err = "load_csv("//filename//"): Error in line "//trim(snum)//": Not enough values separated by ,"
+        return
+      end if
+      if (sep%n > nvar + 1) then
+        close(funit)
+        valid = .false.
+        err = "load_csv("//filename//"): Error in line "//trim(snum)//": Too many values"
+        return
+      end if
+
+      do i = 1, nvar
+        if (sep%d(i)+1 > sep%d(i+1)-1) then
+          close(funit)
+          valid = .false.
+          err = "load_csv("//filename//"): Error in line "//trim(snum)//": Value empty"
+          return
+        end if
+        tmp = adjustl(trim(line(sep%d(i)+1:sep%d(i+1)-1)))
+        if (len_trim(tmp) < 1) then
+          close(funit)
+          valid = .false.
+          err = "load_csv("//filename//"): Error in line "//trim(snum)//": Value empty"
+          return
+        end if
+
+        ! convert to real
+        read (tmp, *, iostat = status) val
+        if (status /= 0) then
+          close(funit)
+          valid = .false.
+          err   = "load_csv("//filename//"): Error in line "//trim(snum)//": Invalid real data"
+          return
+        end if
+        call data(i)%push(val)
+      end do
+    end do
+
+    if (data(1)%n < 1) then
+      valid = .false.
+      err   = "load_csv("//filename//"): No data"
+      return
+    end if
+
+    ! if no sections, add one without name
+    if (sections%n == 0) then
+      call sections%resize(1)
+      allocate (character(0) :: tmp)
+      call sections%d(1)%init(tmp)
+    end if
+
+    ! add variables to current section
+    v%size = data(1)%n
+    allocate (v%real_data(data(1)%n))
+    do i = 1, nvar
+      v%name      = names(i)%s
+      v%type      = INPUT_TYPE_REAL
+      v%real_data = data(i)%d(1:data(i)%n)
+      v%unit      = units(i)%s
+      call sections%d(sections%n)%add_var(v)
+    end do
+  end subroutine
+
   subroutine input_file_get_section(this, section_name, section_id, status)
     !! get index of section with this name
     class(input_file), intent(in)  :: this
@@ -686,14 +938,13 @@ contains
 
     if (st < 0) then
       if (.not. present(status)) then
-        print "(A)", section_name
-        call program_error("section name not found")
+        call program_error("section name '"//section_name//"' not found")
       end if
 
     else if (st > 0) then
       if (.not. present(status)) then
         print "(A)", section_name
-        call program_error("multiple sections with this name found")
+        call program_error("found multiple sections with name '"//section_name//"', use get_sections instead")
       end if
     end if
   end subroutine
@@ -739,8 +990,8 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%size /= 1) call program_error("variable is not scalar")
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
+            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
             value = var%int_data(1)
             if (present(status)) status = .true.
             return
@@ -753,7 +1004,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -776,7 +1027,7 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable is not an integer")
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
             allocate (values(size(var%int_data)), source = var%int_data)
             if (present(status)) status = .true.
             return
@@ -789,7 +1040,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -881,8 +1132,8 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%size /= 1) call program_error("variable is not scalar")
-            if (var%type /= INPUT_TYPE_REAL) call program_error("variable is not real")
+            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
+            if (var%type /= INPUT_TYPE_REAL) call program_error("variable '"//name//"' is not real")
             if (normalize_) then
               value = norm(var%real_data(1), var%unit, n = norm_object)
             else
@@ -899,7 +1150,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -931,7 +1182,7 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%type /= INPUT_TYPE_REAL) call program_error("variable is not real")
+            if (var%type /= INPUT_TYPE_REAL) call program_error("variable '"//name//"' is not real")
             if (normalize_) then
               allocate (values(size(var%real_data)))
               values = norm(var%real_data, var%unit, n = norm_object)
@@ -949,7 +1200,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -1042,8 +1293,8 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%size /= 1) call program_error("variable is not scalar")
-            if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
+            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
+            if (var%type /= INPUT_TYPE_STRING) call program_error("variable '"//name//"' is not a string")
             value = var%str_data(1)%s
             if (present(status)) status = .true.
             return
@@ -1056,7 +1307,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -1080,7 +1331,7 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%type /= INPUT_TYPE_STRING) call program_error("variable is no string")
+            if (var%type /= INPUT_TYPE_STRING) call program_error("variable '"//name//"' is not a string")
             allocate (values(size(var%str_data)), source = var%str_data)
             if (present(status)) status = .true.
             return
@@ -1093,7 +1344,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -1176,8 +1427,8 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%size /= 1) call program_error("variable is not scalar")
-            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
+            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
+            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable '"//name//"' is not logical")
             value = var%logic_data(1)
             if (present(status)) status = .true.
             return
@@ -1190,7 +1441,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 
@@ -1213,7 +1464,7 @@ contains
       do i = 1, sect%vars%n
         associate (var => sect%vars%d(i))
           if (var%name == name) then
-            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable is not logical")
+            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable '"//name//"' is not logical")
             allocate (values(size(var%logic_data)), source = var%logic_data)
             if (present(status)) status = .true.
             return
@@ -1226,7 +1477,7 @@ contains
       status = .false.
     else
       print "(A)", name
-      call program_error("variable name not found")
+      call program_error("variable '"//name//"' not found")
     end if
   end subroutine
 

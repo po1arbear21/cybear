@@ -47,6 +47,10 @@ contains
       ! test reading scalars
       call f%get("", "alpha", r)
       call f%get("", "scaling fact", r)     ! tests that value 2.0 is parsed as real and not integer!
+
+      ! load_csv
+      call f%get("volt", "time", r_arr)
+      call f%get("volt", "VS", r_arr)
     end block
 
     ! integers
