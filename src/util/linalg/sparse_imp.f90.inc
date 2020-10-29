@@ -1194,7 +1194,11 @@ function SPARSE_IS_EMPTY(this) result(empty)
   logical                        :: empty
     !! return true if CSR is not allocated, false otherwise
 
-  if ((.not. allocated(this%ia)) .or. (.not. allocated(this%ja)) .or. (.not. allocated(this%a))) then
+  if ((this%nrows == 0) .or. &
+    & (this%ncols == 0) .or. &
+    & (.not. allocated(this%ia)) .or. &
+    & (.not. allocated(this%ja)) .or. &
+    & (.not. allocated(this%a))) then
     empty = .true.
   else
     empty = .false.

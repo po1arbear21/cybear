@@ -41,8 +41,8 @@ subroutine MATRIX_INIT(this, dum, nrows, ncols)
   this%ncols = nrows
   if (present(ncols)) this%ncols = ncols
 
-  ASSERT(this%nrows > 0)
-  ASSERT(this%ncols > 0)
+  ASSERT(this%nrows >= 0)
+  ASSERT(this%ncols >= 0)
 
   this%factorized = .false.
 end subroutine
