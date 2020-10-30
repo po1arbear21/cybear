@@ -519,7 +519,8 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   integer :: i, j, i0_, j0_
   logical :: drop_zeros_
 
-  ASSERT(.not. this%is_empty())
+  ! do nothing if empty
+  if (this%is_empty()) return
 
   ! optional arguments
   drop_zeros_ = .false.
