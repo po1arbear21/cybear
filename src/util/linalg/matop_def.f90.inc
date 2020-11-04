@@ -72,19 +72,19 @@ end type
 interface
   subroutine MATOP_EXEC1(this, x, y)
     import MATOP_TYPE
-    class(MATOP_TYPE), intent(in)  :: this
-    TT,                intent(in)  :: x(:)
+    class(MATOP_TYPE), intent(inout) :: this
+    TT,                intent(in)    :: x(:)
       !! input vector
-    TT,                intent(out) :: y(:)
+    TT,                intent(out)   :: y(:)
       !! output vector
   end subroutine
 
   subroutine MATOP_EXEC2(this, x, y)
     import MATOP_TYPE
-    class(MATOP_TYPE), intent(in)  :: this
-    TT,                intent(in)  :: x(:,:)
+    class(MATOP_TYPE), intent(inout) :: this
+    TT,                intent(in)    :: x(:,:)
       !! input matrix
-    TT,                intent(out) :: y(:,:)
+    TT,                intent(out)   :: y(:,:)
       !! output matrix
   end subroutine
 end interface

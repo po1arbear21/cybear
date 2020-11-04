@@ -15,7 +15,7 @@ contains
   subroutine arnoldi(A, b, H, Q, brkd, tol, m0)
     !! Computes a basis of the (n + 1)-Krylov subspace of A: the space spanned by {b, Ab, ..., A^n b}.
 
-    class(matop_real) , intent(in)    :: A
+    class(matop_real) , intent(inout)    :: A
       !! A: m  m array
     real              , intent(in)    :: b(:)
       !! size: m

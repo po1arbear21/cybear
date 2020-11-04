@@ -63,10 +63,10 @@ end subroutine
 subroutine SINGLE_MATOP_EXEC1(this, x, y)
   !! apply single matrix operation to vector
 
-  class(SINGLE_MATOP_TYPE), intent(in)  :: this
-  TT,                       intent(in)  :: x(:)
+  class(SINGLE_MATOP_TYPE), intent(inout) :: this
+  TT,                       intent(in)    :: x(:)
     !! input vector
-  TT,                       intent(out) :: y(:)
+  TT,                       intent(out)   :: y(:)
     !! output vector
 
   ! apply matrix
@@ -80,10 +80,10 @@ end subroutine
 subroutine SINGLE_MATOP_EXEC2(this, x, y)
   !! apply single matrix operation to matrix
 
-  class(SINGLE_MATOP_TYPE), intent(in)  :: this
-  TT,                       intent(in)  :: x(:,:)
+  class(SINGLE_MATOP_TYPE), intent(inout) :: this
+  TT,                       intent(in)    :: x(:,:)
     !! input matrix
-  TT,                       intent(out) :: y(:,:)
+  TT,                       intent(out)   :: y(:,:)
     !! output matrix
 
   ! apply matrix
@@ -132,10 +132,10 @@ end subroutine
 subroutine CHAIN_MATOP_EXEC1(this, x, y)
   !! apply chain matrix operation to vector
 
-  class(CHAIN_MATOP_TYPE), intent(in)  :: this
-  TT,                      intent(in)  :: x(:)
+  class(CHAIN_MATOP_TYPE), intent(inout) :: this
+  TT,                      intent(in)    :: x(:)
     !! input vector
-  TT,                      intent(out) :: y(:)
+  TT,                      intent(out)   :: y(:)
     !! output vector
 
   ! local variables
@@ -175,10 +175,10 @@ end subroutine
 subroutine CHAIN_MATOP_EXEC2(this, x, y)
   !! apply chain matrix operation to matrix
 
-  class(CHAIN_MATOP_TYPE), intent(in)  :: this
-  TT,                      intent(in)  :: x(:,:)
+  class(CHAIN_MATOP_TYPE), intent(inout) :: this
+  TT,                      intent(in)    :: x(:,:)
     !! input matrix
-  TT,                      intent(out) :: y(:,:)
+  TT,                      intent(out)   :: y(:,:)
     !! output matrix
 
   ! local variables

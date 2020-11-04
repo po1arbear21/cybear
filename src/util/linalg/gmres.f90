@@ -1,9 +1,11 @@
 #include "../macro.f90.inc"
 
 module gmres_m
+  ! fixme gmres for complex arguemnts works by scaling the complex arrays up to real arrays of double the length.
+  !       we should find a routine which works directly on the complex arrays. should be cleaner/faster.
 
   use error_m
-  use matop_m, only: matop_real
+  use matop_m, only: matop_real, matop_cmplx
   use util_m,  only: int2str
 
   implicit none
@@ -51,10 +53,12 @@ module gmres_m
       !! dpar(8): tolerance for zero-norm test
 
   contains
-    procedure :: init   => gmres_options_init
-    procedure :: check  => gmres_options_check
+    generic   :: init   => gmres_options_init_c, gmres_options_init_r
+    generic   :: check  => gmres_options_check_c, gmres_options_check_r
     procedure :: print  => gmres_options_print
     procedure :: pprint => gmres_options_pprint
+    procedure, private :: gmres_options_init_c, gmres_options_init_r
+    procedure, private :: gmres_options_check_c, gmres_options_check_r
   end type
 
   interface
@@ -85,9 +89,102 @@ module gmres_m
 
   end interface
 
+  interface gmres
+    module procedure :: gmres_r
+    module procedure :: gmres_c
+  end interface
+
+  ! fixme should we make this type more easily available? inside of matop.f90?
+  ! fixme because this matop has worktime variables which are altered by exec1 the intents of exec1 and even the matops are alle intent(inout).
+  !       e.g. see intent in arnoldi.f90 matop A which could be intent(in).
+  !       e.g. all exec1, exec2: matops could be: class(matop), intent(in!!!) :: this
+  type, extends(matop_real) :: matop_c2r
+    !! matop_cmplx should use gmres for real(!) residuals of double length
+    !!
+    !! idea:  - init
+    !!          - save complex matop
+    !!          - alloc worktime variables
+    !!        - mat_vec operation (exec1)
+    !!          - gets real of double length as input
+    !!          - convert input: 1st half is real, 2nd half the imaginary part of the actual vector
+    !!          - compute mat_vec with saved complex matop
+    !!          - convert result: complex vector to [real, imag] as real array of double length
+    !!          - output: double length real array
+
+    private
+    class(matop_cmplx), pointer     :: mop_c => null()
+      !! complex matop
+    complex,            allocatable :: work_x(:), work_y(:)
+      !! worktime variables
+  contains
+    procedure :: matop_c2r_init
+    generic   :: init  => matop_c2r_init
+    procedure :: exec1 => matop_c2r_exec1
+    procedure :: exec2 => matop_c2r_exec2
+  end type
+
 contains
 
-  subroutine gmres_options_init(this, x, b)
+  subroutine matop_c2r_init(this, mop_c)
+    class(matop_c2r),   intent(out)        :: this
+    class(matop_cmplx), intent(in), target :: mop_c
+
+    ! set pointer to complex matop
+    this%mop_c => mop_c
+
+    ! allocate worktime variables
+    allocate (this%work_x(this%mop_c%ncols), this%work_y(this%mop_c%nrows))
+  end subroutine
+
+  subroutine matop_c2r_exec1(this, x, y)
+    !! compute mul_vec of input and saved mat_op.
+    !!
+    !! 1) given double length real array (realpart, imagpart)
+    !! 2) convert to complex array
+    !! 3) mul_vec with saved mat_op in complex space
+    !! 4) convert result to double length real array (realpart, imagpart)
+
+    class(matop_c2r), intent(inout) :: this
+    real,             intent(in)    :: x(:)
+      !! input vector ([real(x_c), aimag(x_c)])
+    real,             intent(out)   :: y(:)
+      !! output vector ([real(y_c), aimag(y_c)])
+
+    this%work_x = cmplx(x(:size(x)/2), x(size(x)/2+1:))
+    call this%mop_c%exec(this%work_x, this%work_y)
+    y = [real(this%work_y), aimag(this%work_y)]
+  end subroutine
+
+  subroutine matop_c2r_exec2(this, x, y)
+    !! routine is not used in gmres which is why we dont implement it here.
+    !! need to create this placeholder anyways as it is marked as deferred in parent type.
+
+    class(matop_c2r), intent(inout) :: this
+    real,             intent(in)    :: x(:,:)
+    real,             intent(out)   :: y(:,:)
+
+    IGNORE(this)
+    IGNORE(x)
+    y = 0 ! to remove warnings for "intent(out) variable not assigned value"
+    call program_error("not implemented.")
+  end subroutine
+
+  subroutine gmres_options_init_c(this, x, b)
+    !! inits parameters ipar, dpar using mkl's dfgmres_init.
+    !!
+    !! wrapper around init routine for real arguments.
+    !! converts complex array to real array of double length: [realpart, imagpart].
+
+    class(gmres_options), intent(out) :: this
+    complex,              intent(in)  :: x(:)
+      !! initial guess
+    complex,              intent(in)  :: b(:)
+      !! rhs
+
+    call this%init([real(x), aimag(x)], [real(b), aimag(b)])
+  end subroutine
+
+  subroutine gmres_options_init_r(this, x, b)
     !! inits parameters ipar, dpar using mkl's dfgmres_init.
 
     class(gmres_options), intent(out) :: this
@@ -116,9 +213,23 @@ contains
     if (rci_request /= 0) call program_error('gmres init failed. rci_request: ' // int2str(rci_request))
   end subroutine
 
-  subroutine gmres_options_check(this, x, b)
+  subroutine gmres_options_check_c(this, x, b)
     !! checks parameters ipar, dpar using mkl's dfgmres_check.
+    !!
+    !! wrapper around check routine for real arguments.
+    !! converts complex array to real array of double length: [realpart, imagpart].
 
+    class(gmres_options), intent(inout) :: this
+    complex,              intent(in)    :: x(:)
+      !! initial guess
+    complex,              intent(in)    :: b(:)
+      !! rhs
+
+    call this%check([real(x), aimag(x)], [real(b), aimag(b)])
+  end subroutine
+
+  subroutine gmres_options_check_r(this, x, b)
+    !! checks parameters ipar, dpar using mkl's dfgmres_check.
 
     class(gmres_options), intent(inout) :: this
     real,                 intent(in)    :: x(:)
@@ -193,23 +304,66 @@ contains
     print *, 'dpar(8) - zero-norm tolerance:               ', this%dpar(8)
   end subroutine
 
-  subroutine gmres(opts, b, mulvec, x, precon)
+  subroutine gmres_c(opts, b, mulvec, x, precon)
+    !! wrapper around mkl's dfgmres for real(!) arrays.
+    !!
+    !! solves Ax=b and optionally, uses a preconditioner P.
+    !!
+    !! complex arrays are upscaled to real arrays of double the length.
+
+    type(gmres_options), intent(inout)                :: opts
+      !! parameters ipar, dpar.
+      !! inout: gmres calls change some of them, e.g. work variables and iteration count.
+    complex,             intent(in)                   :: b(:)
+      !! rhs
+    class(matop_cmplx),  intent(in),           target :: mulvec
+      !! matrix vector operation: x \mapsto A*x
+      !! reason for class: either use already defined single_matop or derive your own.
+    complex,             intent(inout)                :: x(:)
+      !! on input:  inital guess x_0
+      !! on output: solution x
+    class(matop_cmplx),  intent(in), optional, target :: precon
+      !! matrix vector operation: x \mapsto P*x
+      !! reason for class: either use already defined single_matop or derive your own, e.g. derive a matop for mkl's ILUt.
+
+    real, allocatable :: b_c2r(:), x_c2r(:)
+    type(matop_c2r)   :: mulvec_c2r, precon_c2r
+
+    ASSERT(size(x) == size(b))
+
+    call mulvec_c2r%init(mulvec)
+
+    b_c2r = [real(b), aimag(b)]
+    x_c2r = [real(x), aimag(x)]
+
+    if (present(precon)) then
+      call precon_c2r%init(precon)
+      call gmres(opts, b_c2r, mulvec_c2r, x_c2r, precon=precon_c2r)
+
+    else
+      call gmres(opts, b_c2r, mulvec_c2r, x_c2r)
+    end if
+
+    x = cmplx(x_c2r(:size(x)), x_c2r(size(x)+1:))
+  end subroutine
+
+  subroutine gmres_r(opts, b, mulvec, x, precon)
     !! wrapper around mkl's dfgmres.
     !!
     !! solves Ax=b and optionally, uses a preconditioner P.
 
-    type(gmres_options), intent(inout)        :: opts
+    type(gmres_options), intent(inout)           :: opts
       !! parameters ipar, dpar.
       !! inout: gmres calls change some of them, e.g. work variables and iteration count.
-    real,                intent(in)           :: b(:)
+    real,                intent(in)              :: b(:)
       !! rhs
-    class(matop_real),   intent(in)           :: mulvec
+    class(matop_real),   intent(inout)           :: mulvec
       !! matrix vector operation: x \mapsto A*x
       !! reason for class: either use already defined single_matop or derive your own.
-    real,                intent(inout)        :: x(:)
+    real,                intent(inout)           :: x(:)
       !! on input:  inital guess x_0
       !! on output: solution x
-    class(matop_real),   intent(in), optional :: precon
+    class(matop_real),   intent(inout), optional :: precon
       !! matrix vector operation: x \mapsto P*x
       !! reason for class: either use already defined single_matop or derive your own, e.g. derive a matop for mkl's ILUt.
 
