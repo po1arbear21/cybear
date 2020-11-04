@@ -637,6 +637,7 @@ contains
         err = "macro name error"
         return
       end if
+      allocate (character(0) :: name)      ! remove gfortran warning
       name = line(1:i-1)
 
       if (name == "load_csv") then
