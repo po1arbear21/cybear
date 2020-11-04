@@ -334,7 +334,16 @@ contains
     call this%unit_const%insert(string("mA/um^2"), (MILLI*ampere) / (MICRO*meter)**2     )
 
     associate (ohm => volt / ampere)
-      call this%unit_const%insert(string("A/V" ),   1 / ohm )
+      call this%unit_const%insert(string("A/V" ), 1 / ohm )
+
+      call this%unit_const%insert(string("A/V/m^2" ), 1 / ohm / (      meter)**2 )
+      call this%unit_const%insert(string("A/V/cm^2"), 1 / ohm / (CENTI*meter)**2 )
+      call this%unit_const%insert(string("A/V/mm^2"), 1 / ohm / (MILLI*meter)**2 )
+      call this%unit_const%insert(string("A/V/um^2"), 1 / ohm / (MICRO*meter)**2 )
+      call this%unit_const%insert(string("A/V/nm^2"), 1 / ohm / (NANO *meter)**2 )
+
+      call this%unit_const%insert(string("MOhm"), MEGA *ohm )
+      call this%unit_const%insert(string("kOhm"), KILO *ohm )
       call this%unit_const%insert(string("V/A" ),       ohm )
       call this%unit_const%insert(string("Ohm" ),       ohm )
       call this%unit_const%insert(string("mOhm"), MILLI*ohm )
@@ -342,8 +351,6 @@ contains
       call this%unit_const%insert(string("nOhm"), NANO *ohm )
       call this%unit_const%insert(string("pOhm"), PICO *ohm )
       call this%unit_const%insert(string("fOhm"), FEMTO*ohm )
-      call this%unit_const%insert(string("kOhm"), KILO *ohm )
-      call this%unit_const%insert(string("MOhm"), MEGA *ohm )
     end associate
 
     associate (farad => ampere * second / volt)
