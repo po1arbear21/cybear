@@ -13,12 +13,12 @@
 #define MATOP_EXEC1          CONCAT3(matop,T,exec1)
 #define MATOP_EXEC2          CONCAT3(matop,T,exec2)
 
-#define SINGLE_MATOP_TYPE    CONCAT(single_matop,T)
+#define SINGLE_MATOP_TYPE    CONCAT( single_matop,T)
 #define SINGLE_MATOP_INIT    CONCAT3(single_matop,T,init)
 #define SINGLE_MATOP_EXEC1   CONCAT3(single_matop,T,exec1)
 #define SINGLE_MATOP_EXEC2   CONCAT3(single_matop,T,exec2)
 
-#define CHAIN_MATOP_TYPE     CONCAT(chain_matop,T)
+#define CHAIN_MATOP_TYPE     CONCAT( chain_matop,T)
 #define CHAIN_MATOP_INIT     CONCAT3(chain_matop,T,init)
 #define CHAIN_MATOP_SET_MAT  CONCAT3(chain_matop,T,set_mat)
 #define CHAIN_MATOP_EXEC1    CONCAT3(chain_matop,T,exec1)
@@ -33,11 +33,10 @@ type, abstract :: MATOP_TYPE
     !! Number of columns (size of input vector)
 contains
   procedure :: MATOP_INIT
-  generic   :: init => MATOP_INIT
-
-  procedure(MATOP_EXEC1), deferred :: exec1
-  procedure(MATOP_EXEC2), deferred :: exec2
-  generic :: exec => exec1, exec2
+  generic   :: init  => MATOP_INIT
+  procedure :: exec1 => MATOP_EXEC1
+  procedure :: exec2 => MATOP_EXEC2
+  generic   :: exec  => exec1, exec2
 end type
 
 type, extends(MATOP_TYPE) :: SINGLE_MATOP_TYPE
@@ -68,26 +67,6 @@ contains
   procedure :: exec1   => CHAIN_MATOP_EXEC1
   procedure :: exec2   => CHAIN_MATOP_EXEC2
 end type
-
-interface
-  subroutine MATOP_EXEC1(this, x, y)
-    import MATOP_TYPE
-    class(MATOP_TYPE), intent(inout) :: this
-    TT,                intent(in)    :: x(:)
-      !! input vector
-    TT,                intent(out)   :: y(:)
-      !! output vector
-  end subroutine
-
-  subroutine MATOP_EXEC2(this, x, y)
-    import MATOP_TYPE
-    class(MATOP_TYPE), intent(inout) :: this
-    TT,                intent(in)    :: x(:,:)
-      !! input matrix
-    TT,                intent(out)   :: y(:,:)
-      !! output matrix
-  end subroutine
-end interface
 
 #undef T
 #undef TT
