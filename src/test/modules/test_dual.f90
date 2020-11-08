@@ -14,10 +14,10 @@ contains
 
     ! test addition
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 1.0, 1)
+      call x%init(1.0, 1)
 
       y(0)  =  3.0       + (( x     +  x    ) +  2.0      )        ! test for single addition
       y(1:) = [3.0, 3.0] + (([x, x] + [x, x]) + [2.0, 2.0])        ! test for elemental addition
@@ -30,10 +30,10 @@ contains
 
     ! test subtraction
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 1.0, 1)
+      call x%init(1.0, 1)
 
       y(0)  =  5.0       - (((- x    ) -  x    ) -  1.0      )
       y(1:) = [5.0, 5.0] - (((-[x, x]) - [x, x]) - [1.0, 1.0])
@@ -46,10 +46,10 @@ contains
 
     ! test multiplication
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 2.0, 1)
+      call x%init(2.0, 1)
 
       y(0)  =  4.0       * ((x      *  x    ) *  0.5      )
       y(1:) = [4.0, 4.0] * (([x, x] * [x, x]) * [0.5, 0.5])
@@ -62,11 +62,11 @@ contains
 
     ! test division
     block
-      integer    :: i
-      type(dual) :: x, y, z(0:2)
+      integer      :: i
+      type(dual_2) :: x, y, z(0:2)
 
-      call x%init(2, 4.0, 1)
-      call y%init(2, 2.0, 2)
+      call x%init(4.0, 1)
+      call y%init(2.0, 2)
 
       z(0)  =  1.0       / (( x     /  y    ) /  0.5      )
       z(1:) = [1.0, 1.0] / (([x, x] / [y, y]) / [0.5, 0.5])
@@ -80,11 +80,11 @@ contains
 
     ! test power
     block
-      integer    :: i
-      type(dual) :: x, y, z(0:2)
+      integer      :: i
+      type(dual_2) :: x, y, z(0:2)
 
-      call x%init(2, 1.5, 1)
-      call y%init(2, 2.0, 2)
+      call x%init(1.5, 1)
+      call y%init(2.0, 2)
 
       z(0)  = ((( 2.0       **  x    ) **  y    ) **  0.25       ) **  4
       z(1:) = ((([2.0, 2.0] ** [x, x]) ** [y, y]) ** [0.25, 0.25]) ** [4, 4]
@@ -98,11 +98,11 @@ contains
 
     ! test abs
     block
-      integer    :: i
-      type(dual) :: x, y, z(0:2)
+      integer      :: i
+      type(dual_1) :: x, y, z(0:2)
 
-      call x%init(1,  5.0, 1)
-      call y%init(1, -5.0, 1)
+      call x%init( 5.0, 1)
+      call y%init(-5.0, 1)
 
       z(0)  = abs(x     )
       z(1:) = abs([x, x])
@@ -121,10 +121,10 @@ contains
 
     ! test sqrt
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 9.0, 1)
+      call x%init(9.0, 1)
 
       y(0)  = sqrt(x)
       y(1:) = sqrt([x, x])
@@ -137,10 +137,10 @@ contains
 
     ! test exp
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 2.0, 1)
+      call x%init(2.0, 1)
 
       y(0)  = exp(x)
       y(1:) = exp([x, x])
@@ -153,10 +153,10 @@ contains
 
     ! test log
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 2.0, 1)
+      call x%init(2.0, 1)
 
       y(0)  = log(x)
       y(1:) = log([x, x])
@@ -169,10 +169,10 @@ contains
 
     ! test sin
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 3.0, 1)
+      call x%init(3.0, 1)
 
       y(0)  = sin(x)
       y(1:) = sin([x, x])
@@ -185,10 +185,10 @@ contains
 
     ! test cos
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 3.0, 1)
+      call x%init(3.0, 1)
 
       y(0)  = cos(x)
       y(1:) = cos([x, x])
@@ -201,10 +201,10 @@ contains
 
     ! test tan
     block
-      integer    :: i
-      type(dual) :: x, y(0:2)
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
 
-      call x%init(1, 3.0, 1)
+      call x%init(3.0, 1)
 
       y(0)  = tan(x)
       y(1:) = tan([x, x])
@@ -217,14 +217,14 @@ contains
 
     ! test dot_product
     block
-      integer                 :: i
-      integer,    parameter   :: n=5
-      type(dual), allocatable :: x(:), y(:)
-      type(dual)              :: z, z_exp
+      integer                   :: i
+      integer,      parameter   :: n=5
+      type(dual_5), allocatable :: x(:), y(:)
+      type(dual_5)              :: z, z_exp
 
       ! simple test for simple 1-element sum
       allocate (x(1))
-      call x(1)%init(1, 1.0, i=1)
+      call x(1)%init(1.0, i=1)
 
       z = x .dot. x
 
@@ -235,13 +235,13 @@ contains
       ! more complex test. n-elements
       allocate (x(n), y(n))
       do i = 1, n
-        call x(i)%init(n,   real(i), i)
-        call y(i)%init(n, 2*real(i), i)
+        call x(i)%init(  real(i), i)
+        call y(i)%init(2*real(i), i)
       end do
 
       z = x .dot. y
 
-      call z_exp%init(n, 0.0)
+      call z_exp%init(0.0)
       do i = 1, n
         z_exp = z_exp + x(i) * y(i)
       end do
