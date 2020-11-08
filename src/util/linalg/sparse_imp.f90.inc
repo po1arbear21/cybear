@@ -21,6 +21,7 @@
 #define SPARSE_RESET         CONCAT3(sparse,T,reset)
 #define SPARSE_SCALE         CONCAT3(sparse,T,scale)
 #define SPARSE_MUL_VEC       CONCAT3(sparse,T,mul_vec)
+#define SPARSE_MUL_VEC_SLICE CONCAT3(sparse,T,mul_vec_slice)
 #define SPARSE_MUL_MAT       CONCAT3(sparse,T,mul_mat)
 #define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
 #define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
@@ -131,6 +132,55 @@ subroutine SPARSE_SCALE(this, fact)
 
   ! scale values
   if (.not. this%is_empty()) this%a = fact * this%a
+end subroutine
+
+subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
+  !! Multiply sparse matrix by a raw vector where only some rows of y are computed.
+  !! Performs operation: y = this * x + fact_y * y
+
+  class(SPARSE_TYPE), intent(in)    :: this
+    !! Sparse matrix
+  TT,                 intent(in)    :: x(:)
+    !! Raw vector to multiply by
+  TT,                 intent(inout) :: y(:)
+    !! Store result in y
+  TT,      optional,  intent(in)    :: fact_y
+    !! If present, scale existing data in y and add result of multiplication
+  integer, optional,  intent(in)    :: i0
+    !! first row index. default: 1
+  integer, optional,  intent(in)    :: i1
+    !! last row index. default: this%nrows
+
+  integer :: i0_, i1_, i, j
+
+  i0_ = 1
+  if (present(i0)) i0_ = i0
+  i1_ = this%nrows
+  if (present(i1)) i1_ = i1
+
+  ASSERT(size(y) == i1_-i0_+1)
+  ASSERT((i0_ >= 1) .and. (i0_ <= this%nrows))
+  ASSERT((i1_ >= 1) .and. (i1_ <= this%nrows))
+  ASSERT(i0_ <= i1_)
+
+  ! y scaling factor
+  if (present(fact_y)) then
+    y = fact_y * y
+  else
+    y = 0
+  end if
+
+  ! ignore x if matrix is empty
+  if (this%is_empty()) return
+
+  ! matrix vector multiplication
+  !$omp parallel do default(none) private(i, j) shared(this, x, y, i0_, i1_) schedule(dynamic)
+  do i = 1, i1_-i0_+1
+    do j = this%ia(i+i0_-1), this%ia(i+i0_)-1
+      y(i) = y(i) + this%a(j) * x(this%ja(j))
+    end do
+  end do
+  !$omp end parallel do
 end subroutine
 
 subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
@@ -1637,6 +1687,7 @@ end subroutine
 #undef SPARSE_RESET
 #undef SPARSE_SCALE
 #undef SPARSE_MUL_VEC
+#undef SPARSE_MUL_VEC_SLICE
 #undef SPARSE_MUL_MAT
 #undef SPARSE_FACTORIZE
 #undef SPARSE_SOLVE_VEC

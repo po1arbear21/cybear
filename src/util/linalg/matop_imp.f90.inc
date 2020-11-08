@@ -13,12 +13,12 @@
 #define MATOP_EXEC1          CONCAT3(matop,T,exec1)
 #define MATOP_EXEC2          CONCAT3(matop,T,exec2)
 
-#define SINGLE_MATOP_TYPE    CONCAT(single_matop,T)
+#define SINGLE_MATOP_TYPE    CONCAT( single_matop,T)
 #define SINGLE_MATOP_INIT    CONCAT3(single_matop,T,init)
 #define SINGLE_MATOP_EXEC1   CONCAT3(single_matop,T,exec1)
 #define SINGLE_MATOP_EXEC2   CONCAT3(single_matop,T,exec2)
 
-#define CHAIN_MATOP_TYPE     CONCAT(chain_matop,T)
+#define CHAIN_MATOP_TYPE     CONCAT( chain_matop,T)
 #define CHAIN_MATOP_INIT     CONCAT3(chain_matop,T,init)
 #define CHAIN_MATOP_SET_MAT  CONCAT3(chain_matop,T,set_mat)
 #define CHAIN_MATOP_EXEC1    CONCAT3(chain_matop,T,exec1)
@@ -42,6 +42,36 @@ subroutine MATOP_INIT(this, dum, nrows, ncols)
   if (present(ncols)) this%ncols = ncols
 end subroutine
 
+subroutine MATOP_EXEC1(this, x, y)
+  !! virtual exec1 procedure. just a placeholder s.t. all extending matops have to redefine it.
+
+  class(MATOP_TYPE), intent(in)  :: this
+  TT, target,        intent(in)  :: x(:)
+    !! input vector
+  TT, target,        intent(out) :: y(:)
+    !! output vector
+
+  IGNORE(this)
+  IGNORE(x)
+  y = 0 ! to remove gfortran warning for intent(out) variable
+  call program_error('virtual parent method. shouldnt be called.')
+end subroutine
+
+subroutine MATOP_EXEC2(this, x, y)
+  !! virtual exec2 procedure. just a placeholder s.t. all extending matops have to redefine it.
+
+  class(MATOP_TYPE), intent(in)  :: this
+  TT, target,        intent(in)  :: x(:,:)
+    !! input vector
+  TT, target,        intent(out) :: y(:,:)
+    !! output vector
+
+  IGNORE(this)
+  IGNORE(x)
+  y = 0 ! to remove gfortran warning for intent(out) variable
+  call program_error('virtual parent method. shouldnt be called.')
+end subroutine
+
 subroutine SINGLE_MATOP_INIT(this, mat, inv)
   !! initialize single matrix operation
 
@@ -63,10 +93,10 @@ end subroutine
 subroutine SINGLE_MATOP_EXEC1(this, x, y)
   !! apply single matrix operation to vector
 
-  class(SINGLE_MATOP_TYPE), intent(inout) :: this
-  TT,                       intent(in)    :: x(:)
+  class(SINGLE_MATOP_TYPE), intent(in)  :: this
+  TT, target,               intent(in)  :: x(:)
     !! input vector
-  TT,                       intent(out)   :: y(:)
+  TT, target,               intent(out) :: y(:)
     !! output vector
 
   ! apply matrix
@@ -80,10 +110,10 @@ end subroutine
 subroutine SINGLE_MATOP_EXEC2(this, x, y)
   !! apply single matrix operation to matrix
 
-  class(SINGLE_MATOP_TYPE), intent(inout) :: this
-  TT,                       intent(in)    :: x(:,:)
+  class(SINGLE_MATOP_TYPE), intent(in)  :: this
+  TT, target,               intent(in)  :: x(:,:)
     !! input matrix
-  TT,                       intent(out)   :: y(:,:)
+  TT, target,               intent(out) :: y(:,:)
     !! output matrix
 
   ! apply matrix
@@ -132,10 +162,10 @@ end subroutine
 subroutine CHAIN_MATOP_EXEC1(this, x, y)
   !! apply chain matrix operation to vector
 
-  class(CHAIN_MATOP_TYPE), intent(inout) :: this
-  TT,                      intent(in)    :: x(:)
+  class(CHAIN_MATOP_TYPE), intent(in)  :: this
+  TT, target,              intent(in)  :: x(:)
     !! input vector
-  TT,                      intent(out)   :: y(:)
+  TT, target,              intent(out) :: y(:)
     !! output vector
 
   ! local variables
@@ -175,10 +205,10 @@ end subroutine
 subroutine CHAIN_MATOP_EXEC2(this, x, y)
   !! apply chain matrix operation to matrix
 
-  class(CHAIN_MATOP_TYPE), intent(inout) :: this
-  TT,                      intent(in)    :: x(:,:)
+  class(CHAIN_MATOP_TYPE), intent(in)  :: this
+  TT, target,              intent(in)  :: x(:,:)
     !! input matrix
-  TT,                      intent(out)   :: y(:,:)
+  TT, target,              intent(out) :: y(:,:)
     !! output matrix
 
   ! local variables

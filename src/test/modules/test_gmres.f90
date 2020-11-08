@@ -32,7 +32,6 @@ contains
     integer                 :: n
     real, allocatable       :: x(:), b(:), x0(:), x_exp(:)
     type(band_real), target :: Ab
-    type(gmres_options)     :: opts
     type(single_matop_real) :: A
 
     ! LES: Ax=b
@@ -58,15 +57,9 @@ contains
     !
     block
       x = x0
-      call opts%init( x, b)
-      call opts%check(x, b)
-      opts%ipar( 9) = 1
-      opts%ipar(10) = 0
-      opts%ipar(12) = 1
-      opts%dpar( 1) = 1e-13
-      call gmres(opts, b, A, x)
+      call gmres(b, A, x)
 
-      call tc%assert_eq(x_exp, x, 1e-13, "gmres: w/o preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-12, "gmres: w/o preconditioner")
     end block
 
     !
@@ -74,6 +67,7 @@ contains
     !
     block
       type(band_real), target :: prec_b
+      type(gmres_options)     :: opts
       type(single_matop_real) :: prec
 
       ! preconditioner: diagonal part of A
@@ -84,15 +78,9 @@ contains
       call prec_b%factorize()
       call prec%init(prec_b, inv=.true.)
 
-      x = x0
-      call opts%init( x, b)
-      call opts%check(x, b)
-      opts%ipar( 9) = 1
-      opts%ipar(10) = 0
-      opts%ipar(11) = 1
-      opts%ipar(12) = 1
-      opts%dpar( 1) = 1e-13
-      call gmres(opts, b, A, x, precon=prec)
+      x         = x0
+      opts%rtol = 1e-13
+      call gmres(b, A, x, opts=opts, precon=prec)
 
       call tc%assert_eq(x_exp, x, 1e-13, "gmres: w/ preconditioner")
     end block
@@ -106,7 +94,6 @@ contains
     complex, allocatable     :: x(:), b(:), x0(:), x_exp(:)
     integer                  :: n
     type(band_cmplx), target :: Ab
-    type(gmres_options)      :: opts
     type(single_matop_cmplx) :: A
 
     ! LES: Ax=b
@@ -136,15 +123,9 @@ contains
     !
     block
       x = x0
-      call opts%init( x, b)
-      call opts%check(x, b)
-      opts%ipar( 9) = 1
-      opts%ipar(10) = 0
-      opts%ipar(12) = 1
-      opts%dpar( 1) = 1e-13
-      call gmres(opts, b, A, x)
+      call gmres(b, A, x)
 
-      call tc%assert_eq(x_exp, x, 1e-13, "gmres cmplx: w/o preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-12, "gmres cmplx: w/o preconditioner")
     end block
 
     !
@@ -152,6 +133,7 @@ contains
     !
     block
       type(band_cmplx), target :: prec_b
+      type(gmres_options)      :: opts
       type(single_matop_cmplx) :: prec
 
       ! preconditioner: diagonal part of A
@@ -162,15 +144,9 @@ contains
       call prec_b%factorize()
       call prec%init(prec_b, inv=.true.)
 
-      x = x0
-      call opts%init( x, b)
-      call opts%check(x, b)
-      opts%ipar( 9) = 1
-      opts%ipar(10) = 0
-      opts%ipar(11) = 1
-      opts%ipar(12) = 1
-      opts%dpar( 1) = 1e-13
-      call gmres(opts, b, A, x, precon=prec)
+      x         = x0
+      opts%rtol = 1e-13
+      call gmres(b, A, x, opts=opts, precon=prec)
 
       call tc%assert_eq(x_exp, x, 1e-13, "gmres cmplx: w/ preconditioner")
     end block
