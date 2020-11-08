@@ -82,7 +82,7 @@ contains
     dpar(2) = this%atol
   end subroutine
 
-  subroutine gmres_c(b, mulvec, x, opts, precon, itercount, residual_error)
+  subroutine gmres_c(b, mulvec, x, opts, precon, itercount, residual)
     !! wrapper around mkl's dfgmres for real(!) arrays.
     !!
     !! solves Ax=b and optionally, uses a preconditioner P.
@@ -106,29 +106,29 @@ contains
       !! parameters ipar, dpar.
     integer,             intent(out),           optional :: itercount
       !! iteration count
-    real, allocatable,   intent(out),           optional :: residual_error(:)
-      !! residual errors over iteration
+    real, allocatable,   intent(out),           optional :: residual(:)
+      !! residuals over iteration
 
     real, pointer   :: x_ptr(:), b_ptr(:)
     type(matop_c2r) :: mulvec_c2r, precon_c2r
 
     ASSERT(size(x) == size(b))
 
-    call c_f_pointer(c_loc(x), x_ptr, shape=[size(x)*2])
-    call c_f_pointer(c_loc(b), b_ptr, shape=[size(b)*2])
+    call c_f_pointer(c_loc(x), x_ptr, shape=shape(x)*2)
+    call c_f_pointer(c_loc(b), b_ptr, shape=shape(b)*2)
 
     call mulvec_c2r%init(mulvec)
 
     if (present(precon)) then
       call precon_c2r%init(precon)
-      call gmres(b_ptr, mulvec_c2r, x_ptr, opts=opts, precon=precon_c2r, itercount=itercount, residual_error=residual_error)
+      call gmres(b_ptr, mulvec_c2r, x_ptr, opts=opts, precon=precon_c2r, itercount=itercount, residual=residual)
 
     else
-      call gmres(b_ptr, mulvec_c2r, x_ptr, opts=opts,                    itercount=itercount, residual_error=residual_error)
+      call gmres(b_ptr, mulvec_c2r, x_ptr, opts=opts,                    itercount=itercount, residual=residual)
     end if
   end subroutine
 
-  subroutine gmres_r(b, mulvec, x, opts, precon, itercount, residual_error)
+  subroutine gmres_r(b, mulvec, x, opts, precon, itercount, residual)
     !! wrapper around mkl's dfgmres.
     !!
     !! solves Ax=b and optionally, uses a preconditioner P.
@@ -146,8 +146,8 @@ contains
       !! matrix vector operation: x \mapsto P*x
     integer,             intent(out), optional :: itercount
       !! iteration count
-    real, allocatable,   intent(out), optional :: residual_error(:)
-      !! residual errors over iteration
+    real, allocatable,   intent(out), optional :: residual(:)
+      !! residuals over iteration
 
     integer           :: rci_request, itercount_, n, ipar(128), ipar15_default
     real              :: dpar(128)
@@ -164,14 +164,13 @@ contains
     if (rci_request /= 0) call program_error('gmres init failed. rci_request: ' // int2str(rci_request))
 
     ! set values from options into ipar, dpar
-    !   either the option given by the optional argument or a local one which supplies the default values
     block
       type(gmres_options) :: opts_
 
       if (present(opts)) then
-        call opts%apply( ipar, dpar)
+        call opts%apply( ipar, dpar)    ! use options supplied via argument
       else
-        call opts_%apply(ipar, dpar)
+        call opts_%apply(ipar, dpar)    ! use default options
       end if
     end block
 
@@ -193,7 +192,7 @@ contains
     end if
 
     itercount_ = 0
-    if (present(residual_error)) call res%init(30)
+    if (present(residual)) call res%init(30)
 
     ! gmres solution process
     LOOP: do
@@ -201,7 +200,7 @@ contains
       call dfgmres(n, x, b, rci_request, ipar, dpar, tmp)
 
       ! extract current residual
-      if (present(residual_error)) call res%push(dpar(5))
+      if (present(residual)) call res%push(dpar(5))
 
       select case (rci_request)
         ! If RCI_REQUEST==0, then the solution was found with the required precision
@@ -246,8 +245,8 @@ contains
     if (rci_request /= 0) call program_error('gmres get failed. rci_request: ' // int2str(rci_request))
 
     ! set output variables
-    if (present(itercount     )) itercount      = itercount_
-    if (present(residual_error)) residual_error = res%to_array()
+    if (present(itercount)) itercount = itercount_
+    if (present(residual )) residual  = res%to_array()
   end subroutine
 
   integer function tmp_size(n, ipar15)
