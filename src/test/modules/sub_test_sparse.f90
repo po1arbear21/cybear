@@ -252,6 +252,40 @@ contains
       call tc%assert_eq(1.611117642095075e+08,  sum(y), 1e-4, "mul_vec 8")
     end block
 
+    ! mul_vec_slice
+    block
+      type(sparse_real) :: sA
+      real, allocatable :: x(:), y(:), y_exp(:)
+
+      x = [ 1, -2, 3,  -4]
+      allocate (y(2))
+
+      ! get matrix
+      call get_test_matrix(sA)
+
+      ! testing i0, i1. y <- A*x-2y
+      y_exp = [-5, -8]
+      y     = [ 1,  0]
+      call sA%mul_vec_slice(x, y, fact_y=-2.0,       i1=2)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
+      y     = [ 1,  0]
+      call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=1, i1=2)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
+
+      y_exp = [-8, 3]
+      y     = [ 0, 0]
+      call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=2, i1=3)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
+
+      y_exp = [3, -20]
+      y     = [0, - 1]
+      call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=3, i1=4)
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
+      y     = [0, - 1]
+      call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=3      )
+      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
+    end block
+
     ! mul_mat
     block
       type(sparse_real) :: sA, sE

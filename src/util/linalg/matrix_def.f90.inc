@@ -61,6 +61,7 @@
 #define SPARSE_RESET         CONCAT3(sparse,T,reset)
 #define SPARSE_SCALE         CONCAT3(sparse,T,scale)
 #define SPARSE_MUL_VEC       CONCAT3(sparse,T,mul_vec)
+#define SPARSE_MUL_VEC_SLICE CONCAT3(sparse,T,mul_vec_slice)
 #define SPARSE_MUL_MAT       CONCAT3(sparse,T,mul_mat)
 #define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
 #define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
@@ -285,39 +286,40 @@ type, extends(MATRIX_TYPE) :: SPARSE_TYPE
     !! pardiso or ilupack solver handle
 contains
   procedure :: SPARSE_INIT
-  generic   :: init         => SPARSE_INIT
-  procedure :: init_solver  => SPARSE_INIT_SOLVER
-  procedure :: destruct     => SPARSE_DESTRUCT
-  procedure :: reset        => SPARSE_RESET
-  procedure :: scale        => SPARSE_SCALE
-  procedure :: mul_vec      => SPARSE_MUL_VEC
-  procedure :: mul_mat      => SPARSE_MUL_MAT
-  procedure :: factorize    => SPARSE_FACTORIZE
-  procedure :: solve_vec    => SPARSE_SOLVE_VEC
-  procedure :: solve_mat    => SPARSE_SOLVE_MAT
-  procedure :: to_band      => SPARSE_TO_BAND
-  procedure :: to_dense     => SPARSE_TO_DENSE
-  procedure :: to_sparse    => SPARSE_TO_SPARSE
+  generic   :: init          => SPARSE_INIT
+  procedure :: init_solver   => SPARSE_INIT_SOLVER
+  procedure :: destruct      => SPARSE_DESTRUCT
+  procedure :: reset         => SPARSE_RESET
+  procedure :: scale         => SPARSE_SCALE
+  procedure :: mul_vec       => SPARSE_MUL_VEC
+  procedure :: mul_vec_slice => SPARSE_MUL_VEC_SLICE
+  procedure :: mul_mat       => SPARSE_MUL_MAT
+  procedure :: factorize     => SPARSE_FACTORIZE
+  procedure :: solve_vec     => SPARSE_SOLVE_VEC
+  procedure :: solve_mat     => SPARSE_SOLVE_MAT
+  procedure :: to_band       => SPARSE_TO_BAND
+  procedure :: to_dense      => SPARSE_TO_DENSE
+  procedure :: to_sparse     => SPARSE_TO_SPARSE
 #ifdef TCMPLX
-  procedure :: to_real      => SPARSE_TO_REAL
+  procedure :: to_real       => SPARSE_TO_REAL
 #else
-  procedure :: to_cmplx     => SPARSE_TO_CMPLX
+  procedure :: to_cmplx      => SPARSE_TO_CMPLX
 #endif
   procedure :: SPARSE_TRANSPOSE
   procedure :: SPARSE_TRANSPOSE2
-  generic   :: transpose    => SPARSE_TRANSPOSE, SPARSE_TRANSPOSE2
+  generic   :: transpose     => SPARSE_TRANSPOSE, SPARSE_TRANSPOSE2
   procedure :: SPARSE_ADD_SPARSE
   procedure :: SPARSE_ADD_SPARSE3
-  generic   :: add_sparse   => SPARSE_ADD_SPARSE, SPARSE_ADD_SPARSE3
+  generic   :: add_sparse    => SPARSE_ADD_SPARSE, SPARSE_ADD_SPARSE3
   procedure :: SPARSE_ADD_BAND
   procedure :: SPARSE_ADD_BAND3
-  generic   :: add_band     => SPARSE_ADD_BAND, SPARSE_ADD_BAND3
-  procedure :: mul_sparse   => SPARSE_MUL_SPARSE
-  procedure :: output       => SPARSE_OUTPUT
-  procedure :: from_diag    => SPARSE_FROM_DIAG
-  procedure :: to_diag      => SPARSE_TO_DIAG
-  procedure :: nnz          => SPARSE_NNZ
-  procedure :: is_empty     => SPARSE_IS_EMPTY
+  generic   :: add_band      => SPARSE_ADD_BAND, SPARSE_ADD_BAND3
+  procedure :: mul_sparse    => SPARSE_MUL_SPARSE
+  procedure :: output        => SPARSE_OUTPUT
+  procedure :: from_diag     => SPARSE_FROM_DIAG
+  procedure :: to_diag       => SPARSE_TO_DIAG
+  procedure :: nnz           => SPARSE_NNZ
+  procedure :: is_empty      => SPARSE_IS_EMPTY
 end type
 
 type SPARSE_PTR_TYPE
@@ -698,6 +700,7 @@ end interface
 #undef SPARSE_MUL_MAT
 #undef SPARSE_FACTORIZE
 #undef SPARSE_SOLVE_VEC
+#undef SPARSE_MUL_VEC_SLICE
 #undef SPARSE_SOLVE_MAT
 #undef SPARSE_TO_BAND
 #undef SPARSE_TO_DENSE
