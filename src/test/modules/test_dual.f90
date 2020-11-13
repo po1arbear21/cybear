@@ -26,6 +26,14 @@ contains
         call tc%assert_eq(7.0, y(i)%x    , tol, "addition value"     )
         call tc%assert_eq(2.0, y(i)%dx(1), tol, "addition derivative")
       end do
+
+      y(0)  =  3     + (( x     +  x    ) +  2    )        ! test for single addition with integers
+      y(1:) = [3, 3] + (([x, x] + [x, x]) + [2, 2])        ! test for elemental addition with integers
+
+      do i = 0, 2
+        call tc%assert_eq(7.0, y(i)%x    , tol, "int addition value"     )
+        call tc%assert_eq(2.0, y(i)%dx(1), tol, "int addition derivative")
+      end do
     end block
 
     ! test subtraction
@@ -42,6 +50,14 @@ contains
         call tc%assert_eq(8.0, y(i)%x    , tol, "subtraction value"     )
         call tc%assert_eq(2.0, y(i)%dx(1), tol, "subtraction derivative")
       end do
+
+      y(0)  =  5     - (((- x    ) -  x    ) -  1    )
+      y(1:) = [5, 5] - (((-[x, x]) - [x, x]) - [1, 1])
+
+      do i = 0, 2
+        call tc%assert_eq(8.0, y(i)%x    , tol, "integer subtraction value"     )
+        call tc%assert_eq(2.0, y(i)%dx(1), tol, "integer subtraction derivative")
+      end do
     end block
 
     ! test multiplication
@@ -51,12 +67,20 @@ contains
 
       call x%init(2.0, 1)
 
-      y(0)  =  4.0       * ((x      *  x    ) *  0.5      )
-      y(1:) = [4.0, 4.0] * (([x, x] * [x, x]) * [0.5, 0.5])
+      y(0)  =  4.0       * ((x      *  x    ) *  3.0      )
+      y(1:) = [4.0, 4.0] * (([x, x] * [x, x]) * [3.0, 3.0])
 
       do i = 0, 2
-        call tc%assert_eq(8.0, y(i)%x    , tol, "multiplication value"     )
-        call tc%assert_eq(8.0, y(i)%dx(1), tol, "multiplication derivative")
+        call tc%assert_eq(48.0, y(i)%x    , tol, "multiplication value"     )
+        call tc%assert_eq(48.0, y(i)%dx(1), tol, "multiplication derivative")
+      end do
+
+      y(0)  =  4     * ((x      *  x    ) *  3    )
+      y(1:) = [4, 4] * (([x, x] * [x, x]) * [3, 3])
+
+      do i = 0, 2
+        call tc%assert_eq(48.0, y(i)%x    , tol, "integer multiplication value"     )
+        call tc%assert_eq(48.0, y(i)%dx(1), tol, "integer multiplication derivative")
       end do
     end block
 
@@ -68,13 +92,22 @@ contains
       call x%init(4.0, 1)
       call y%init(2.0, 2)
 
-      z(0)  =  1.0       / (( x     /  y    ) /  0.5      )
-      z(1:) = [1.0, 1.0] / (([x, x] / [y, y]) / [0.5, 0.5])
+      z(0)  =  1.0       / (( x     /  y    ) /  4.0      )
+      z(1:) = [1.0, 1.0] / (([x, x] / [y, y]) / [4.0, 4.0])
 
       do i = 0, 2
-        call tc%assert_eq( 0.2500, z(i)%x    , tol, "division value"       )
-        call tc%assert_eq(-0.0625, z(i)%dx(1), tol, "division derivative 1")
-        call tc%assert_eq( 0.1250, z(i)%dx(2), tol, "division derivative 2")
+        call tc%assert_eq( 2.0, z(i)%x    , tol, "division value"       )
+        call tc%assert_eq(-0.5, z(i)%dx(1), tol, "division derivative 1")
+        call tc%assert_eq( 1.0, z(i)%dx(2), tol, "division derivative 2")
+      end do
+
+      z(0)  =  1     / (( x     /  y    ) /  4    )
+      z(1:) = [1, 1] / (([x, x] / [y, y]) / [4, 4])
+
+      do i = 0, 2
+        call tc%assert_eq( 2.0, z(i)%x    , tol, "integer division value"       )
+        call tc%assert_eq(-0.5, z(i)%dx(1), tol, "integer division derivative 1")
+        call tc%assert_eq( 1.0, z(i)%dx(2), tol, "integer division derivative 2")
       end do
     end block
 
@@ -86,8 +119,8 @@ contains
       call x%init(1.5, 1)
       call y%init(2.0, 2)
 
-      z(0)  = ((( 2.0       **  x    ) **  y    ) **  0.25       ) **  4
-      z(1:) = ((([2.0, 2.0] ** [x, x]) ** [y, y]) ** [0.25, 0.25]) ** [4, 4]
+      z(0)  = ((( 2.0   **  x    ) **  y    ) **  0.25       ) **  4
+      z(1:) = ((([2, 2] ** [x, x]) ** [y, y]) ** [0.25, 0.25]) ** [4, 4]
 
       do i = 0, 2
         call tc%assert_eq( 8.0           , z(i)%x    , tol, "power value"       )

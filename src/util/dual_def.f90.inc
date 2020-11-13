@@ -7,21 +7,30 @@
 #define DUAL_INIT            CONCAT(dual_init,N)
 #define DUAL_ADD_DUAL        CONCAT(dual_add_dual,N)
 #define DUAL_ADD_REAL        CONCAT(dual_add_real,N)
+#define DUAL_ADD_INT         CONCAT(dual_add_int,N)
 #define REAL_ADD_DUAL        CONCAT(real_add_dual,N)
+#define INT_ADD_DUAL         CONCAT(int_add_dual,N)
 #define DUAL_NEG             CONCAT(dual_neg,N)
 #define DUAL_SUB_DUAL        CONCAT(dual_sub_dual,N)
 #define DUAL_SUB_REAL        CONCAT(dual_sub_real,N)
+#define DUAL_SUB_INT         CONCAT(dual_sub_int,N)
 #define REAL_SUB_DUAL        CONCAT(real_sub_dual,N)
+#define INT_SUB_DUAL         CONCAT(int_sub_dual,N)
 #define DUAL_MUL_DUAL        CONCAT(dual_mul_dual,N)
 #define DUAL_MUL_REAL        CONCAT(dual_mul_real,N)
+#define DUAL_MUL_INT         CONCAT(dual_mul_int,N)
 #define REAL_MUL_DUAL        CONCAT(real_mul_dual,N)
+#define INT_MUL_DUAL         CONCAT(int_mul_dual,N)
 #define DUAL_DIV_DUAL        CONCAT(dual_div_dual,N)
 #define DUAL_DIV_REAL        CONCAT(dual_div_real,N)
+#define DUAL_DIV_INT         CONCAT(dual_div_int,N)
 #define REAL_DIV_DUAL        CONCAT(real_div_dual,N)
+#define INT_DIV_DUAL         CONCAT(int_div_dual,N)
 #define DUAL_POW_DUAL        CONCAT(dual_pow_dual,N)
 #define DUAL_POW_REAL        CONCAT(dual_pow_real,N)
 #define DUAL_POW_INT         CONCAT(dual_pow_int,N)
 #define REAL_POW_DUAL        CONCAT(real_pow_dual,N)
+#define INT_POW_DUAL         CONCAT(int_pow_dual,N)
 #define DUAL_DOT_PRODUCT     CONCAT(dual_dot_product,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
@@ -45,26 +54,34 @@ end type
 interface operator(+)
   module procedure :: DUAL_ADD_DUAL
   module procedure :: DUAL_ADD_REAL
+  module procedure :: DUAL_ADD_INT
   module procedure :: REAL_ADD_DUAL
+  module procedure :: INT_ADD_DUAL
 end interface
 
 interface operator(-)
   module procedure :: DUAL_NEG
   module procedure :: DUAL_SUB_DUAL
   module procedure :: DUAL_SUB_REAL
+  module procedure :: DUAL_SUB_INT
   module procedure :: REAL_SUB_DUAL
+  module procedure :: INT_SUB_DUAL
 end interface
 
 interface operator(*)
   module procedure :: DUAL_MUL_DUAL
   module procedure :: DUAL_MUL_REAL
+  module procedure :: DUAL_MUL_INT
   module procedure :: REAL_MUL_DUAL
+  module procedure :: INT_MUL_DUAL
 end interface
 
 interface operator(/)
   module procedure :: DUAL_DIV_DUAL
   module procedure :: DUAL_DIV_REAL
+  module procedure :: DUAL_DIV_INT
   module procedure :: REAL_DIV_DUAL
+  module procedure :: INT_DIV_DUAL
 end interface
 
 interface operator(**)
@@ -72,6 +89,7 @@ interface operator(**)
   module procedure :: DUAL_POW_REAL
   module procedure :: DUAL_POW_INT
   module procedure :: REAL_POW_DUAL
+  module procedure :: INT_POW_DUAL
 end interface
 
 interface operator(.dot.)
@@ -117,21 +135,30 @@ end interface
 #undef DUAL_INIT
 #undef DUAL_ADD_DUAL
 #undef DUAL_ADD_REAL
+#undef DUAL_ADD_INT
 #undef REAL_ADD_DUAL
+#undef INT_ADD_DUAL
 #undef DUAL_NEG
 #undef DUAL_SUB_DUAL
 #undef DUAL_SUB_REAL
+#undef DUAL_SUB_INT
 #undef REAL_SUB_DUAL
+#undef INT_SUB_DUAL
 #undef DUAL_MUL_DUAL
 #undef DUAL_MUL_REAL
+#undef DUAL_MUL_INT
 #undef REAL_MUL_DUAL
+#undef INT_MUL_DUAL
 #undef DUAL_DIV_DUAL
 #undef DUAL_DIV_REAL
+#undef DUAL_DIV_INT
 #undef REAL_DIV_DUAL
+#undef INT_DIV_DUAL
 #undef DUAL_POW_DUAL
 #undef DUAL_POW_REAL
 #undef DUAL_POW_INT
 #undef REAL_POW_DUAL
+#undef INT_POW_DUAL
 #undef DUAL_DOT_PRODUCT
 #undef DUAL_ABS
 #undef DUAL_SQRT

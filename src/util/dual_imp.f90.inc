@@ -7,21 +7,30 @@
 #define DUAL_INIT            CONCAT(dual_init,N)
 #define DUAL_ADD_DUAL        CONCAT(dual_add_dual,N)
 #define DUAL_ADD_REAL        CONCAT(dual_add_real,N)
+#define DUAL_ADD_INT         CONCAT(dual_add_int,N)
 #define REAL_ADD_DUAL        CONCAT(real_add_dual,N)
+#define INT_ADD_DUAL         CONCAT(int_add_dual,N)
 #define DUAL_NEG             CONCAT(dual_neg,N)
 #define DUAL_SUB_DUAL        CONCAT(dual_sub_dual,N)
 #define DUAL_SUB_REAL        CONCAT(dual_sub_real,N)
+#define DUAL_SUB_INT         CONCAT(dual_sub_int,N)
 #define REAL_SUB_DUAL        CONCAT(real_sub_dual,N)
+#define INT_SUB_DUAL         CONCAT(int_sub_dual,N)
 #define DUAL_MUL_DUAL        CONCAT(dual_mul_dual,N)
 #define DUAL_MUL_REAL        CONCAT(dual_mul_real,N)
+#define DUAL_MUL_INT         CONCAT(dual_mul_int,N)
 #define REAL_MUL_DUAL        CONCAT(real_mul_dual,N)
+#define INT_MUL_DUAL         CONCAT(int_mul_dual,N)
 #define DUAL_DIV_DUAL        CONCAT(dual_div_dual,N)
 #define DUAL_DIV_REAL        CONCAT(dual_div_real,N)
+#define DUAL_DIV_INT         CONCAT(dual_div_int,N)
 #define REAL_DIV_DUAL        CONCAT(real_div_dual,N)
+#define INT_DIV_DUAL         CONCAT(int_div_dual,N)
 #define DUAL_POW_DUAL        CONCAT(dual_pow_dual,N)
 #define DUAL_POW_REAL        CONCAT(dual_pow_real,N)
 #define DUAL_POW_INT         CONCAT(dual_pow_int,N)
 #define REAL_POW_DUAL        CONCAT(real_pow_dual,N)
+#define INT_POW_DUAL         CONCAT(int_pow_dual,N)
 #define DUAL_DOT_PRODUCT     CONCAT(dual_dot_product,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
@@ -64,9 +73,29 @@ elemental function DUAL_ADD_REAL(x, y) result(r)
   r%dx = x%dx
 end function
 
+elemental function DUAL_ADD_INT(x, y) result(r)
+  !! add dual and integer number
+  type(DUAL_TYPE), intent(in) :: x
+  integer,         intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x%x  + y
+  r%dx = x%dx
+end function
+
 elemental function REAL_ADD_DUAL(x, y) result(r)
   !! add real and dual number
   real,            intent(in) :: x
+  type(DUAL_TYPE), intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x + y%x
+  r%dx =     y%dx
+end function
+
+elemental function INT_ADD_DUAL(x, y) result(r)
+  !! add integer and dual number
+  integer,         intent(in) :: x
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
@@ -103,9 +132,29 @@ elemental function DUAL_SUB_REAL(x, y) result(r)
   r%dx = x%dx
 end function
 
+elemental function DUAL_SUB_INT(x, y) result(r)
+  !! subtract integer from dual number
+  type(DUAL_TYPE), intent(in) :: x
+  integer,         intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x%x  - y
+  r%dx = x%dx
+end function
+
 elemental function REAL_SUB_DUAL(x, y) result(r)
   !! subtract dual from real number
   real,            intent(in) :: x
+  type(DUAL_TYPE), intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x - y%x
+  r%dx =   - y%dx
+end function
+
+elemental function INT_SUB_DUAL(x, y) result(r)
+  !! subtract integer from real number
+  integer,         intent(in) :: x
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
@@ -133,9 +182,29 @@ elemental function DUAL_MUL_REAL(x, y) result(r)
   r%dx = x%dx * y
 end function
 
+elemental function DUAL_MUL_INT(x, y) result(r)
+  !! multiply dual with integer number
+  type(DUAL_TYPE), intent(in) :: x
+  integer,         intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x%x  * y
+  r%dx = x%dx * y
+end function
+
 elemental function REAL_MUL_DUAL(x, y) result(r)
   !! multiply real with dual number
   real,            intent(in) :: x
+  type(DUAL_TYPE), intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x * y%x
+  r%dx = x * y%dx
+end function
+
+elemental function INT_MUL_DUAL(x, y) result(r)
+  !! multiply integer with dual number
+  integer,         intent(in) :: x
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
@@ -163,9 +232,29 @@ elemental function DUAL_DIV_REAL(x, y) result(r)
   r%dx = x%dx / y
 end function
 
+elemental function DUAL_DIV_INT(x, y) result(r)
+  !! divide dual by integer number
+  type(DUAL_TYPE), intent(in) :: x
+  integer,         intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x%x  / y
+  r%dx = x%dx / y
+end function
+
 elemental function REAL_DIV_DUAL(x, y) result(r)
   !! divide real by dual number
   real,            intent(in) :: x
+  type(DUAL_TYPE), intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r%x  = x / y%x
+  r%dx = (- x / y%x**2) * y%dx
+end function
+
+elemental function INT_DIV_DUAL(x, y) result(r)
+  !! divide integer by dual number
+  integer,         intent(in) :: x
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
@@ -235,6 +324,15 @@ elemental function REAL_POW_DUAL(x, y) result(r)
   type(DUAL_TYPE)             :: r
 
   r = exp(log(x) * y)
+end function
+
+elemental function INT_POW_DUAL(x, y) result(r)
+  !! raise integer to the power of a dual number
+  integer,         intent(in) :: x
+  type(DUAL_TYPE), intent(in) :: y
+  type(DUAL_TYPE)             :: r
+
+  r = exp(log(real(x)) * y)
 end function
 
 function DUAL_DOT_PRODUCT(x, y) result(r)
@@ -329,21 +427,30 @@ end function
 #undef DUAL_INIT
 #undef DUAL_ADD_DUAL
 #undef DUAL_ADD_REAL
+#undef DUAL_ADD_INT
 #undef REAL_ADD_DUAL
+#undef INT_ADD_DUAL
 #undef DUAL_NEG
 #undef DUAL_SUB_DUAL
 #undef DUAL_SUB_REAL
+#undef DUAL_SUB_INT
 #undef REAL_SUB_DUAL
+#undef INT_SUB_DUAL
 #undef DUAL_MUL_DUAL
 #undef DUAL_MUL_REAL
+#undef DUAL_MUL_INT
 #undef REAL_MUL_DUAL
+#undef INT_MUL_DUAL
 #undef DUAL_DIV_DUAL
 #undef DUAL_DIV_REAL
+#undef DUAL_DIV_INT
 #undef REAL_DIV_DUAL
+#undef INT_DIV_DUAL
 #undef DUAL_POW_DUAL
 #undef DUAL_POW_REAL
 #undef DUAL_POW_INT
 #undef REAL_POW_DUAL
+#undef INT_POW_DUAL
 #undef DUAL_DOT_PRODUCT
 #undef DUAL_ABS
 #undef DUAL_SQRT
