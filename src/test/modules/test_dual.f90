@@ -127,6 +127,16 @@ contains
         call tc%assert_eq(16.0 * log(2.0), z(i)%dx(1), tol, "power derivative 1")
         call tc%assert_eq(12.0 * log(2.0), z(i)%dx(2), tol, "power derivative 2")
       end do
+
+      call x%init(0.0)
+      z(0) = x ** 2.0
+      call tc%assert_eq(0.0, z(0)%x, 0.0, "0**2 value")
+      call tc%assert_eq([0.0, 0.0], z(0)%dx, 0.0, "0**2 derivatives")
+
+      call x%init(0.0)
+      z(0) = 2.0 ** x
+      call tc%assert_eq(1.0, z(0)%x, 0.0, "0**2 value")
+      call tc%assert_eq([0.0, 0.0], z(0)%dx, 0.0, "0**2 derivatives")
     end block
 
     ! test abs

@@ -268,7 +268,12 @@ elemental function DUAL_POW_DUAL(x, y) result(r)
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
-  r = exp(log(x) * y)
+  r%x  = x%x**y%x
+  r%dx = y%x * x%x ** (y%x-1) * x%dx
+
+  if ((x%x /= 0) .or. (y%x <= 0)) then
+    r%dx = r%dx + r%x * log(x%x) * y%dx
+  end if
 end function
 
 elemental function DUAL_POW_REAL(x, y) result(r)
@@ -277,7 +282,8 @@ elemental function DUAL_POW_REAL(x, y) result(r)
   real,            intent(in) :: y
   type(DUAL_TYPE)             :: r
 
-  r = exp(log(x) * y)
+  r%x  = x%x**y
+  r%dx = y * x%x**(y-1) * x%dx
 end function
 
 elemental function DUAL_POW_INT(x, y) result(r)
@@ -323,7 +329,12 @@ elemental function REAL_POW_DUAL(x, y) result(r)
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
-  r = exp(log(x) * y)
+  r%x  = x**y%x
+  if ((x == 0) .and. (y%x > 0))then
+    r%dx = 0 ! avoid log(0)
+  else
+    r%dx = r%x * log(x) * y%dx
+  end if
 end function
 
 elemental function INT_POW_DUAL(x, y) result(r)
@@ -332,7 +343,7 @@ elemental function INT_POW_DUAL(x, y) result(r)
   type(DUAL_TYPE), intent(in) :: y
   type(DUAL_TYPE)             :: r
 
-  r = exp(log(real(x)) * y)
+  r = real(x) ** y
 end function
 
 function DUAL_DOT_PRODUCT(x, y) result(r)
