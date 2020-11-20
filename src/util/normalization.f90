@@ -333,6 +333,24 @@ contains
     call this%unit_const%insert(string("A/cm^2" ),        ampere  / (CENTI*meter)**2     )
     call this%unit_const%insert(string("mA/um^2"), (MILLI*ampere) / (MICRO*meter)**2     )
 
+    associate (coulomb => ampere * second)
+      call this%unit_const%insert(string("C"     ), coulomb                    )
+      call this%unit_const%insert(string("C/m"   ), coulomb /        meter     )
+      call this%unit_const%insert(string("C/cm"  ), coulomb / (CENTI*meter)    )
+      call this%unit_const%insert(string("C/mm"  ), coulomb / (MILLI*meter)    )
+      call this%unit_const%insert(string("C/um"  ), coulomb / (MICRO*meter)    )
+      call this%unit_const%insert(string("C/nm"  ), coulomb / (NANO *meter)    )
+      call this%unit_const%insert(string("C/pm"  ), coulomb / (PICO *meter)    )
+      call this%unit_const%insert(string("C/fm"  ), coulomb / (FEMTO*meter)    )
+      call this%unit_const%insert(string("C/m^2" ), coulomb / (      meter)**2 )
+      call this%unit_const%insert(string("C/cm^2"), coulomb / (CENTI*meter)**2 )
+      call this%unit_const%insert(string("C/mm^2"), coulomb / (MILLI*meter)**2 )
+      call this%unit_const%insert(string("C/um^2"), coulomb / (MICRO*meter)**2 )
+      call this%unit_const%insert(string("C/nm^2"), coulomb / (NANO *meter)**2 )
+      call this%unit_const%insert(string("C/pm^2"), coulomb / (PICO *meter)**2 )
+      call this%unit_const%insert(string("C/fm^2"), coulomb / (FEMTO*meter)**2 )
+    end associate
+
     associate (ohm => volt / ampere)
       call this%unit_const%insert(string("A/V" ), 1 / ohm )
 
