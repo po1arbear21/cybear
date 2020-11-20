@@ -25,7 +25,9 @@ module poly_m
     procedure :: poly1D_eval_scalar
     procedure :: poly1D_eval_array
     generic   :: eval   => poly1D_eval_scalar, poly1D_eval_array
-    procedure :: grad   => poly1D_grad
+    procedure :: poly1D_grad_scalar
+    procedure :: poly1D_grad_array
+    generic   :: grad   => poly1D_grad_scalar, poly1D_grad_array
   end type
 
   type poly2D
@@ -53,7 +55,9 @@ module poly_m
     procedure :: poly2D_eval_scalar
     procedure :: poly2D_eval_array
     generic   :: eval   => poly2D_eval_scalar, poly2D_eval_array
-    procedure :: grad   => poly2D_grad
+    procedure :: poly2D_grad_scalar
+    procedure :: poly2D_grad_array
+    generic   :: grad   => poly2D_grad_scalar, poly2D_grad_array
   end type
 
   type poly3D
@@ -85,7 +89,9 @@ module poly_m
     procedure :: poly3D_eval_scalar
     procedure :: poly3D_eval_array
     generic   :: eval   => poly3D_eval_scalar, poly3D_eval_array
-    procedure :: grad   => poly3D_grad
+    procedure :: poly3D_grad_scalar
+    procedure :: poly3D_grad_array
+    generic   :: grad   => poly3D_grad_scalar, poly3D_grad_array
   end type
 
 contains
@@ -189,7 +195,7 @@ contains
     end if
   end subroutine
 
-  subroutine poly1D_grad(this, x, gradp, dgradpdf)
+  subroutine poly1D_grad_scalar(this, x, gradp, dgradpdf)
     !! evaluate gradient of 1D interpolation polynomial at one point (using Horner's scheme)
     class(poly1D),  intent(in)  :: this
     real,           intent(in)  :: x
@@ -219,6 +225,31 @@ contains
         dgradpdf  = dpdf + dgradpdf * (x - this%x(i))
         dpdf      = dpdf * (x - this%x(i))
         dpdf(0:i) = dpdf(0:i) + this%dadf(i,0:i) ! use triangular structure of dadf
+      end do
+    end if
+  end subroutine
+
+  subroutine poly1D_grad_array(this, x, gradp, dgradpdf)
+    !! evaluate gradient of 1D interpolation polynomial for multiple points
+    class(poly1D),  intent(in)  :: this
+    real,           intent(in)  :: x(:)
+      !! sampling point
+    real,           intent(out) :: gradp(:)
+      !! optional: output gradient of p at x (derivative of p wrt x)
+    real, optional, intent(out) :: dgradpdf(:,0:)
+      !! optional: output derivatives of gradp wrt this%f
+
+    ! local variables
+    integer :: i
+
+    ! evaluate gradient for all points
+    if (present(dgradpdf)) then
+      do i = 1, size(x)
+        call poly1D_grad_scalar(this, x(i), gradp(i), dgradpdf = dgradpdf(i,:))
+      end do
+    else
+      do i = 1, size(x)
+        call poly1D_grad_scalar(this, x(i), gradp(i))
       end do
     end if
   end subroutine
@@ -366,7 +397,7 @@ contains
     end if
   end subroutine
 
-  subroutine poly2D_grad(this, x, y, gradp, dgradpdf)
+  subroutine poly2D_grad_scalar(this, x, y, gradp, dgradpdf)
     !! evaluate gradient of 2D interpolation polynomial at one point (using Horner's scheme)
     class(poly2D),  intent(in)  :: this
     real,           intent(in)  :: x
@@ -427,6 +458,32 @@ contains
         end if
       end block
     end associate
+  end subroutine
+
+  subroutine poly2D_grad_array(this, x, y, gradp, dgradpdf)
+    !! evaluate gradient of 2D interpolation polynomial for multiple points
+    class(poly2D),  intent(in)  :: this
+    real,           intent(in)  :: x(:)
+      !! x coord of sampling point
+    real,           intent(in)  :: y(:)
+      !! y coord of sampling point
+    real,           intent(out) :: gradp(:,:,:)
+      !! output gradient of p (2 x size(x) x size(y))
+    real, optional, intent(out) :: dgradpdf(:,:,:,0:,0:)
+      !! optional: output derivatives of gradp wrt this%f (2,size(x),size(y),0:nx,0:ny)
+
+    ! local variables
+    integer :: i, j
+
+    if (present(dgradpdf)) then
+      do j = 1, size(y); do i = 1, size(x)
+        call poly2D_grad_scalar(this, x(i), y(j), gradp(:,i,j), dgradpdf(:,i,j,:,:))
+      end do; end do
+    else
+      do j = 1, size(y); do i = 1, size(x)
+        call poly2D_grad_scalar(this, x(i), y(j), gradp(:,i,j))
+      end do; end do
+    end if
   end subroutine
 
   subroutine poly3D_init(this, nx, ny, nz)
@@ -634,7 +691,7 @@ contains
     end if
   end subroutine
 
-  subroutine poly3D_grad(this, x, y, z, gradp, dgradpdf)
+  subroutine poly3D_grad_scalar(this, x, y, z, gradp, dgradpdf)
     !! evaluate gradient of 3D interpolation polynomial at one point (using Horner's scheme)
     class(poly3D),  intent(in)  :: this
     real,           intent(in)  :: x
@@ -758,6 +815,34 @@ contains
         end if
       end block
     end associate
+  end subroutine
+
+  subroutine poly3D_grad_array(this, x, y, z, gradp, dgradpdf)
+    !! evaluate gradient of 3D interpolation polynomial for multiple points
+    class(poly3D),  intent(in)  :: this
+    real,           intent(in)  :: x(:)
+      !! x coord of sampling point
+    real,           intent(in)  :: y(:)
+      !! y coord of sampling point
+    real,           intent(in)  :: z(:)
+      !! z coord of sampling point
+    real,           intent(out) :: gradp(:,:,:,:)
+      !! output gradient of p (3)
+    real, optional, intent(out) :: dgradpdf(:,:,:,:,0:,0:,0:)
+      !! optional: output derivatives of gradp wrt this%f (3,size(x),size(y),size(z),0:nx,0:ny,0:nz)
+
+    ! local variables
+    integer :: i, j, k
+
+    if (present(dgradpdf)) then
+      do k = 1, size(z); do j = 1, size(y); do i = 1, size(x)
+        call poly3D_grad_scalar(this, x(i), y(j), z(k), gradp(:,i,j,k), dgradpdf(:,i,j,k,:,:,:))
+      end do; end do; end do
+    else
+      do k = 1, size(z); do j = 1, size(y); do i = 1, size(x)
+        call poly3D_grad_scalar(this, x(i), y(j), z(k), gradp(:,i,j,k))
+      end do; end do; end do
+    end if
   end subroutine
 
 end module
