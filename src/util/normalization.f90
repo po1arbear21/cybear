@@ -7,7 +7,9 @@ module normalization_m
   implicit none
 
   private
-  public normalization, norm, denorm, init_normconst, destruct_normconst
+  public init_normconst, destruct_normconst
+  public norm, denorm
+  public normalization
 
   type normalization
     type(map_string_real) :: unit_const
@@ -21,15 +23,21 @@ module normalization_m
     !! global normalization object
 
   interface norm
-    module procedure :: norm_scalar
-    module procedure :: norm_array
-    module procedure :: norm_matrix
+    module procedure :: norm_scalar_r
+    module procedure :: norm_array_r
+    module procedure :: norm_matrix_r
+    module procedure :: norm_scalar_c
+    module procedure :: norm_array_c
+    module procedure :: norm_matrix_c
   end interface
 
   interface denorm
-    module procedure :: denorm_scalar
-    module procedure :: denorm_array
-    module procedure :: denorm_matrix
+    module procedure :: denorm_scalar_r
+    module procedure :: denorm_array_r
+    module procedure :: denorm_matrix_r
+    module procedure :: denorm_scalar_c
+    module procedure :: denorm_array_c
+    module procedure :: denorm_matrix_c
   end interface
 
 contains
@@ -49,95 +57,25 @@ contains
     call normconst%destruct()
   end subroutine
 
-  function norm_scalar(value, unit, n) result(nvalue)
-    !! normalize scalar
+#define T r
+#define TT real
+#define NORM
+#include "normalization_imp.f90.inc"
 
-    real,                          intent(in) :: value
-      !! value to normalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalue
-      !! return normalized value
+#define T c
+#define TT complex
+#define NORM
+#include "normalization_imp.f90.inc"
 
-    nvalue = value / get_norm_value(unit, n)
-  end function
+#define T r
+#define TT real
+#define DENORM
+#include "normalization_imp.f90.inc"
 
-  function denorm_scalar(value, unit, n) result(nvalue)
-    !! denormalize scalar
-
-    real,                          intent(in) :: value
-      !! value to denormalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalue
-      !! return denormalized value
-
-    nvalue = value * get_norm_value(unit, n)
-  end function
-
-  function norm_array(values, unit, n) result(nvalues)
-    !! normalize array
-
-    real,                          intent(in) :: values(:)
-      !! values to normalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values))
-      !! return normalized values
-
-    nvalues = values / get_norm_value(unit, n)
-  end function
-
-  function denorm_array(values, unit, n) result(nvalues)
-    !! denormalize array
-
-    real,                          intent(in) :: values(:)
-      !! values to denormalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values))
-      !! return denormalized values
-
-    nvalues = values * get_norm_value(unit, n)
-  end function
-
-  function norm_matrix(values, unit, n) result(nvalues)
-    !! normalize matrix
-
-    real,                          intent(in) :: values(:,:)
-      !! values to normalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values,1),size(values,2))
-      !! return normalized values
-
-    nvalues = values / get_norm_value(unit, n)
-  end function
-
-  function denorm_matrix(values, unit, n) result(nvalues)
-    !! denormalize matrix
-
-    real,                          intent(in) :: values(:,:)
-      !! values to denormalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    real                                      :: nvalues(size(values,1),size(values,2))
-      !! return denormalized values
-
-    nvalues = values * get_norm_value(unit, n)
-  end function
+#define T c
+#define TT complex
+#define DENORM
+#include "normalization_imp.f90.inc"
 
   function get_norm_value(unit, n) result(val)
     !! usage:
