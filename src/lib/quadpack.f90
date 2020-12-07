@@ -3,7 +3,7 @@ module quadpack_m
   implicit none
 
   private
-  public :: QUADPACK_ERROR, quadpack_int
+  public QUADPACK_ERROR, quadpack_int
 
   interface
     function quadpack_integrand(x) result(f)
@@ -49,12 +49,11 @@ contains
     integer, optional, intent(out) :: last
       !! optional, output number of subintervals used
 
-    ! local variables
     integer              :: neval_, ier_, limit_, lenw, last_, inf
     integer, allocatable :: iwork(:)
+    logical              :: a_inf, b_inf
     real                 :: aerr_, bnd
     real,    allocatable :: work(:)
-    logical              :: a_inf, b_inf
 
     limit_ = 4096
     if (present(limit)) limit_ = limit

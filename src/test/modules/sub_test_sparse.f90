@@ -16,10 +16,9 @@ contains
 
     ! sparse builder: check if sparse builder created correct sparse matrix
     block
-      type(sparse_real)    :: sA
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-
+      integer,           allocatable :: ia_exp(:), ja_exp(:)
+      real,              allocatable :: a_exp(:)
+      type(sparse_real), target      :: sA        ! spbuilder needs target attribute of argument at init
 
       call get_test_matrix(sA)
 
@@ -34,10 +33,10 @@ contains
 
     ! sparse builder: set -> reset row
     block
-      type(spbuild_real)   :: sb
-      type(sparse_real)    :: sp
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,            allocatable :: ia_exp(:), ja_exp(:)
+      real,               allocatable :: a_exp(:)
+      type(sparse_real)               :: sp
+      type(spbuild_real), target      :: sb
 
       ! A =
       !  1     2     0     0
@@ -68,7 +67,7 @@ contains
 
       call sb%reset_row(1)
 
-      call sb%save
+      call sb%save()
 
       a_exp  = [4, 1, 1, 5]
       ia_exp = [1, 1, 2, 3, 5]
@@ -86,7 +85,7 @@ contains
       ! ja = [1 2 3 2 4]
       call sb%set(1, 1, 1.0)
 
-      call sb%save
+      call sb%save()
 
       a_exp  = [1, 4, 1, 1, 5]
       ia_exp = [1, 2, 3, 4, 6]
@@ -99,11 +98,11 @@ contains
 
     ! sparse builder: set -> reset row -> set_row
     block
-      integer              :: row, j0, j1
-      real, allocatable    :: vals(:)
-      type(dense_real)     :: d_exp, d
-      type(sparse_real)    :: sp
-      type(spbuild_real)   :: sb
+      integer                        :: row, j0, j1
+      real,              allocatable :: vals(:)
+      type(dense_real)               :: d_exp, d
+      type(sparse_real), target      :: sp
+      type(spbuild_real)             :: sb
 
       ! A =
       !  1     2     0     0
@@ -127,7 +126,7 @@ contains
       call sb%add(4, 2, 1.0)
       call sb%add(4, 4, 5.0)
 
-      call sb%save
+      call sb%save()
       call sp%to_dense(d_exp)
 
       !
@@ -143,7 +142,7 @@ contains
       ! sb%keep_struct(row) = .false.
       call sb%reset_row(row)
       call sb%set_row(row, vals)
-      call sb%save
+      call sb%save()
       call sp%to_dense(d)
       d_exp%d(row,:) = vals
 
@@ -164,7 +163,7 @@ contains
       sb%keep_struct(row) = .false.     ! needed if resetting only slice of row and there was data before
       call sb%reset_row(row)
       call sb%set_row(row, vals, j0=j0, j1=j1)
-      call sb%save
+      call sb%save()
       call sp%to_dense(d)
       d_exp%d(row,j0:j1) = vals
 
@@ -174,8 +173,8 @@ contains
     ! mul_vec
     block
       integer           :: i, n
-      type(sparse_real) :: sA, sE
       real, allocatable :: x(:), y(:), y_exp(:)
+      type(sparse_real) :: sA, sE
 
       x= [ 1, -2, 3,  -4]
       allocate (y(4))
@@ -244,20 +243,20 @@ contains
       ! test: y <- (A^t)*x
       y = ieee_value(y, ieee_quiet_nan)   ! set y to nan: in case y(i) is not overwritten then nan will throw error while testing
       call sA%mul_vec(x, y, trans='T')
-      call tc%assert_eq(1.601097642095075e+08,  sum(y), 1e-4, "mul_vec 7")
+      call tc%assert_eq( 1.601097642095075e+08, sum(y), 1e-4, "mul_vec 7")
 
       ! test: y <- (A^t)*x +4y
       y = [(2*i, i=1,n)]
       call sA%mul_vec(x, y, fact_y=4.0, trans='T')
-      call tc%assert_eq(1.611117642095075e+08,  sum(y), 1e-4, "mul_vec 8")
+      call tc%assert_eq( 1.611117642095075e+08, sum(y), 1e-4, "mul_vec 8")
     end block
 
     ! mul_vec_slice
     block
-      type(sparse_real) :: sA
       real, allocatable :: x(:), y(:), y_exp(:)
+      type(sparse_real) :: sA
 
-      x = [ 1, -2, 3,  -4]
+      x = [1, -2, 3, -4]
       allocate (y(2))
 
       ! get matrix
@@ -268,7 +267,7 @@ contains
       y     = [ 1,  0]
       call sA%mul_vec_slice(x, y, fact_y=-2.0,       i1=2)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
-      y     = [ 1,  0]
+      y     = [1, 0]
       call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=1, i1=2)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
 
@@ -281,15 +280,15 @@ contains
       y     = [0, - 1]
       call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=3, i1=4)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
-      y     = [0, - 1]
+      y     = [0, -1]
       call sA%mul_vec_slice(x, y, fact_y=-2.0, i0=3      )
       call tc%assert_eq(y_exp, y, 1e-12, "mul_vec_slice")
     end block
 
     ! mul_mat
     block
-      type(sparse_real) :: sA, sE
       real, allocatable :: x(:,:), y(:,:), y_exp(:,:)
+      type(sparse_real) :: sA, sE
 
       ! test 1
       ! x = A(:,1:3) =
@@ -364,10 +363,10 @@ contains
 
     ! mul_sparse
     block
-      type(sparse_real)    :: sA, sB, sC, sE
-      type(spbuild_real)   :: sbuild
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,           allocatable :: ia_exp(:), ja_exp(:)
+      real,              allocatable :: a_exp(:)
+      type(sparse_real), target      :: sA, sB, sC, sE
+      type(spbuild_real)             :: sbuild
 
       call get_empty_matrix(sE)
       call get_test_matrix(sA)
@@ -433,8 +432,8 @@ contains
 
     ! solve_vec
     block
-      real, allocatable  :: b(:), x(:), x_exp(:)
-      type(sparse_real)  :: sA
+      real,              allocatable :: b(:), x(:), x_exp(:)
+      type(sparse_real), target      :: sA
 
       b     = [1, 3, 0, -2]
       x_exp = [-0.5, 0.75, 0.0, -0.55]
@@ -442,25 +441,25 @@ contains
 
       ! test 1: using default solver
       call get_test_matrix(sA)
-      call sA%factorize
+      call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct
+      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: default solver")
 
       ! test 2: using pardiso solver
       call get_test_matrix(sA)
       sA%solver=SOLVER_PARDISO
-      call sA%factorize
+      call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct
+      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: pardiso solver")
 
       ! test 3: using ilupack solver
       call get_test_matrix(sA)
       sA%solver=SOLVER_ILUPACK
-      call sA%factorize
+      call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct
+      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
 
       ! test 4: using ilupack solver, changing ilupack parameters
@@ -471,7 +470,7 @@ contains
 
         call get_test_matrix(sA)
         sA%solver=SOLVER_ILUPACK
-        call sA%init_solver
+        call sA%init_solver()
 
         call get_ilupack_handle_ptr(sA%solver_handle, ilu)
         ilu%elbow    = 10
@@ -480,17 +479,17 @@ contains
         ilu%matching = 0
         ilu%restol   = 1e-14
 
-        call sA%factorize
+        call sA%factorize()
         call sA%solve_vec(b, x)
-        call sA%destruct
+        call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
       end block
     end block
 
     ! solve_mat
     block
-      real, allocatable :: b(:,:), x(:,:), x_exp(:,:)
-      type(sparse_real) :: sA
+      real,              allocatable :: b(:,:), x(:,:), x_exp(:,:)
+      type(sparse_real), target      :: sA
 
       ! b =
       !   1    -2     3
@@ -506,21 +505,21 @@ contains
 
       b     = reshape([1,-4,7,-10,-2,5,-8,11,3,-6,9,-12], [4,3])
       x_exp = reshape([3.0, -1.0, 7.0, -1.8, -4.5, 1.25, -8.0, 1.95, 6.0, -1.5, 9.0, -2.1], [4,3])
-      allocate(x(4,3))
+      allocate (x(4,3))
 
       call get_test_matrix(sA)
-      call sA%factorize
+      call sA%factorize()
       call sA%solve_mat(b, x)
-      call sA%destruct
+      call sA%destruct()
 
       call tc%assert_eq(x_exp, x, 1e-12, "solve_mat")
     end block
 
     ! add_sparse: A <- A + fact * B
     block
-      type(sparse_real)    :: sA, sB, sE, sE2
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,           allocatable :: ia_exp(:), ja_exp(:)
+      real,              allocatable :: a_exp(:)
+      type(sparse_real), target      :: sA, sB, sE, sE2
 
       call get_test_matrix2(sA)
       call get_test_matrix(sB)
@@ -568,9 +567,9 @@ contains
 
     ! add_sparse3: C <- fact1 * A + fact2 * B
     block
-      type(sparse_real)    :: sA, sB, sC, sE
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,           allocatable :: ia_exp(:), ja_exp(:)
+      real,              allocatable :: a_exp(:)
+      type(sparse_real), target      :: sA, sB, sC, sE
 
       call get_test_matrix(sA)
       call get_test_matrix2(sB)
@@ -609,10 +608,10 @@ contains
 
     ! add_band: S <- S + fact * B
     block
-      type(sparse_real)    :: S
-      type(band_real)      :: B
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,           allocatable :: ia_exp(:), ja_exp(:)
+      real,              allocatable :: a_exp(:)
+      type(band_real)                :: B
+      type(sparse_real), target      :: S
 
       ! B =
       !  3    -2     0     0
@@ -656,10 +655,10 @@ contains
 
     ! add_band3: S2 <- fact1 * S + fact2 * B
     block
-      type(sparse_real)    :: S, S2
-      type(band_real)      :: B
-      real,    allocatable :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
+      integer,          allocatable :: ia_exp(:), ja_exp(:)
+      real,             allocatable :: a_exp(:)
+      type(band_real)               :: B
+      type(sparse_real), target     :: S, S2
 
       ! B =
       !  3    -2     0     0
@@ -704,10 +703,10 @@ contains
 
     ! from_diag
     block
-      integer                       :: i
-      integer,          parameter   :: n = 10
-      real,             allocatable :: x(:), y(:), y_exp(:), diag(:)
-      type(sparse_real)             :: S
+      integer              :: i
+      integer, parameter   :: n = 10
+      real,    allocatable :: x(:), y(:), y_exp(:), diag(:)
+      type(sparse_real)    :: S
 
       diag = [(real(i)*2.3456, i = 1, n)]
       call S%from_diag(diag)
@@ -725,8 +724,8 @@ contains
 
     ! to_diag
     block
-      type(sparse_real) :: S
-      real              :: d_exp(4), d(4)
+      real                      :: d_exp(4), d(4)
+      type(sparse_real), target :: S
 
       call get_empty_matrix(S)
       d_exp = [0,0,0,0]
@@ -746,10 +745,10 @@ contains
 
     ! zero
     block
-      integer, parameter :: n = 3
-      type(sparse_real)  :: z_sp
-      type(dense_real)   :: z_d
-      real, allocatable  :: z_exp(:,:)
+      integer, parameter   :: n = 3
+      real,    allocatable :: z_exp(:,:)
+      type(dense_real)     :: z_d
+      type(sparse_real)    :: z_sp
 
       z_sp = sparse_zero_real(n)
 
@@ -763,8 +762,8 @@ contains
 
     ! nnz
     block
-      type(sparse_real)  :: s
-      type(spbuild_real) :: spb
+      type(sparse_real), target :: s
+      type(spbuild_real)        :: spb
 
       call get_empty_matrix(s)
       call tc%assert_eq(0, s%nnz(), "nnz 1")
@@ -795,15 +794,15 @@ contains
       call spb%add(3, 1,  5.0)
       call spb%add(3, 2, -6.0)
       call spb%add(3, 3, -0.0)   ! 0 entry !!!
-      call spb%save
+      call spb%save()
 
       call tc%assert_eq(6, s%nnz(), "nnz 6")
     end block
 
     ! to_band
     block
-      type(band_real)   :: b
-      type(sparse_real) :: s
+      type(band_real)           :: b
+      type(sparse_real), target :: s
 
       !
       ! test 1: set band equal sparse, not insertion as block anywhere
@@ -835,9 +834,9 @@ contains
 
       ! just for testing purposes
       block
-        integer :: i, j
-        type(dense_real)  :: d
+        integer           :: i, j
         real, allocatable :: d_exp(:,:)
+        type(dense_real)  :: d
 
         allocate (d_exp(7,7), source=0.0)
 
@@ -916,7 +915,7 @@ contains
       deallocate (x, y, y_exp)
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
   subroutine get_empty_matrix(S)
@@ -926,7 +925,7 @@ contains
   end subroutine
 
   subroutine get_test_matrix(S)
-    type(sparse_real), intent(out) :: S
+    type(sparse_real), intent(out), target :: S
 
     type(spbuild_real) :: sbuild
 
@@ -954,7 +953,7 @@ contains
   end subroutine
 
   subroutine get_test_matrix2(S)
-    type(sparse_real), intent(out) :: S
+    type(sparse_real), intent(out), target :: S
 
     type(spbuild_real) :: sbuild
 
@@ -979,11 +978,11 @@ contains
   subroutine get_test_matrix3(n, S)
     !! some large sparse matrix
 
-    integer,           intent(in)  :: n
+    integer,           intent(in)          :: n
       !! matrix dimension
-    type(sparse_real), intent(out) :: S
+    type(sparse_real), intent(out), target :: S
 
-    integer :: i, j
+    integer            :: i, j
     type(spbuild_real) :: sbuild
 
     ! S_ij = {i+2*j-i**2    if    (i+j)%31 == 0
