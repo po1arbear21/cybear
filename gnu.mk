@@ -53,6 +53,11 @@ EXT_LIBS_DEBUG := \
 	-lgomp -lpthread -lm -ldl \
 
 EXT_LIBS_RELEASE := \
+	-Wl,--start-group \
+		$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
+		$(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
+		$(MKLROOT)/lib/intel64/libmkl_core.a \
+	-Wl,--end-group \
 	$(ILUPACK_LIBS) \
 	-Wl,--start-group \
 		$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
