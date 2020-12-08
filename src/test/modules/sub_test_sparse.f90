@@ -454,6 +454,7 @@ contains
       call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: pardiso solver")
 
+#ifdef USE_ILUPACK
       ! test 3: using ilupack solver
       call get_test_matrix(sA)
       sA%solver=SOLVER_ILUPACK
@@ -484,6 +485,7 @@ contains
         call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: ilupack solver")
       end block
+#endif
     end block
 
     ! solve_mat
