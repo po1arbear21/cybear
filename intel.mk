@@ -20,10 +20,27 @@ CDEBUG   := -O0 -g
 CRELEASE := -O3
 CPROFILE := -O3 -g -shared-intel
 
+# MUMPS
+ifeq ($(USE_MUMPS),true)
+FFLAGS := $(FFLAGS) -D USE_MUMPS
+MUMPS_LIBS := \
+	-Wl,--start-group \
+		$(MUMPSROOT)/lib/libdmumps.a \
+		$(MUMPSROOT)/lib/libzmumps.a \
+		$(MUMPSROOT)/lib/libmumps_common.a \
+		$(MUMPSROOT)/lib/libpord.a \
+		$(METISROOT)/build/Linux-x86_64/libmetis/libmetis.a \
+		$(MUMPSROOT)/libseq/libmpiseq.a \
+	-Wl,--end-group
+MUMPS_INC := -I$(MUMPSROOT)/include/
+else
+MUMPS_LIBS :=
+MUMPS_INC :=
+endif
+
 # ILUPACK
 ifeq ($(USE_ILUPACK),true)
 FFLAGS := $(FFLAGS) -D USE_ILUPACK
-
 ILUPACK_LIBS := \
 	-Wl,--start-group \
 		$(ILUPACKROOT)/INTEL64_long/libilupack.a \
@@ -41,11 +58,13 @@ endif
 EXT_LIBS_DEBUG := \
 	$(MKLROOT)/lib/intel64/libmkl_blas95_ilp64.a \
   $(MKLROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
+	$(MUMPS_LIBS) \
 	$(ILUPACK_LIBS)
 
 EXT_LIBS_RELEASE := \
 	$(MKLROOT)/lib/intel64/libmkl_blas95_ilp64.a \
 	$(MKLROOT)/lib/intel64/libmkl_lapack95_ilp64.a \
+	$(MUMPS_LIBS) \
 	$(ILUPACK_LIBS)
 
 EXT_LIBS_PROFILE := $(EXT_LIBS_RELEASE)

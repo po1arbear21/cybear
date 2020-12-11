@@ -1,17 +1,17 @@
+# use mumps ?
+ifeq ($(USE_MUMPS),true)
+ifndef MUMPSROOT
+$(error MUMPSROOT is not set)
+endif
+ifndef METISROOT
+$(error METISROOT is not set)
+endif
+endif
+
 # use ilupack ?
-ifdef USE_ILUPACK
 ifeq ($(USE_ILUPACK),true)
 ifndef ILUPACKROOT
 $(error ILUPACKROOT is not set)
-endif
-else
-ifneq ($(USE_ILUPACK),false)
-$(error USE_ILUPACK must be either true or false)
-endif
-endif
-else
-ifdef ILUPACKROOT
-USE_ILUPACK := true
 endif
 endif
 
@@ -89,6 +89,9 @@ include lib/blas95/blas95.mk
 include lib/lapack95/lapack95.mk
 endif
 
+# include directories
+FINCLUDE = -I$(BUILD_DIR) $(MUMPS_INC)
+
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
 $(BUILD_DIR).depend: $(BUILD_DIR) $(SOURCES)
@@ -101,8 +104,8 @@ all: $(TARGETS)
 
 # rule for anchor files
 $(BUILD_DIR)%.anc:
-	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $(IN_COL)$<$(NO_COL)\n\n"
-	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $<
+	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $(IN_COL)$<$(NO_COL)\n\n"
+	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $<
 	@mv $(notdir $(<:.f90=.i90)) $(BUILD_DIR) 2>/dev/null || true
 	@touch $@
 
@@ -113,8 +116,8 @@ $(BUILD_DIR)%.c.o: %.c
 
 # rule for object files
 $(BUILD_DIR)%.o:
-	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) -I$(BUILD_DIR) $(FMODULE) $(TRASH_DIR) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
-	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) -I$(BUILD_DIR) $(FMODULE) $(TRASH_DIR) -c $< -o $@
+	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
+	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $< -o $@
 
 clean:
 	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o} $(BUILD_DIR).depend $(TARGETS)

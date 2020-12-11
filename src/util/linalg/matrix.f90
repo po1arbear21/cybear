@@ -11,6 +11,9 @@ module matrix_m
   use ilupack_m
 #endif
   use lapack95
+#ifdef USE_MUMPS
+  use mumps_m
+#endif
   use omp_lib
   use pardiso_m
   use qsort_m
@@ -21,6 +24,9 @@ module matrix_m
 
   private
   public :: SOLVER_PARDISO
+#ifdef USE_MUMPS
+  public :: SOLVER_MUMPS
+#endif
 #ifdef USE_ILUPACK
   public :: SOLVER_ILUPACK
 #endif
@@ -66,8 +72,11 @@ module matrix_m
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
+#ifdef USE_MUMPS
+  integer, parameter :: SOLVER_MUMPS   = 2
+#endif
 #ifdef USE_ILUPACK
-  integer, parameter :: SOLVER_ILUPACK = 2
+  integer, parameter :: SOLVER_ILUPACK = 3
 #endif
   integer            :: default_solver = SOLVER_PARDISO
 

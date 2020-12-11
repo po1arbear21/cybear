@@ -2,6 +2,9 @@ program test
 
   use test_gmres_m
   use test_matop_m
+#ifdef USE_MUMPS
+  use test_mumps_m
+#endif
 #ifdef USE_ILUPACK
   use test_ilupack_m
 #endif
@@ -30,6 +33,9 @@ program test
 
   call test_gmres
   call test_matop
+#ifdef USE_MUMPS
+  call test_mumps
+#endif
 #ifdef USE_ILUPACK
   call test_ilupack
 #endif

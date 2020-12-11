@@ -109,6 +109,16 @@ subroutine SPARSE_RESET(this, only_factorization)
     select case (this%solver)
       case (SOLVER_PARDISO)
         call destruct_pardiso_handle(this%solver_handle)
+
+#ifdef USE_MUMPS
+      case (SOLVER_MUMPS)
+#ifdef TCMPLX
+        call destruct_mumps_handle_c(this%solver_handle)
+#else
+        call destruct_mumps_handle_r(this%solver_handle)
+#endif
+#endif
+
 #ifdef USE_ILUPACK
       case (SOLVER_ILUPACK)
         call destruct_ilupack_handle(this%solver_handle)
@@ -376,6 +386,15 @@ subroutine SPARSE_INIT_SOLVER(this)
       this%solver_handle = create_pardiso_handle(this%nrows, .false.)
 #endif
 
+#ifdef USE_MUMPS
+    case (SOLVER_MUMPS)
+#ifdef TCMPLX
+      this%solver_handle = create_mumps_handle_c()
+#else
+      this%solver_handle = create_mumps_handle_r()
+#endif
+#endif
+
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
@@ -394,6 +413,11 @@ subroutine SPARSE_FACTORIZE(this)
   select case (this%solver)
     case (SOLVER_PARDISO)
       call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
+
+#ifdef USE_MUMPS
+    case (SOLVER_MUMPS)
+      call mumps_factorize(this%solver_handle, this%ia, this%ja, this%a)
+#endif
 
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
@@ -435,6 +459,12 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   select case (this%solver)
     case (SOLVER_PARDISO)
       call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
+
+#ifdef USE_MUMPS
+    case (SOLVER_MUMPS)
+      call mumps_solve(this%solver_handle, rhs, x)
+#endif
+
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       call ilupack_solve(this%solver_handle, rhs, x)
@@ -480,6 +510,12 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   select case (this%solver)
     case (SOLVER_PARDISO)
       call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
+
+#ifdef USE_MUMPS
+    case (SOLVER_MUMPS)
+      call mumps_solve(this%solver_handle, rhs_, x_)
+#endif
+
 #ifdef USE_ILUPACK
     case (SOLVER_ILUPACK)
       call ilupack_solve(this%solver_handle, rhs_, x_)
