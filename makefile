@@ -1,19 +1,11 @@
-# use mumps ?
-ifeq ($(USE_MUMPS),true)
-ifndef MUMPSROOT
-$(error MUMPSROOT is not set)
-endif
-ifndef METISROOT
-$(error METISROOT is not set)
-endif
-endif
+# colors
+FC_COL = \e[1;37m
+IN_COL = \e[1;32m
+OU_COL = \e[1;36m
+NO_COL = \e[m
 
-# use ilupack ?
-ifeq ($(USE_ILUPACK),true)
-ifndef ILUPACKROOT
-$(error ILUPACKROOT is not set)
-endif
-endif
+# build configuration (overwrite from command line)
+BUILD := debug
 
 # compiler configuration (overwrite from command line)
 COMPILER := intel
@@ -26,34 +18,6 @@ else
 $(error COMPILER must be intel or gnu!)
 endif
 endif
-
-# build configuration (overwrite from command line)
-BUILD := debug
-ifeq ($(BUILD),debug)
-FFLAGS   := $(FFLAGS) $(FDEBUG)
-CFLAGS   := $(CFLAGS) $(CDEBUG)
-EXT_LIBS := $(EXT_LIBS_DEBUG)
-else
-ifeq ($(BUILD),release)
-FFLAGS   := $(FFLAGS) $(FRELEASE)
-CFLAGS   := $(CFLAGS) $(CRELEASE)
-EXT_LIBS := $(EXT_LIBS_RELEASE)
-else
-ifeq ($(BUILD),profile)
-FFLAGS   := $(FFLAGS) $(FPROFILE)
-CFLAGS   := $(CFLAGS) $(CPROFILE)
-EXT_LIBS := $(EXT_LIBS_PROFILE)
-else
-$(error BUILD must be debug, release or profile!)
-endif
-endif
-endif
-
-# colors
-FC_COL = \e[1;37m
-IN_COL = \e[1;32m
-OU_COL = \e[1;36m
-NO_COL = \e[m
 
 # main target
 all: dirs
@@ -75,22 +39,11 @@ SOURCES_C := $(shell find src/ -name '*.c')
 vpath %.c $(sort $(dir $(SOURCES_C)))
 OBJECTS_C := $(addprefix $(BUILD_DIR), $(addsuffix .o, $(notdir $(SOURCES_C))))
 
-# additional libraries
-include lib/quadpack/quadpack.mk
-ifeq ($(COMPILER),gnu)
-
-# needs to be outside blas95,lapack95 makefiles, otherwise makefile warnings.
-F95_BUILD_DIR := build/${COMPILER}/F95
-
-$(F95_BUILD_DIR):
-	@mkdir -p $(F95_BUILD_DIR)
-
-include lib/blas95/blas95.mk
-include lib/lapack95/lapack95.mk
-endif
-
 # include directories
-FINCLUDE = -I$(BUILD_DIR) $(MUMPS_INC)
+FINCLUDE := -I$(BUILD_DIR)
+
+# libraries
+include lib.mk
 
 # generate targets and their dependencies (one target per program found in sources)
 depend: $(BUILD_DIR).depend
@@ -125,9 +78,7 @@ clean:
 doc: all
 	ford -e i90 -d $(BUILD_DIR) README.md
 
-clean_all: clean
-
-.PHONY: all dirs doc clean clean_all
+.PHONY: all dirs doc clean
 
 
 #

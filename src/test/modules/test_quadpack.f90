@@ -1,3 +1,5 @@
+#ifdef USE_QUADPACK
+
 module test_quadpack_m
   use, intrinsic :: ieee_arithmetic
   use test_case_m
@@ -48,3 +50,5 @@ contains
   end subroutine
 
 end module
+
+#endif

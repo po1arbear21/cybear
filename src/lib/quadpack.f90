@@ -1,3 +1,5 @@
+#ifdef USE_QUADPACK
+
 module quadpack_m
   use, intrinsic :: ieee_arithmetic
   implicit none
@@ -90,3 +92,5 @@ contains
   end subroutine
 
 end module
+
+#endif

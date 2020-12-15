@@ -1,9 +1,8 @@
 #ifdef USE_ILUPACK
-module test_ilupack_m
 
+module test_ilupack_m
   use test_case_m
   use ilupack_m
-
   implicit none
 
 contains
@@ -124,4 +123,5 @@ contains
   end subroutine
 
 end module
+
 #endif
