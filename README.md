@@ -20,26 +20,27 @@ $ git merge upstream/master
 
 ## Usage
 ### Makefile
-To compile in (default) *debug* mode run
+Set default options in *options.mk*.
+
+To compile (with default options) run
 ```bash
 $ make
 ```
 
-To compile in *release* mode (includes optimization) run
+Options can be overwritten by passing values to make, e.g.
 ```bash
 $ make BUILD=release
 ```
 
-For *fast/parallel* compilation run
+For *fast/parallel* compilation use the -j option:
 ```bash
 $ make -j4
 ```
 
-To *clean* build files (with/without library build files) run
+To *clean* build files run
 
 ```bash
 $ make clean
-$ make clean_all
 ```
 
 To create *documentation* run
@@ -47,26 +48,14 @@ To create *documentation* run
 $ make doc
 ```
 
-To use *gfortran* instead of *ifort* run once
-```bash
-$ make blas95 lapack95 COMPILER=gnu
-```
-After blas95 and lapack95 libraries have been created run
-```bash
-$ make COMPILER=gnu
-```
+### Library Support
+The intel MKL must be installed on your system, and ILUPACKROOT should be set as an environment variable (e.g. in ~/.bashrc).
+If you want to use any supported additional libraries, clone the git repository fortran-basic-libs and follow the instructions.
 
-### ILUPACK Support
-1. If you want to use the ILUPACK solver, first download the zip-archive from http://ilupack.tu-bs.de/
-  * Select *Linux 64 BIT version using long integer* and use *MUMPS-based matching*.
-  * You can download the *GNU* and/or *INTEL* depending on your compiler choice.
-2. Extract the archive and copy the folder *lib/GNU64_long* and/or *lib/INTEL64_long* to a new folder in your home folder name e.g. ILUPACK.
-3. Add to your *.bashrc* (replace *YOUR_NAME_HERE* with your name)
-  ```bash
-  export ILUPACKROOT='/home/YOUR_NAME_HERE/ILUPACK'
-  ```
-
-If *ILUPACKROOT* exists, it will automatically be enabled in your project. To disable ILUPACK you can use the option
-```bash
-$ make USE_ILUPACK=false
-```
+Libraries currently contained in *fortran-basic-libs*:
+  * ARPACK
+  * EXPOKIT
+  * FEAST
+  * ILUPACK
+  * MUMPS
+  * QUADPACK
