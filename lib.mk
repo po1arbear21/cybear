@@ -108,6 +108,9 @@ LIBS   += \
 		$(SCOTCHROOT)/lib/$(COMPILER)/libscotch.a \
 		$(SCOTCHROOT)/lib/$(COMPILER)/libscotcherr.a \
 	-Wl,--end-group
+ifeq ($(COMPILER),gnu)
+LIBS += $(MKL_LIBS)
+endif
 FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)
 endif
 
