@@ -4,19 +4,15 @@ IN_COL = \e[1;32m
 OU_COL = \e[1;36m
 NO_COL = \e[m
 
-# build configuration (overwrite from command line)
-BUILD := debug
+# load default values for BUILD, COMPILER and library USE flags (overwrite from command line)
+include options.mk
 
-# compiler configuration (overwrite from command line)
-COMPILER := intel
+# load compiler configuration
 ifeq ($(COMPILER),intel)
 include intel.mk
-else
+endif
 ifeq ($(COMPILER),gnu)
 include gnu.mk
-else
-$(error COMPILER must be intel or gnu!)
-endif
 endif
 
 # main target
