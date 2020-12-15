@@ -33,7 +33,7 @@ MKL_LIBS := \
 		$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group
 endif
-LIBS += $(MKL_LIBS)
+LIBS     += $(MKL_LIBS)
 FINCLUDE += -I$(MKLROOT)/include
 endif
 
@@ -89,6 +89,12 @@ ifeq ($(USE_MUMPS),true)
 ifndef MUMPSROOT
 $(error MUMPSROOT is not set)
 endif
+ifndef METISROOT
+$(error METISROOT is not set)
+endif
+ifndef SCOTCHROOT
+$(error SCOTCHROOT is not set)
+endif
 FFLAGS += -D USE_MUMPS
 LIBS   += \
 	-Wl,--start-group \
@@ -97,7 +103,12 @@ LIBS   += \
 		$(MUMPSROOT)/lib/$(COMPILER)/libmumps_common.a \
 		$(MUMPSROOT)/lib/$(COMPILER)/libpord.a \
 		$(MUMPSROOT)/lib/$(COMPILER)/libmpiseq.a \
+		$(METISROOT)/lib/$(COMPILER)/libmetis.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)/libesmumps.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)/libscotch.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)/libscotcherr.a \
 	-Wl,--end-group
+FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)
 endif
 
 # QUADPACK
