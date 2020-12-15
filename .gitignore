@@ -2,4 +2,5 @@
 *.asc
 *.i90
 doc
+build
 !.gitignore
