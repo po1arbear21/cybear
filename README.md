@@ -49,13 +49,19 @@ $ make doc
 ```
 
 ### Library Support
-The intel MKL must be installed on your system, and ILUPACKROOT should be set as an environment variable (e.g. in ~/.bashrc).
+The intel MKL must be installed on your system, and MKLROOT should be set as an environment variable (e.g. in ~/.bashrc).
 If you want to use any supported additional libraries, clone the git repository fortran-basic-libs and follow the instructions.
 
 Libraries currently contained in *fortran-basic-libs*:
-  * ARPACK
-  * EXPOKIT
-  * FEAST
-  * ILUPACK
-  * MUMPS
-  * QUADPACK
+* ARPACK
+* EXPOKIT
+* FEAST
+* ILUPACK
+* MUMPS
+* QUADPACK
+
+ITHE only: Note that all supported libraries are available at /home/pd/library.
+Make available via ~/.bashrc
+```bash
+source /home/pd/library/set_lib_paths.sh
+```
