@@ -1025,14 +1025,14 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   logical, optional,  intent(in)  :: sort
     !! Optional: sort column indices (default: true)
 
-  integer              :: i, nthreads, ithread
-  integer(SPARSE_IDX)  :: j, k, nnz1, nnz2, nnz3, icol0, icol1, ncol, nval
-  integer, allocatable :: i0(:), i1(:), col(:), tmp(:)
-  logical              :: sort_
-  logical, allocatable :: fil(:)
-  real                 :: weight
-  TT                   :: next_val
-  TT,      allocatable :: val(:), val1(:), vtmp(:)
+  integer                          :: i, nthreads, ithread
+  integer(SPARSE_IDX)              :: j, k, icol0, icol1, ncol
+  integer(SPARSE_IDX), allocatable :: ops(:)
+  integer,             allocatable :: i1(:), col(:)
+  logical                          :: sort_
+  logical,             allocatable :: fil(:)
+  TT                               :: next_val
+  TT,                  allocatable :: val(:), val1(:)
 
   ! check dimensions
   ASSERT(this%ncols == s2%nrows)
@@ -1049,142 +1049,125 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   sort_ = .true.
   if (present(sort)) sort_ = sort
 
-  ! number of non-zero entries
-  nnz1 = this%ia(this%nrows+1)
-  nnz2 = s2%ia(    s2%nrows+1)
+  ! multiplication operation counters for each result row
+  allocate (ops(0:this%nrows), source = 0)
 
   ! work in parallel
   !$omp parallel default(none) &
-  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, nval, val1, next_val, fil, tmp, vtmp) &
-  !$omp shared(this, s2, s3, sort_, nthreads, nnz1, nnz2, nnz3, i0, i1, weight)
+  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil) &
+  !$omp shared(this, s2, s3, sort_, nthreads, i1, ops)
+    ! get current thread
+    ithread = omp_get_thread_num() + 1
 
-  ! manual work partitioning
-  !$omp single
-
-  ! get actual number of threads
-  nthreads = omp_get_num_threads()
-
-  ! allocate work chunk index bounds
-  allocate (i0(nthreads), source = 1)
-  allocate (i1(nthreads), source = 0)
-
-  ! first thread
-  ithread = 1
-  weight  = 0.0
-
-  do i = 1, this%nrows
-    ! weight estimate work per result row
-    weight = weight + real(this%ia(i+1)-this%ia(i)) / real(nnz1)
-
-    if (weight >= 1.0 / real(nthreads)) then
-      ! split work here
-      i1(ithread) = i
-
-      ! next thread
-      ithread     = ithread + 1
-      i0(ithread) = i1(ithread-1) + 1
-      if (ithread == nthreads) then
-        i1(ithread) = this%nrows
-        exit
-      end if
-
-      ! reset weight for next thread
-      weight = 0.0
-    end if
-  end do
-  !$omp end single
-
-  ! get current thread
-  ithread = omp_get_thread_num() + 1
-
-  ! allocate thread local memory
-  allocate (val1(s2%ncols))
-  allocate (fil( s2%ncols), source = .false.)
-  allocate (col(4*(nnz1+nnz2))) ! try to overallocate, but not too much
-  allocate (val(4*(nnz1+nnz2)))
-
-  icol1 = 0
-  ncol  = 0
-  nval  = 0
-
-  ! loop over chunk of rows
-  do i = i0(ithread), i1(ithread)
-    ! loop over columns of first matrix
-    do j = this%ia(i), this%ia(i+1)-1
-      ! loop over columns of second matrix where the row is equal to column of the first matrix
-      do k = s2%ia(this%ja(j)), s2%ia(this%ja(j)+1)-1
-        ! calculate new value
-        next_val = this%a(j) * s2%a(k)
-
-        ! check whether element already exists
-        if (fil(s2%ja(k))) then
-          ! update existing value
-          val1(s2%ja(k)) = val1(s2%ja(k)) + next_val
-        else
-          ! set new value and fill flag
-          val1(s2%ja(k)) = next_val
-          fil( s2%ja(k)) = .true.
-
-          ! save column index
-          if (ncol == size(col, kind = SPARSE_IDX)) then
-            ! increase capacity
-            allocate (tmp(ncol * 2))
-            tmp(1:ncol) = col
-            call move_alloc(tmp, col)
-          end if
-          ncol = ncol + 1
-          col(ncol) = s2%ja(k)
-        end if
+    ! count number of multiplications per row
+    !$omp do schedule(dynamic)
+    do i = 1, this%nrows
+      do j = this%ia(i), this%ia(i+1)-1
+        ops(i) = ops(i) + s2%ia(this%ja(j)+1) - s2%ia(this%ja(j))
       end do
     end do
+    !$omp end do
 
-    ! update column pointers
-    icol0 = icol1 + 1
-    icol1 = ncol
+    ! manually split the work based on ops needed per row
+    !$omp single
+      ! prefix sum (parallelization here probably not worth it)
+      do i = 2, this%nrows
+        ops(i) = ops(i) + ops(i-1)
+      end do
 
-    ! sort column indices
-    if (sort_) call qsort(col(icol0:icol1))
+      ! get actual number of threads
+      nthreads = omp_get_num_threads()
 
-    ! save column pointers (here: indices to thread-local memory)
-    s3%ia(i+1) = icol1 + 1
+      ! allocate upper work chunk index bounds
+      allocate (i1(0:nthreads), source = 0)
 
-    ! save values
-    if (size(val, kind = SPARSE_IDX) < size(col, kind = SPARSE_IDX)) then
-      ! increase capacity
-      allocate (vtmp(size(col, kind = SPARSE_IDX)))
-      vtmp(1:nval) = val
-      call move_alloc(vtmp, val)
-    end if
-    val(icol0:icol1) = val1(col(icol0:icol1))
-    nval = ncol
+      ! give every thread roughly the same number of ops
+      i1(0) = 0
+      do i = 1, nthreads-1
+        ! equidistant index
+        j = nint(ops(this%nrows) * (real(i) / real(nthreads)), kind = SPARSE_IDX)
 
-    ! reset fill flag (where it was set)
-    fil(col(icol0:icol1)) = .false.
-  end do
-  !$omp barrier
+        ! find row index
+        i1(i) = bin_search(ops, j) - 1
+      end do
+      i1(nthreads) = this%nrows
+    !$omp end single
 
-  !$omp single
+    ! get upper limit on memory required
+    j = ops(i1(ithread)) - ops(i1(ithread-1))
+    j = max(0, min(j, (i1(ithread) - i1(ithread-1)) * s2%ncols))
 
-  ! shift column indices to global
-  s3%ia(1) = 1
-  do i = 1, nthreads
-    s3%ia(i0(i)+1:i1(i)+1) = s3%ia(i0(i)+1:i1(i)+1) + (s3%ia(i0(i)) - 1)
-  end do
+    ! allocate thread local memory
+    allocate (col(j))
+    allocate (val(j))
+    allocate (val1(s2%ncols))
+    allocate (fil( s2%ncols), source = .false.)
 
-  ! allocate global memory
-  nnz3 = s3%ia(s3%nrows+1)-1
-  allocate (s3%ja(nnz3))
-  allocate (s3%a (nnz3))
+    ! reset column counters
+    icol1 = 0
+    ncol  = 0
 
-  !$omp end single
+    ! calculate result rows
+    do i = i1(ithread-1) + 1, i1(ithread)
+      ! loop over columns of first matrix
+      do j = this%ia(i), this%ia(i+1)-1
+        ! loop over columns of second matrix where the row is equal to column of the first matrix
+        do k = s2%ia(this%ja(j)), s2%ia(this%ja(j)+1)-1
+          ! calculate new value
+          next_val = this%a(j) * s2%a(k)
 
-  ! copy data to global array
-  s3%ja(s3%ia(i0(ithread)):s3%ia(i1(ithread)+1)-1) = col(1:ncol)
-  s3%a( s3%ia(i0(ithread)):s3%ia(i1(ithread)+1)-1) = val(1:nval)
+          ! check whether element already exists
+          if (fil(s2%ja(k))) then
+            ! update existing value
+            val1(s2%ja(k)) = val1(s2%ja(k)) + next_val
+          else
+            ! set new value and fill flag
+            val1(s2%ja(k)) = next_val
+            fil( s2%ja(k)) = .true.
 
-  ! deallocate thread-local memory (avoid memory leak due to openmp bug)
-  deallocate (val1, fil, col, val)
+            ! save column index
+            ncol = ncol + 1
+            col(ncol) = s2%ja(k)
+          end if
+        end do
+      end do
 
+      ! update column pointers
+      icol0 = icol1 + 1
+      icol1 = ncol
+
+      ! sort column indices
+      if (sort_) call qsort(col(icol0:icol1))
+
+      ! save column pointers (at this point: indices to thread-local memory)
+      s3%ia(i+1) = icol1 + 1
+
+      ! save values
+      val(icol0:icol1) = val1(col(icol0:icol1))
+
+      ! reset fill flag (where it was set)
+      if (i < i1(ithread)) fil(col(icol0:icol1)) = .false.
+    end do
+    !$omp barrier
+
+    !$omp single
+      ! update column pointers (change into indices to global memory)
+      s3%ia(1) = 1
+      do i = 1, nthreads
+        s3%ia(i1(i-1)+2:i1(i)+1) = s3%ia(i1(i-1)+2:i1(i)+1) + (s3%ia(i1(i-1)+1) - 1)
+      end do
+
+      ! allocate global arrays
+      allocate (s3%ja(s3%ia(s3%nrows+1)-1))
+      allocate (s3%a (s3%ia(s3%nrows+1)-1))
+    !$omp end single
+
+    ! copy thread-local data to global arrays
+    s3%ja(s3%ia(i1(ithread-1)+1):s3%ia(i1(ithread)+1)-1) = col(1:ncol)
+    s3%a( s3%ia(i1(ithread-1)+1):s3%ia(i1(ithread)+1)-1) = val(1:ncol)
+
+    ! deallocate thread-local memory (avoid memory leak due to openmp bug)
+    deallocate (val1, fil, col, val)
   !$omp end parallel
 end subroutine
 
