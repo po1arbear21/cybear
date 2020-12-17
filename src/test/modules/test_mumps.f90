@@ -1,6 +1,7 @@
 #ifdef USE_MUMPS
 module test_mumps_m
   use mumps_m
+  use sparse_idx_m
   use test_case_m
   implicit none
 
@@ -14,9 +15,10 @@ contains
 
     ! test real mumps
     block
-      integer              :: m, n, n_rhs, i_rhs
-      integer, allocatable :: ia(:), ja(:)
-      real,    allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
+      integer                          :: m, n, n_rhs, i_rhs
+      integer,             allocatable :: ja(:)
+      integer(SPARSE_IDX), allocatable :: ia(:)
+      real,                allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
 
       !
       ! build matrix
@@ -28,7 +30,7 @@ contains
       n  = 4
       a  = [ 2.0, 1.0, 5.0, 8.0, 3.0, 8.0, 5.0 ]
       ja = [   1,   4,   1,   2,   3,   2,   4 ]
-      ia = [   1,   3,   5,   6,   8 ]
+      ia = int([   1,   3,   5,   6,   8 ], kind = SPARSE_IDX)
 
       !
       ! rhs
@@ -67,9 +69,10 @@ contains
 
     ! test complex mumps
     block
-      integer              :: m, n, n_rhs, i_rhs
-      integer, allocatable :: ia(:), ja(:)
-      complex, allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
+      integer                          :: m, n, n_rhs, i_rhs
+      integer,             allocatable :: ja(:)
+      integer(SPARSE_IDX), allocatable :: ia(:)
+      complex,             allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
 
       !
       ! build matrix
@@ -81,7 +84,7 @@ contains
       n  = 4
       a  = [ (0.0,2.0), (1.0,1.0), (5.0,0.0), (8.0,0.0), (0.0,3.0), (8.0,0.0), (5.0,0.0) ]
       ja = [   1,   4,   1,   2,   3,   2,   4 ]
-      ia = [   1,   3,   5,   6,   8 ]
+      ia = int([   1,   3,   5,   6,   8 ], kind = SPARSE_IDX)
 
       !
       ! rhs

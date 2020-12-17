@@ -1,15 +1,11 @@
 #include "../macro.f90.inc"
 
 module gmres_m
-  ! fixme gmres for complex arguemnts works by scaling the complex arrays up to real arrays of double the length.
-  !       we should find a routine which works directly on the complex arrays. should be cleaner/faster.
-
   use error_m
   use iso_c_binding, only: c_loc, c_f_pointer
   use matop_m,       only: matop_real, matop_cmplx, matop_c2r
   use util_m,        only: int2str
   use vector_m,      only: vector_real
-
   implicit none
 
   private
@@ -41,23 +37,23 @@ module gmres_m
     !   defined as double precision which is real(kind=16) when using "-fdefault-real-8" compiler flag
 
     subroutine dfgmres(n, x, b, rci_request, ipar, dpar, tmp)
-      integer(kind=8) :: n, rci_request, ipar(*)
-      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      integer      :: n, rci_request, ipar(*)
+      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
     end subroutine
 
     subroutine dfgmres_init(n, x, b, rci_request, ipar, dpar, tmp)
-      integer(kind=8) :: n, rci_request, ipar(*)
-      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      integer      :: n, rci_request, ipar(*)
+      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
     end subroutine
 
     subroutine dfgmres_check(n, x, b, rci_request, ipar, dpar, tmp)
-      integer(kind=8) :: n, rci_request, ipar(*)
-      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      integer      :: n, rci_request, ipar(*)
+      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
     end subroutine
 
     subroutine dfgmres_get(n, x, b, rci_request, ipar, dpar, tmp, itercount)
-      integer(kind=8) :: n, rci_request, itercount, ipar(*)
-      real(   kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      integer      :: n, rci_request, itercount, ipar(*)
+      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
     end subroutine
 
   end interface

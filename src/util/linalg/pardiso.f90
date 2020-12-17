@@ -2,6 +2,7 @@
 
 module pardiso_m
   use error_m
+  use sparse_idx_m
   use vector_m
   implicit none
 
@@ -13,23 +14,28 @@ module pardiso_m
   public :: pardiso_factorize
   public :: pardiso_solve
 
-  ! include pardiso interface
+  ! include pardiso or pardiso_64 interface
 #include "mkl_pardiso.fi"
+#if (defined(INTSIZE64) && defined(IDXSIZE64)) || (defined(INTSIZE32) && defined(IDXSIZE32))
+#define PARDISO_ROUTINE pardiso
+#elif (defined(INTSIZE32) && defined(IDXSIZE64))
+#define PARDISO_ROUTINE pardiso_64
+#endif
 
   type pardiso_handle
     type(MKL_PARDISO_HANDLE) :: pt(64)
       !! internal PARDISO handle
-    integer                  :: maxfct
+    integer(SPARSE_IDX)      :: maxfct
       !! number of matrices with identical sparse structure
-    integer                  :: mnum
+    integer(SPARSE_IDX)      :: mnum
       !! which matrix should be used in solution phase
-    integer                  :: mtype
+    integer(SPARSE_IDX)      :: mtype
       !! matrix type
-    integer                  :: nrows
+    integer(SPARSE_IDX)      :: nrows
       !! number of equations
-    integer                  :: msglvl
+    integer(SPARSE_IDX)      :: msglvl
       !! message level
-    integer                  :: iparm(64)
+    integer(SPARSE_IDX)      :: iparm(64)
       !! PARDISO parameters
     logical                  :: factorized = .false.
       !! factorization complete flag
@@ -82,6 +88,8 @@ contains
     integer             :: h
       !! return pardiso handle (index)
 
+    integer :: mtype, iparm(64)
+
     if (.not. allocated(pardiso_handles%d)) then
       call pardiso_handles%init(0, c = 4)
     end if
@@ -118,7 +126,9 @@ contains
       p%msglvl = 0
 
       ! init pt, iparm
-      call pardisoinit(p%pt, p%mtype, p%iparm)
+      mtype = int(p%mtype, kind = kind(mtype))
+      call pardisoinit(p%pt, mtype, iparm)
+      p%iparm = int(iparm, kind = SPARSE_IDX)
 
       ! ======================
       !     ipar
@@ -160,20 +170,21 @@ contains
       !! pardiso handle (index)
 
     ! local variables
-    integer :: phase, error, ia(0), ja(0), perm(0)
-    real    :: a(0), b(0), x(0)
-    complex :: ca(0), cb(0), cx(0)
+    integer(SPARSE_IDX) :: phase, error, ia(0), ja(0), perm(0), nrhs
+    real                :: a(0), b(0), x(0)
+    complex             :: ca(0), cb(0), cx(0)
 
     associate (p => pardiso_handles%d(h))
       if (any(p%pt%dummy /= 0)) then
         ! termination and release of memory
+        nrhs = int(0, kind = SPARSE_IDX)
         phase = -1 ! release internal memory
         if (p%mtype == 11) then
-          call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, a, ia, ja, perm, 0, &
-                       p%iparm, p%msglvl, b, x, error)
+          call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, a, ia, ja, perm, nrhs, &
+            &                  p%iparm, p%msglvl, b, x, error)
         else if (p%mtype == 13) then
-          call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, ca, ia, ja, perm, 0, &
-                       p%iparm, p%msglvl, cb, cx, error)
+          call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, ca, ia, ja, perm, nrhs, &
+            &                  p%iparm, p%msglvl, cb, cx, error)
         end if
 
         if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
@@ -191,126 +202,186 @@ contains
   subroutine pardiso_factorize_r(h, ia, ja, a)
     !! Factorize real matrix with PARDISO.
 
-    integer, intent(in) :: h
+    integer,             intent(in) :: h
       !! pardiso handle (index)
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    real,    intent(in) :: a(:)
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer, target,     intent(in) :: ja(:)
+    real,                intent(in) :: a(:)
 
     ! local variables
-    integer :: error, phase, perm(0)
-    real    :: dum(0)
+    integer(SPARSE_IDX)          :: error, phase, perm(0), nrhs
+    integer(SPARSE_IDX), pointer :: japtr(:)
+    real                         :: dum(0)
 
     associate (p => pardiso_handles%d(h))
       ! make sure the matrix type is real
       ASSERT(p%mtype == 11)
 
+      ! convert ja if necessary
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      allocate (japtr(size(ja, kind = SPARSE_IDX)))
+      japtr = int(ja, kind = SPARSE_IDX)
+#else
+      japtr => ja
+#endif
+
+      nrhs = int(0, kind = SPARSE_IDX)
+
       ! reordering and symbolic factorization
       phase = 11 ! analysis
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! factorization
       phase = 22 ! numerical factorization
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
       p%factorized = .true.
+
+      ! free memory for ja copy
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      deallocate (japtr)
+#endif
     end associate
   end subroutine
 
   subroutine pardiso_factorize_c(h, ia, ja, a)
     !! Factorize complex matrix with PARDISO.
 
-    integer, intent(in) :: h
+    integer,             intent(in) :: h
       !! pardiso handle (index)
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    complex, intent(in) :: a(:)
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer, target,     intent(in) :: ja(:)
+    complex,             intent(in) :: a(:)
 
     ! local variables
-    integer :: error, phase, perm(0)
-    complex :: dum(0)
+    integer(SPARSE_IDX)          :: error, phase, perm(0), nrhs
+    integer(SPARSE_IDX), pointer :: japtr(:)
+    complex                      :: dum(0)
 
     associate (p => pardiso_handles%d(h))
       ! make sure matrix type is complex
       ASSERT(p%mtype == 13)
 
+      ! convert ja if necessary
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      allocate (japtr(size(ja, kind = SPARSE_IDX)))
+      japtr = int(ja, kind = SPARSE_IDX)
+#else
+      japtr => ja
+#endif
+
+      nrhs = int(0, kind = SPARSE_IDX)
+
       ! reordering and symbolic factorization
       phase = 11 ! analysis
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! factorization
       phase = 22 ! numerical factorization
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-                   a, ia, ja, perm, 0, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
       p%factorized = .true.
+
+      ! free memory for ja copy
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      deallocate (japtr)
+#endif
     end associate
   end subroutine
 
   subroutine pardiso_solve_r(h, ia, ja, a, b, x)
     !! Solve real system with PARDISO.
 
-    integer, intent(in)  :: h
+    integer,             intent(in)  :: h
       !! pardiso handle (index)
-    integer, intent(in)  :: ia(:)
-    integer, intent(in)  :: ja(:)
-    real,    intent(in)  :: a(:)
-    real,    intent(in)  :: b(:)
-    real,    intent(out) :: x(:)
+    integer(SPARSE_IDX), intent(in)  :: ia(:)
+    integer, target,     intent(in)  :: ja(:)
+    real,                intent(in)  :: a(:)
+    real,                intent(in)  :: b(:)
+    real,                intent(out) :: x(:)
 
     ! local variables
-    integer :: error, phase, perm(0)
-    real    :: b_(size(b))
+    integer(SPARSE_IDX)          :: error, phase, perm(0)
+    integer(SPARSE_IDX), pointer :: japtr(:)
+    real                         :: b_(size(b))
 
     associate (p => pardiso_handles%d(h))
       ! make sure matrix type is real and matrix is factorized
       ASSERT(p%mtype == 11)
       ASSERT(p%factorized)
 
+      ! convert ja if necessary
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      allocate (japtr(size(ja, kind = SPARSE_IDX)))
+      japtr = int(ja, kind = SPARSE_IDX)
+#else
+      japtr => ja
+#endif
+
       ! copy data
       b_ = b
 
       ! back substitution and iterative refinement
       phase = 33 ! solve, iterative refinement
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &          a, ia, ja, perm, size(b)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+
+      ! free memory for ja copy
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      deallocate (japtr)
+#endif
     end associate
   end subroutine
 
   subroutine pardiso_solve_c(h, ia, ja, a, b, x)
     !! Solve complex system with PARDISO.
 
-    integer, intent(in)  :: h
+    integer,             intent(in)  :: h
       !! pardiso handle (index)
-    integer, intent(in)  :: ia(:)
-    integer, intent(in)  :: ja(:)
-    complex, intent(in)  :: a(:)
-    complex, intent(in)  :: b(:)
-    complex, intent(out) :: x(:)
+    integer(SPARSE_IDX), intent(in)  :: ia(:)
+    integer, target,     intent(in)  :: ja(:)
+    complex,             intent(in)  :: a(:)
+    complex,             intent(in)  :: b(:)
+    complex,             intent(out) :: x(:)
 
     ! local variables
-    integer :: error, phase, perm(0)
-    complex :: b_(size(b))
+    integer(SPARSE_IDX)          :: error, phase, perm(0)
+    integer(SPARSE_IDX), pointer :: japtr(:)
+    complex                      :: b_(size(b))
 
     associate (p => pardiso_handles%d(h))
       ! make sure matrix type is complex and matrix is factorized
       ASSERT(p%mtype == 13)
       ASSERT(p%factorized)
 
+      ! convert ja if necessary
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      allocate (japtr(size(ja, kind = SPARSE_IDX)))
+      japtr = int(ja, kind = SPARSE_IDX)
+#else
+      japtr => ja
+#endif
+
       ! copy data
       b_ = b
 
       ! back substitution and iterative refinement
       phase = 33 ! solve, iterative refinement
-      call pardiso(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &          a, ia, ja, perm, size(b)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                  a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
+
+      ! free memory for ja copy
+#if (defined(INTSIZE32) && defined(IDXSIZE64))
+      deallocate (japtr)
+#endif
     end associate
   end subroutine
 

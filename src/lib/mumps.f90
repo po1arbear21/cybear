@@ -2,6 +2,7 @@
 
 module mumps_m
   use error_m
+  use sparse_idx_m
   use vector_m
   implicit none
 
@@ -194,18 +195,19 @@ contains
 
   subroutine mumps_factorize_r(h, ia, ja, a)
     !! factorize real sparse matrix using MUMPS
-    integer, intent(in) :: h
+    integer,             intent(in) :: h
       !! real mumps handle (index)
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    real,    intent(in) :: a(:)
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer,             intent(in) :: ja(:)
+    real,                intent(in) :: a(:)
 
-    integer :: i, j, n, nnz
+    integer             :: i, n
+    integer(SPARSE_IDX) :: j, nnz
 
     associate (m => dmumps_handles%d(h))
       ! matrix size and number of zeros
       n   = size(ia) - 1
-      nnz = size(a)
+      nnz = size(a, kind = SPARSE_IDX)
 
       ! specify mumps matrix
       m%n   = n
@@ -226,18 +228,19 @@ contains
 
   subroutine mumps_factorize_c(h, ia, ja, a)
     !! factorize complex sparse matrix using MUMPS
-    integer, intent(in) :: h
+    integer,             intent(in) :: h
       !! complex mumps handle (index)
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    complex, intent(in) :: a(:)
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer,             intent(in) :: ja(:)
+    complex,             intent(in) :: a(:)
 
-    integer :: i, j, n, nnz
+    integer             :: i, n
+    integer(SPARSE_IDX) :: j, nnz
 
     associate (m => zmumps_handles%d(h))
       ! matrix size and number of zeros
       n   = size(ia) - 1
-      nnz = size(a)
+      nnz = size(a, kind = SPARSE_IDX)
 
       ! specify mumps matrix
       m%N   = n

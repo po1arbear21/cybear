@@ -276,14 +276,14 @@ end type
 type, extends(MATRIX_TYPE) :: SPARSE_TYPE
   !! Sparse matrix type in CSR format.
 
-  integer, allocatable :: ia(:)
-  integer, allocatable :: ja(:)
-  TT,      allocatable :: a(:)
+  integer(SPARSE_IDX), allocatable :: ia(:)
+  integer,             allocatable :: ja(:)
+  TT,                  allocatable :: a(:)
 
-  integer              :: solver = 0
-    !! SOLVER_PARDISO or SOLVER_ILUPACK
-  integer              :: solver_handle = 0
-    !! pardiso or ilupack solver handle
+  integer :: solver = 0
+    !! SOLVER_PARDISO, SOLVER_MUMPS or SOLVER_ILUPACK
+  integer :: solver_handle = 0
+    !! pardiso, mumps or ilupack solver handle
 contains
   procedure :: SPARSE_INIT
   generic   :: init          => SPARSE_INIT

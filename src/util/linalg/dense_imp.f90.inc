@@ -451,8 +451,9 @@ subroutine DENSE_ADD_SPARSE(this, s, fact)
     !! Sparse matrix scaling factor (default: 1)
 
   ! local variables
-  integer :: i, j
-  TT      :: fact_
+  integer             :: i
+  integer(SPARSE_IDX) :: j
+  TT                  :: fact_
 
   ASSERT(this%nrows == s%nrows)
   ASSERT(this%ncols == s%ncols)

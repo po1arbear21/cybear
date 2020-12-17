@@ -161,7 +161,7 @@ contains
       ja_exp = [2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 5, 6]
 
       call tc%assert_eq(a_exp, s%a, 1e-12, "to sparse: a")
-      call tc%assert_eq(ia_exp, s%ia, "to sparse: ia")
+      call tc%assert_eq(ia_exp, int(s%ia), "to sparse: ia")
       call tc%assert_eq(ja_exp, s%ja, "to sparse: ja")
     end block
 

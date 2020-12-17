@@ -161,7 +161,8 @@ subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
   integer, optional,  intent(in)    :: i1
     !! last row index. default: this%nrows
 
-  integer :: i0_, i1_, i, j
+  integer             :: i0_, i1_, i
+  integer(SPARSE_IDX) :: j
 
   i0_ = 1
   if (present(i0)) i0_ = i0
@@ -211,8 +212,9 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
     !! 'T':   y =           transpose(this) * x + fact_y * y
     !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
-  character :: trans_
-  integer   :: i, j
+  character           :: trans_
+  integer             :: i
+  integer(SPARSE_IDX) :: j
 
   ! y scaling factor
   if (present(fact_y)) then
@@ -298,8 +300,9 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
     !! 'T':   y =           transpose(this) * x + fact_y * y
     !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
-  character :: trans_
-  integer   :: i, j
+  character           :: trans_
+  integer             :: i
+  integer(SPARSE_IDX) :: j
 
   ! y scaling factor
   if (present(fact_y)) then
@@ -536,7 +539,8 @@ subroutine SPARSE_TO_BAND(this, b, i0, j0)
   integer, optional,  intent(in)    :: j0
     !! optional: col offset in second matrix (default 1)
 
-  integer :: i, j, i0_, j0_
+  integer             :: i, i0_, j0_
+  integer(SPARSE_IDX) :: j
 
   ASSERT(.not. this%is_empty())
   ASSERT(allocated(b%d))
@@ -567,7 +571,8 @@ subroutine SPARSE_TO_DENSE(this, d, i0, j0)
   integer, optional,  intent(in)    :: j0
     !! optional: col offset in second matrix (default 1)
 
-  integer :: i, j, i0_, j0_
+  integer             :: i, i0_, j0_
+  integer(SPARSE_IDX) :: j
 
   ASSERT(.not. this%is_empty())
   ASSERT(allocated(d%d))
@@ -602,8 +607,9 @@ subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
   logical, optional,  intent(in)    :: drop_zeros
     !! optional: determine sparsity structure by checking for zero entries
 
-  integer :: i, j, i0_, j0_
-  logical :: drop_zeros_
+  integer             :: i, i0_, j0_
+  integer(SPARSE_IDX) :: j
+  logical             :: drop_zeros_
 
   ! do nothing if empty
   if (this%is_empty()) return
@@ -647,9 +653,9 @@ subroutine SPARSE_TO_REAL(this, s)
 
   ! copy csr
   if (.not. this%is_empty()) then
-    allocate (s%ia(size(this%ia)), source = this%ia     )
-    allocate (s%ja(size(this%ja)), source = this%ja     )
-    allocate (s%a( size(this%a )), source = real(this%a))
+    allocate (s%ia(size(this%ia,kind=SPARSE_IDX)), source = this%ia     )
+    allocate (s%ja(size(this%ja,kind=SPARSE_IDX)), source = this%ja     )
+    allocate (s%a( size(this%a ,kind=SPARSE_IDX)), source = real(this%a))
   end if
 end subroutine
 #else
@@ -666,9 +672,9 @@ subroutine SPARSE_TO_CMPLX(this, s)
 
   ! copy csr
   if (.not. this%is_empty()) then
-    allocate (s%ia(size(this%ia)), source = this%ia      )
-    allocate (s%ja(size(this%ja)), source = this%ja      )
-    allocate (s%a( size(this%a )), source = cmplx(this%a))
+    allocate (s%ia(size(this%ia,kind=SPARSE_IDX)), source = this%ia      )
+    allocate (s%ja(size(this%ja,kind=SPARSE_IDX)), source = this%ja      )
+    allocate (s%a( size(this%a ,kind=SPARSE_IDX)), source = cmplx(this%a))
   end if
 end subroutine
 #endif
@@ -691,9 +697,9 @@ subroutine SPARSE_TRANSPOSE(this)
   this%nrows = s2%nrows
   this%ncols = s2%ncols
   if (.not. s2%is_empty()) then
-    this%ia    = s2%ia
-    this%ja    = s2%ja
-    this%a     = s2%a
+    this%ia = s2%ia
+    this%ja = s2%ja
+    this%a  = s2%a
   end if
 end subroutine
 
@@ -705,7 +711,8 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
   type(SPARSE_TYPE),  intent(out) :: s2
     !! Output transposed sparse matrix
 
-  integer                        :: i, j, k
+  integer                        :: i
+  integer(SPARSE_IDX)            :: j, k
   type(vector_int),  allocatable :: col(:)
   type(VECTOR_TYPE), allocatable :: val(:)
 
@@ -733,19 +740,19 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
 
   ! allocate memory for csr
   allocate (s2%ia(s2%nrows + 1))
-  allocate (s2%ja(size(this%ja)))
-  allocate (s2%a( size(this%a)))
+  allocate (s2%ja(size(this%ja,kind=SPARSE_IDX)))
+  allocate (s2%a( size(this%a ,kind=SPARSE_IDX)))
 
   ! construct csr
-  s2%ia(1) = 1
-  k = 0
+  k        = 1
+  s2%ia(1) = k
   do i = 1, size(col)
     do j = 1, col(i)%n
-      k = k + 1
       s2%ja(k) = col(i)%d(j)
       s2%a( k) = val(i)%d(j)
+      k        = k + 1
     end do
-    s2%ia(i+1) = k + 1
+    s2%ia(i+1) = k
   end do
 end subroutine
 
@@ -761,11 +768,12 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
   TT, optional,       intent(in)    :: fact
     !! Second sparse matrix scaling factor (default: 1)
 
-  integer              :: i, j1, j2
-  TT                   :: fact_
-  integer, allocatable :: ia(:)
-  type(vector_int)     :: ja
-  type(VECTOR_TYPE)    :: a
+  integer                          :: i
+  integer,             allocatable :: ja(:)
+  integer(SPARSE_IDX)              :: j1, j2, k
+  integer(SPARSE_IDX), allocatable :: ia(:)
+  TT                               :: fact_
+  TT,                  allocatable :: a(:)
 
   ASSERT(this%nrows == s%nrows)
   ASSERT(this%ncols == s%ncols)
@@ -790,49 +798,55 @@ subroutine SPARSE_ADD_SPARSE(this, s, fact)
 
   ! allocate memory
   allocate (ia(this%nrows + 1))
-  call ja%init(0, c = size(this%ja) + size(s%ja))
-  call a%init( 0, c = size(this%ja) + size(s%ja))
+  allocate (ja(size(this%ja,kind=SPARSE_IDX) + size(s%ja,kind=SPARSE_IDX)))
+  allocate ( a(size(this%ja,kind=SPARSE_IDX) + size(s%ja,kind=SPARSE_IDX)))
 
   ! add matrices
-  ia(1) = 1
+  k     = 1
+  ia(1) = k
   do i = 1, this%nrows
     j1 = this%ia(i)
     j2 = s%ia(i)
     do while ((j1 < this%ia(i+1)) .and. (j2 < s%ia(i+1)))
       if (this%ja(j1) < s%ja(j2)) then
-        call ja%push(this%ja(j1))
-        call a%push(this%a(j1))
-        j1 = j1 + 1
+        ja(k) = this%ja(j1)
+        a( k) = this%a( j1)
+        k     = k  + 1
+        j1    = j1 + 1
       elseif (this%ja(j1) > s%ja(j2)) then
-        call ja%push(s%ja(j2))
-        call a%push(fact_ * s%a(j2))
-        j2 = j2 + 1
+        ja(k) = s%ja(j2)
+        a( k) = fact_ * s%a(j2)
+        k     = k  + 1
+        j2    = j2 + 1
       else
-        call ja%push(this%ja(j1))
-        call a%push(this%a(j1) + fact_ * s%a(j2))
-        j1 = j1 + 1
-        j2 = j2 + 1
+        ja(k) = this%ja(j1)
+        a( k) = this%a( j1) + fact_ * s%a(j2)
+        k     = k  + 1
+        j1    = j1 + 1
+        j2    = j2 + 1
       end if
     end do
     do while (j1 < this%ia(i+1))
-      call ja%push(this%ja(j1))
-      call a%push(this%a(j1))
-      j1 = j1 + 1
+      ja(k) = this%ja(j1)
+      a( k) = this%a( j1)
+      k     = k  + 1
+      j1    = j1 + 1
     end do
     do while (j2 < s%ia(i+1))
-      call ja%push(s%ja(j2))
-      call a%push(fact_ * s%a(j2))
-      j2 = j2 + 1
+      ja(k) = s%ja(j2)
+      a( k) = fact_ * s%a(j2)
+      k     = k  + 1
+      j2    = j2 + 1
     end do
-    ia(i+1) = ja%n + 1
+    ia(i+1) = k
   end do
 
   ! delete old csr data and replace it
   call move_alloc(ia, this%ia)
   deallocate (this%ja)
   deallocate (this%a )
-  allocate (this%ja(ja%n), source = ja%d(1:ja%n))
-  allocate (this%a(  a%n), source =  a%d(1: a%n))
+  allocate (this%ja(k-1), source = ja(1:k-1))
+  allocate (this%a (k-1), source =  a(1:k-1))
 end subroutine
 
 subroutine SPARSE_ADD_SPARSE3(this, s2, s3, fact1, fact2)
@@ -882,11 +896,12 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
   TT, optional,       intent(in)    :: fact
     !! Band matrix scaling factor (default: 1)
 
-  integer              :: i, j1, j2
-  integer, allocatable :: ia(:)
-  TT                   :: fact_
-  type(vector_int)     :: ja
-  type(VECTOR_TYPE)    :: a
+  integer                          :: i, j2
+  integer,             allocatable :: ja(:)
+  integer(SPARSE_IDX)              :: j1, k, b_nrows, b_nlower, b_nupper
+  integer(SPARSE_IDX), allocatable :: ia(:)
+  TT                               :: fact_
+  TT,                  allocatable :: a(:)
 
   ASSERT(this%nrows == b%nrows)
   ASSERT(this%ncols == b%ncols)
@@ -900,57 +915,67 @@ subroutine SPARSE_ADD_BAND(this, b, fact)
 
   ! if this is empty, set to zero matrix first
   if (this%is_empty()) then
-    allocate (this%ia(this%nrows+1), source = 1)
+    allocate (this%ia(this%nrows+1), source = int(1, kind = SPARSE_IDX))
     allocate (this%ja(0))
     allocate (this%a( 0))
   end if
 
   ! allocate memory
   allocate (ia(this%nrows + 1))
-  i = b%nrows + b%nlower * b%nrows - b%nlower * (b%nlower + 1) / 2 + b%nupper * b%nrows - b%nupper * (b%nupper + 1) / 2
-  call ja%init(0, c = size(this%ja) + i)
-  call a%init( 0, c = size(this%ja) + i)
+  b_nrows  = int(b%nrows ,kind=SPARSE_IDX)
+  b_nlower = int(b%nlower,kind=SPARSE_IDX)
+  b_nupper = int(b%nupper,kind=SPARSE_IDX)
+  k = b_nrows + b_nlower * b_nrows - b_nlower * (b_nlower + 1) / 2 + b_nupper * b_nrows - b_nupper * (b_nupper + 1) / 2
+  k = k + size(this%ja,kind=SPARSE_IDX)
+  allocate (ja(k))
+  allocate ( a(k))
 
   ! add matrices
-  ia(1) = 1
+  k     = 1
+  ia(1) = k
   do i = 1, this%nrows
     j1 = this%ia(i)
     j2 = max(i - b%nlower, 1)
     do while ((j1 < this%ia(i+1)) .and. (j2 <= min(i + b%nupper, b%ncols)))
       if (this%ja(j1) < j2) then
-        call ja%push(this%ja(j1))
-        call a%push(this%a(j1))
-        j1 = j1 + 1
+        ja(k) = this%ja(j1)
+        a( k) = this%a( j1)
+        k     = k  + 1
+        j1    = j1 + 1
       elseif (this%ja(j1) > j2) then
-        call ja%push(j2)
-        call a%push(fact_ * b%d(i-j2,j2))
-        j2 = j2 + 1
+        ja(k) = j2
+        a( k) = fact_ * b%d(i-j2,j2)
+        k     = k  + 1
+        j2    = j2 + 1
       else
-        call ja%push(j2)
-        call a%push(this%a(j1) + fact_ * b%d(i-j2,j2))
-        j1 = j1 + 1
-        j2 = j2 + 1
+        ja(k) = j2
+        a( k) = this%a(j1) + fact_ * b%d(i-j2,j2)
+        k     = k  + 1
+        j1    = j1 + 1
+        j2    = j2 + 1
       end if
     end do
     do while (j1 < this%ia(i+1))
-      call ja%push(this%ja(j1))
-      call a%push(this%a(j1))
-      j1 = j1 + 1
+      ja(k) = this%ja(j1)
+      a( k) = this%a( j1)
+      k     = k  + 1
+      j1    = j1 + 1
     end do
     do while (j2 <= min(i + b%nupper, b%ncols))
-      call ja%push(j2)
-      call a%push(fact_ * b%d(i-j2,j2))
-      j2 = j2 + 1
+      ja(k) = j2
+      a( k) = fact_ * b%d(i-j2,j2)
+      k     = k  + 1
+      j2    = j2 + 1
     end do
-    ia(i+1) = ja%n + 1
+    ia(i+1) = k
   end do
 
   ! delete old csr data and replace it
   call move_alloc(ia, this%ia)
   deallocate (this%ja)
   deallocate (this%a )
-  allocate (this%ja(ja%n), source = ja%d(1:ja%n))
-  allocate (this%a(  a%n), source =  a%d(1: a%n))
+  allocate (this%ja(k-1), source = ja(1:k-1))
+  allocate (this%a( k-1), source =  a(1:k-1))
 end subroutine
 
 subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
@@ -986,7 +1011,7 @@ subroutine SPARSE_ADD_BAND3(this, b2, s3, fact1, fact2)
   call s3%add_band(b2, fact = fact2)
 end subroutine
 
-subroutine SPARSE_MUL_SPARSE(this, s2, s3)
+subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !! Multiply two sparse matrices, store result in sparse third matrix.
   !!
   !! operation: s3 <- this * s2
@@ -997,57 +1022,93 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
     !! Sparse second matrix (unchanged)
   type(SPARSE_TYPE),  intent(out) :: s3
     !! Output sparse third matrix
+  logical, optional,  intent(in)  :: sort
+    !! Optional: sort column indices (default: true)
 
-  integer              :: i, j, k, num_threads, thread_i, icol0, icol1
-  TT                   :: next_val
-  integer, allocatable :: ia0(:), ia1(:), ja(:), thread_n(:), thread_i0(:), thread_i1(:)
-  TT,      allocatable :: a(:), row(:)
+  integer              :: i, nthreads, ithread
+  integer(SPARSE_IDX)  :: j, k, nnz1, nnz2, nnz3, icol0, icol1, ncol, nval
+  integer, allocatable :: i0(:), i1(:), col(:), tmp(:)
+  logical              :: sort_
   logical, allocatable :: fil(:)
-  type(vector_int)     :: col, row_idx, colptr0, colptr1
-  type(VECTOR_TYPE)    :: val
+  real                 :: weight
+  TT                   :: next_val
+  TT,      allocatable :: val(:), val1(:), vtmp(:)
 
   ! check dimensions
   ASSERT(this%ncols == s2%nrows)
 
   ! init s3
   call s3%init(this%nrows, ncols = s2%ncols)
+  if (this%is_empty() .or. s2%is_empty()) then
+    ! return empty matrix if either this or s2 is empty
+    return
+  end if
+  allocate (s3%ia(s3%nrows + 1), source = int(0, kind = SPARSE_IDX))
 
-  ! return empty s3 if this or s2 is empty
-  if (this%is_empty() .or. s2%is_empty()) return
+  ! optional args
+  sort_ = .true.
+  if (present(sort)) sort_ = sort
 
-  ! allocate memory for global 4-array csr row pointers
-  allocate (ia0(s3%nrows))
-  allocate (ia1(s3%nrows))
-
-  ! allocate memory for thread element counters and start stop indices
-  num_threads = omp_get_max_threads()
-  allocate (thread_n( num_threads), source = 0)
-  allocate (thread_i0(num_threads), source = 0)
-  allocate (thread_i1(num_threads), source = 0)
+  ! number of non-zero entries
+  nnz1 = this%ia(this%nrows+1)
+  nnz2 = s2%ia(    s2%nrows+1)
 
   ! work in parallel
   !$omp parallel default(none) &
-  !$omp private(i, j, k, thread_i, icol0, icol1, next_val, col, row_idx, colptr0, colptr1, val, row, fil) &
-  !$omp shared(this, s2, s3, ia0, ia1, ja, a, num_threads, thread_n, thread_i0, thread_i1)
+  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, nval, val1, next_val, fil, tmp, vtmp) &
+  !$omp shared(this, s2, s3, sort_, nthreads, nnz1, nnz2, nnz3, i0, i1, weight)
 
-  ! get current thread id
-  thread_i = omp_get_thread_num() + 1
+  ! manual work partitioning
+  !$omp single
+
+  ! get actual number of threads
+  nthreads = omp_get_num_threads()
+
+  ! allocate work chunk index bounds
+  allocate (i0(nthreads), source = 1)
+  allocate (i1(nthreads), source = 0)
+
+  ! first thread
+  ithread = 1
+  weight  = 0.0
+
+  do i = 1, this%nrows
+    ! weight estimate work per result row
+    weight = weight + real(this%ia(i+1)-this%ia(i)) / real(nnz1)
+
+    if (weight >= 1.0 / real(nthreads)) then
+      ! split work here
+      i1(ithread) = i
+
+      ! next thread
+      ithread     = ithread + 1
+      i0(ithread) = i1(ithread-1) + 1
+      if (ithread == nthreads) then
+        i1(ithread) = this%nrows
+        exit
+      end if
+
+      ! reset weight for next thread
+      weight = 0.0
+    end if
+  end do
+  !$omp end single
+
+  ! get current thread
+  ithread = omp_get_thread_num() + 1
 
   ! allocate thread local memory
-  call col%init(    0, c = 8*(s3%nrows+s3%ncols)) ! hopefully overallocated
-  call val%init(    0, c = 8*(s3%nrows+s3%ncols))
-  call row_idx%init(0, c =    s3%nrows          )
-  call colptr0%init(0, c =    s3%nrows          )
-  call colptr1%init(0, c =    s3%nrows          )
-  allocate (row(s2%ncols)                  )
-  allocate (fil(s2%ncols), source = .false.)
+  allocate (val1(s2%ncols))
+  allocate (fil( s2%ncols), source = .false.)
+  allocate (col(4*(nnz1+nnz2))) ! try to overallocate, but not too much
+  allocate (val(4*(nnz1+nnz2)))
 
-  ! init first column pointer
   icol1 = 0
+  ncol  = 0
+  nval  = 0
 
-  ! loop in parallel over rows of the first matrix
-  !$omp do schedule(dynamic)
-  do i = 1, this%nrows
+  ! loop over chunk of rows
+  do i = i0(ithread), i1(ithread)
     ! loop over columns of first matrix
     do j = this%ia(i), this%ia(i+1)-1
       ! loop over columns of second matrix where the row is equal to column of the first matrix
@@ -1057,88 +1118,74 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3)
 
         ! check whether element already exists
         if (fil(s2%ja(k))) then
-          ! update value
-          row(s2%ja(k)) = row(s2%ja(k)) + next_val
+          ! update existing value
+          val1(s2%ja(k)) = val1(s2%ja(k)) + next_val
         else
-          ! set new value and fill flag, save column index
-          row(s2%ja(k)) = next_val
-          fil(s2%ja(k)) = .true.
-          call col%push(s2%ja(k))
+          ! set new value and fill flag
+          val1(s2%ja(k)) = next_val
+          fil( s2%ja(k)) = .true.
+
+          ! save column index
+          if (ncol == size(col, kind = SPARSE_IDX)) then
+            ! increase capacity
+            allocate (tmp(ncol * 2))
+            tmp(1:ncol) = col
+            call move_alloc(tmp, col)
+          end if
+          ncol = ncol + 1
+          col(ncol) = s2%ja(k)
         end if
       end do
     end do
 
-    ! update column pointers and thread element counter
+    ! update column pointers
     icol0 = icol1 + 1
-    icol1 = col%n
+    icol1 = ncol
 
-    ! save row index and column pointers
-    call row_idx%push(i)
-    call colptr0%push(icol0)
-    call colptr1%push(icol1)
+    ! sort column indices
+    if (sort_) call qsort(col(icol0:icol1))
 
-    ! sort newly added column indices
-    call qsort(col%d(icol0:icol1))
+    ! save column pointers (here: indices to thread-local memory)
+    s3%ia(i+1) = icol1 + 1
 
     ! save values
-    call val%reserve(size(col%d))
-    call val%resize( col%n)
-    val%d(icol0:icol1) = row(col%d(icol0:icol1))
+    if (size(val, kind = SPARSE_IDX) < size(col, kind = SPARSE_IDX)) then
+      ! increase capacity
+      allocate (vtmp(size(col, kind = SPARSE_IDX)))
+      vtmp(1:nval) = val
+      call move_alloc(vtmp, val)
+    end if
+    val(icol0:icol1) = val1(col(icol0:icol1))
+    nval = ncol
 
-    ! reset fill flag where it was set
-    fil(col%d(icol0:icol1)) = .false.
+    ! reset fill flag (where it was set)
+    fil(col(icol0:icol1)) = .false.
   end do
-  !$omp end do nowait
-
-  ! set thread element counter in global array
-  thread_n(thread_i) = col%n
   !$omp barrier
 
   !$omp single
-  ! set thread start/stop indices in global csr memory
-  j = 0
-  do i = 1, num_threads
-    thread_i0(i) = j + 1
-    thread_i1(i) = j + thread_n(i)
-    j            = thread_i1(i)
+
+  ! shift column indices to global
+  s3%ia(1) = 1
+  do i = 1, nthreads
+    s3%ia(i0(i)+1:i1(i)+1) = s3%ia(i0(i)+1:i1(i)+1) + (s3%ia(i0(i)) - 1)
   end do
 
-  ! allocate global 4-array csr memory
-  allocate (ja(thread_i1(num_threads)))
-  allocate (a( thread_i1(num_threads)))
+  ! allocate global memory
+  nnz3 = s3%ia(s3%nrows+1)-1
+  allocate (s3%ja(nnz3))
+  allocate (s3%a (nnz3))
+
   !$omp end single
 
-  ! copy data from each thread to global 4-array csr
-  ja(thread_i0(thread_i):thread_i1(thread_i)) = col%d(1:col%n)
-  a (thread_i0(thread_i):thread_i1(thread_i)) = val%d(1:val%n)
+  ! copy data to global array
+  s3%ja(s3%ia(i0(ithread)):s3%ia(i1(ithread)+1)-1) = col(1:ncol)
+  s3%a( s3%ia(i0(ithread)):s3%ia(i1(ithread)+1)-1) = val(1:nval)
 
-  ! set row pointers
-  ia0(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr0%d(1:row_idx%n) - 1
-  ia1(row_idx%d(1:row_idx%n)) = thread_i0(thread_i) + colptr1%d(1:row_idx%n)
-
-  ! deallocate thread local memory (otherwise: memory leak!!!)
-  call     col%destruct()
-  call     val%destruct()
-  call row_idx%destruct()
-  call colptr0%destruct()
-  call colptr1%destruct()
-  deallocate (row, fil)
+  ! deallocate thread-local memory (avoid memory leak due to openmp bug)
+  deallocate (val1, fil, col, val)
 
   !$omp end parallel
-
-  ! convert 4-array csr to 3-array csr
-  allocate (s3%ia(s3%nrows + 1))
-  allocate (s3%ja(size(ja)))
-  allocate (s3%a( size(a)))
-  j = 0
-  do i = 1, s3%nrows
-    k = j + 1
-    j = j + ia1(i) - ia0(i)
-    s3%ja(k:j) = ja(ia0(i):ia1(i)-1)
-    s3%a( k:j) = a( ia0(i):ia1(i)-1)
-    s3%ia(  i) = k
-  end do
-  s3%ia(s3%nrows+1) = j + 1
 end subroutine
 
 subroutine SPARSE_OUTPUT(this, file, funit, fmt)
@@ -1153,7 +1200,8 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   character(*), optional, intent(in) :: fmt
     !! Value format string
 
-  integer                   :: i, j, status, funit_
+  integer                   :: i, status, funit_
+  integer(SPARSE_IDX)       :: j
   character(:), allocatable :: fmt_
 
   allocate (character(0) :: fmt_) ! remove gfortran warning
@@ -1208,10 +1256,14 @@ subroutine SPARSE_FROM_DIAG(this, diag)
   n = size(diag)
 
   call this%init(n)
+  allocate (this%ia(n+1), this%ja(n), this%a(n))
 
-  this%a  = diag
-  this%ia = [(i, i = 1, n+1)]
-  this%ja = [(i, i = 1, n  )]
+  this%a = diag
+  do i = 1, n
+    this%ia(i) = int(i, kind = SPARSE_IDX)
+    this%ja(i) = i
+  end do
+  this%ia(n+1) = n+1
 end subroutine
 
 subroutine SPARSE_TO_DIAG(this, diag)
@@ -1221,7 +1273,8 @@ subroutine SPARSE_TO_DIAG(this, diag)
   TT                , intent(out) :: diag(:)
     !! diagonal elements of matrix
 
-  integer :: i, j, n
+  integer             :: i, n
+  integer(SPARSE_IDX) :: j
 
   n = min(this%nrows, this%ncols)
   ASSERT(n == size(diag))
@@ -1238,7 +1291,7 @@ subroutine SPARSE_TO_DIAG(this, diag)
   !$omp shared(n,diag,this)
   do i = 1, n
     ! get value closest to main diagonal
-    j = this%ia(i) + bin_search(this%ja(this%ia(i):this%ia(i+1)-1), i) - 1
+    j = this%ia(i) + (bin_search(this%ja(this%ia(i):this%ia(i+1)-1), i) - 1)
 
     ! output value only, if found exactly
     if (this%ja(j) == i) then
@@ -1250,13 +1303,14 @@ subroutine SPARSE_TO_DIAG(this, diag)
   !$omp end parallel do
 end subroutine
 
-integer function SPARSE_NNZ(this, only_nonzeros) result(nnz)
+function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   !! computes number of non-zero elements
 
   class(SPARSE_TYPE), intent(in) :: this
   logical, optional,  intent(in) :: only_nonzeros
     !! assume that all entries of sparse matrix are non-zero. thus, is much faster.
     !! default: false
+  integer(SPARSE_IDX)            :: nnz
 
   logical :: only_nonzeros_
 
@@ -1269,7 +1323,7 @@ integer function SPARSE_NNZ(this, only_nonzeros) result(nnz)
     if (only_nonzeros_) then
       nnz = this%ia(this%nrows+1)-1
     else
-      nnz = count(abs(this%a) > 0.0)
+      nnz = count(abs(this%a) > 0.0, kind=SPARSE_IDX)
     end if
   end if
 end function
@@ -1316,7 +1370,7 @@ function SPARSE_EYE(nrows, ncols) result(eye)
   do i = 1, n
     eye%ja(i  ) = i
     eye%a( i  ) = 1
-    eye%ia(i+1) = i+1
+    eye%ia(i+1) = int(i+1, kind=SPARSE_IDX)
   end do
   do i = n + 1, eye%nrows
     eye%ia(i+1) = eye%ia(n+1)
@@ -1336,7 +1390,7 @@ function SPARSE_ZERO(nrows, ncols) result(zero)
   call zero%init(nrows, ncols = ncols)
 
   ! allocate csr memory
-  allocate (zero%ia(nrows+1), source = 1)
+  allocate (zero%ia(nrows+1), source = int(1, kind=SPARSE_IDX))
   allocate (zero%ja(0))
   allocate (zero%a( 0))
 end function
@@ -1375,7 +1429,7 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
   allocate (this%keep_struct(s%nrows), source = .true.)
 
   ! load existing data from sparse matrix
-  call this%load
+  call this%load()
 end subroutine
 
 subroutine SPBUILD_DESTRUCT(this)
@@ -1628,7 +1682,8 @@ subroutine SPBUILD_LOAD(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  integer :: i, j
+  integer             :: i
+  integer(SPARSE_IDX) :: j
 
   ! load all rows
   do i = 1, this%sp%nrows
@@ -1658,7 +1713,8 @@ subroutine SPBUILD_SAVE(this)
   class(SPBUILD_TYPE), intent(inout) :: this
     !! Sparse matrix builder
 
-  integer :: i, j, k
+  integer             :: i, j
+  integer(SPARSE_IDX) :: k
 
   ! reset sparse matrix. needed in case it has old values
   call this%sp%reset

@@ -333,8 +333,8 @@ print("")
 for i in range(len(programs)):
   print(".PHONY: " + programs[i].name)
   print(args.build_dir + programs[i].name + ": $(ANCHORS_" + programs[i].name + ") $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C)")
-  print('\t@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) -o $(OU_COL)' + args.build_dir + programs[i].name + '$(NO_COL) $(IN_COL)$(OBJECTS_' + programs[i].name + ') $(OBJECTS_C) $(LIBS)$(NO_COL)\\n\\n"')
-  print("\t@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) -o " + args.build_dir + programs[i].name + " $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
+  print('\t@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINCLUDE) -o $(OU_COL)' + args.build_dir + programs[i].name + '$(NO_COL) $(IN_COL)$(OBJECTS_' + programs[i].name + ') $(OBJECTS_C) $(LIBS)$(NO_COL)\\n\\n"')
+  print("\t@$(FC) $(FFLAGS) $(FINCLUDE) -o " + args.build_dir + programs[i].name + " $(OBJECTS_" + programs[i].name + ") $(OBJECTS_C) $(LIBS)")
   print("")
 for i in range(len(libraries)):
   print(".PHONY: " + libraries[i].name)

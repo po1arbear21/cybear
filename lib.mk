@@ -1,8 +1,15 @@
 LIBS :=
 
+ifeq ($(INTSIZE),32)
+ARCH := lp64
+endif
+ifeq ($(INTSIZE),64)
+ARCH := ilp64
+endif
+
 # BLAS95 and LAPACK95
 ifeq ($(COMPILER),intel)
-LIBS += $(MKLROOT)/lib/intel64/libmkl_blas95_ilp64.a $(MKLROOT)/lib/intel64/libmkl_lapack95_ilp64.a
+LIBS += $(MKLROOT)/lib/intel64/libmkl_blas95_$(ARCH).a $(MKLROOT)/lib/intel64/libmkl_lapack95_$(ARCH).a
 endif
 ifeq ($(COMPILER),gnu)
 ifndef BLAS95ROOT
@@ -11,8 +18,8 @@ endif
 ifndef LAPACK95ROOT
 $(error LAPACK95ROOT is not set)
 endif
-LIBS     += $(BLAS95ROOT)/lib/gnu/libmkl_blas95_ilp64.a $(LAPACK95ROOT)/lib/gnu/libmkl_lapack95_ilp64.a
-FINCLUDE += -I$(BLAS95ROOT)/include/gnu -I$(LAPACK95ROOT)/include/gnu
+LIBS     += $(BLAS95ROOT)/lib/gnu_$(ARCH)/libmkl_blas95_$(ARCH).a $(LAPACK95ROOT)/lib/gnu_$(ARCH)/libmkl_lapack95_$(ARCH).a
+FINCLUDE += -I$(BLAS95ROOT)/include/gnu_$(ARCH) -I$(LAPACK95ROOT)/include/gnu_$(ARCH)
 endif
 
 # MKL
@@ -20,7 +27,7 @@ ifeq ($(COMPILER),gnu)
 ifeq ($(BUILD),debug)
 MKL_LIBS := \
 	-Wl,--start-group \
-  	$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
+  	$(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
   	$(MKLROOT)/lib/intel64/libmkl_sequential.a \
   	$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group
@@ -28,7 +35,7 @@ endif
 ifneq (,$(filter $(BUILD),release profile))
 MKL_LIBS := \
 	-Wl,--start-group \
-		$(MKLROOT)/lib/intel64/libmkl_gf_ilp64.a \
+		$(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
 		$(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
 		$(MKLROOT)/lib/intel64/libmkl_core.a \
 	-Wl,--end-group
@@ -43,7 +50,7 @@ ifndef ARPACKROOT
 $(error ARPACKROOT is not set)
 endif
 FFLAGS += -D USE_ARPACK
-LIBS   += $(ARPACKROOT)/lib/$(COMPILER)/libarpack.a
+LIBS   += $(ARPACKROOT)/lib/$(COMPILER)_$(ARCH)/libarpack.a
 endif
 
 # EXPOKIT
@@ -52,7 +59,7 @@ ifndef EXPOKITROOT
 $(error EXPOKITROOT is not set)
 endif
 FFLAGS += -D USE_EXPOKIT
-LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)/expokit.a
+LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
 endif
 
 # FEAST
@@ -61,7 +68,7 @@ ifndef FEASTROOT
 $(error FEASTROOT is not set)
 endif
 FFLAGS += -D USE_FEAST
-LIBS   += $(FEASTROOT)/lib/$(COMPILER)/libfeast.a
+LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
 endif
 
 # ILUPACK
@@ -72,12 +79,12 @@ endif
 FFLAGS += -D USE_ILUPACK
 LIBS   += \
 	-Wl,--start-group \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libilupack.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libamd.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libblaslike.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libmetis.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libsparspak.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)/libmumps.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libilupack_mumps.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libamd.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libblaslike.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetis.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsparspak.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmumps.a \
 	-Wl,--end-group
 ifeq ($(COMPILER),gnu)
 LIBS += $(MKL_LIBS)
@@ -98,20 +105,20 @@ endif
 FFLAGS += -D USE_MUMPS
 LIBS   += \
 	-Wl,--start-group \
-		$(MUMPSROOT)/lib/$(COMPILER)/libdmumps.a \
-		$(MUMPSROOT)/lib/$(COMPILER)/libzmumps.a \
-		$(MUMPSROOT)/lib/$(COMPILER)/libmumps_common.a \
-		$(MUMPSROOT)/lib/$(COMPILER)/libpord.a \
-		$(MUMPSROOT)/lib/$(COMPILER)/libmpiseq.a \
-		$(METISROOT)/lib/$(COMPILER)/libmetis.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)/libesmumps.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)/libscotch.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)/libscotcherr.a \
+		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libdmumps.a \
+		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libzmumps.a \
+		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmumps_common.a \
+		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libpord.a \
+		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmpiseq.a \
+		$(METISROOT)/lib/$(COMPILER)_ilp64/libmetis.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libesmumps.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotch.a \
+		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotcherr.a \
 	-Wl,--end-group
 ifeq ($(COMPILER),gnu)
 LIBS += $(MKL_LIBS)
 endif
-FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)
+FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)_$(ARCH)
 endif
 
 # QUADPACK
@@ -120,7 +127,7 @@ ifndef QUADPACKROOT
 $(error QUADPACKROOT is not set)
 endif
 FFLAGS += -D USE_QUADPACK
-LIBS   += $(QUADPACKROOT)/lib/$(COMPILER)/quadpack.a
+LIBS   += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
 endif
 
 # additional libraries

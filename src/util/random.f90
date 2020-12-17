@@ -97,10 +97,10 @@ contains
 
   function random_next_int(this, bound) result(x)
     !! get next equidistributed integer with 0 <= x < bound
-    class(random),     intent(inout) :: this
-    integer, optional, intent(in)    :: bound
+    class(random),             intent(inout) :: this
+    integer(kind=8), optional, intent(in)    :: bound
       !! optional bound
-    integer                          :: x
+    integer(kind=8)                          :: x
       !! return random number
 
     if (present(bound)) then
@@ -112,16 +112,16 @@ contains
 
   subroutine random_next_ints(this, x, bound)
     !! get next equidistributed integers with 0 <= x < bound
-    class(random),     intent(inout) :: this
-    integer,           intent(out)   :: x(:)
+    class(random),             intent(inout) :: this
+    integer(kind=8),           intent(out)   :: x(:)
       !! output random numbers
-    integer, optional, intent(in)    :: bound
+    integer(kind=8), optional, intent(in)    :: bound
       !! optional bound
 
     if (present(bound)) then
-      call pcg64_boundedrand_n(this%state, bound, size(x), x)
+      call pcg64_boundedrand_n(this%state, bound, size(x, kind=8), x)
     else
-      call pcg64_random_n(this%state, size(x), x)
+      call pcg64_random_n(this%state, size(x, kind=8), x)
     end if
   end subroutine
 
@@ -140,7 +140,7 @@ contains
     real,          intent(out)   :: x(:)
       !! output random numbers
 
-    call pcg64_random_real_n(this%state, size(x), x)
+    call pcg64_random_real_n(this%state, size(x, kind=8), x)
   end subroutine
 
 end module

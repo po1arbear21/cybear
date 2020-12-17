@@ -27,7 +27,7 @@ contains
       ja_exp = [1, 2, 2, 3, 2, 4]
 
       call tc%assert_eq(a_exp,  sA%a, 1e-12, "sparse_builder to sparse: a")
-      call tc%assert_eq(ia_exp, sA%ia,       "sparse_builder to sparse: ia")
+      call tc%assert_eq(ia_exp, int(sA%ia),  "sparse_builder to sparse: ia")
       call tc%assert_eq(ja_exp, sA%ja,       "sparse_builder to sparse: ja")
     end block
 
@@ -74,7 +74,7 @@ contains
       ja_exp = [2, 3, 2, 4]
 
       call tc%assert_eq(a_exp,  sp%a, 1e-12, "sparse_builder%resest_row to sparse: a")
-      call tc%assert_eq(ia_exp, sp%ia,       "sparse_builder%resest_row to sparse: ia")
+      call tc%assert_eq(ia_exp, int(sp%ia),  "sparse_builder%resest_row to sparse: ia")
       call tc%assert_eq(ja_exp, sp%ja,       "sparse_builder%resest_row to sparse: ja")
 
       !
@@ -92,7 +92,7 @@ contains
       ja_exp = [1, 2, 3, 2, 4]
 
       call tc%assert_eq(a_exp,  sp%a, 1e-12, "sparse_builder%set to sparse: a")
-      call tc%assert_eq(ia_exp, sp%ia,       "sparse_builder%set to sparse: ia")
+      call tc%assert_eq(ia_exp, int(sp%ia),  "sparse_builder%set to sparse: ia")
       call tc%assert_eq(ja_exp, sp%ja,       "sparse_builder%set to sparse: ja")
     end block
 
@@ -414,7 +414,7 @@ contains
       call sA%mul_sparse(sB, sC)
 
       call tc%assert_eq(a_exp,  sC%a, 1e-12, "mul sparse 1: a")
-      call tc%assert_eq(ia_exp, sC%ia,       "mul sparse 1: ia")
+      call tc%assert_eq(ia_exp, int(sC%ia),  "mul sparse 1: ia")
       call tc%assert_eq(ja_exp, sC%ja,       "mul sparse 1: ja")
 
       ! test 2: large matrices. check sum of entries
@@ -528,18 +528,18 @@ contains
       call get_empty_matrix(sE)
 
       a_exp  = sA%a
-      ia_exp = sA%ia
+      ia_exp = int(sA%ia)
       ja_exp = sA%ja
       call sA%add_sparse(sE, fact=-1.5)
       call tc%assert_eq(a_exp,  sA%a,  0.0, "add_sparse empty 1: a")
-      call tc%assert_eq(ia_exp, sA%ia,      "add_sparse empty 1: ia")
+      call tc%assert_eq(ia_exp, int(sA%ia), "add_sparse empty 1: ia")
       call tc%assert_eq(ja_exp, sA%ja,      "add_sparse empty 1: ja")
 
       call get_test_matrix2(sA)
       a_exp = 3 * sA%a
       call sE%add_sparse(sA, fact=3.0)
       call tc%assert_eq(a_exp,  sE%a,  0.0, "add_sparse empty 2: a")
-      call tc%assert_eq(ia_exp, sE%ia,      "add_sparse empty 2: ia")
+      call tc%assert_eq(ia_exp, int(sE%ia), "add_sparse empty 2: ia")
       call tc%assert_eq(ja_exp, sE%ja,      "add_sparse empty 2: ja")
 
       call get_empty_matrix(sE)
@@ -563,7 +563,7 @@ contains
       call sA%add_sparse(sB, fact=-2.0)
 
       call tc%assert_eq(a_exp,  sA%a, 1e-12, "add_sparse: a")
-      call tc%assert_eq(ia_exp, sA%ia,       "add_sparse: ia")
+      call tc%assert_eq(ia_exp, int(sA%ia),  "add_sparse: ia")
       call tc%assert_eq(ja_exp, sA%ja,       "add_sparse: ja")
     end block
 
@@ -578,16 +578,16 @@ contains
       call get_empty_matrix(sE)
 
       call sA%add_sparse(sE, sC, fact1=3.0, fact2=-5.0)
-      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 1: a")
-      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 1: a")
-      call tc%assert_eq(   sA%ia, sC%ia,       "add_sparse3 empty 1: ia")
-      call tc%assert_eq(   sA%ja, sC%ja,       "add_sparse3 empty 1: ja")
+      call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
+      call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
+      call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 1: ia")
+      call tc%assert_eq(    sA%ja ,     sC%ja ,        "add_sparse3 empty 1: ja")
 
       call sE%add_sparse(sA, sC, fact1=-5.0, fact2=3.0)
-      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 2: a")
-      call tc%assert_eq(3.0*sA%a, sC%a, 1e-12, "add_sparse3 empty 2: a")
-      call tc%assert_eq(   sA%ia, sC%ia,       "add_sparse3 empty 2: ia")
-      call tc%assert_eq(   sA%ja, sC%ja,       "add_sparse3 empty 2: ja")
+      call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
+      call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
+      call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 2: ia")
+      call tc%assert_eq(    sA%ja ,     sC%ja ,        "add_sparse3 empty 2: ja")
 
       ! 3*B-2*A=
       !  -2    -4    15     3
@@ -604,7 +604,7 @@ contains
       call sB%add_sparse(sA, sC, fact1=3.0, fact2=-2.0)
 
       call tc%assert_eq(a_exp,  sC%a, 1e-12, "add_sparse3: a")
-      call tc%assert_eq(ia_exp, sC%ia,       "add_sparse3: ia")
+      call tc%assert_eq(ia_exp, int(sC%ia),  "add_sparse3: ia")
       call tc%assert_eq(ja_exp, sC%ja,       "add_sparse3: ja")
     end block
 
@@ -636,7 +636,7 @@ contains
       call get_empty_matrix(S)
       call S%add_band(B, 2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-16, "add_band empty: a")
-      call tc%assert_eq(ia_exp, S%ia,       "add_band empty: ia")
+      call tc%assert_eq(ia_exp, int(S%ia),  "add_band empty: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band empty: ja")
 
       call get_test_matrix(S)
@@ -651,7 +651,7 @@ contains
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
       call S%add_band(B, 2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-12, "add_band: a")
-      call tc%assert_eq(ia_exp, S%ia,       "add_band: ia")
+      call tc%assert_eq(ia_exp, int(S%ia),  "add_band: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band: ja")
     end block
 
@@ -683,7 +683,7 @@ contains
       call get_empty_matrix(S)
       call S%add_band(B, S2, fact1 = 1e99, fact2 = 2.0)
       call tc%assert_eq(a_exp,  S2%a, 1e-16, "add_band3 empty: a")
-      call tc%assert_eq(ia_exp, S2%ia,       "add_band3 empty: ia")
+      call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3 empty: ia")
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3 empty: ja")
 
       call get_test_matrix(S)
@@ -699,7 +699,7 @@ contains
       call S%add_band(B, S2, fact1 = -1.0, fact2 = 2.0)
 
       call tc%assert_eq(a_exp,  S2%a, 1e-12, "add_band3: a")
-      call tc%assert_eq(ia_exp, S2%ia,       "add_band3: ia")
+      call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3: ia")
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3: ja")
     end block
 
@@ -768,19 +768,19 @@ contains
       type(spbuild_real)        :: spb
 
       call get_empty_matrix(s)
-      call tc%assert_eq(0, s%nnz(), "nnz 1")
+      call tc%assert_eq(0, int(s%nnz()), "nnz 1")
 
       call get_test_matrix(s)
-      call tc%assert_eq(6, s%nnz(), "nnz 2")
+      call tc%assert_eq(6, int(s%nnz()), "nnz 2")
 
       call get_test_matrix(s)
-      call tc%assert_eq(6, s%nnz(only_nonzeros=.true.), "nnz 3")
+      call tc%assert_eq(6, int(s%nnz(only_nonzeros=.true.)), "nnz 3")
 
       call get_test_matrix2(s)
-      call tc%assert_eq(5, s%nnz(), "nnz 4")
+      call tc%assert_eq(5, int(s%nnz()), "nnz 4")
 
       call get_test_matrix2(s)
-      call tc%assert_eq(5, s%nnz(only_nonzeros=.true.), "nnz 5")
+      call tc%assert_eq(5, int(s%nnz(only_nonzeros=.true.)), "nnz 5")
 
       ! test matrix also includes 0 entries
       ! S = [ 0  1  2]
@@ -798,7 +798,7 @@ contains
       call spb%add(3, 3, -0.0)   ! 0 entry !!!
       call spb%save()
 
-      call tc%assert_eq(6, s%nnz(), "nnz 6")
+      call tc%assert_eq(6, int(s%nnz()), "nnz 6")
     end block
 
     ! to_band

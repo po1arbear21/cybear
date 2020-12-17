@@ -52,8 +52,8 @@ module ode_m
         !! output derivatives of f wrt P (nU,nP)
     end subroutine
 
-    subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
-      P, opt, dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
+    subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
+      &                                 dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
       import ode_options, ode_fun
       procedure(ode_fun)               :: fun
         !! function to integrate

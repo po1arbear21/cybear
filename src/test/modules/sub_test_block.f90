@@ -235,7 +235,7 @@ contains
         &       5, 6, 9           ]
 
       call tc%assert_eq(a_exp,  s%a, 1e-12, "to sparse: a")
-      call tc%assert_eq(ia_exp, s%ia,       "to sparse: ia")
+      call tc%assert_eq(ia_exp, int(s%ia),  "to sparse: ia")
       call tc%assert_eq(ja_exp, s%ja,       "to sparse: ja")
     end block
 
@@ -273,7 +273,7 @@ contains
       call Asb%save()
 
       call tc%assert_eq([1.0, 1.0],      Asp%a, 1e-12, "delete block: a" )
-      call tc%assert_eq([1, 1, 1, 2, 3], Asp%ia,       "delete block: ia")
+      call tc%assert_eq([1, 1, 1, 2, 3], int(Asp%ia),  "delete block: ia")
       call tc%assert_eq([1, 2],          Asp%ja,       "delete block: ja")
     end block
 

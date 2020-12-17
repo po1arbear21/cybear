@@ -15,6 +15,9 @@ ifeq ($(COMPILER),gnu)
 include gnu.mk
 endif
 
+# define macros for fortran
+include macro.mk
+
 # main target
 all: dirs
 
@@ -53,8 +56,8 @@ all: $(TARGETS)
 
 # rule for anchor files
 $(BUILD_DIR)%.anc:
-	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $(IN_COL)$<$(NO_COL)\n\n"
-	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $<
+	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $(IN_COL)$<$(NO_COL)\n\n"
+	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $<
 	@mv $(notdir $(<:.f90=.i90)) $(BUILD_DIR) 2>/dev/null || true
 	@touch $@
 
@@ -65,8 +68,8 @@ $(BUILD_DIR)%.c.o: %.c
 
 # rule for object files
 $(BUILD_DIR)%.o:
-	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
-	@$(FC) $(FFLAGS) $(FINT64) $(FREAL64) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $< -o $@
+	@printf "%b" "$(FC_COL)$(FC)$(NO_COL) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $(IN_COL)$<$(NO_COL) -o $(OU_COL)$@$(NO_COL)\n\n"
+	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $< -o $@
 
 clean:
 	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o} $(BUILD_DIR).depend $(TARGETS)
