@@ -1056,7 +1056,15 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !$omp parallel default(none) &
   !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil) &
   !$omp shared(this, s2, s3, sort_, nthreads, i1, ops)
-    ! get current thread
+    !$omp single
+      ! get actual number of threads
+      nthreads = omp_get_num_threads()
+
+      ! allocate upper work chunk index bounds
+      allocate (i1(0:nthreads), source = 0)
+    !$omp end single nowait
+
+    ! get current thread id
     ithread = omp_get_thread_num() + 1
 
     ! count number of multiplications per row
@@ -1068,30 +1076,24 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
     end do
     !$omp end do
 
-    ! manually split the work based on ops needed per row
+    ! prefix sum (parallelization here probably not worth it)
     !$omp single
-      ! prefix sum (parallelization here probably not worth it)
       do i = 2, this%nrows
         ops(i) = ops(i) + ops(i-1)
       end do
-
-      ! get actual number of threads
-      nthreads = omp_get_num_threads()
-
-      ! allocate upper work chunk index bounds
-      allocate (i1(0:nthreads), source = 0)
-
-      ! give every thread roughly the same number of ops
-      i1(0) = 0
-      do i = 1, nthreads-1
-        ! equidistant index
-        j = nint(ops(this%nrows) * (real(i) / real(nthreads)), kind = SPARSE_IDX)
-
-        ! find row index
-        i1(i) = bin_search(ops, j) - 1
-      end do
-      i1(nthreads) = this%nrows
     !$omp end single
+
+    ! give every thread roughly the same number of ops
+    if (ithread < nthreads) then
+      ! equidistant index
+      j = nint(ops(this%nrows) * (real(ithread) / real(nthreads)), kind = SPARSE_IDX)
+
+      ! find row index
+      i1(ithread) = bin_search(ops, j) - 1
+    else
+      i1(ithread) = this%nrows
+    end if
+    !$omp barrier
 
     ! get upper limit on memory required
     j = ops(i1(ithread)) - ops(i1(ithread-1))
