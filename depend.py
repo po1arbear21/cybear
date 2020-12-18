@@ -278,7 +278,7 @@ for i in range(len(libraries)):
     file_deque.append(d)
 
   # add files and their dependencies
-  while (not file_deque.empty()):
+  while (len(file_deque) > 0):
     j = file_deque.popleft()
 
     # add file if not already in list
