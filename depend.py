@@ -1,4 +1,4 @@
-import os, argparse, queue, sys
+import os, argparse, collections, sys
 
 class ParseException(Exception):
   def __init__(self, file, line_number, line, msg):
@@ -244,21 +244,21 @@ pobjects = []
 for i in range(len(programs)):
   pobjects.append([programs[i].file_index])
 
-  # init queue of file candidates
-  file_queue = queue.Queue()
+  # init deque of file candidates
+  file_deque = collections.deque()
   for d in files[programs[i].file_index].dep_anchor:
-    file_queue.put(d)
+    file_deque.append(d)
 
   # add files and their dependencies
-  while (not file_queue.empty()):
-    j = file_queue.get()
+  while (len(file_deque) > 0):
+    j = file_deque.popleft()
 
     # add file if not already in list
     if (j not in pobjects[i]): pobjects[i].append(j)
 
     # add dependencies
     for d in files[j].dep_anchor:
-      file_queue.put(d)
+      file_deque.append(d)
 
   # add submodules
   for s in submodules:
@@ -272,21 +272,21 @@ lobjects = []
 for i in range(len(libraries)):
   lobjects.append([libraries[i].file_index])
 
-  # init queue of file candidates
-  file_queue = queue.Queue()
+  # init deque of file candidates
+  file_deque = collections.deque()
   for d in files[libraries[i].file_index].dep_anchor:
-    file_queue.put(d)
+    file_deque.append(d)
 
   # add files and their dependencies
-  while (not file_queue.empty()):
-    j = file_queue.get()
+  while (not file_deque.empty()):
+    j = file_deque.popleft()
 
     # add file if not already in list
     if (j not in lobjects[i]): lobjects[i].append(j)
 
     # add dependencies
     for d in files[j].dep_anchor:
-      file_queue.put(d)
+      file_deque.append(d)
 
   # add submodules
   for s in submodules:
