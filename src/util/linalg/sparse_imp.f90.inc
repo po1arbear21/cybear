@@ -41,6 +41,7 @@
 #define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
 #define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
+#define SPARSE_INPUT         CONCAT3(sparse,T,input)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
 #define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
 #define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
@@ -1173,6 +1174,84 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !$omp end parallel
 end subroutine
 
+subroutine SPARSE_INPUT(this, file, funit)
+  !! Read sparse matrix from file or stream (does not work for large matrices with more than 2^31 non-zero entries)
+
+  class(SPARSE_TYPE),     intent(out) :: this
+    !! Sparse matrix
+  character(*), optional, intent(in)  :: file
+    !! File name (alternative: provide funit)
+  integer,      optional, intent(in)  :: funit
+    !! File unit (alternative: provide file name)
+
+  integer                   :: i, row, col, nrows, ncols, status, funit_
+  character(:), allocatable :: fmt_
+  real                      :: rval
+#ifdef TCMPLX
+  real                      :: ival
+#endif
+  type(vector_int)          :: rows, cols
+  type(VECTOR_TYPE)         :: vals
+  type(SPBUILD_TYPE)        :: sb
+
+  allocate (character(0) :: fmt_) ! remove gfortran warning
+
+  ! open file if needed
+  ASSERT(.not. (present(file) .and. present(funit)))
+  ASSERT(present(file) .or. present(funit))
+  if (present(file)) then
+    open (newunit = funit_, file = file, status = "old", action = "read", iostat = status)
+    if (status /= 0) call program_error("File could not be opened for reading")
+  else
+    funit_ = funit
+  end if
+
+  ! read and save into vectors
+  call rows%init(0, c = 1024)
+  call cols%init(0, c = 1024)
+  call vals%init(0, c = 1024)
+  do
+#ifdef TCMPLX
+    read (funit_, *, iostat = status) row, col, rval, ival ! FIXME
+#else
+    read (funit_, *, iostat = status) row, col, rval
+#endif
+
+    if (status < 0) then
+      ! end of file reached
+      close (funit_)
+      exit
+    elseif (status > 0) then
+      ! IO error
+      close(funit_)
+      call program_error("IO Error")
+    end if
+
+    call rows%push(row)
+    call cols%push(col)
+#ifdef TCMPLX
+    call vals%push(cmplx(rval, ival))
+#else
+    call vals%push(rval)
+#endif
+  end do
+
+  ! close file if openend here
+  if (present(file)) close(funit_)
+
+  ! get dimensions
+  nrows = maxval(rows%d(1:rows%n))
+  ncols = maxval(cols%d(1:cols%n))
+
+  ! create matrix
+  call this%init(nrows, ncols = ncols)
+  call sb%init(this)
+  do i = 1, rows%n
+    call sb%add(rows%d(i), cols%d(i), vals%d(i))
+  end do
+  call sb%save()
+end subroutine
+
 subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   !! Write sparse matrix to file or stream
 
@@ -1194,7 +1273,6 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
     fmt_ = fmt
   else
 #ifdef TCMPLX
-    ! FIXME: check this
     fmt_ = '(ES24.16,SP,ES24.16,"i")'
 #else
     fmt_ = '(ES24.16)'
@@ -1781,6 +1859,7 @@ end subroutine
 #undef SPARSE_ADD_BAND
 #undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
+#undef SPARSE_INPUT
 #undef SPARSE_OUTPUT
 #undef SPARSE_FROM_DIAG
 #undef SPARSE_TO_DIAG

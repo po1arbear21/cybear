@@ -428,6 +428,16 @@ contains
 
         call tc%assert_eq(8.913712864525120e+14, sum(sC%a), 1e2, "mul sparse 2")
       end block
+
+      ! test 3: large matrices in extern files
+      ! C <- A*B
+      call sA%input(file = "src/test/S1.test")
+      call sB%input(file = "src/test/S2.test")
+      call sE%input(file = "src/test/S3.test") ! expected S1 * S2
+      call sA%mul_sparse(sB, sC)
+      call tc%assert_eq(int(sE%ia), int(sC%ia), "mul sparse 3: ia")
+      call tc%assert_eq(sE%ja, sC%ja,           "mul sparse 3: ja")
+      call tc%assert_eq(sE%a, sC%a, 1e-14,      "mul sparse 3: a")
     end block
 
     ! solve_vec
