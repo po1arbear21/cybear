@@ -122,13 +122,13 @@ contains
       bounded = .true.
       call fun(xmin, p, fmin, ipar=ipar)
       call fun(xmax, p, fmax, ipar=ipar)
-      if (sign(1.0, fmin) == sign(1.0,fmax)) then
+      if (sign(1.0, fmin) == sign(1.0, fmax)) then
         call program_error("solution bounds are invalid, no sign change")
       end if
     end if
 
     ! newton iteration with bisection stabilization
-    do while ((it < 1) .or. ((err > opt%atol) .and. (err > x * opt%rtol)))
+    do while ((it < 1) .or. ((err > opt%atol) .and. (err > abs(x) * opt%rtol)))
       it = it + 1
 
       ! check for maximum number of iterations
@@ -157,7 +157,7 @@ contains
       end if
 
       ! evaluate function
-      call fun(x, p, f, dfdx = dfdx, ipar=ipar)
+      call fun(x, p, f, dfdx=dfdx, ipar=ipar)
 
       ! calculate newton update and new error
       dx   = f / dfdx
@@ -184,9 +184,7 @@ contains
       ! update solution
       x = x - dx
 
-      if (opt%log) then
-        print "(A,I0,ES24.16)", opt%msg, it, err
-      end if
+      if (opt%log) print "(A,I0,ES24.16)", opt%msg, it, err
 
       ! exit if close to solution
       if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
@@ -199,7 +197,7 @@ contains
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
-      call fun(x, p, f, dfdx = dfdx, dfdp = dfdp, ipar=ipar)
+      call fun(x, p, f, dfdx=dfdx, dfdp=dfdp, ipar=ipar)
       do i = 1, size(p)
         dxdp(i) = - dfdp(i) / dfdx
       end do

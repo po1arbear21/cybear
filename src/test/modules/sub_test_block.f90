@@ -6,8 +6,8 @@ submodule(test_matrix_m) test_block_m
 
 contains
 
-  module subroutine test_block
-    type(test_case)   :: tc
+  module subroutine test_block()
+    type(test_case) :: tc
 
     integer                  :: i, j
     real, allocatable        :: d0(:,:)
