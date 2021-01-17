@@ -77,14 +77,17 @@ ifndef ILUPACKROOT
 $(error ILUPACKROOT is not set)
 endif
 FFLAGS += -D USE_ILUPACK
-LIBS   += \
-	-Wl,--start-group \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libilupack_mumps.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libamd.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libblaslike.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetis.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsparspak.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmumps.a \
+LIBS   += 																												\
+	-Wl,--start-group 																							\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libilupack_mumps.a 		\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libamd.a 							\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libblaslike.a 					\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libcamd.a 		 					\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetis.a 	 					\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetisomp.a 					\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsparspak.a 					\
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsuitesparseconfig.a \
+		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmumps.a 						\
 	-Wl,--end-group
 ifeq ($(COMPILER),gnu)
 LIBS += $(MKL_LIBS)
