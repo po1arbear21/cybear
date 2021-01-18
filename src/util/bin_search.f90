@@ -1,5 +1,6 @@
 module bin_search_m
   use error_m
+  use sparse_idx_m
   implicit none
 
   private
@@ -7,7 +8,7 @@ module bin_search_m
   public :: BS_NEAR, BS_LESS, BS_GREAT
 
   interface bin_search
-    module procedure :: bin_search_int, bin_search_real
+    module procedure :: bin_search_int, bin_search_idx, bin_search_real
   end interface
 
   ! binary search modes
@@ -19,6 +20,10 @@ contains
 
 #define T int
 #define TT integer
+#include "bin_search_imp.f90.inc"
+
+#define T idx
+#define TT integer(kind=SPARSE_IDX)
 #include "bin_search_imp.f90.inc"
 
 #define T real
