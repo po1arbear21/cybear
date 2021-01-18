@@ -1,14 +1,16 @@
 module bin_search_m
   use error_m
+  use iso_fortran_env, only: int32, int64
   use sparse_idx_m
+
   implicit none
 
   private
-  public :: bin_search
-  public :: BS_NEAR, BS_LESS, BS_GREAT
+  public bin_search
+  public BS_NEAR, BS_LESS, BS_GREAT
 
   interface bin_search
-    module procedure :: bin_search_int, bin_search_idx, bin_search_real
+    module procedure :: bin_search_int32, bin_search_int64, bin_search_real
   end interface
 
   ! binary search modes
@@ -18,12 +20,12 @@ module bin_search_m
 
 contains
 
-#define T int
-#define TT integer
+#define T int32
+#define TT integer(int32)
 #include "bin_search_imp.f90.inc"
 
-#define T idx
-#define TT integer(kind=SPARSE_IDX)
+#define T int64
+#define TT integer(int64)
 #include "bin_search_imp.f90.inc"
 
 #define T real
