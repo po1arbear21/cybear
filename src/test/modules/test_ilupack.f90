@@ -1,8 +1,10 @@
 #ifdef USE_ILUPACK
 
 module test_ilupack_m
-  use test_case_m
   use ilupack_m
+  use sparse_idx_m, only: SPARSE_IDX
+  use test_case_m
+
   implicit none
 
 contains
@@ -16,7 +18,8 @@ contains
     ! test ilupack_real
     block
       integer                           :: ilu, n, n_rhs, i_rhs
-      integer,              allocatable :: ia(:), ja(:)
+      integer(SPARSE_IDX),  allocatable :: ia(:)
+      integer,              allocatable :: ja(:)
       real,                 allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
       type(ilupack_handle), pointer     :: ilu_h
 
@@ -72,9 +75,10 @@ contains
 
     ! test ilupack_cmplx
     block
-      integer              :: ilu, n, n_rhs, i_rhs
-      integer, allocatable :: ia(:), ja(:)
-      complex, allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
+      integer                           :: ilu, n, n_rhs, i_rhs
+      integer(SPARSE_IDX),  allocatable :: ia(:)
+      integer,              allocatable :: ja(:)
+      complex,              allocatable :: a(:), b(:,:), x_exp(:,:), x(:)
 
       !
       ! build matrix
@@ -119,7 +123,7 @@ contains
       call destruct_ilupack_handle(ilu)
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module

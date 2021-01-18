@@ -73,16 +73,35 @@ endif
 
 # ILUPACK
 ifeq ($(USE_ILUPACK),true)
-ifndef ILUPACKROOT
-$(error ILUPACKROOT is not set)
-endif
-FFLAGS += -D USE_ILUPACK
+  ifndef ILUPACKROOT
+    $(error ILUPACKROOT is not set)
+  endif
+
+  # ILUPACK does not support mixed-precision integers. either 32bit or 64bit.
+  ifeq ($(IDXSIZE),64)
+    ARCH_ILUPACK := ilp64
+  else
+    ARCH_ILUPACK := lp64
+  endif
+
+  FFLAGS += -D USE_ILUPACK
   LIBS   +=                                                                 \
     -Wl,--start-group                                                       \
-	-Wl,--end-group
-ifeq ($(COMPILER),gnu)
-LIBS += $(MKL_LIBS)
-endif
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libilupack_mumps.a     \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libamd.a               \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libblaslike.a          \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libcamd.a              \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libmetis.a             \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libmetisomp.a          \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libsparspak.a          \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libsuitesparseconfig.a \
+      $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libmumps.a             \
+    -Wl,--end-group
+  ifeq ($(COMPILER),gnu)
+    LIBS += $(MKL_LIBS)
+  endif
+
+  undefine ARCH_ILUPACK
 endif
 
 # MUMPS

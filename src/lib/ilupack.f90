@@ -1,17 +1,13 @@
 #ifdef USE_ILUPACK
 #include "../util/macro.f90.inc"
 
-#ifdef IDXSIZE64
-#ifdef INTSIZE32
-#error "ILUPACK does not support different integer sizes!"
-#endif
-#endif
-
 module ilupack_m
 
   use error_m
   use iso_fortran_env, only: int64
-  use util_m
+  use sparse_idx_m,    only: SPARSE_IDX
+  use util_m,          only: int2str
+  use vector_m,        only: vector_int
 
   implicit none
 
@@ -26,7 +22,7 @@ module ilupack_m
   type ilupack_handle
     ! ilupack options (can be set manually)
 
-    character(20) :: ordering
+    character(20)       :: ordering
       !! string indicating which reordering to apply
       !! multilevel orderings
       !! 'amd'           Approximate Minimum Degree
@@ -36,61 +32,61 @@ module ilupack_m
       !! 'metise'        Metis multilevel nested dissection by edges
       !! 'pq'            ddPQ strategy by Saad
       !! default: 'amd
-    real          :: elbow
+    real                :: elbow
       !! elbow space factor for the fill computed during the ILU
       !! default: 10
-    integer       :: lfil
+    integer(SPARSE_IDX) :: lfil
       !! number of fill elements per column in L resp. rows in U
       !! default: n+1
-    integer       :: lfilS
+    integer(SPARSE_IDX) :: lfilS
       !! maximum number of nonzeros per row in the approximate Schur complement
       !! default: n+1
-    integer       :: matching
+    integer(SPARSE_IDX) :: matching
       !! maximum weight matching
       !! default: 1 == is different from zero == matching turned on
-    integer       :: maxit
+    integer(SPARSE_IDX) :: maxit
       !! maximum number of iterative steps
       !! default: (500??)
-    integer       :: nrestart
+    integer(SPARSE_IDX) :: nrestart
       !! restart length for GMRES
       !! default: 30
-    real          :: droptol
+    real                :: droptol
       !! threshold for ILU
       !! default: 1e-2
-    real          :: droptolS
+    real                :: droptolS
       !! threshold for the approximate Schur complements
       !! info: should be a smaller than droptol (~10%?)
       !! default: 1e-3
-    real          :: condest
+    real                :: condest
       !! norm bound for the inverse factors L^{-1}, U^{-1}
       !! default: 1e2
-    real          :: restol
+    real                :: restol
       !! relative error for the backward error (SPD case: relative energy norm) used during the iterative solver
       !! default: sqrt(eps)
-    integer       :: mixedprecision
+    integer(SPARSE_IDX) :: mixedprecision
       !! use single precision preconditioner if == 1
       !! default: 0
 
     ! parameters (should not be set manually)
-    integer :: n
+    integer(SPARSE_IDX) :: n
       !! size of the system. matrix is of (nxn) size.
-    integer :: it
+    integer(SPARSE_IDX) :: it
       !! number of iterations at solver step
 
     ! ilupack workspace variables
-    integer, allocatable :: ind(:)
+    integer(SPARSE_IDX), allocatable :: ind(:)
       !! array of size n
       !! default: 0
-    integer(int64)       :: param
+    integer(int64)                   :: param
       !! parameter C-pointer casted to integer
-    integer(int64)       :: prec
+    integer(int64)                   :: prec
       !! preconditioner C-pointer casted to integer
 
-    integer, allocatable :: ia(:)
-    integer, allocatable :: ja(:)
-    real,    allocatable :: ar(:)
-    complex, allocatable :: ac(:)
-    logical              :: cmplx
+    integer(SPARSE_IDX), allocatable :: ia(:)
+    integer(SPARSE_IDX), allocatable :: ja(:)
+    real,                allocatable :: ar(:)
+    complex,             allocatable :: ac(:)
+    logical                          :: cmplx
       !! real or complex
 
   contains
@@ -169,10 +165,10 @@ contains
   function create_ilupack_handle_r(ia, ja, a) result(h)
     !! create real ilupack handle
 
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    real,    intent(in) :: a(:)
-    integer             :: h
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer,             intent(in) :: ja(:)
+    real,                intent(in) :: a(:)
+    integer                         :: h
       !! return ilupack integer handle
 
     ASSERT(size(a) == size(ja))
@@ -183,7 +179,7 @@ contains
       p%cmplx = .false.
 
       p%n = size(ia) - 1
-      allocate (p%ind(p%n), source = 0)
+      allocate (p%ind(p%n), source=int(0, kind=SPARSE_IDX))
 
       ! copy matrix
       p%ia = ia
@@ -200,10 +196,10 @@ contains
   function create_ilupack_handle_c(ia, ja, a) result(h)
     !! create complex ilupack handle
 
-    integer, intent(in) :: ia(:)
-    integer, intent(in) :: ja(:)
-    complex, intent(in) :: a(:)
-    integer             :: h
+    integer(SPARSE_IDX), intent(in) :: ia(:)
+    integer,             intent(in) :: ja(:)
+    complex,             intent(in) :: a(:)
+    integer                         :: h
       !! return ilupack integer handle
 
     ASSERT(size(a) == size(ja))
@@ -214,7 +210,7 @@ contains
       p%cmplx = .true.
 
       p%n = size(ia) - 1
-      allocate (p%ind(p%n), source = 0)
+      allocate (p%ind(p%n), source=int(0, kind=SPARSE_IDX))
 
       ! copy matrix
       p%ia = ia
@@ -240,10 +236,10 @@ contains
       end if
 
       if (allocated(p%ind)) deallocate (p%ind)
-      if (allocated(p%ia )) deallocate (p%ia)
-      if (allocated(p%ja )) deallocate (p%ja)
-      if (allocated(p%ar )) deallocate (p%ar)
-      if (allocated(p%ac )) deallocate (p%ac)
+      if (allocated(p%ia )) deallocate (p%ia )
+      if (allocated(p%ja )) deallocate (p%ja )
+      if (allocated(p%ar )) deallocate (p%ar )
+      if (allocated(p%ac )) deallocate (p%ac )
     end associate
 
     if (.not. allocated(free_ilupack_handles%d)) call free_ilupack_handles%init(0, c = 4)
@@ -259,18 +255,18 @@ contains
 
     associate (p => ilupack_handles%d(h))
       if (p%cmplx) then
-        ierr = zgnlamgfactor(p%param,          p%prec,                                       &
-          &                  p%n,              p%ia,      p%ja,       p%ac,      p%matching, &
-          &                  p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
-          &                  p%maxit,          p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
-          &                  p%mixedprecision, p%ind                                         )
+        ierr = int(zgnlamgfactor(p%param,          p%prec,                                       &
+          &                      p%n,              p%ia,      p%ja,       p%ac,      p%matching, &
+          &                      p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
+          &                      p%maxit,          p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
+          &                      p%mixedprecision, p%ind                                         ))
 
       else
-        ierr = dgnlamgfactor(p%param,          p%prec,                                       &
-          &                  p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
-          &                  p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
-          &                  p%maxit,          p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
-          &                  p%mixedprecision, p%ind                                         )
+        ierr = int(dgnlamgfactor(p%param,          p%prec,                                       &
+          &                      p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
+          &                      p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
+          &                      p%maxit,          p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
+          &                      p%mixedprecision, p%ind                                         ))
       end if
     end associate
 
@@ -297,22 +293,22 @@ contains
       ASSERT(size(x) == size(b))
       ASSERT(mod(size(b), p%n) == 0)
 
-      nrhs = size(b) / p%n
+      nrhs = size(b) / int(p%n)
 
       i1 = 0
       do i = 1, nrhs
         i0 = i1 + 1
-        i1 = i1 + p%n
+        i1 = i1 + int(p%n)
 
         ! initial guess
         call dgnlamgsol(p%param, p%prec, b(i0:i1), x(i0:i1), p%n)
 
         p%it = p%maxit
-        ierr = dgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
-          &                  p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
-          &                  p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
-          &                  p%it,             p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
-          &                  p%mixedprecision, p%ind                                         )
+        ierr = int(dgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
+          &                      p%n,              p%ia,      p%ja,       p%ar,      p%matching, &
+          &                      p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
+          &                      p%it,             p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
+          &                      p%mixedprecision, p%ind                                         ))
 
         if      ((ierr >= -3) .and. (ierr < 0)) then
           call program_error("Error in ilupack: " // trim(ILUPACK_SOLVER_ERROR(ierr)))
@@ -339,22 +335,22 @@ contains
       ASSERT(size(x) == size(b))
       ASSERT(mod(size(b), p%n) == 0)
 
-      nrhs = size(b) / p%n
+      nrhs = size(b) / int(p%n)
 
       i1 = 0
       do i = 1, nrhs
         i0 = i1 + 1
-        i1 = i1 + p%n
+        i1 = i1 + int(p%n)
 
         ! initial guess
         call zgnlamgsol(p%param, p%prec, b(i0:i1), x(i0:i1), p%n)
 
         p%it = p%maxit
-        ierr = zgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
-          &                  p%n,              p%ia,      p%ja,       p%ac,      p%matching, &
-          &                  p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
-          &                  p%it,             p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
-          &                  p%mixedprecision, p%ind                                         )
+        ierr = int(zgnlamgsolver(p%param,          p%prec,    b(i0:i1),   x(i0:i1),              &
+          &                      p%n,              p%ia,      p%ja,       p%ac,      p%matching, &
+          &                      p%ordering,       p%droptol, p%droptolS, p%condest, p%restol,   &
+          &                      p%it,             p%elbow,   p%lfil,     p%lfilS,   p%nrestart, &
+          &                      p%mixedprecision, p%ind                                         ))
 
         if      ((ierr >= -3) .and. (ierr < 0)) then
           call program_error("Error in ilupack: " // trim(ILUPACK_SOLVER_ERROR(ierr)))
@@ -414,9 +410,9 @@ contains
     integer                           :: nnz
 
     if (this%cmplx) then
-      nnz = zgnlamgnnz(this%param, this%prec)
+      nnz = int(zgnlamgnnz(this%param, this%prec))
     else
-      nnz = dgnlamgnnz(this%param, this%prec)
+      nnz = int(dgnlamgnnz(this%param, this%prec))
     end if
   end function
 

@@ -18,23 +18,25 @@ interface
     &                       mixedprecision, ind                                   )
     !! init default parameters
 
-    integer       :: n
-    integer       :: ia(*)
-    integer       :: ja(*)
-    TT            ::  a(*)
-    integer       :: matching
-    character(20) :: ordering
-    real          :: droptol
-    real          :: droptolS
-    real          :: condest
-    real          :: restol
-    integer       :: maxit
-    real          :: elbow
-    integer       :: lfil
-    integer       :: lfilS
-    integer       :: nrestart
-    integer       :: mixedprecision
-    integer       :: ind(*)
+    import :: SPARSE_IDX
+
+    integer(SPARSE_IDX) :: n
+    integer(SPARSE_IDX) :: ia(*)
+    integer(SPARSE_IDX) :: ja(*)
+    TT                  ::  a(*)
+    integer(SPARSE_IDX) :: matching
+    character(20)       :: ordering
+    real                :: droptol
+    real                :: droptolS
+    real                :: condest
+    real                :: restol
+    integer(SPARSE_IDX) :: maxit
+    real                :: elbow
+    integer(SPARSE_IDX) :: lfil
+    integer(SPARSE_IDX) :: lfilS
+    integer(SPARSE_IDX) :: nrestart
+    integer(SPARSE_IDX) :: mixedprecision
+    integer(SPARSE_IDX) :: ind(*)
   end subroutine
 
   function INTERFACE_FACTOR(param,          prec,                                 &
@@ -50,63 +52,63 @@ interface
     !! if you do need the original matrix (ia,ja,a) in for different purposes,
     !! you should use a copy (ib,jb,b) instead
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
-    integer(int64) :: param
-    integer(int64) :: prec
-    integer        :: n
-    integer        :: ia(*)
-    integer        :: ja(*)
-    TT             ::  a(*)
-    integer        :: matching
-    character(20)  :: ordering
-    real           :: droptol
-    real           :: droptolS
-    real           :: condest
-    real           :: restol
-    integer        :: maxit
-    real           :: elbow
-    integer        :: lfil
-    integer        :: lfilS
-    integer        :: nrestart
-    integer        :: mixedprecision
-    integer        :: ind(*)
-    integer        :: ierr
+    integer(int64)      :: param
+    integer(int64)      :: prec
+    integer(SPARSE_IDX) :: n
+    integer(SPARSE_IDX) :: ia(*)
+    integer(SPARSE_IDX) :: ja(*)
+    TT                  ::  a(*)
+    integer(SPARSE_IDX) :: matching
+    character(20)       :: ordering
+    real                :: droptol
+    real                :: droptolS
+    real                :: condest
+    real                :: restol
+    integer(SPARSE_IDX) :: maxit
+    real                :: elbow
+    integer(SPARSE_IDX) :: lfil
+    integer(SPARSE_IDX) :: lfilS
+    integer(SPARSE_IDX) :: nrestart
+    integer(SPARSE_IDX) :: mixedprecision
+    integer(SPARSE_IDX) :: ind(*)
+    integer(SPARSE_IDX) :: ierr
   end function
 
   subroutine INTERFACE_INFO(param, prec, n, ia, ja, a)
     !! displaying the multilevel structure
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
-    integer(int64) :: param
-    integer(int64) :: prec
-    integer        :: n
-    integer        :: ia(*)
-    integer        :: ja(*)
-    TT             ::  a(*)
+    integer(int64)      :: param
+    integer(int64)      :: prec
+    integer(SPARSE_IDX) :: n
+    integer(SPARSE_IDX) :: ia(*)
+    integer(SPARSE_IDX) :: ja(*)
+    TT                  ::  a(*)
   end subroutine
 
   function INTERFACE_NNZ(param, prec) result(nnz)
     !! the logical number of nonzeros only
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
-    integer(int64) :: param
-    integer(int64) :: prec
-    integer        :: nnz
+    integer(int64)      :: param
+    integer(int64)      :: prec
+    integer(SPARSE_IDX) :: nnz
   end function
 
   subroutine INTERFACE_SOL(param, prec, rhs, sol, n)
     !! solve a single linear system with `PREC'
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
-    integer(int64) :: param
-    integer(int64) :: prec
-    TT             :: rhs(*)
-    TT             :: sol(*)
-    integer        :: n
+    integer(int64)      :: param
+    integer(int64)      :: prec
+    TT                  :: rhs(*)
+    TT                  :: sol(*)
+    integer(SPARSE_IDX) :: n
   end subroutine
 
   function INTERFACE_SOLVER(param,          prec,    rhs,      sol,               &
@@ -116,36 +118,36 @@ interface
     &                       mixedprecision, ind                                   ) result(ierr)
     !! solve Ax=b iteratively until the desired accuracy is achieved
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
-    integer(int64) :: param
-    integer(int64) :: prec
-    TT             :: rhs(*)
-    TT             :: sol(*)
-    integer        :: n
-    integer        :: ia(*)
-    integer        :: ja(*)
-    TT             ::  a(*)
-    integer        :: matching
-    character(20)  :: ordering
-    real           :: droptol
-    real           :: droptolS
-    real           :: condest
-    real           :: restol
-    integer        :: maxit
-    real           :: elbow
-    integer        :: lfil
-    integer        :: lfilS
-    integer        :: nrestart
-    integer        :: mixedprecision
-    integer        :: ind(*)
-    integer        :: ierr
+    integer(int64)      :: param
+    integer(int64)      :: prec
+    TT                  :: rhs(*)
+    TT                  :: sol(*)
+    integer(SPARSE_IDX) :: n
+    integer(SPARSE_IDX) :: ia(*)
+    integer(SPARSE_IDX) :: ja(*)
+    TT                  ::  a(*)
+    integer(SPARSE_IDX) :: matching
+    character(20)       :: ordering
+    real                :: droptol
+    real                :: droptolS
+    real                :: condest
+    real                :: restol
+    integer(SPARSE_IDX) :: maxit
+    real                :: elbow
+    integer(SPARSE_IDX) :: lfil
+    integer(SPARSE_IDX) :: lfilS
+    integer(SPARSE_IDX) :: nrestart
+    integer(SPARSE_IDX) :: mixedprecision
+    integer(SPARSE_IDX) :: ind(*)
+    integer(SPARSE_IDX) :: ierr
   end function
 
   subroutine INTERFACE_DELETE(param, prec)
     !! Finally release memory
 
-    import :: int64
+    import :: int64, SPARSE_IDX
 
     integer(int64) :: param
     integer(int64) :: prec
