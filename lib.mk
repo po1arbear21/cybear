@@ -1,74 +1,74 @@
 LIBS :=
 
 ifeq ($(INTSIZE),32)
-ARCH := lp64
+  ARCH := lp64
 endif
 ifeq ($(INTSIZE),64)
-ARCH := ilp64
+  ARCH := ilp64
 endif
 
 # BLAS95 and LAPACK95
 ifeq ($(COMPILER),intel)
-LIBS += $(MKLROOT)/lib/intel64/libmkl_blas95_$(ARCH).a $(MKLROOT)/lib/intel64/libmkl_lapack95_$(ARCH).a
+  LIBS += $(MKLROOT)/lib/intel64/libmkl_blas95_$(ARCH).a $(MKLROOT)/lib/intel64/libmkl_lapack95_$(ARCH).a
 endif
 ifeq ($(COMPILER),gnu)
-ifndef BLAS95ROOT
-$(error BLAS95ROOT is not set)
-endif
-ifndef LAPACK95ROOT
-$(error LAPACK95ROOT is not set)
-endif
-LIBS     += $(BLAS95ROOT)/lib/gnu_$(ARCH)/libmkl_blas95_$(ARCH).a $(LAPACK95ROOT)/lib/gnu_$(ARCH)/libmkl_lapack95_$(ARCH).a
-FINCLUDE += -I$(BLAS95ROOT)/include/gnu_$(ARCH) -I$(LAPACK95ROOT)/include/gnu_$(ARCH)
+  ifndef BLAS95ROOT
+    $(error BLAS95ROOT is not set)
+  endif
+  ifndef LAPACK95ROOT
+    $(error LAPACK95ROOT is not set)
+  endif
+  LIBS     += $(BLAS95ROOT)/lib/gnu_$(ARCH)/libmkl_blas95_$(ARCH).a $(LAPACK95ROOT)/lib/gnu_$(ARCH)/libmkl_lapack95_$(ARCH).a
+  FINCLUDE += -I$(BLAS95ROOT)/include/gnu_$(ARCH) -I$(LAPACK95ROOT)/include/gnu_$(ARCH)
 endif
 
 # MKL
 ifeq ($(COMPILER),gnu)
-ifeq ($(BUILD),debug)
-MKL_LIBS := \
-	-Wl,--start-group \
-  	$(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
-  	$(MKLROOT)/lib/intel64/libmkl_sequential.a \
-  	$(MKLROOT)/lib/intel64/libmkl_core.a \
-	-Wl,--end-group
-endif
-ifneq (,$(filter $(BUILD),release profile))
-MKL_LIBS := \
-	-Wl,--start-group \
-		$(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
-		$(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
-		$(MKLROOT)/lib/intel64/libmkl_core.a \
-	-Wl,--end-group
-endif
-LIBS     += $(MKL_LIBS)
-FINCLUDE += -I$(MKLROOT)/include
+  ifeq ($(BUILD),debug)
+    MKL_LIBS :=                                    \
+      -Wl,--start-group                            \
+        $(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
+        $(MKLROOT)/lib/intel64/libmkl_sequential.a \
+        $(MKLROOT)/lib/intel64/libmkl_core.a       \
+      -Wl,--end-group
+  endif
+  ifneq (,$(filter $(BUILD),release profile))
+    MKL_LIBS :=                                    \
+      -Wl,--start-group                            \
+        $(MKLROOT)/lib/intel64/libmkl_gf_$(ARCH).a \
+        $(MKLROOT)/lib/intel64/libmkl_gnu_thread.a \
+        $(MKLROOT)/lib/intel64/libmkl_core.a       \
+      -Wl,--end-group
+  endif
+  LIBS     += $(MKL_LIBS)
+  FINCLUDE += -I$(MKLROOT)/include
 endif
 
 # ARPACK
 ifeq ($(USE_ARPACK),true)
-ifndef ARPACKROOT
-$(error ARPACKROOT is not set)
-endif
-FFLAGS += -D USE_ARPACK
-LIBS   += $(ARPACKROOT)/lib/$(COMPILER)_$(ARCH)/libarpack.a
+  ifndef ARPACKROOT
+    $(error ARPACKROOT is not set)
+  endif
+  FFLAGS += -D USE_ARPACK
+  LIBS   += $(ARPACKROOT)/lib/$(COMPILER)_$(ARCH)/libarpack.a
 endif
 
 # EXPOKIT
 ifeq ($(USE_EXPOKIT),true)
-ifndef EXPOKITROOT
-$(error EXPOKITROOT is not set)
-endif
-FFLAGS += -D USE_EXPOKIT
-LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
+  ifndef EXPOKITROOT
+    $(error EXPOKITROOT is not set)
+  endif
+  FFLAGS += -D USE_EXPOKIT
+  LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
 endif
 
 # FEAST
 ifeq ($(USE_FEAST),true)
-ifndef FEASTROOT
-$(error FEASTROOT is not set)
-endif
-FFLAGS += -D USE_FEAST
-LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
+  ifndef FEASTROOT
+    $(error FEASTROOT is not set)
+  endif
+  FFLAGS += -D USE_FEAST
+  LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
 endif
 
 # ILUPACK
@@ -77,17 +77,8 @@ ifndef ILUPACKROOT
 $(error ILUPACKROOT is not set)
 endif
 FFLAGS += -D USE_ILUPACK
-LIBS   += 																												\
-	-Wl,--start-group 																							\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libilupack_mumps.a 		\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libamd.a 							\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libblaslike.a 					\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libcamd.a 		 					\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetis.a 	 					\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmetisomp.a 					\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsparspak.a 					\
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libsuitesparseconfig.a \
-		$(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH)/libmumps.a 						\
+  LIBS   +=                                                                 \
+    -Wl,--start-group                                                       \
 	-Wl,--end-group
 ifeq ($(COMPILER),gnu)
 LIBS += $(MKL_LIBS)
@@ -96,45 +87,44 @@ endif
 
 # MUMPS
 ifeq ($(USE_MUMPS),true)
-ifndef MUMPSROOT
-$(error MUMPSROOT is not set)
-endif
-ifndef METISROOT
-$(error METISROOT is not set)
-endif
-ifndef SCOTCHROOT
-$(error SCOTCHROOT is not set)
-endif
-FFLAGS += -D USE_MUMPS
-LIBS   += \
-	-Wl,--start-group \
-		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libdmumps.a \
-		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libzmumps.a \
-		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmumps_common.a \
-		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libpord.a \
-		$(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmpiseq.a \
-		$(METISROOT)/lib/$(COMPILER)_ilp64/libmetis.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libesmumps.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotch.a \
-		$(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotcherr.a \
-	-Wl,--end-group
-ifeq ($(COMPILER),gnu)
-LIBS += $(MKL_LIBS)
-endif
-FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)_$(ARCH)
+  ifndef MUMPSROOT
+    $(error MUMPSROOT is not set)
+  endif
+  ifndef METISROOT
+    $(error METISROOT is not set)
+  endif
+  ifndef SCOTCHROOT
+    $(error SCOTCHROOT is not set)
+  endif
+  FFLAGS += -D USE_MUMPS
+  LIBS   +=                                                  \
+    -Wl,--start-group                                        \
+      $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libdmumps.a       \
+      $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libzmumps.a       \
+      $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmumps_common.a \
+      $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libpord.a         \
+      $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libmpiseq.a       \
+      $(METISROOT)/lib/$(COMPILER)_ilp64/libmetis.a          \
+      $(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libesmumps.a       \
+      $(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotch.a        \
+      $(SCOTCHROOT)/lib/$(COMPILER)_ilp64/libscotcherr.a     \
+    -Wl,--end-group
+  ifeq ($(COMPILER),gnu)
+    LIBS += $(MKL_LIBS)
+  endif
+  FINCLUDE += -I$(MUMPSROOT)/include/$(COMPILER)_$(ARCH)
 endif
 
 # QUADPACK
 ifeq ($(USE_QUADPACK),true)
-ifndef QUADPACKROOT
-$(error QUADPACKROOT is not set)
-endif
-FFLAGS += -D USE_QUADPACK
-LIBS   += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
+  ifndef QUADPACKROOT
+    $(error QUADPACKROOT is not set)
+  endif
+  FFLAGS += -D USE_QUADPACK
+  LIBS   += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
 endif
 
 # additional libraries
 ifeq ($(COMPILER), gnu)
-LIBS += -lgomp -lpthread -lm -ldl
+  LIBS += -lgomp -lpthread -lm -ldl
 endif
-

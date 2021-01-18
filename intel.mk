@@ -2,16 +2,16 @@
 FC     := ifort
 FFLAGS := -march=native -fpp -warn all -qopenmp -fp-model precise -real-size 64
 ifeq ($(BUILD),debug)
-FFLAGS += -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
+  FFLAGS += -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
 endif
 ifeq ($(BUILD),release)
-FFLAGS += -O3 -mkl -ftz
+  FFLAGS += -O3 -mkl -ftz
 endif
 ifeq ($(BUILD),profile)
-FFLAGS += -O3 -mkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2
+  FFLAGS += -O3 -mkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2
 endif
 ifeq ($(INTSIZE),64)
-FFLAGS += -i8
+  FFLAGS += -i8
 endif
 
 # additional fortran flags
@@ -22,11 +22,11 @@ FSYNTAXONLY := -syntax-only
 CC     := icc
 CFLAGS := -march=native
 ifeq ($(BUILD),debug)
-CFLAGS += -O0 -g
+  CFLAGS += -O0 -g
 endif
 ifeq ($(BUILD),release)
-CFLAGS += -O3
+  CFLAGS += -O3
 endif
 ifeq ($(BUILD),profile)
-CFLAGS += -O3 -g -shared-intel
+  CFLAGS += -O3 -g -shared-intel
 endif

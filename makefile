@@ -9,10 +9,10 @@ include options.mk
 
 # load compiler configuration
 ifeq ($(COMPILER),intel)
-include intel.mk
+  include intel.mk
 endif
 ifeq ($(COMPILER),gnu)
-include gnu.mk
+  include gnu.mk
 endif
 
 # define macros for fortran
@@ -84,11 +84,11 @@ doc: all
 # DOCUMENTATION
 #
 # steps for compilation
-# 	1. create module interface files ".mod".
-# 		- reason for separating compilation from interface file generation: makes parallization of compilation possible.
-#		2. create anchor ".anc" files.
-# 		- reasons
-# 			1. barrier for parallel compilation s.t. all interface files are created first (no race conditions)
-# 			2. makes fortran "include" statements possible??
-#		3. create object files
+#   1. create module interface files ".mod".
+#     - reason for separating compilation from interface file generation: makes parallization of compilation possible.
+#    2. create anchor ".anc" files.
+#     - reasons
+#       1. barrier for parallel compilation s.t. all interface files are created first (no race conditions)
+#       2. makes fortran "include" statements possible??
+#    3. create object files
 #
