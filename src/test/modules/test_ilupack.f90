@@ -7,7 +7,7 @@ module test_ilupack_m
 
 contains
 
-  subroutine test_ilupack
+  subroutine test_ilupack()
     type(test_case) :: tc
 
     print "(A)", "test_ilupack"

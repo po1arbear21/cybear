@@ -50,55 +50,63 @@ interface
     !! if you do need the original matrix (ia,ja,a) in for different purposes,
     !! you should use a copy (ib,jb,b) instead
 
-    integer       :: param
-    integer       :: prec
-    integer       :: n
-    integer       :: ia(*)
-    integer       :: ja(*)
-    TT            ::  a(*)
-    integer       :: matching
-    character(20) :: ordering
-    real          :: droptol
-    real          :: droptolS
-    real          :: condest
-    real          :: restol
-    integer       :: maxit
-    real          :: elbow
-    integer       :: lfil
-    integer       :: lfilS
-    integer       :: nrestart
-    integer       :: mixedprecision
-    integer       :: ind(*)
-    integer       :: ierr
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
+    integer        :: n
+    integer        :: ia(*)
+    integer        :: ja(*)
+    TT             ::  a(*)
+    integer        :: matching
+    character(20)  :: ordering
+    real           :: droptol
+    real           :: droptolS
+    real           :: condest
+    real           :: restol
+    integer        :: maxit
+    real           :: elbow
+    integer        :: lfil
+    integer        :: lfilS
+    integer        :: nrestart
+    integer        :: mixedprecision
+    integer        :: ind(*)
+    integer        :: ierr
   end function
 
   subroutine INTERFACE_INFO(param, prec, n, ia, ja, a)
     !! displaying the multilevel structure
 
-    integer :: param
-    integer :: prec
-    integer :: n
-    integer :: ia(*)
-    integer :: ja(*)
-    TT      ::  a(*)
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
+    integer        :: n
+    integer        :: ia(*)
+    integer        :: ja(*)
+    TT             ::  a(*)
   end subroutine
 
   function INTERFACE_NNZ(param, prec) result(nnz)
     !! the logical number of nonzeros only
 
-    integer :: param
-    integer :: prec
-    integer :: nnz
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
+    integer        :: nnz
   end function
 
   subroutine INTERFACE_SOL(param, prec, rhs, sol, n)
     !! solve a single linear system with `PREC'
 
-    integer       :: param
-    integer       :: prec
-    TT            :: rhs(*)
-    TT            :: sol(*)
-    integer       :: n
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
+    TT             :: rhs(*)
+    TT             :: sol(*)
+    integer        :: n
   end subroutine
 
   function INTERFACE_SOLVER(param,          prec,    rhs,      sol,               &
@@ -108,35 +116,39 @@ interface
     &                       mixedprecision, ind                                   ) result(ierr)
     !! solve Ax=b iteratively until the desired accuracy is achieved
 
-    integer       :: param
-    integer       :: prec
-    TT            :: rhs(*)
-    TT            :: sol(*)
-    integer       :: n
-    integer       :: ia(*)
-    integer       :: ja(*)
-    TT            ::  a(*)
-    integer       :: matching
-    character(20) :: ordering
-    real          :: droptol
-    real          :: droptolS
-    real          :: condest
-    real          :: restol
-    integer       :: maxit
-    real          :: elbow
-    integer       :: lfil
-    integer       :: lfilS
-    integer       :: nrestart
-    integer       :: mixedprecision
-    integer       :: ind(*)
-    integer       :: ierr
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
+    TT             :: rhs(*)
+    TT             :: sol(*)
+    integer        :: n
+    integer        :: ia(*)
+    integer        :: ja(*)
+    TT             ::  a(*)
+    integer        :: matching
+    character(20)  :: ordering
+    real           :: droptol
+    real           :: droptolS
+    real           :: condest
+    real           :: restol
+    integer        :: maxit
+    real           :: elbow
+    integer        :: lfil
+    integer        :: lfilS
+    integer        :: nrestart
+    integer        :: mixedprecision
+    integer        :: ind(*)
+    integer        :: ierr
   end function
 
   subroutine INTERFACE_DELETE(param, prec)
     !! Finally release memory
 
-    integer :: param
-    integer :: prec
+    import :: int64
+
+    integer(int64) :: param
+    integer(int64) :: prec
   end subroutine
 
 end interface

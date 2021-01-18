@@ -1,9 +1,16 @@
 #ifdef USE_ILUPACK
 #include "../util/macro.f90.inc"
 
+#ifdef IDXSIZE64
+#ifdef INTSIZE32
+#error "ILUPACK does not support different integer sizes!"
+#endif
+#endif
+
 module ilupack_m
 
   use error_m
+  use iso_fortran_env, only: int64
   use util_m
 
   implicit none
@@ -74,9 +81,9 @@ module ilupack_m
     integer, allocatable :: ind(:)
       !! array of size n
       !! default: 0
-    integer              :: param
+    integer(int64)       :: param
       !! parameter C-pointer casted to integer
-    integer              :: prec
+    integer(int64)       :: prec
       !! preconditioner C-pointer casted to integer
 
     integer, allocatable :: ia(:)
