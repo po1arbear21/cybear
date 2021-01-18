@@ -1051,7 +1051,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   if (present(sort)) sort_ = sort
 
   ! multiplication operation counters for each result row
-  allocate (ops(0:this%nrows), source = 0)
+  allocate (ops(0:this%nrows), source = int(0, kind = SPARSE_IDX))
 
   ! work in parallel
   !$omp parallel default(none) &
