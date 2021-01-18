@@ -1,7 +1,6 @@
 module bin_search_m
   use error_m
   use iso_fortran_env, only: int32, int64
-  use sparse_idx_m
 
   implicit none
 
