@@ -43,12 +43,6 @@
 #endif
 #define DENSE_TRANSPOSE      CONCAT3(dense,T,transpose)
 #define DENSE_TRANSPOSE2     CONCAT3(dense,T,transpose2)
-#define DENSE_ADD_DENSE      CONCAT3(dense,T,add_dense)
-#define DENSE_ADD_DENSE3     CONCAT3(dense,T,add_dense3)
-#define DENSE_ADD_SPARSE     CONCAT3(dense,T,add_sparse)
-#define DENSE_ADD_SPARSE3    CONCAT3(dense,T,add_sparse3)
-#define DENSE_ADD_BAND       CONCAT3(dense,T,add_band)
-#define DENSE_ADD_BAND3      CONCAT3(dense,T,add_band3)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
 #define DENSE_EIG            CONCAT3(dense,T,eig)
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
@@ -76,10 +70,6 @@
 #endif
 #define SPARSE_TRANSPOSE     CONCAT3(sparse,T,transpose)
 #define SPARSE_TRANSPOSE2    CONCAT3(sparse,T,transpose2)
-#define SPARSE_ADD_SPARSE    CONCAT3(sparse,T,add_sparse)
-#define SPARSE_ADD_SPARSE3   CONCAT3(sparse,T,add_sparse3)
-#define SPARSE_ADD_BAND      CONCAT3(sparse,T,add_band)
-#define SPARSE_ADD_BAND3     CONCAT3(sparse,T,add_band3)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_INPUT         CONCAT3(sparse,T,input)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
@@ -119,8 +109,6 @@
 #else
 #define BAND_TO_CMPLX        CONCAT3(band,T,to_cmplx)
 #endif
-#define BAND_ADD_BAND        CONCAT3(band,T,add_band)
-#define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
@@ -196,6 +184,19 @@
 #define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
 #define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
 
+#define ADD_BAND2            CONCAT(add_band2,T)
+#define ADD_BAND3            CONCAT(add_band3,T)
+#define ADD_BAND_DENSE       CONCAT(add_band_dense,T)
+#define ADD_BAND_DENSE2      CONCAT(add_band_dense2,T)
+#define ADD_BAND_SPARSE      CONCAT(add_band_sparse,T)
+#define ADD_BAND_SPARSE2     CONCAT(add_band_sparse2,T)
+#define ADD_DENSE2           CONCAT(add_dense2,T)
+#define ADD_DENSE3           CONCAT(add_dense3,T)
+#define ADD_SPARSE_DENSE     CONCAT(add_sparse_dense,T)
+#define ADD_SPARSE_DENSE2    CONCAT(add_sparse_dense2,T)
+#define ADD_SPARSE2          CONCAT(add_sparse2,T)
+#define ADD_SPARSE3          CONCAT(add_sparse3,T)
+
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
   !! Can be extended if more specialized matrices are needed besides the built-in types.
@@ -256,15 +257,6 @@ contains
   procedure :: DENSE_TRANSPOSE                        ! transposes this matrix inplace
   procedure :: DENSE_TRANSPOSE2                       ! transpose this matrix into another
   generic   :: transpose  => DENSE_TRANSPOSE, DENSE_TRANSPOSE2
-  procedure :: DENSE_ADD_DENSE                        ! adds matrix to this one
-  procedure :: DENSE_ADD_DENSE3                       ! adds this and a second into a third matrix
-  generic   :: add_dense  => DENSE_ADD_DENSE, DENSE_ADD_DENSE3
-  procedure :: DENSE_ADD_SPARSE
-  procedure :: DENSE_ADD_SPARSE3
-  generic   :: add_sparse => DENSE_ADD_SPARSE, DENSE_ADD_SPARSE3
-  procedure :: DENSE_ADD_BAND
-  procedure :: DENSE_ADD_BAND3
-  generic   :: add_band   => DENSE_ADD_BAND, DENSE_ADD_BAND3
   procedure :: mul_dense  => DENSE_MUL_DENSE
   procedure :: eig        => DENSE_EIG
   procedure :: output     => DENSE_OUTPUT
@@ -309,12 +301,6 @@ contains
   procedure :: SPARSE_TRANSPOSE
   procedure :: SPARSE_TRANSPOSE2
   generic   :: transpose     => SPARSE_TRANSPOSE, SPARSE_TRANSPOSE2
-  procedure :: SPARSE_ADD_SPARSE
-  procedure :: SPARSE_ADD_SPARSE3
-  generic   :: add_sparse    => SPARSE_ADD_SPARSE, SPARSE_ADD_SPARSE3
-  procedure :: SPARSE_ADD_BAND
-  procedure :: SPARSE_ADD_BAND3
-  generic   :: add_band      => SPARSE_ADD_BAND, SPARSE_ADD_BAND3
   procedure :: mul_sparse    => SPARSE_MUL_SPARSE
   procedure :: input         => SPARSE_INPUT
   procedure :: output        => SPARSE_OUTPUT
@@ -412,8 +398,6 @@ contains
 #else
   procedure :: to_cmplx  => BAND_TO_CMPLX
 #endif
-  procedure :: BAND_ADD_BAND, BAND_ADD_BAND3
-  generic   :: add_band  => BAND_ADD_BAND, BAND_ADD_BAND3
   procedure :: add_elem  => BAND_ADD_ELEM
   procedure :: get_elem  => BAND_GET_ELEM
   procedure :: set_elem  => BAND_SET_ELEM
@@ -636,6 +620,110 @@ interface
   end subroutine
 end interface
 
+! submodule matrix_arith interfaces
+interface
+
+  module subroutine ADD_BAND2(b1, b2, fact)
+    type(BAND_TYPE), intent(in)    :: b1
+    type(BAND_TYPE), intent(inout) :: b2
+    TT, optional,    intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_BAND3(b1, b2, b3, fact1, fact2)
+    type(BAND_TYPE), intent(in)  :: b1
+    type(BAND_TYPE), intent(in)  :: b2
+    type(BAND_TYPE), intent(out) :: b3
+    TT, optional,    intent(in)  :: fact1
+    TT, optional,    intent(in)  :: fact2
+  end subroutine
+
+  module subroutine ADD_BAND_DENSE(b, d, fact)
+    type(BAND_TYPE),  intent(in)    :: b
+    type(DENSE_TYPE), intent(inout) :: d
+    TT, optional,     intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_BAND_DENSE2(b1, d2, d3, fact1, fact2)
+    type(BAND_TYPE),  intent(in)  :: b1
+    type(DENSE_TYPE), intent(in)  :: d2
+    type(DENSE_TYPE), intent(out) :: d3
+    TT, optional,     intent(in)  :: fact1
+    TT, optional,     intent(in)  :: fact2
+  end subroutine
+
+  module subroutine ADD_BAND_SPARSE(b, s, fact)
+    type(BAND_TYPE),   intent(in)    :: b
+    type(SPARSE_TYPE), intent(inout) :: s
+    TT, optional,      intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_BAND_SPARSE2(b1, s2, s3, fact1, fact2)
+    type(BAND_TYPE),   intent(in)  :: b1
+    type(SPARSE_TYPE), intent(in)  :: s2
+    type(SPARSE_TYPE), intent(out) :: s3
+    TT, optional,      intent(in)  :: fact1
+    TT, optional,      intent(in)  :: fact2
+  end subroutine
+
+  module subroutine ADD_DENSE2(d1, d2, fact)
+    type(DENSE_TYPE), intent(in)    :: d1
+    type(DENSE_TYPE), intent(inout) :: d2
+    TT, optional,     intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_DENSE3(d1, d2, d3, fact1, fact2)
+    type(DENSE_TYPE), intent(in)  :: d1
+    type(DENSE_TYPE), intent(in)  :: d2
+    type(DENSE_TYPE), intent(out) :: d3
+    TT, optional,     intent(in)  :: fact1
+    TT, optional,     intent(in)  :: fact2
+  end subroutine
+
+  module subroutine ADD_SPARSE_DENSE(s, d, fact)
+    type(SPARSE_TYPE), intent(in)    :: s
+    type(DENSE_TYPE),  intent(inout) :: d
+    TT, optional,      intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_SPARSE_DENSE2(s1, d2, d3, fact1, fact2)
+    type(SPARSE_TYPE), intent(in)  :: s1
+    type(DENSE_TYPE),  intent(in)  :: d2
+    type(DENSE_TYPE),  intent(out) :: d3
+    TT, optional,      intent(in)  :: fact1
+    TT, optional,      intent(in)  :: fact2
+  end subroutine
+
+  module subroutine ADD_SPARSE2(s1, s2, fact)
+    type(SPARSE_TYPE), intent(in)    :: s1
+    type(SPARSE_TYPE), intent(inout) :: s2
+    TT, optional,      intent(in)    :: fact
+  end subroutine
+
+  module subroutine ADD_SPARSE3(s1, s2, s3, fact1, fact2)
+    type(SPARSE_TYPE), intent(in)  :: s1
+    type(SPARSE_TYPE), intent(in)  :: s2
+    type(SPARSE_TYPE), intent(out) :: s3
+    TT, optional,      intent(in)  :: fact1
+    TT, optional,      intent(in)  :: fact2
+  end subroutine
+
+end interface
+
+interface add
+  module procedure :: ADD_BAND2
+  module procedure :: ADD_BAND3
+  module procedure :: ADD_BAND_DENSE
+  module procedure :: ADD_BAND_DENSE2
+  module procedure :: ADD_BAND_SPARSE
+  module procedure :: ADD_BAND_SPARSE2
+  module procedure :: ADD_DENSE2
+  module procedure :: ADD_DENSE3
+  module procedure :: ADD_SPARSE_DENSE
+  module procedure :: ADD_SPARSE_DENSE2
+  module procedure :: ADD_SPARSE2
+  module procedure :: ADD_SPARSE3
+end interface
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -681,12 +769,6 @@ end interface
 #undef DENSE_TO_CMPLX
 #undef DENSE_TRANSPOSE
 #undef DENSE_TRANSPOSE2
-#undef DENSE_ADD_DENSE
-#undef DENSE_ADD_DENSE3
-#undef DENSE_ADD_SPARSE
-#undef DENSE_ADD_SPARSE3
-#undef DENSE_ADD_BAND
-#undef DENSE_ADD_BAND3
 #undef DENSE_MUL_DENSE
 #undef DENSE_EIG
 #undef DENSE_OUTPUT
@@ -711,10 +793,6 @@ end interface
 #undef SPARSE_TO_CMPLX
 #undef SPARSE_TRANSPOSE
 #undef SPARSE_TRANSPOSE2
-#undef SPARSE_ADD_SPARSE
-#undef SPARSE_ADD_SPARSE3
-#undef SPARSE_ADD_BAND
-#undef SPARSE_ADD_BAND3
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_INPUT
 #undef SPARSE_OUTPUT
@@ -751,8 +829,6 @@ end interface
 #undef BAND_TO_SPARSE
 #undef BAND_TO_REAL
 #undef BAND_TO_CMPLX
-#undef BAND_ADD_BAND
-#undef BAND_ADD_BAND3
 #undef BAND_ADD_ELEM
 #undef BAND_GET_ELEM
 #undef BAND_SET_ELEM
@@ -821,3 +897,16 @@ end interface
 #undef BLOCK_COPY
 #undef BLOCK_BLOCK_ALLOWED
 #undef BLOCK_CHECK_SIZES
+
+#undef ADD_BAND2
+#undef ADD_BAND3
+#undef ADD_BAND_DENSE
+#undef ADD_BAND_DENSE2
+#undef ADD_BAND_SPARSE
+#undef ADD_BAND_SPARSE2
+#undef ADD_DENSE2
+#undef ADD_DENSE3
+#undef ADD_SPARSE_DENSE
+#undef ADD_SPARSE_DENSE2
+#undef ADD_SPARSE2
+#undef ADD_SPARSE3

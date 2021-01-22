@@ -540,21 +540,21 @@ contains
       a_exp  = sA%a
       ia_exp = int(sA%ia)
       ja_exp = sA%ja
-      call sA%add_sparse(sE, fact=-1.5)
+      call add(sE, sA, fact=-1.5)
       call tc%assert_eq(a_exp,  sA%a,  0.0, "add_sparse empty 1: a")
       call tc%assert_eq(ia_exp, int(sA%ia), "add_sparse empty 1: ia")
       call tc%assert_eq(ja_exp, sA%ja,      "add_sparse empty 1: ja")
 
       call get_test_matrix2(sA)
       a_exp = 3 * sA%a
-      call sE%add_sparse(sA, fact=3.0)
+      call add(sA, sE, fact=3.0)
       call tc%assert_eq(a_exp,  sE%a,  0.0, "add_sparse empty 2: a")
       call tc%assert_eq(ia_exp, int(sE%ia), "add_sparse empty 2: ia")
       call tc%assert_eq(ja_exp, sE%ja,      "add_sparse empty 2: ja")
 
       call get_empty_matrix(sE)
       call get_empty_matrix(sE2)
-      call sE%add_sparse(sE2, fact=9.5)
+      call add(sE2, sE, fact=9.5)
       call tc%assert(sE%is_empty(), "add_sparse empty 3")
 
       ! A - 2 * B =
@@ -570,7 +570,7 @@ contains
       a_exp  = [-2,-4,5,1,-6,-2,-3,-1,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call sA%add_sparse(sB, fact=-2.0)
+      call add(sB, sA, fact=-2.0)
 
       call tc%assert_eq(a_exp,  sA%a, 1e-12, "add_sparse: a")
       call tc%assert_eq(ia_exp, int(sA%ia),  "add_sparse: ia")
@@ -587,13 +587,13 @@ contains
       call get_test_matrix2(sB)
       call get_empty_matrix(sE)
 
-      call sA%add_sparse(sE, sC, fact1=3.0, fact2=-5.0)
+      call add(sA, sE, sC, fact1=3.0, fact2=-5.0)
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
       call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 1: ia")
       call tc%assert_eq(    sA%ja ,     sC%ja ,        "add_sparse3 empty 1: ja")
 
-      call sE%add_sparse(sA, sC, fact1=-5.0, fact2=3.0)
+      call add(sE, sA, sC, fact1=-5.0, fact2=3.0)
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
       call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 2: ia")
@@ -611,7 +611,7 @@ contains
       a_exp  = [-2,-4,15,3,-2,-2,-9,-3,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call sB%add_sparse(sA, sC, fact1=3.0, fact2=-2.0)
+      call add(sB, sA, sC, fact1=3.0, fact2=-2.0)
 
       call tc%assert_eq(a_exp,  sC%a, 1e-12, "add_sparse3: a")
       call tc%assert_eq(ia_exp, int(sC%ia),  "add_sparse3: ia")
@@ -644,7 +644,7 @@ contains
       ia_exp = [1, 3, 6, 9, 11]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
       call get_empty_matrix(S)
-      call S%add_band(B, 2.0)
+      call add(B, S, fact=2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-16, "add_band empty: a")
       call tc%assert_eq(ia_exp, int(S%ia),  "add_band empty: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band empty: ja")
@@ -659,7 +659,7 @@ contains
       a_exp  = [7, -2, -2, 10, -4, -2, 7, -4, 1, -2, 11]
       ia_exp = [1, 3,  6,  9, 12]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call S%add_band(B, 2.0)
+      call add(B, S, fact=2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-12, "add_band: a")
       call tc%assert_eq(ia_exp, int(S%ia),  "add_band: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band: ja")
@@ -691,7 +691,7 @@ contains
       ia_exp = [1, 3, 6, 9, 11]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
       call get_empty_matrix(S)
-      call S%add_band(B, S2, fact1 = 1e99, fact2 = 2.0)
+      call add(B, S, S2, fact1 = 2.0, fact2 = 1e99)
       call tc%assert_eq(a_exp,  S2%a, 1e-16, "add_band3 empty: a")
       call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3 empty: ia")
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3 empty: ja")
@@ -706,7 +706,7 @@ contains
       a_exp  = [5, -6, -2, 2, -4, -2, 5, -4, -1, -2, 1]
       ia_exp = [1, 3,  6,  9, 12]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call S%add_band(B, S2, fact1 = -1.0, fact2 = 2.0)
+      call add(B, S, S2, fact1 = 2.0, fact2 = -1.0)
 
       call tc%assert_eq(a_exp,  S2%a, 1e-12, "add_band3: a")
       call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3: ia")

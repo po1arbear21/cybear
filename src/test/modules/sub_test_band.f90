@@ -1,10 +1,10 @@
-submodule(test_matrix_m) test_band_m
+submodule (test_matrix_m) test_band_m
   use matrix_m
   implicit none
 
 contains
 
-  module subroutine test_band
+  module subroutine test_band()
     real, dimension(5,5) :: d_band
     type(band_real)      :: tri, band, penta, diag
     type(test_case)      :: tc
@@ -414,7 +414,7 @@ contains
       call tc%assert_eq(b_exp%d, b%d, 1e-12, "set_diag_{arr,val}: test 3")
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end submodule

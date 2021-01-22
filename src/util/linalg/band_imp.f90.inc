@@ -32,8 +32,6 @@
 #else
 #define BAND_TO_CMPLX        CONCAT3(band,T,to_cmplx)
 #endif
-#define BAND_ADD_BAND        CONCAT3(band,T,add_band)
-#define BAND_ADD_BAND3       CONCAT3(band,T,add_band3)
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
@@ -453,75 +451,6 @@ subroutine BAND_TO_CMPLX(this, b)
 end subroutine
 #endif
 
-subroutine BAND_ADD_BAND(this, b, fact)
-  !! Add two band matrices.
-  !! Operation: this <- this + fact * b
-
-  class(BAND_TYPE), intent(inout) :: this
-    !! First band matrix (updated)
-  type(BAND_TYPE),  intent(in)    :: b
-    !! Second band matrix (unchanged)
-  TT, optional,     intent(in)    :: fact
-    !! Second band matrix scaling factor (default: 1)
-
-  TT              :: fact_
-  TT, allocatable :: tmp(:,:)
-
-  ASSERT(.not. allocated(this%f))
-  ASSERT(.not. allocated(this%ipiv))
-  ASSERT(this%nrows == b%nrows .and. this%ncols == b%ncols)
-
-  ! optional arguments
-  fact_ = 1
-  if (present(fact)) fact_ = fact
-
-  if (this%nupper >= b%nupper .and. this%nlower >= b%nlower) then
-    this%d(-b%nupper:b%nlower,1:this%ncols) = this%d(-b%nupper:b%nlower,1:this%ncols) + fact_ * b%d
-  else
-    allocate (tmp(-max(this%nupper,b%nupper):max(this%nlower,b%nlower),1:this%ncols))
-    tmp = 0
-    tmp(-this%nupper:this%nlower,1:this%ncols) = this%d
-    tmp(-b%nupper:b%nlower,1:this%ncols) = this%d(-b%nupper:b%nlower,1:this%ncols) + fact_*b%d
-    call move_alloc(tmp, this%d)
-    this%nlower = max(this%nlower,b%nlower)
-    this%nupper = max(this%nupper,b%nupper)
-  end if
-end subroutine
-
-subroutine BAND_ADD_BAND3(this, b2, b3, fact1, fact2)
-  !! Add two band matrices, store result in third band matrix.
-  !! Operation: b3 <- fact1*this + fact2*b2
-
-  class(BAND_TYPE), intent(in)  :: this
-    !! Band first matrix (unchanged)
-  type(BAND_TYPE),  intent(in)  :: b2
-    !! Band second matrix (unchanged)
-  type(BAND_TYPE),  intent(out) :: b3
-    !! Output band third matrix
-  TT, optional,     intent(in)  :: fact1
-    !! First matrix scaling factor (default: 1)
-  TT, optional,     intent(in)  :: fact2
-    !! Second matrix scaling factor (default: 1)
-
-  ! local variables
-  TT :: fact1_, fact2_
-
-  ! optional arguments
-  fact1_ = 1
-  if (present(fact1)) fact1_ = fact1
-  fact2_ = 1
-  if (present(fact2)) fact2_ = fact2
-
-  ! case selection: hopefully no tmp array needs to be allocated
-  if (this%nupper >= b2%nupper .and. this%nlower >= b2%nlower) then
-    call b3%init(this%nrows, this%nlower, nupper=this%nupper, d0=fact1_*this%d)     ! b3 <- fact1*this
-    call b3%add_band(b2, fact=fact2_)                                               ! b3 += fact2*b2
-  else
-    call b3%init(b2%nrows, b2%nlower, nupper=b2%nupper, d0=fact2_*b2%d)             ! b3 <- fact2*b2
-    call b3%add_band(this, fact=fact1_)                                             ! b3 += fact1*this
-  end if
-end subroutine
-
 subroutine BAND_OUTPUT(this, file, funit, fmt)
   !! Write band matrix to file or stream.
 
@@ -715,8 +644,6 @@ end function
 #undef BAND_TO_SPARSE
 #undef BAND_TO_REAL
 #undef BAND_TO_CMPLX
-#undef BAND_ADD_BAND
-#undef BAND_ADD_BAND3
 #undef BAND_ADD_ELEM
 #undef BAND_GET_ELEM
 #undef BAND_SET_ELEM

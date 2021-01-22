@@ -69,6 +69,8 @@ module matrix_m
   public :: block_ptr_real
   public :: block_ptr_cmplx
 
+  public add
+
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
 #ifdef USE_MUMPS

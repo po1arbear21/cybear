@@ -277,11 +277,13 @@ contains
         end do
       end do
 
-      call d1%add_dense(d2, fact=2.0)
+      ! d1 <- d1 + fact*d2
+      call add(d2, d1, fact=2.0)
       mat1 = mat1 + 2*mat2
       call tc%assert_eq(d1%d, mat1, 1e-12, "add dense")
 
-      call d1%add_dense(d2, d3, fact1=3.0, fact2=2.0)
+      ! d3 <- fact1*d1 + fact2*d2
+      call add(d1, d2, d3, fact1=3.0, fact2=2.0)
       mat3 = 3*mat1 + 2*mat2
       call tc%assert_eq(d3%d, mat3, 1e-12, "add dense3")
     end block
@@ -308,9 +310,9 @@ contains
       mat1 = d1%d
 
       ! test adding empty sparse matrix to d1
-      call d1%add_sparse(s1)
+      call add(s1, d1)
       call tc%assert_eq(d1%d, mat1, 1e-16, "add empty sparse")
-      call d1%add_sparse(s1, d3, fact1=2.5, fact2=7.8)
+      call add(s1, d1, d3, fact1=7.8, fact2=2.5)
       call tc%assert_eq(d3%d, 2.5 * mat1, 1e-16, "add empty sparse3")
 
       ! build sparse s1
@@ -327,13 +329,14 @@ contains
       end do
       mat2 = d2%d
 
-      ! test adding
-      call d2%add_sparse(s1, fact=3.0)
+      ! test adding: d2 <- d2 + fact*s1
+      call add(s1, d2, fact=3.0)
       mat2 = mat2 + 3*mat1
       call tc%assert_eq(d2%d, mat2, 1e-12, "add sparse")
 
-      call d2%add_sparse(s1, d3, fact1=3.0, fact2=2.0)
-      mat3 = 3*mat2 + 2*mat1
+      ! d3 <- fact1*s1 + fact2*d2
+      call add(s1, d2, d3, fact1=2.0, fact2=3.0)
+      mat3 = 2*mat1 + 3*mat2
       call tc%assert_eq(d3%d, mat3, 1e-12, "add sparse3")
     end block
 
@@ -364,12 +367,12 @@ contains
       mat1 = d1%d
 
       ! add band
-      call d1%add_band(b, fact=2.0)
+      call add(b, d1, fact=2.0)
       mat1 = mat1 + 2*mat_b
       call tc%assert_eq(d1%d, mat1, 1e-12, "add band")
 
-      call d1%add_band(b, d2, fact1=3.0, fact2=2.0)
-      mat2 = 3*mat1 + 2*mat_b
+      call add(b, d1, d2, fact1=2.0, fact2=3.0)
+      mat2 = 2*mat_b + 3*mat1
       call tc%assert_eq(d2%d, mat2, 1e-12, "add band3")
     end block
 
