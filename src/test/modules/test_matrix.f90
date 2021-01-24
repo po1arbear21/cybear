@@ -21,6 +21,9 @@ module test_matrix_m
 
     module subroutine test_triang()
     end subroutine
+
+    module subroutine test_arith()
+    end subroutine
   end interface
 
 contains
@@ -31,6 +34,7 @@ contains
     call test_sparse()
     call test_triang()
     call test_block()
+    call test_arith()
   end subroutine
 
 end module

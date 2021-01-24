@@ -713,48 +713,6 @@ contains
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3: ja")
     end block
 
-    ! from_diag
-    block
-      integer              :: i
-      integer, parameter   :: n = 10
-      real,    allocatable :: x(:), y(:), y_exp(:), diag(:)
-      type(sparse_real)    :: S
-
-      diag = [(real(i)*2.3456, i = 1, n)]
-      call S%from_diag(diag)
-
-      allocate (x(n), y(n), y_exp(n))
-      do i = 1, n
-        x    = 0
-        x(i) = 1
-        y_exp    = 0
-        y_exp(i) = diag(i)
-        call S%mul_vec(x, y)
-        call tc%assert_eq(y_exp, y, 1e-12, "from_diag")
-      end do
-    end block
-
-    ! to_diag
-    block
-      real                      :: d_exp(4), d(4)
-      type(sparse_real), target :: S
-
-      call get_empty_matrix(S)
-      d_exp = [0,0,0,0]
-      call S%to_diag(d)
-      call tc%assert_eq(d_exp, d, 0.0, "to_diag")
-
-      call get_test_matrix(S)
-      d_exp = [1,4,1,5]
-      call S%to_diag(d)
-      call tc%assert_eq(d_exp, d, 1e-12, "to_diag")
-
-      call get_test_matrix2(S)
-      d_exp = [0,2,0,0]
-      call S%to_diag(d)
-      call tc%assert_eq(d_exp, d, 1e-12, "to_diag")
-    end block
-
     ! zero
     block
       integer, parameter   :: n = 3

@@ -4,7 +4,7 @@ submodule(test_matrix_m) test_dense_m
 
 contains
 
-  module subroutine test_dense
+  module subroutine test_dense()
     type(test_case) :: tc
     print "(A)", "test_dense"
     call tc%init("dense")

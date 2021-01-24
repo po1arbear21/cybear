@@ -20,6 +20,13 @@
 #define ADD_SPARSE2          CONCAT(add_sparse2,T)
 #define ADD_SPARSE3          CONCAT(add_sparse3,T)
 
+#define DIAG_ARR_BAND        CONCAT(diag_arr_band,T)
+#define DIAG_ARR_DENSE       CONCAT(diag_arr_dense,T)
+#define DIAG_ARR_SPARSE      CONCAT(diag_arr_sparse,T)
+#define DIAG_BAND_ARR        CONCAT(diag_band_arr,T)
+#define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
+#define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
+
 ! fixme needs testing
 module subroutine ADD_BAND2(b1, b2, fact)
   !! Add two band matrices.
@@ -535,6 +542,118 @@ module subroutine ADD_SPARSE3(s1, s2, s3, fact1, fact2)
   call add(s2, s3, fact = fact2)
 end subroutine
 
+! fixme add testing
+module subroutine DIAG_ARR_BAND(arr_in, b_out)
+  !! creates a quadratic diagonal matrix given the diagonals as an array.
+
+  TT,              intent(in)  :: arr_in(:)
+    !! diagonal elements of matrix
+  type(BAND_TYPE), intent(out) :: b_out
+    !! dense output matrix
+
+  call b_out%init(size(arr_in), 0, d0=reshape(arr_in, [1, size(arr_in)]))
+end subroutine
+
+module subroutine DIAG_ARR_DENSE(arr_in, d_out)
+  !! creates a quadratic diagonal matrix given the diagonals as an array.
+
+  TT,               intent(in)  :: arr_in(:)
+    !! diagonal elements of matrix
+  type(DENSE_TYPE), intent(out) :: d_out
+    !! dense output matrix
+
+  integer :: i
+
+  call d_out%init(size(arr_in))
+  do i = 1, size(arr_in)
+    d_out%d(i,i) = arr_in(i)
+  end do
+end subroutine
+
+module subroutine DIAG_ARR_SPARSE(arr_in, s_out)
+  !! creates a quadratic diagonal matrix given the diagonals as an array.
+
+  TT,                intent(in)  :: arr_in(:)
+    !! diagonal elements of matrix
+  type(SPARSE_TYPE), intent(out) :: s_out
+    !! sparse output matrix
+
+  integer :: i, n
+
+  n = size(arr_in)
+  call s_out%init(n)
+
+  s_out%a  = arr_in
+  s_out%ia = [(int(i, kind = SPARSE_IDX), i = 1, n+1)]
+  s_out%ja = [(    i,                     i = 1, n  )]
+end subroutine
+
+! fixme add testing
+module subroutine DIAG_BAND_ARR(b_in, arr_out)
+  !! extract main diagonal of a band matrix
+
+  type(BAND_TYPE), intent(in)  :: b_in
+    !! band input matrix
+  TT,              intent(out) :: arr_out(:)
+    !! diagonal elements of matrix
+
+  arr_out = b_in%d(0,:)
+end subroutine
+
+module subroutine DIAG_DENSE_ARR(d_in, arr_out)
+  !! extract main diagonal of a dense matrix
+
+  type(DENSE_TYPE), intent(in)  :: d_in
+    !! dense input matrix
+  TT,               intent(out) :: arr_out(:)
+    !! diagonal elements of matrix
+
+  integer :: i, n
+
+  n = min(d_in%nrows, d_in%ncols)
+  ASSERT(n == size(arr_out))
+
+  arr_out = [(d_in%d(i,i), i = 1, n)]
+end subroutine
+
+module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
+  !! extract main diagonal of a sparse matrix
+
+  type(SPARSE_TYPE), intent(in)  :: s_in
+    !! sparse input matrix
+  TT,                intent(out) :: arr_out(:)
+    !! diagonal elements of matrix
+
+  integer             :: i, n
+  integer(SPARSE_IDX) :: j
+
+  n = min(s_in%nrows, s_in%ncols)
+  ASSERT(n == size(arr_out))
+
+  ! empty matrix => zero diagonal
+  if (s_in%is_empty()) then
+    arr_out = 0
+    return
+  end if
+
+  !$omp parallel do   &
+  !$omp default(none) &
+  !$omp private(i,j)  &
+  !$omp shared(n,arr_out,s_in)
+  do i = 1, n
+    ! get value closest to main diagonal
+    j = s_in%ia(i) + (bin_search(s_in%ja(s_in%ia(i):s_in%ia(i+1)-1), i) - 1)
+
+    ! output value only, if found exactly
+    if (s_in%ja(j) == i) then
+      arr_out(i) = s_in%a(j)
+    else
+      arr_out(i) = 0
+    end if
+  end do
+  !$omp end parallel do
+end subroutine
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -560,3 +679,10 @@ end subroutine
 #undef ADD_SPARSE_DENSE2
 #undef ADD_SPARSE2
 #undef ADD_SPARSE3
+
+#undef DIAG_ARR_BAND
+#undef DIAG_ARR_DENSE
+#undef DIAG_ARR_SPARSE
+#undef DIAG_BAND_ARR
+#undef DIAG_DENSE_ARR
+#undef DIAG_SPARSE_ARR

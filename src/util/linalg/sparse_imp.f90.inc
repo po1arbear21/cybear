@@ -39,8 +39,6 @@
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_INPUT         CONCAT3(sparse,T,input)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
-#define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
-#define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 #define SPARSE_IS_EMPTY      CONCAT3(sparse,T,is_empty)
 #define SPARSE_EYE           CONCAT3(sparse,eye,T)
@@ -1047,66 +1045,6 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine SPARSE_FROM_DIAG(this, diag)
-  !! creates a quadratic diagonal matrix given the diagonals as an array.
-
-  class(SPARSE_TYPE), intent(out) :: this
-    !! sparse diagonal matrix
-  TT,                 intent(in)  :: diag(:)
-    !! diagonal array
-
-  integer :: i, n
-
-  n = size(diag)
-
-  call this%init(n)
-  allocate (this%ia(n+1), this%ja(n), this%a(n))
-
-  this%a = diag
-  do i = 1, n
-    this%ia(i) = int(i, kind = SPARSE_IDX)
-    this%ja(i) = i
-  end do
-  this%ia(n+1) = n+1
-end subroutine
-
-subroutine SPARSE_TO_DIAG(this, diag)
-  !! extract main diagonal of a sparse matrix
-
-  class(SPARSE_TYPE), intent(in)  :: this
-  TT                , intent(out) :: diag(:)
-    !! diagonal elements of matrix
-
-  integer             :: i, n
-  integer(SPARSE_IDX) :: j
-
-  n = min(this%nrows, this%ncols)
-  ASSERT(n == size(diag))
-
-  ! empty matrix => zero diagonal
-  if (this%is_empty()) then
-    diag = 0
-    return
-  end if
-
-  !$omp parallel do   &
-  !$omp default(none) &
-  !$omp private(i,j)  &
-  !$omp shared(n,diag,this)
-  do i = 1, n
-    ! get value closest to main diagonal
-    j = this%ia(i) + (bin_search(this%ja(this%ia(i):this%ia(i+1)-1), i) - 1)
-
-    ! output value only, if found exactly
-    if (this%ja(j) == i) then
-      diag(i) = this%a(j)
-    else
-      diag(i) = 0
-    end if
-  end do
-  !$omp end parallel do
-end subroutine
-
 function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   !! computes number of non-zero elements
 
@@ -1598,8 +1536,6 @@ end subroutine
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_INPUT
 #undef SPARSE_OUTPUT
-#undef SPARSE_FROM_DIAG
-#undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
 #undef SPARSE_IS_EMPTY
 #undef SPARSE_EYE

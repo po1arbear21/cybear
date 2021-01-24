@@ -70,6 +70,7 @@ module matrix_m
   public :: block_ptr_cmplx
 
   public add
+  public diag
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1

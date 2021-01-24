@@ -73,8 +73,6 @@
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
 #define SPARSE_INPUT         CONCAT3(sparse,T,input)
 #define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
-#define SPARSE_FROM_DIAG     CONCAT3(sparse,T,from_diag)
-#define SPARSE_TO_DIAG       CONCAT3(sparse,T,to_diag)
 #define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
 #define SPARSE_IS_EMPTY      CONCAT3(sparse,T,is_empty)
 
@@ -197,6 +195,13 @@
 #define ADD_SPARSE2          CONCAT(add_sparse2,T)
 #define ADD_SPARSE3          CONCAT(add_sparse3,T)
 
+#define DIAG_ARR_BAND        CONCAT(diag_arr_band,T)
+#define DIAG_ARR_DENSE       CONCAT(diag_arr_dense,T)
+#define DIAG_ARR_SPARSE      CONCAT(diag_arr_sparse,T)
+#define DIAG_BAND_ARR        CONCAT(diag_band_arr,T)
+#define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
+#define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
+
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
   !! Can be extended if more specialized matrices are needed besides the built-in types.
@@ -304,8 +309,6 @@ contains
   procedure :: mul_sparse    => SPARSE_MUL_SPARSE
   procedure :: input         => SPARSE_INPUT
   procedure :: output        => SPARSE_OUTPUT
-  procedure :: from_diag     => SPARSE_FROM_DIAG
-  procedure :: to_diag       => SPARSE_TO_DIAG
   procedure :: nnz           => SPARSE_NNZ
   procedure :: is_empty      => SPARSE_IS_EMPTY
 end type
@@ -620,7 +623,7 @@ interface
   end subroutine
 end interface
 
-! submodule matrix_arith interfaces
+! add: submodule matrix_arith interfaces
 interface
 
   module subroutine ADD_BAND2(b1, b2, fact)
@@ -709,6 +712,7 @@ interface
 
 end interface
 
+! add: generic interface
 interface add
   module procedure :: ADD_BAND2
   module procedure :: ADD_BAND3
@@ -722,6 +726,51 @@ interface add
   module procedure :: ADD_SPARSE_DENSE2
   module procedure :: ADD_SPARSE2
   module procedure :: ADD_SPARSE3
+end interface
+
+! diag: submodule matrix_arith interfaces
+interface
+
+  module subroutine DIAG_ARR_BAND(arr_in, b_out)
+    TT,              intent(in)  :: arr_in(:)
+    type(BAND_TYPE), intent(out) :: b_out
+  end subroutine
+
+  module subroutine DIAG_ARR_DENSE(arr_in, d_out)
+    TT,               intent(in)  :: arr_in(:)
+    type(DENSE_TYPE), intent(out) :: d_out
+  end subroutine
+
+  module subroutine DIAG_ARR_SPARSE(arr_in, s_out)
+    TT,                intent(in)  :: arr_in(:)
+    type(SPARSE_TYPE), intent(out) :: s_out
+  end subroutine
+
+  module subroutine DIAG_BAND_ARR(b_in, arr_out)
+    type(BAND_TYPE), intent(in)  :: b_in
+    TT,              intent(out) :: arr_out(:)
+  end subroutine
+
+  module subroutine DIAG_DENSE_ARR(d_in, arr_out)
+    type(DENSE_TYPE), intent(in)  :: d_in
+    TT,               intent(out) :: arr_out(:)
+  end subroutine
+
+  module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
+    type(SPARSE_TYPE), intent(in)  :: s_in
+    TT,                intent(out) :: arr_out(:)
+  end subroutine
+
+end interface
+
+! diag: generic interface
+interface diag
+  module procedure :: DIAG_ARR_BAND
+  module procedure :: DIAG_ARR_DENSE
+  module procedure :: DIAG_ARR_SPARSE
+  module procedure :: DIAG_BAND_ARR
+  module procedure :: DIAG_DENSE_ARR
+  module procedure :: DIAG_SPARSE_ARR
 end interface
 
 #undef T
@@ -796,8 +845,6 @@ end interface
 #undef SPARSE_MUL_SPARSE
 #undef SPARSE_INPUT
 #undef SPARSE_OUTPUT
-#undef SPARSE_FROM_DIAG
-#undef SPARSE_TO_DIAG
 #undef SPARSE_NNZ
 #undef SPARSE_IS_EMPTY
 
@@ -910,3 +957,10 @@ end interface
 #undef ADD_SPARSE_DENSE2
 #undef ADD_SPARSE2
 #undef ADD_SPARSE3
+
+#undef DIAG_ARR_BAND
+#undef DIAG_ARR_DENSE
+#undef DIAG_ARR_SPARSE
+#undef DIAG_BAND_ARR
+#undef DIAG_DENSE_ARR
+#undef DIAG_SPARSE_ARR
