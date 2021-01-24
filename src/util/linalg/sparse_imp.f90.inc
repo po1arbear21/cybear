@@ -1459,10 +1459,10 @@ subroutine SPBUILD_SAVE(this)
   integer(SPARSE_IDX) :: k
 
   ! reset sparse matrix. needed in case it has old values
-  call this%sp%reset
+  call this%sp%reset()
 
   ! sort column indices
-  call this%sort
+  call this%sort()
 
   ! get total number of elements
   k = 0

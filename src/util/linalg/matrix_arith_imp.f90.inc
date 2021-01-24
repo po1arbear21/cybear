@@ -6,6 +6,7 @@
 #define BAND_TYPE            CONCAT(band,T)
 #define DENSE_TYPE           CONCAT(dense,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
 
 #define ADD_BAND2            CONCAT(add_band2,T)
 #define ADD_BAND3            CONCAT(add_band3,T)
@@ -26,6 +27,8 @@
 #define DIAG_BAND_ARR        CONCAT(diag_band_arr,T)
 #define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
 #define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
+
+#define ROW_APPROX_SPARSE    CONCAT(row_approx_sparse,T)
 
 ! fixme needs testing
 module subroutine ADD_BAND2(b1, b2, fact)
@@ -654,6 +657,48 @@ module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
   !$omp end parallel do
 end subroutine
 
+! fixme needs testing for complex case
+module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
+  !! take row-wise approximation of matrix:
+  !!
+  !!      s2_ij = { 0,        if |s1_ij| <  thres * |s1_ii|
+  !!              { s1_ij,    else
+
+  real,              intent(in)          :: thres
+    !! relative threshold
+  type(SPARSE_TYPE), intent(in),  target :: s1
+    !! sparse input matrix
+  type(SPARSE_TYPE), intent(out), target :: s2
+    !! sparse output matrix
+
+  integer            :: i, j, j0
+  type(SPBUILD_TYPE) :: sb
+
+  ! load data from s1
+  call sb%init(s1)
+
+  ! apply threshold to each row
+  do i = 1, s1%nrows
+    ! find diagonal index j0, i.e. sb%cols(j0) == i
+    j0 = BIN_SEARCH(sb%cols(i)%d(1:sb%cols(i)%n), i)
+
+    ! did we find diagonal index? if not keep all of rows elements
+    if (j0 /= i) cycle
+
+    ! apply threshold
+    do j = 1, sb%vals(i)%n
+      if (abs(sb%vals(i)%d(j)) < thres * abs(sb%vals(i)%d(j0))) sb%filled(i)%d(j) = .false.
+    end do
+  end do
+
+  ! save values in sb into s2
+  call s2%init(s1%nrows, ncols=s1%ncols)
+  sb%sp => s2
+  call sb%save()
+end subroutine
+
+! fixme implement row_approx for band/dense
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -666,6 +711,7 @@ end subroutine
 #undef BAND_TYPE
 #undef DENSE_TYPE
 #undef SPARSE_TYPE
+#undef SPBUILD_TYPE
 
 #undef ADD_BAND2
 #undef ADD_BAND3
@@ -686,3 +732,5 @@ end subroutine
 #undef DIAG_BAND_ARR
 #undef DIAG_DENSE_ARR
 #undef DIAG_SPARSE_ARR
+
+#undef ROW_APPROX_SPARSE

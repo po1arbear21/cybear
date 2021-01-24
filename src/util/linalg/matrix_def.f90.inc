@@ -202,6 +202,8 @@
 #define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
 #define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
 
+#define ROW_APPROX_SPARSE    CONCAT(row_approx_sparse,T)
+
 type, abstract :: MATRIX_TYPE
   !! Base type for matrices.
   !! Can be extended if more specialized matrices are needed besides the built-in types.
@@ -773,6 +775,20 @@ interface diag
   module procedure :: DIAG_SPARSE_ARR
 end interface
 
+! row_approx: submodule matrix_arith interfaces
+interface
+  module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
+    real,              intent(in)          :: thres
+    type(SPARSE_TYPE), intent(in),  target :: s1
+    type(SPARSE_TYPE), intent(out), target :: s2
+  end subroutine
+end interface
+
+! row_approx: generic interface
+interface row_approx
+  module procedure :: ROW_APPROX_SPARSE
+end interface
+
 #undef T
 #undef TT
 #undef TCMPLX
@@ -964,3 +980,5 @@ end interface
 #undef DIAG_BAND_ARR
 #undef DIAG_DENSE_ARR
 #undef DIAG_SPARSE_ARR
+
+#undef ROW_APPROX_SPARSE

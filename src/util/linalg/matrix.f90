@@ -71,6 +71,7 @@ module matrix_m
 
   public add
   public diag
+  public row_approx
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1

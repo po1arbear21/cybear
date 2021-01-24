@@ -11,6 +11,7 @@ contains
 
     ! fixme test interface `add` here. currently it is included in matrix tests: sub_test_dense, etc.
     call test_diag(tc)
+    call test_row_approx(tc)
 
     call tc%finish()
   end subroutine
@@ -18,7 +19,7 @@ contains
   subroutine test_diag(tc)
     !! tests procedures: matrix -> diagonal array and vice versa.
     !!
-    !! marix:
+    !! matrix:
     !!  real: [1 2 3 4]         complex: [1+2i 3+4i 5+6i 7+8i]
     !!        [5 6 7 8]                  [9    1+3i 5+7i 9+1i]
     !!        [9 0 1 2]                  [4+7i   4i 8+2i 7+2i]
@@ -123,6 +124,55 @@ contains
       call tc%assert_eq([(i, i=1,4)], s_c%ia,       "diag: array -> sparse complex: ia")
       call tc%assert_eq([(i, i=1,3)], s_c%ja,       "diag: array -> sparse complex: ja")
     end block
+  end subroutine
+
+  subroutine test_row_approx(tc)
+    !! tests procedure: row_approx
+
+    type(test_case), intent(inout) :: tc
+
+    ! test: sparse_real
+    !   input matrix:                   [ 10    2  -3 4]
+    !                                   [ 15  -20   7 1]
+    !                                   [-19    0  10 2]
+    !
+    !   expected result for thres=0.25: [ 10    0  -3 4]
+    !                                   [ 15  -20   7 0]
+    !                                   [-19    0  10 0]
+    block
+      integer                   :: i
+      real                      :: x(4), y(3), d_in(3,4), d_out(3,4)
+      type(sparse_real), target :: s_in, s_out
+      type(spbuild_real)        :: sb
+
+      ! expected in/output
+      d_in  = reshape([ 10,   2, -3, 4, &
+        &               15, -20,  7, 1, &
+        &              -19,   0, 10, 2  ], [3, 4], order=[2, 1])
+      d_out = reshape([ 10,   0, -3, 4, &
+        &               15, -20,  7, 0, &
+        &              -19,   0, 10, 0  ], [3, 4], order=[2, 1])
+
+      ! build sparse in
+      call s_in%init(3, ncols=4)
+      call sb%init(s_in)
+      do i = 1, 3
+        call sb%set_row(i, d_in(i,:))
+      end do
+      call sb%save()
+
+      ! apply approximation
+      call row_approx(0.25, s_in, s_out)
+
+      ! check s_out == d_out by matrix multiplication with unit vectors (result should be columns of d_out)
+      do i = 1, 4
+        x    = 0
+        x(i) = 1
+        call s_out%mul_vec(x, y)
+        call tc%assert_eq(d_out(:,i), y, 1e-12, "row_approx: sparse")
+      end do
+    end block
+
   end subroutine
 
 end submodule
