@@ -683,7 +683,7 @@ module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
     j0 = BIN_SEARCH(sb%cols(i)%d(1:sb%cols(i)%n), i)
 
     ! did we find diagonal index? if not keep all of rows elements
-    if (j0 /= i) cycle
+    if (sb%cols(i)%d(j0) /= i) cycle
 
     ! apply threshold
     do j = 1, sb%vals(i)%n
