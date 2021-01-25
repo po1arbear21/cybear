@@ -625,8 +625,7 @@ interface
   end subroutine
 end interface
 
-! add: submodule matrix_arith interfaces
-interface
+interface add
 
   module subroutine ADD_BAND2(b1, b2, fact)
     type(BAND_TYPE), intent(in)    :: b1
@@ -714,24 +713,7 @@ interface
 
 end interface
 
-! add: generic interface
-interface add
-  module procedure :: ADD_BAND2
-  module procedure :: ADD_BAND3
-  module procedure :: ADD_BAND_DENSE
-  module procedure :: ADD_BAND_DENSE2
-  module procedure :: ADD_BAND_SPARSE
-  module procedure :: ADD_BAND_SPARSE2
-  module procedure :: ADD_DENSE2
-  module procedure :: ADD_DENSE3
-  module procedure :: ADD_SPARSE_DENSE
-  module procedure :: ADD_SPARSE_DENSE2
-  module procedure :: ADD_SPARSE2
-  module procedure :: ADD_SPARSE3
-end interface
-
-! diag: submodule matrix_arith interfaces
-interface
+interface diag
 
   module subroutine DIAG_ARR_BAND(arr_in, b_out)
     TT,              intent(in)  :: arr_in(:)
@@ -765,28 +747,12 @@ interface
 
 end interface
 
-! diag: generic interface
-interface diag
-  module procedure :: DIAG_ARR_BAND
-  module procedure :: DIAG_ARR_DENSE
-  module procedure :: DIAG_ARR_SPARSE
-  module procedure :: DIAG_BAND_ARR
-  module procedure :: DIAG_DENSE_ARR
-  module procedure :: DIAG_SPARSE_ARR
-end interface
-
-! row_approx: submodule matrix_arith interfaces
-interface
+interface row_approx
   module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
     real,              intent(in)          :: thres
     type(SPARSE_TYPE), intent(in),  target :: s1
     type(SPARSE_TYPE), intent(out), target :: s2
   end subroutine
-end interface
-
-! row_approx: generic interface
-interface row_approx
-  module procedure :: ROW_APPROX_SPARSE
 end interface
 
 #undef T
