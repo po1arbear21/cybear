@@ -115,13 +115,13 @@ contains
       ! array -> sparse real
       call diag(exp_arr_r, s_r)
       call tc%assert_eq(exp_arr_r,    s_r%a, 1e-12, "diag: array -> sparse real: a" )
-      call tc%assert_eq([(i, i=1,4)], s_r%ia,       "diag: array -> sparse real: ia")
+      call tc%assert_eq([(i, i=1,4)], int(s_r%ia),  "diag: array -> sparse real: ia")
       call tc%assert_eq([(i, i=1,3)], s_r%ja,       "diag: array -> sparse real: ja")
 
       ! array -> sparse complex
       call diag(exp_arr_c, s_c)
       call tc%assert_eq(exp_arr_c,    s_c%a, 1e-12, "diag: array -> sparse complex: a" )
-      call tc%assert_eq([(i, i=1,4)], s_c%ia,       "diag: array -> sparse complex: ia")
+      call tc%assert_eq([(i, i=1,4)], int(s_c%ia),  "diag: array -> sparse complex: ia")
       call tc%assert_eq([(i, i=1,3)], s_c%ja,       "diag: array -> sparse complex: ja")
     end block
   end subroutine

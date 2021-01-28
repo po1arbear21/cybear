@@ -2,6 +2,7 @@
 
 module input_m
   use error_m
+  use iso_fortran_env, only: int32, int64
   use normalization_m
   use vector_m
   implicit none
@@ -17,21 +18,21 @@ module input_m
   integer, parameter :: INPUT_NUM_TYPES    = 4
 
   type input_var
-    character(:), allocatable :: name
+    character(:),   allocatable :: name
       !! Variable name
-    integer                   :: type
+    integer                     :: type
       !! Variable type
-    integer                   :: size
+    integer                     :: size
       !! Size of variable, 1 means scalar, > 1 means array
-    integer,      allocatable :: int_data(:)
+    integer(int64), allocatable :: int_data(:)
       !! integer data
-    real,         allocatable :: real_data(:)
+    real,           allocatable :: real_data(:)
       !! real data
-    type(string), allocatable :: str_data(:)
+    type(string),   allocatable :: str_data(:)
       !! string data
-    logical,      allocatable :: logic_data(:)
+    logical,        allocatable :: logic_data(:)
       !! logical data
-    character(:), allocatable :: unit
+    character(:),   allocatable :: unit
       !! Physical unit token (for real variables)
   contains
     procedure :: init => input_var_init
@@ -72,10 +73,14 @@ module input_m
     procedure :: parse_line => input_file_parse_line
     procedure :: load_csv   => input_file_load_csv
 
-    procedure :: input_file_get_int
-    procedure :: input_file_get_int_arr
-    procedure :: input_file_get_name_int
-    procedure :: input_file_get_name_int_arr
+    procedure :: input_file_get_int32
+    procedure :: input_file_get_int32_arr
+    procedure :: input_file_get_name_int32
+    procedure :: input_file_get_name_int32_arr
+    procedure :: input_file_get_int64
+    procedure :: input_file_get_int64_arr
+    procedure :: input_file_get_name_int64
+    procedure :: input_file_get_name_int64_arr
     procedure :: input_file_get_real
     procedure :: input_file_get_real_arr
     procedure :: input_file_get_name_real
@@ -92,10 +97,14 @@ module input_m
     procedure, public :: init         => input_file_init
     procedure, public :: get_section  => input_file_get_section
     procedure, public :: get_sections => input_file_get_sections
-    generic,   public :: get          => input_file_get_int,             &
-      &                                  input_file_get_int_arr,         &
-      &                                  input_file_get_name_int,        &
-      &                                  input_file_get_name_int_arr,    &
+    generic,   public :: get          => input_file_get_int32,           &
+      &                                  input_file_get_int32_arr,       &
+      &                                  input_file_get_name_int32,      &
+      &                                  input_file_get_name_int32_arr,  &
+      &                                  input_file_get_int64,           &
+      &                                  input_file_get_int64_arr,       &
+      &                                  input_file_get_name_int64,      &
+      &                                  input_file_get_name_int64_arr,  &
       &                                  input_file_get_real,            &
       &                                  input_file_get_real_arr,        &
       &                                  input_file_get_name_real,       &
@@ -972,14 +981,147 @@ contains
     allocate (section_ids(sv%n), source = sv%d(1:sv%n))
   end subroutine
 
-  subroutine input_file_get_int(this, section_id, name, value, status)
+  subroutine input_file_get_int32(this, section_id, name, value, status)
     !! get scalar integer value
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
     character(*),      intent(in)  :: name
       !! variable name
-    integer,           intent(out) :: value
+    integer(int32),    intent(out) :: value
+      !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
+            value = int(var%int_data(1), kind = int32)
+            if (present(status)) status = .true.
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    if (present(status)) then
+      status = .false.
+    else
+      print "(A)", name
+      call program_error("variable '"//name//"' not found")
+    end if
+  end subroutine
+
+  subroutine input_file_get_int32_arr(this, section_id, name, values, status)
+    !! get array of integers
+    class(input_file),           intent(in)  :: this
+    integer,                     intent(in)  :: section_id
+      !! section index
+    character(*),                intent(in)  :: name
+      !! variable name
+    integer(int32), allocatable, intent(out) :: values(:)
+      !! output values
+    logical, optional,           intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
+
+    ! local variables
+    integer :: i
+
+    associate (sect => this%sections%d(section_id))
+      do i = 1, sect%vars%n
+        associate (var => sect%vars%d(i))
+          if (var%name == name) then
+            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
+            allocate (values(size(var%int_data)), source = int(var%int_data, kind = int32))
+            if (present(status)) status = .true.
+            return
+          end if
+        end associate
+      end do
+    end associate
+
+    if (present(status)) then
+      status = .false.
+    else
+      print "(A)", name
+      call program_error("variable '"//name//"' not found")
+    end if
+  end subroutine
+
+  subroutine input_file_get_name_int32(this, section_name, name, value, status)
+    !! get scalar integer value, provide section name instead of index
+    class(input_file), intent(in)  :: this
+    character(*),      intent(in)  :: section_name
+      !! section name
+    character(*),      intent(in)  :: name
+      !! variable name
+    integer(int32),    intent(out) :: value
+      !! output value
+    logical, optional, intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
+
+    ! local variables
+    integer :: section_id, st
+
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
+      end if
+    else
+      call this%get_section(section_name, section_id)
+    end if
+
+    ! get value
+    call this%get(section_id, name, value, status = status)
+  end subroutine
+
+  subroutine input_file_get_name_int32_arr(this, section_name, name, values, status)
+    !! get array of integers, provide section name instead of index
+    class(input_file),           intent(in)  :: this
+    character(*),                intent(in)  :: section_name
+      !! section name
+    character(*),                intent(in)  :: name
+      !! variable name
+    integer(int32), allocatable, intent(out) :: values(:)
+      !! output values
+    logical, optional,           intent(out) :: status
+      !! optional output if name was found (if not present: error if not found)
+
+    ! local variables
+    integer :: section_id, st
+
+    ! get section
+    if (present(status)) then
+      call this%get_section(section_name, section_id, status = st)
+      if (st /= 0) then
+        status = .false.
+        return
+      end if
+    else
+      call this%get_section(section_name, section_id)
+    end if
+
+    ! get value
+    call this%get(section_id, name, values, status = status)
+  end subroutine
+
+  subroutine input_file_get_int64(this, section_id, name, value, status)
+    !! get scalar integer value
+    class(input_file), intent(in)  :: this
+    integer,           intent(in)  :: section_id
+      !! section index
+    character(*),      intent(in)  :: name
+      !! variable name
+    integer(int64),    intent(out) :: value
       !! output value
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
@@ -1009,16 +1151,16 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_int_arr(this, section_id, name, values, status)
+  subroutine input_file_get_int64_arr(this, section_id, name, values, status)
     !! get array of integers
-    class(input_file),    intent(in)  :: this
-    integer,              intent(in)  :: section_id
+    class(input_file),           intent(in)  :: this
+    integer,                     intent(in)  :: section_id
       !! section index
-    character(*),         intent(in)  :: name
+    character(*),                intent(in)  :: name
       !! variable name
-    integer, allocatable, intent(out) :: values(:)
+    integer(int64), allocatable, intent(out) :: values(:)
       !! output values
-    logical, optional,    intent(out) :: status
+    logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables
@@ -1045,14 +1187,14 @@ contains
     end if
   end subroutine
 
-  subroutine input_file_get_name_int(this, section_name, name, value, status)
+  subroutine input_file_get_name_int64(this, section_name, name, value, status)
     !! get scalar integer value, provide section name instead of index
     class(input_file), intent(in)  :: this
     character(*),      intent(in)  :: section_name
       !! section name
     character(*),      intent(in)  :: name
       !! variable name
-    integer,           intent(out) :: value
+    integer(int64),    intent(out) :: value
       !! output value
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
@@ -1075,16 +1217,16 @@ contains
     call this%get(section_id, name, value, status = status)
   end subroutine
 
-  subroutine input_file_get_name_int_arr(this, section_name, name, values, status)
+  subroutine input_file_get_name_int64_arr(this, section_name, name, values, status)
     !! get array of integers, provide section name instead of index
-    class(input_file),    intent(in)  :: this
-    character(*),         intent(in)  :: section_name
+    class(input_file),           intent(in)  :: this
+    character(*),                intent(in)  :: section_name
       !! section name
-    character(*),         intent(in)  :: name
+    character(*),                intent(in)  :: name
       !! variable name
-    integer, allocatable, intent(out) :: values(:)
+    integer(int64), allocatable, intent(out) :: values(:)
       !! output values
-    logical, optional,    intent(out) :: status
+    logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
     ! local variables

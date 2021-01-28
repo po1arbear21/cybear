@@ -53,29 +53,54 @@ contains
       call f%get("volt", "VS", r_arr)
     end block
 
-    ! integers
+    ! 32 bit integers
     block
-      integer              :: i
-      integer, allocatable :: i_arr(:)
-      integer, allocatable :: sid(:)
+      integer(int32)              :: i
+      integer(int32), allocatable :: i_arr(:)
+      integer,        allocatable :: sid(:)
 
       ! check get_name_int
       call f%get("grid", "Nx", i)
-      call tc%assert_eq(100, i, "get_name_int")
+      call tc%assert_eq(100, int(i), "get_name_int")
 
       ! check get_name_int_arr
       call f%get("grid", "idx", i_arr)
-      call tc%assert_eq([2, 4, 3, 2, 2, -1], i_arr, "get_name_int_arr")
+      call tc%assert_eq([2, 4, 3, 2, 2, -1], int(i_arr), "get_name_int_arr")
 
       ! check get_int
       call f%get_sections("grid", sid)
       call f%get(sid(1), "Nx", i)
-      call tc%assert_eq(100, i, "get_int")
+      call tc%assert_eq(100, int(i), "get_int")
 
       ! check get_int_arr
       call f%get_sections("grid", sid)
       call f%get(sid(1), "idx", i_arr)
-      call tc%assert_eq([2, 4, 3, 2, 2, -1], i_arr, "get_int_arr")
+      call tc%assert_eq([2, 4, 3, 2, 2, -1], int(i_arr), "get_int_arr")
+    end block
+
+    ! 64 bit integers
+    block
+      integer(int64)              :: i
+      integer(int64), allocatable :: i_arr(:)
+      integer,        allocatable :: sid(:)
+
+      ! check get_name_int
+      call f%get("grid", "Nx", i)
+      call tc%assert_eq(100, int(i), "get_name_int")
+
+      ! check get_name_int_arr
+      call f%get("grid", "idx", i_arr)
+      call tc%assert_eq([2, 4, 3, 2, 2, -1], int(i_arr), "get_name_int_arr")
+
+      ! check get_int
+      call f%get_sections("grid", sid)
+      call f%get(sid(1), "Nx", i)
+      call tc%assert_eq(100, int(i), "get_int")
+
+      ! check get_int_arr
+      call f%get_sections("grid", sid)
+      call f%get(sid(1), "idx", i_arr)
+      call tc%assert_eq([2, 4, 3, 2, 2, -1], int(i_arr), "get_int_arr")
     end block
 
     ! strings
