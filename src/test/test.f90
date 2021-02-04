@@ -30,7 +30,7 @@ program test
   use test_schur_m
   use test_plotmtv_m
   use test_util_m
-
+  use test_grid_m
   implicit none
 
   call test_gmres
@@ -63,5 +63,6 @@ program test
   call test_schur
   call test_plotmtv
   call test_util
+  call test_grid
 
 end program
