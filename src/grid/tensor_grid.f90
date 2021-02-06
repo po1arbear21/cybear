@@ -1,4 +1,7 @@
+#include "../util/macro.f90.inc"
+
 module tensor_grid_m
+  use error_m
   use grid_m
   implicit none
 
@@ -13,6 +16,8 @@ module tensor_grid_m
     procedure :: get_edge    => tensor_grid_get_edge
     procedure :: get_face    => tensor_grid_get_face
     procedure :: get_cell    => tensor_grid_get_cell
+    procedure :: get_surf    => tensor_grid_get_surf
+    procedure :: get_vol     => tensor_grid_get_vol
   end type
 
 contains
@@ -62,23 +67,41 @@ contains
     this%g = g
   end subroutine
 
-  subroutine tensor_grid_get_idx_bnd(this, idx_type, dir, idx_bnd)
+  subroutine tensor_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
     !! get grid index bounds
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx_type
-      !! grid index type (e.g. IDX_VERTEX)
-    integer,            intent(in)  :: dir
-      !! index of direction (only used for IDX_EDGE and IDX_FACE; range = 1:idx_dim)
+      !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,            intent(in)  :: idx_dir
+      !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,            intent(out) :: idx_bnd(:)
-      !! output upper bound for each index (1:idx_dim)
+      !! output upper bound for each index (idx_dim)
 
-    integer :: i, j0, j1
+    integer :: i, j0, j1, rdir
+
+    ASSERT((((idx_type == IDX_VERTEX) .or. (idx_type == IDX_CELL)) .and. (idx_dir == 0)) \
+      .or. (((idx_type == IDX_EDGE) .or. (idx_type == IDX_FACE)) .and. ((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))))
+    ASSERT(size(idx_bnd) == this%idx_dim)
 
     j1 = 0
     do i = 1, size(this%g)
       j0 = j1 + 1
       j1 = j1 + this%g(i)%p%idx_dim
-      call this%g(i)%p%get_idx_bnd(idx_type, dir-j0+1, idx_bnd(j0:j1))
+
+      if ((idx_type == IDX_EDGE) .or. (idx_type == IDX_FACE)) then
+        rdir = idx_dir - j0 + 1 ! relative direction
+        if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
+          if (idx_type == IDX_EDGE) then
+            call this%g(i)%p%get_idx_bnd(IDX_VERTEX, 0, idx_bnd(j0:j1))
+          else ! idx_type == IDX_FACE
+            call this%g(i)%p%get_idx_bnd(IDX_CELL, 0, idx_bnd(j0:j1))
+          end if
+        else
+          call this%g(i)%p%get_idx_bnd(idx_type, rdir, idx_bnd(j0:j1))
+        end if
+      else
+        call this%g(i)%p%get_idx_bnd(idx_type, 0, idx_bnd(j0:j1))
+      end if
     end do
   end subroutine
 
@@ -88,9 +111,12 @@ contains
     integer,            intent(in)  :: idx(:)
       !! vertex indices
     real,               intent(out) :: p(:)
-      !! output vertex coordinates (1:dim)
+      !! output vertex coordinates (dim)
 
     integer :: i, i0, i1, j0, j1
+
+    ASSERT(size(idx) == this%idx_dim)
+    ASSERT(size(p  ) == this%dim    )
 
     i1 = 0
     j1 = 0
@@ -103,17 +129,21 @@ contains
     end do
   end subroutine
 
-  subroutine tensor_grid_get_edge(this, idx, dir, p)
+  subroutine tensor_grid_get_edge(this, idx, idx_dir, p)
     !! get edge coordinates from grid indices
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx(:)
       !! edge indices
-    integer,            intent(in)  :: dir
+    integer,            intent(in)  :: idx_dir
       !! edge direction
     real,               intent(out) :: p(:,:)
-      !! output edge coordinates (1:dim x 1:2)
+      !! output edge coordinates (dim x 2)
 
-    integer :: i, i0, i1, j0, j1
+    integer :: i, i0, i1, j0, j1, rdir
+
+    ASSERT(size(idx) == this%idx_dim)
+    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
+    ASSERT(size(p  ) == this%dim    )
 
     i1 = 0
     j1 = 0
@@ -122,21 +152,75 @@ contains
       i1 = i1 + this%g(i)%p%dim
       j0 = j1 + 1
       j1 = j1 + this%g(i)%p%idx_dim
-      call this%g(i)%p%get_edge(idx(j0:j1), dir-j0+1, p(i0:i1,1:2))
+
+      ! relative direction for i-th grid
+      rdir = idx_dir - j0 + 1
+
+      ! get coordinates
+      if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
+        call this%g(i)%p%get_vertex(idx(j0:j1), p(i0:i1,1))
+        p(i0:i1,2) = p(i0:i1,1)
+      else
+        call this%g(i)%p%get_edge(idx(j0:j1), rdir, p(i0:i1,1:2))
+      end if
     end do
   end subroutine
 
-  subroutine tensor_grid_get_face(this, idx, dir, p)
+  subroutine tensor_grid_get_face(this, idx, idx_dir, p)
     !! get face coordinates from grid indices
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx(:)
       !! face indices
-    integer,            intent(in)  :: dir
+    integer,            intent(in)  :: idx_dir
       !! face direction
     real,               intent(out) :: p(:,:)
-      !! output face coordinates (1:dim x 1:face_dim(dir))
+      !! output face coordinates (dim x face_dim(idx_dir))
 
-    ! FIXME
+    integer :: i, j, k, l, m, n, c, i0, i1, j0, j1, rdir
+    real    :: tmp(this%dim,this%face_dim(idx_dir))
+
+    ASSERT(size(idx) == this%idx_dim)
+    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
+    ASSERT(size(p,1) == this%dim)
+    ASSERT(size(p,2) == this%face_dim(idx_dir))
+
+    ! tensor product point counter
+    c = 1
+
+    i1 = 0
+    j1 = 0
+    do i = 1, size(this%g)
+      i0 = i1 + 1
+      i1 = i1 + this%g(i)%p%dim
+      j0 = j1 + 1
+      j1 = j1 + this%g(i)%p%idx_dim
+
+      ! relative direction for i-th grid
+      rdir = idx_dir - j0 + 1
+
+      ! get face or cell points for i-th grid
+      if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
+        n = this%g(i)%p%cell_dim
+        call this%g(i)%p%get_cell(idx(j0:j1), tmp(i0:i1,1:n))
+      else
+        n = this%g(i)%p%face_dim(rdir)
+        call this%g(i)%p%get_face(idx(j0:j1), rdir, tmp(i0:i1,1:n))
+      end if
+
+      ! tensor product of points (combine points from this grid with all points from other grids)
+      m = 0
+      do j = 1, this%face_dim(idx_dir)/(n*c) ! repeat until result points are filled
+        do k = 1, n                          ! loop over all n points from this grid
+          do l = 1, c                        ! replicate point c times
+            m = m + 1
+            p(i0:i1,m) = tmp(i0:i1,k)
+          end do
+        end do
+      end do
+
+      ! update counter
+      c = c * n
+    end do
   end subroutine
 
   subroutine tensor_grid_get_cell(this, idx, p)
@@ -145,9 +229,98 @@ contains
     integer,            intent(in)  :: idx(:)
       !! cell indices
     real,               intent(out) :: p(:,:)
-      !! output cell coordinates (1:dim x 1:cell_dim)
+      !! output cell coordinates (dim x cell_dim)
 
-    ! FIXME
+    integer :: i, j, k, l, m, n, c, i0, i1, j0, j1
+    real    :: tmp(this%dim,this%cell_dim)
+
+    ASSERT(size(idx) == this%idx_dim)
+    ASSERT(size(p,1) == this%dim)
+    ASSERT(size(p,2) == this%cell_dim)
+
+    ! tensor product point counter
+    c = 1
+
+    i1 = 0
+    j1 = 0
+    do i = 1, size(this%g)
+      i0 = i1 + 1
+      i1 = i1 + this%g(i)%p%dim
+      j0 = j1 + 1
+      j1 = j1 + this%g(i)%p%idx_dim
+
+      ! get cell for i-th grid
+      n = this%g(i)%p%cell_dim
+      call this%g(i)%p%get_cell(idx(j0:j1), tmp(i0:i1,1:n))
+
+      ! tensor product of points (combine points from this grid with all points from other grids)
+      m = 0
+      do j = 1, this%cell_dim/(n*c) ! repeat until result points are filled
+        do k = 1, n                 ! loop over all n points from this grid
+          do l = 1, c               ! replicate point c times
+            m = m + 1
+            p(i0:i1,m) = tmp(i0:i1,k)
+          end do
+        end do
+      end do
+
+      ! update counter
+      c = c * n
+    end do
   end subroutine
+
+  function tensor_grid_get_surf(this, idx, idx_dir) result(surf)
+    !! get size of face
+    class(tensor_grid), intent(in) :: this
+    integer,            intent(in) :: idx(:)
+      !! face indices
+    integer,            intent(in) :: idx_dir
+      !! face direction
+    real                           :: surf
+      !! return size of face
+
+    integer :: i, j0, j1, rdir
+
+    ASSERT(size(idx) == this%idx_dim)
+    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
+
+    surf = 1.0
+    j1   = 0
+    do i = 1, size(this%g)
+      j0 = j1 + 1
+      j1 = j1 + this%g(i)%p%idx_dim
+
+      ! relative direction for i-th grid
+      rdir = idx_dir - j0 + 1
+
+      ! get surf or vol for i-th grid
+      if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
+        surf = surf * this%g(i)%p%get_vol(idx(j0:j1))
+      else
+        surf = surf * this%g(i)%p%get_surf(idx(j0:j1), rdir)
+      end if
+    end do
+  end function
+
+  function tensor_grid_get_vol(this, idx) result(vol)
+    !! get cell volume
+    class(tensor_grid), intent(in) :: this
+    integer,            intent(in) :: idx(:)
+      !! cell indices
+    real                           :: vol
+      !! return cell volume
+
+    integer :: i, j0, j1
+
+    ASSERT(size(idx) == this%idx_dim)
+
+    vol = 1.0
+    j1  = 0
+    do i = 1, size(this%g)
+      j0 = j1 + 1
+      j1 = j1 + this%g(i)%p%idx_dim
+      vol = vol * this%g(i)%p%get_vol(idx(j0:j1))
+    end do
+  end function
 
 end module

@@ -1,0 +1,209 @@
+module jacobian_matrix_m
+  use matrix_m
+  use vselector_m
+  implicit none
+
+  type, extends(block_real) :: jacobian_matrix
+    !! jacobian in block matrix representation
+
+    type(vselector), pointer :: v1 => null()
+      !! result variable selector
+    type(vselector), pointer :: v2 => null()
+      !! dependency variable selector
+
+    logical, allocatable :: const(:,:)
+      !! const flags for each block (true means linear equation)
+    logical, allocatable :: zero(:,:)
+      !! zero flags for each block
+    logical, allocatable :: valmsk(:,:,:,:)
+      !! value masks for each block, false means entry is always zero, for all grid points (v1%nval x v2%nval x size(v1%tab) x size(v2%tab))
+  contains
+    procedure :: jacobian_matrix_init
+    generic   :: init     => jacobian_matrix_init
+    procedure :: destruct => jacobian_matrix_destruct
+    procedure :: add_jaco => jacobian_matrix_add_jaco
+    procedure :: mul_jaco => jacobian_matrix_mul_jaco
+  end type
+
+  type jacobian_matrix_ptr
+    !! pointer to jacobian matrix
+    type(jacobian_matrix), pointer :: p => null()
+  end type
+
+#define T jacobian_matrix_ptr
+#define TT type(jacobian_matrix_ptr)
+#include "../util/vector_def.f90.inc"
+
+contains
+
+#define T jacobian_matrix_ptr
+#define TT type(jacobian_matrix_ptr)
+#include "../util/vector_imp.f90.inc"
+
+  subroutine jacobian_matrix_init(this, v1, v2, const, zero, valmsk)
+    !! initialize jacobian matrix
+    class(jacobian_matrix),  intent(out) :: this
+    type(vselector), target, intent(in)  :: v1
+      !! result variable selector
+    type(vselector), target, intent(in)  :: v2
+      !! dependency variable selector
+    logical,                 intent(in)  :: const(:,:)
+      !! const flags (v1%ntab x v2%ntab)
+    logical,                 intent(in)  :: zero(:,:)
+      !! zero flags (v1%ntab x v2%ntab)
+    logical,                 intent(in)  :: valmsk(:,:,:,:)
+      !! value mask (v1%nval x v2%nval x v1%ntab x v2%ntab)
+
+    integer                    :: itab1, itab2
+    type(sparse_real), pointer :: s
+
+    ! init base
+    call this%block_real_init(v1%nvals, col_dim = v2%nvals)
+
+    ! save var selectors
+    this%v1 => v1
+    this%v2 => v2
+
+    ! allocate flags
+    this%const  = const
+    this%zero   = zero
+    this%valmsk = valmsk
+
+    ! init blocks as empty sparse matrices
+    do itab1 = 1, v1%ntab; do itab2 = 1, v2%ntab
+      call this%get(itab1, itab2, s)
+      call s%init(v1%nvals(itab1), v2%nvals(itab2))
+    end do; end do
+  end subroutine
+
+  subroutine jacobian_matrix_destruct(this)
+    !! destruct jacobian matrix
+    class(jacobian_matrix), intent(inout) :: this
+
+    nullify (this%v1, this%v2)
+    if (allocated(this%const )) deallocate (this%const )
+    if (allocated(this%zero  )) deallocate (this%zero  )
+    if (allocated(this%valmsk)) deallocate (this%valmsk)
+
+    ! destruct base
+    call this%block_real%destruct()
+  end subroutine
+
+  subroutine jacobian_matrix_add_jaco(this, jaco, reset, itab1, itab2)
+    !! add jacobian matrices to this matrix
+    class(jacobian_matrix),    intent(inout) :: this
+      !! result
+    type(jacobian_matrix_ptr), intent(in)    :: jaco(:)
+      !! matrices to add
+    logical, optional,         intent(in)    :: reset
+      !! reset result before adding (default: true)
+    integer, optional,         intent(in)    :: itab1
+      !! 1st table/block index
+    integer, optional,         intent(in)    :: itab2
+      !! 2nd table/block index
+
+    integer                    :: i, j, k, i0, i1, j0, j1
+    logical                    :: reset_
+    type(sparse_real), pointer :: s, s2
+
+    ! process optional arguments
+    reset_ = .true.
+    if (present(reset)) reset_ = reset
+    if (present(itab1)) then
+      i0 = itab1
+      i1 = itab1
+    else
+      i0 = 1
+      i1 = this%v1%ntab
+    end if
+    if (present(itab2)) then
+      j0 = itab2
+      j1 = itab2
+    else
+      j0 = 1
+      j1 = this%v2%ntab
+    end if
+
+    ! add matrices
+    do i = i0, i1; do j = j0, j1
+      ! get sparse matrix
+      call this%get(i, j, s)
+
+      ! reset matrix
+      if (reset_) call s%reset()
+
+      ! add matrices
+      do k = 1, size(jaco)
+        call jaco(k)%p%get(i, j, s2)
+        call add(s, s2)
+      end do
+    end do; end do
+  end subroutine
+
+  subroutine jacobian_matrix_mul_jaco(this, jaco1, jaco2, reset, itab1, itab2)
+    !! multiply two jacobians and add result to this
+    class(jacobian_matrix), target, intent(inout) :: this
+      !! result matrix
+    class(jacobian_matrix), target, intent(in)    :: jaco1
+      !! first jacobian
+    class(jacobian_matrix), target, intent(in)    :: jaco2
+      !! second jacobian
+    logical, optional,              intent(in)    :: reset
+      !! reset result first (default: true)
+    integer, optional,              intent(in)    :: itab1
+      !! 1st table/block index
+    integer, optional,              intent(in)    :: itab2
+      !! 2nd table/block index
+
+    integer                    :: i, j, k, i0, i1, j0, j1
+    logical                    :: reset_
+    type(sparse_real), pointer :: s, s1, s2
+    type(sparse_real)          :: tmp
+
+    ! process optional arguments
+    reset_ = .true.
+    if (present(reset)) reset_ = reset
+    if (present(itab1)) then
+      i0 = itab1
+      i1 = itab1
+    else
+      i0 = 1
+      i1 = this%v1%ntab
+    end if
+    if (present(itab2)) then
+      j0 = itab2
+      j1 = itab2
+    else
+      j0 = 1
+      j1 = this%v2%ntab
+    end if
+
+    ! multiply matrices
+    do i = i0, i1; do j = j0, j1
+      ! get sparse matrix
+      call this%get(i, j, s)
+
+      ! reset result
+      if (reset_) call s%reset()
+
+      ! loop over jaco1%ncols = jaco2%nrows
+      do k = 1, jaco1%v2%ntab
+        select type (p => jaco1%b(i,k)%p)
+          type is (sparse_real)
+            s1 => p
+          class default
+            s1 => null()
+        end select
+        select type (p => jaco2%b(k,j)%p)
+          type is (sparse_real)
+            s2 => p
+          class default
+            s2 => null()
+        end select
+        call s1%mul_sparse(s2, tmp)
+        call add(s, tmp)
+      end do
+    end do; end do
+  end subroutine
+
+end module

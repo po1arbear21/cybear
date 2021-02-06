@@ -2,9 +2,18 @@
 
 module test_grid_m
   use test_case_m
+  use equation_m
+  use res_equation_m
+  use jacobian_chain_m
+  use stencil_m
   use grid_m
+  use grid0D_m
   use grid1D_m
   use tensor_grid_m
+  use variable_m
+  use vselector_m
+  use jacobian_matrix_m
+  use esystem_m
   use math_m
   implicit none
 

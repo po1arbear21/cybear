@@ -5,21 +5,24 @@ module grid_table_m
   type grid_table
     !! table to select points from grid
 
+    character(:), allocatable :: name
+      !! grid table name
+
     class(grid), pointer :: g => null()
       !! pointer to grid
 
     integer             :: idx_type
       !! index type
-    integer             :: dir
-      !! direction index
-    type(grid_data_log) :: flags
+    integer             :: idx_dir
+      !! index direction for edges and faces
+    class(grid_data_log), allocatable :: flags
       !! include/exclude point (product idx_bnd)
 
     integer              :: n
       !! number of entries
     integer, allocatable :: flat2idx(:,:)
       !! flat index to grid indices (idx_dim x n)
-    type(grid_data_int)  :: idx2flat
+    class(grid_data_int), allocatable :: idx2flat
       !! grid indices to flat index
   contains
     procedure :: init       => grid_table_init
@@ -28,24 +31,32 @@ module grid_table_m
     procedure :: get_flat   => grid_table_get_flat
   end type
 
+  type grid_table_ptr
+    type(grid_table), pointer :: p => null()
+  end type
+
 contains
 
-  subroutine grid_table_init(this, g, idx_type, dir)
+  subroutine grid_table_init(this, name, g, idx_type, idx_dir)
     !! initialize grid table
     class(grid_table),   intent(out) :: this
+    character(*),        intent(in)  :: name
+      !! grid table name
     class(grid), target, intent(in)  :: g
     integer,             intent(in)  :: idx_type
-      !! grid index type
-    integer,             intent(in)  :: dir
-      !! index of direction (only used for IDX_EDGE and IDX_FACE; range = 1:idx_dim)
+      !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,             intent(in)  :: idx_dir
+      !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    ! save members
+    ! set members
+    this%name     =  name
     this%g        => g
-    this%idx_type = idx_type
-    this%dir      = dir
+    this%idx_type =  idx_type
+    this%idx_dir  =  idx_dir
 
     ! initialize flags data
-    call this%flags%init(g, idx_type, dir)
+    call allocate_grid_data(this%flags, g%idx_dim)
+    call this%flags%init(g, idx_type, idx_dir)
   end subroutine
 
   subroutine grid_table_init_final(this)
@@ -56,11 +67,12 @@ contains
 
     associate (idx_dim => this%g%idx_dim, idx_bnd => this%flags%idx_bnd)
       ! count number of entries
-      this%n = count(this%flags%data)
+      this%n = count(this%flags%get())
 
       ! allocate internal tables
       allocate (this%flat2idx(idx_dim, this%n), source = 0)
-      call this%idx2flat%init(this%g, this%idx_type, this%dir)
+      call allocate_grid_data(this%idx2flat, this%g%idx_dim)
+      call this%idx2flat%init(this%g, this%idx_type, this%idx_dir)
 
       ! collect indices for which flag is set
       idx = 1
@@ -83,26 +95,26 @@ contains
     end associate
   end subroutine
 
-  subroutine grid_table_get_idx(this, i, idx)
+  function grid_table_get_idx(this, i) result(idx)
     !! convert flat index to grid indices
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: i
       !! flat index
-    integer,           intent(out) :: idx(:)
+    integer                        :: idx(this%g%idx_dim)
       !! return grid indices
 
     idx = this%flat2idx(:,i)
-  end subroutine
+  end function
 
-  subroutine grid_table_get_flat(this, idx, i)
+  function grid_table_get_flat(this, idx) result(i)
     !! convert grid indices to flat index
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: idx(:)
       !! grid indices (idx_dim)
-    integer,           intent(out) :: i
+    integer                        :: i
       !! return flat index (0 if grid point is not part of table)
 
     i = this%idx2flat%get(idx)
-  end subroutine
+  end function
 
 end module
