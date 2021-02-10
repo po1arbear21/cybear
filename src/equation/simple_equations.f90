@@ -5,14 +5,14 @@ module simple_equations_m
   implicit none
 
   type, extends(equation) :: dummy_equation
-    !! dummy equation which provides values but does not change anything (e.g. stat values for dynamic sim)
+    !! dummy equation which provides values but does not change anything
   contains
     procedure :: init => dummy_equation_init
     procedure :: eval => dummy_equation_eval
   end type
 
   type, extends(equation) :: selector_equation
-    !! equation that selects variables from one or multiple var selectors (e.g. select [n] from [n; j])
+    !! equation that selects variables from one or multiple var selectors
 
     type(dirichlet_stencil) :: st
   contains

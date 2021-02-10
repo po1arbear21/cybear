@@ -140,7 +140,7 @@ contains
     end if
   end subroutine
 
-  subroutine res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, dtime)
+  function res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, dtime) result(jaco)
     !! allocate and initialize f/ft jacobian
     class(res_equation), intent(inout) :: this
     integer,             intent(in)    :: idep
@@ -155,6 +155,8 @@ contains
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
     logical, optional,   intent(in)    :: dtime
       !! false: init f; true: init ft (default: false)
+    type(jacobian), pointer            :: jaco
+      !! return pointer to newly created jacobian
 
     logical :: const_, dtime_
 
@@ -168,12 +170,14 @@ contains
         ASSERT(const_)
         allocate (this%jaco_ft(idep)%p)
         call this%jaco_ft(idep)%p%init(this%f, vdep, st, const = const_, zero = zero, valmsk = valmsk)
+        jaco => this%jaco_ft(idep)%p
       else
         allocate (this%jaco_f(idep)%p)
         call this%jaco_f(idep)%p%init(this%f, vdep, st, const = const_, zero = zero, valmsk = valmsk)
+        jaco => this%jaco_f(idep)%p
       end if
     end associate
-  end subroutine
+  end function
 
   subroutine res_equation_set_jaco_matr(this, const, nonconst)
     !! set jacobian matrices

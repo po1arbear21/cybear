@@ -4,8 +4,8 @@ module variable_m
   use grid_table_m
   implicit none
 
-  type, abstract :: variable
-    !! abstract base variable
+  type variable
+    !! base variable
 
     character(:), allocatable :: name
       !! name of variable

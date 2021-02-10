@@ -167,7 +167,7 @@ contains
     call move_alloc(jaco_tmp, this%jaco)
   end subroutine
 
-  subroutine equation_init_jaco(this, iprov, idep, st, const, zero, valmsk)
+  function equation_init_jaco(this, iprov, idep, st, const, zero, valmsk) result(jaco)
     !! allocate and initialize jacobian
     class(equation),   intent(inout) :: this
     integer,           intent(in)    :: iprov
@@ -182,13 +182,18 @@ contains
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
     logical, optional, intent(in)    :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
+    type(jacobian), pointer          :: jaco
+      !! return pointer to newly created jacobian
 
     associate (vprov => this%vprov%d(iprov)%p, vdep => this%vdep%d(idep)%p)
       ! allocate and init jacobian
       allocate (this%jaco(iprov,idep)%p)
       call this%jaco(iprov,idep)%p%init(vprov, vdep, st, const = const, zero = zero, valmsk = valmsk)
+
+      ! return pointer to jacobian
+      jaco => this%jaco(iprov,idep)%p
     end associate
-  end subroutine
+  end function
 
   subroutine equation_init_final(this)
     !! set constant parts of jacobian matrices

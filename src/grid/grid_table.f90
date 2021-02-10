@@ -18,9 +18,9 @@ module grid_table_m
     class(grid_data_log), allocatable :: flags
       !! include/exclude point (product idx_bnd)
 
-    integer              :: n
+    integer                           :: n
       !! number of entries
-    integer, allocatable :: flat2idx(:,:)
+    integer,              allocatable :: flat2idx(:,:)
       !! flat index to grid indices (idx_dim x n)
     class(grid_data_int), allocatable :: idx2flat
       !! grid indices to flat index

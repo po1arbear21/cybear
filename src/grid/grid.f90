@@ -22,14 +22,16 @@ module grid_m
     integer              :: cell_dim
       !! number of points per cell
   contains
-    procedure                             :: grid_init
-    procedure(grid_get_idx_bnd), deferred :: get_idx_bnd
-    procedure(grid_get_vertex),  deferred :: get_vertex
-    procedure(grid_get_edge),    deferred :: get_edge
-    procedure(grid_get_face),    deferred :: get_face
-    procedure(grid_get_cell),    deferred :: get_cell
-    procedure(grid_get_surf),    deferred :: get_surf
-    procedure(grid_get_vol),     deferred :: get_vol
+    procedure                                :: grid_init
+    procedure(grid_get_idx_bnd),    deferred :: get_idx_bnd
+    procedure(grid_get_vertex),     deferred :: get_vertex
+    procedure(grid_get_edge),       deferred :: get_edge
+    procedure(grid_get_face),       deferred :: get_face
+    procedure(grid_get_cell),       deferred :: get_cell
+    procedure(grid_get_surf),       deferred :: get_surf
+    procedure(grid_get_vol),        deferred :: get_vol
+    procedure(grid_get_max_neighb), deferred :: get_max_neighb
+    procedure(grid_get_neighb),     deferred :: get_neighb
   end type
 
   type grid_ptr
@@ -115,6 +117,42 @@ module grid_m
       real                    :: vol
         !! return cell volume
     end function
+
+    function grid_get_max_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir) result(max_neighb)
+      !! get maximal number of nearest neighbours
+      import grid
+      class(grid), intent(in) :: this
+      integer,     intent(in) :: idx1_type
+        !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+      integer,     intent(in) :: idx1_dir
+        !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+      integer,     intent(in) :: idx2_type
+        !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+      integer,     intent(in) :: idx2_dir
+        !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+      integer                 :: max_neighb
+        !! return maximal number of nearest neighbours
+    end function
+
+    subroutine grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
+      !! get nearest neighbours
+      import grid
+      class(grid), intent(in)  :: this
+      integer,     intent(in)  :: idx1_type
+        !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+      integer,     intent(in)  :: idx1_dir
+        !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+      integer,     intent(in)  :: idx2_type
+        !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+      integer,     intent(in)  :: idx2_dir
+        !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+      integer,     intent(in)  :: idx1(:)
+        !! first indices
+      integer,     intent(out) :: idx2(:,:)
+        !! output neighbour indices (idx_dim x max_neighb)
+      integer,     intent(out) :: nidx2
+        !! output actual number of neighburs
+    end subroutine
   end interface
 
 contains

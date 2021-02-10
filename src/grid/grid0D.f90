@@ -8,14 +8,16 @@ module grid0D_m
   type, extends(grid) :: grid0D
     !! 0D pseudo grid (consists of single vertex at x=0), can be used for global scalar variables
   contains
-    procedure :: init        => grid0D_init
-    procedure :: get_idx_bnd => grid0D_get_idx_bnd
-    procedure :: get_vertex  => grid0D_get_vertex
-    procedure :: get_edge    => grid0D_get_edge
-    procedure :: get_face    => grid0D_get_face
-    procedure :: get_cell    => grid0D_get_cell
-    procedure :: get_surf    => grid0D_get_surf
-    procedure :: get_vol     => grid0D_get_vol
+    procedure :: init           => grid0D_init
+    procedure :: get_idx_bnd    => grid0D_get_idx_bnd
+    procedure :: get_vertex     => grid0D_get_vertex
+    procedure :: get_edge       => grid0D_get_edge
+    procedure :: get_face       => grid0D_get_face
+    procedure :: get_cell       => grid0D_get_cell
+    procedure :: get_surf       => grid0D_get_surf
+    procedure :: get_vol        => grid0D_get_vol
+    procedure :: get_max_neighb => grid0D_get_max_neighb
+    procedure :: get_neighb     => grid0D_get_neighb
   end type
 
 contains
@@ -152,5 +154,57 @@ contains
 
     vol = 0
   end function
+
+  function grid0D_get_max_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir) result(max_neighb)
+    !! get maximal number of nearest neighbours
+    class(grid0D), intent(in) :: this
+    integer,       intent(in) :: idx1_type
+      !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,       intent(in) :: idx1_dir
+      !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,       intent(in) :: idx2_type
+      !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,       intent(in) :: idx2_dir
+      !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer                   :: max_neighb
+      !! return maximal number of nearest neighbours
+
+    IGNORE(this     )
+    IGNORE(idx1_type)
+    IGNORE(idx1_dir )
+    IGNORE(idx2_type)
+    IGNORE(idx2_dir )
+
+    max_neighb = 0
+  end function
+
+  subroutine grid0D_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
+    !! get nearest neighbours
+    class(grid0D), intent(in)  :: this
+    integer,       intent(in)  :: idx1_type
+      !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,       intent(in)  :: idx1_dir
+      !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,       intent(in)  :: idx2_type
+      !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,       intent(in)  :: idx2_dir
+      !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,       intent(in)  :: idx1(:)
+      !! first indices
+    integer,       intent(out) :: idx2(:,:)
+      !! output neighbour indices (idx_dim x max_neighb)
+    integer,       intent(out) :: nidx2
+      !! output actual number of neighburs
+
+    IGNORE(this     )
+    IGNORE(idx1_type)
+    IGNORE(idx1_dir )
+    IGNORE(idx2_type)
+    IGNORE(idx2_dir )
+    IGNORE(idx1     )
+
+    idx2  = 0
+    nidx2 = 0
+  end subroutine
 
 end module

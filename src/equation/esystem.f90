@@ -142,7 +142,7 @@ contains
 
   subroutine esystem_add_equation(this, e)
     !! add equation to system
-    class(esystem),       intent(inout) :: this
+    class(esystem),          intent(inout) :: this
     class(equation), target, intent(in)    :: e
       !! equation to add
 
@@ -320,11 +320,13 @@ contains
     end do
   end subroutine
 
-  subroutine esystem_eval(this, f)
+  subroutine esystem_eval(this, f, df)
     !! evaluate equations, get residuals and jacobians
-    class(esystem), intent(inout) :: this ! equation system
-    real,           intent(out)   :: f(:)
+    class(esystem),    intent(inout) :: this ! equation system
+    real,              intent(out)   :: f(:)
       !! output residuals
+    type(sparse_real), intent(out)   :: df
+      !! output jacobian
 
     integer :: i, j, k0, k1, ibl1, ibl2
 
@@ -338,12 +340,12 @@ contains
         call dag_e%e%eval()
         call dag_e%e%set_jaco_matr(const = .false., nonconst = .true.)
 
-        ! perform non-const graph operations for provided vars
+        ! perform non-const jacobian chain operations for provided vars
         do j = 1, size(dag_e%prov)
           call dag_e%prov(j)%p%eval()
         end do
 
-        ! perform non-const graph operations for residual
+        ! perform non-const jacobian chain operations for residuals
         if (associated(dag_e%res)) then
           call dag_e%res%eval()
         end if
@@ -365,6 +367,9 @@ contains
         f(k0:k1) = fn%v%get()
       end associate
     end do
+
+    ! output jacobian
+    call this%get_df(df)
   end subroutine
 
   function esystem_get_main_var(this, i) result(mv)
@@ -603,7 +608,7 @@ contains
         call v%print()
         do j = 1, v%ntab
           ibl = ibl + 1
-          print "(2I6)", this%i0(ibl), this%i1(ibl)
+          print "(I0,A,I0)", this%i0(ibl), " ", this%i1(ibl)
         end do
         print *
       end associate

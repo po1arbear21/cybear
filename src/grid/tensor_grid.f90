@@ -10,14 +10,16 @@ module tensor_grid_m
     type(grid_ptr), allocatable :: g(:)
       !! sub-grids
   contains
-    procedure :: init        => tensor_grid_init
-    procedure :: get_idx_bnd => tensor_grid_get_idx_bnd
-    procedure :: get_vertex  => tensor_grid_get_vertex
-    procedure :: get_edge    => tensor_grid_get_edge
-    procedure :: get_face    => tensor_grid_get_face
-    procedure :: get_cell    => tensor_grid_get_cell
-    procedure :: get_surf    => tensor_grid_get_surf
-    procedure :: get_vol     => tensor_grid_get_vol
+    procedure :: init           => tensor_grid_init
+    procedure :: get_idx_bnd    => tensor_grid_get_idx_bnd
+    procedure :: get_vertex     => tensor_grid_get_vertex
+    procedure :: get_edge       => tensor_grid_get_edge
+    procedure :: get_face       => tensor_grid_get_face
+    procedure :: get_cell       => tensor_grid_get_cell
+    procedure :: get_surf       => tensor_grid_get_surf
+    procedure :: get_vol        => tensor_grid_get_vol
+    procedure :: get_max_neighb => tensor_grid_get_max_neighb
+    procedure :: get_neighb     => tensor_grid_get_neighb
   end type
 
 contains
@@ -322,5 +324,46 @@ contains
       vol = vol * this%g(i)%p%get_vol(idx(j0:j1))
     end do
   end function
+
+  function tensor_grid_get_max_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir) result(max_neighb)
+    !! get maximal number of nearest neighbours
+    class(tensor_grid), intent(in) :: this
+    integer,            intent(in) :: idx1_type
+      !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,            intent(in) :: idx1_dir
+      !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,            intent(in) :: idx2_type
+      !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,            intent(in) :: idx2_dir
+      !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer                        :: max_neighb
+      !! return maximal number of nearest neighbours
+
+    ! FIXME
+    max_neighb = 0
+  end function
+
+  subroutine tensor_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
+    !! get nearest neighbours
+    class(tensor_grid), intent(in)  :: this
+    integer,            intent(in)  :: idx1_type
+      !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,            intent(in)  :: idx1_dir
+      !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,            intent(in)  :: idx2_type
+      !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,            intent(in)  :: idx2_dir
+      !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,            intent(in)  :: idx1(:)
+      !! first indices
+    integer,            intent(out) :: idx2(:,:)
+      !! output neighbour indices (idx_dim x max_neighb)
+    integer,            intent(out) :: nidx2
+      !! output actual number of neighbours
+
+    ! FIXME
+    idx2 = 0
+    nidx2 = 0
+  end subroutine
 
 end module

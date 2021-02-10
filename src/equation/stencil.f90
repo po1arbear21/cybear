@@ -1,6 +1,7 @@
 #include "../util/macro.f90.inc"
 
 module stencil_m
+  use grid_m
   implicit none
 
   type, abstract :: stencil
@@ -37,7 +38,23 @@ module stencil_m
     procedure :: get_dep => dirichlet_stencil_get_dep
   end type
 
-  ! TODO: nearest_neighbour_stencil
+  type, extends(stencil) :: near_neighb_stencil
+    !! nearest neighbours stencil
+    class(grid), pointer :: g => null()
+      !! grid this stencil is defined on
+
+    integer :: idx1_type
+      !! result index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer :: idx1_dir
+      !! result index direction for edges and faces
+    integer :: idx2_type
+      !! dependency index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer :: idx2_dir
+      !! dependency index direction for edges and faces
+  contains
+    procedure :: init    => near_neighb_stencil_init
+    procedure :: get_dep => near_neighb_stencil_get_dep
+  end type
 
 contains
 
@@ -73,6 +90,43 @@ contains
     ! simply copy indices
     idx2(:,1) = idx1
     ndep = 1
+  end subroutine
+
+  subroutine near_neighb_stencil_init(this, g, idx1_type, idx1_dir, idx2_type, idx2_dir)
+    !! initialize nearest neighbours stencil
+    class(near_neighb_stencil), intent(out) :: this
+    class(grid), target,        intent(in)  :: g
+      !! grid this stencil is defined on
+    integer,                    intent(in)  :: idx1_type
+      !! result index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,                    intent(in)  :: idx1_dir
+      !! result index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,                    intent(in)  :: idx2_type
+      !! dependency index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,                    intent(in)  :: idx2_dir
+      !! dependency index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+
+    call this%stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
+
+    ! set members
+    this%g => g
+    this%idx1_type = idx1_type
+    this%idx1_dir  = idx1_dir
+    this%idx2_type = idx2_type
+    this%idx2_dir  = idx2_dir
+  end subroutine
+
+  subroutine near_neighb_stencil_get_dep(this, idx1, idx2, ndep)
+    !! get list of dependency points
+    class(near_neighb_stencil), intent(in)  :: this
+    integer,                    intent(in)  :: idx1(:)
+      !! result indices (idx_dim1)
+    integer,                    intent(out) :: idx2(:,:)
+      !! output dependency indices (idx_dim2 x max_ndep)
+    integer,                    intent(out) :: ndep
+      !! output actual number of dependency points
+
+    call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, idx2, ndep)
   end subroutine
 
 end module
