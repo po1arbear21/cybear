@@ -182,7 +182,7 @@ contains
     ! E 2 3 2 1
     ! F 1 2 3 2
     ! C 2 1 2 3
-    integer, private, parameter :: n(4,4) = reshape([3, 2, 1, 2, 2, 3, 2, 1, 1, 2, 3, 2, 2, 1, 2, 3], [4, 4])
+    integer, parameter :: n(4,4) = reshape([3, 2, 1, 2, 2, 3, 2, 1, 1, 2, 3, 2, 2, 1, 2, 3], [4, 4])
 
     ASSERT((((idx1_type == IDX_VERTEX) .or. (idx1_type == IDX_CELL)) .and. (idx1_dir == 0)) \
       .or. (((idx1_type == IDX_EDGE  ) .or. (idx1_type == IDX_FACE)) .and. (idx1_dir == 1)))
