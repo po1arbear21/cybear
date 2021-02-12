@@ -99,44 +99,47 @@ contains
     do ival1 = 1, v1%nval
       ! loop over source var selectors
       do i = 1, size(v2)
-        block
-          logical :: valmsk(v1%nval,v2(i)%p%nval)
+        ! find variable in v2(i)%p%v
+        ival2 = -1
+        do j = 1, v2(i)%p%nval
+          if (associated(v1%v(ival1)%p, v2(i)%p%v(j)%p)) then
+            ival2 = j
+            exit
+          end if
+        end do
+        if (ival2 <= 0) cycle
 
-          ! find variable in v2(i)%p%v
-          ival2 = -1
-          do j = 1, v2(i)%p%nval
-            if (associated(v1%v(ival1)%p, v2(i)%p%v(j)%p)) then
-              ival2 = j
+        ! check tables
+        itab2 = -1
+        do itab1 = 1, v1%ntab
+          do j = 1, v2(i)%p%ntab
+            if (associated(v1%tab(itab1)%p, v2(i)%p%tab(j)%p)) then
+              itab2(itab1) = j
               exit
             end if
           end do
-          if (ival2 <= 0) cycle
+        end do
+        if (any(itab2 <= 0)) cycle
 
-          ! check tables
-          itab2 = -1
-          do itab1 = 1, v1%ntab
-            do j = 1, v2(i)%p%ntab
-              if (associated(v1%tab(itab1)%p, v2(i)%p%tab(j)%p)) then
-                itab2(itab1) = j
-                exit
-              end if
-            end do
-          end do
-          if (any(itab2 <= 0)) cycle
+        ! add dependency
+        call this%add_dep(v2(i)%p)
 
-          ! add dependency
-          call this%add_dep(v2(i)%p)
+        ! init+set jacobian
+        block
+          logical                 :: valmsk(v1%nval,v2(i)%p%nval)
+          type(jacobian), pointer :: jaco_ptr
 
-          ! init jacobian
           valmsk = .false.
           valmsk(ival1,ival2) = .true.
-          call this%init_jaco(1, this%vdep%n, st, const = .true., valmsk = valmsk)
+
+          ! init jacobian
+          jaco_ptr => this%init_jaco(1, this%vdep%n, st, const = .true., valmsk = valmsk)
 
           ! set jacobian entries
           do itab1 = 1, v1%ntab
             do j = 1, v1%tab(itab1)%p%n
               ! set derivative to 1
-              this%jaco(1,this%vdep%n)%p%d(itab1)%d(ival1,ival2,1,j) = 1.0
+              jaco_ptr%d(itab1)%d(ival1,ival2,1,j) = 1.0
             end do
           end do
         end block
