@@ -767,6 +767,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
 
   integer                          :: i, nthreads, ithread
   integer(SPARSE_IDX)              :: j, k, icol0, icol1, ncol
+  integer(int64)                   :: max_entries
   integer(SPARSE_IDX), allocatable :: ops(:)
   integer,             allocatable :: i1(:), col(:)
   logical                          :: sort_
@@ -794,7 +795,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
 
   ! work in parallel
   !$omp parallel default(none) &
-  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil) &
+  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil, max_entries) &
   !$omp shared(this, s2, s3, sort_, nthreads, i1, ops)
     !$omp single
       ! get actual number of threads
@@ -837,7 +838,8 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
 
     ! get upper limit on memory required
     j = ops(i1(ithread)) - ops(i1(ithread-1))
-    j = max(0, min(j, (i1(ithread) - i1(ithread-1)) * s2%ncols))
+    max_entries = (i1(ithread) - i1(ithread-1)) * s2%ncols
+    j = max(0, int(min(int(j, kind=int64), max_entries), kind=int32))
 
     ! allocate thread local memory
     allocate (col(j))
