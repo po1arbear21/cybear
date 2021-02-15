@@ -1,6 +1,13 @@
 module jacobian_chain_m
-  use jacobian_matrix_m
+
+  use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr
+
   implicit none
+
+  private
+  public jacobian_chain, jacobian_chain_ptr, vector_jacobian_chain_ptr
+  public jacobian_add_chain
+  public jacobian_mul_chain
 
   type, abstract :: jacobian_chain
     !! applies the chain-rule between jacobians (in matrix representation)

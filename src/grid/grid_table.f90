@@ -1,6 +1,12 @@
 module grid_table_m
-  use grid_data_m
+
+  use grid_m,      only: grid
+  use grid_data_m, only: grid_data_int, grid_data_log, allocate_grid_data
+
   implicit none
+
+  private
+  public grid_table, grid_table_ptr
 
   type grid_table
     !! table to select points from grid

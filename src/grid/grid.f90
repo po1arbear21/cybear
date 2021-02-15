@@ -4,6 +4,11 @@ module grid_m
   use error_m
   implicit none
 
+  private
+  public grid
+  public grid_ptr
+  public IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+
   ! grid index types
   integer, parameter :: IDX_VERTEX = 1
   integer, parameter :: IDX_EDGE   = 2

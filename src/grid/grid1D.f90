@@ -2,8 +2,11 @@
 
 module grid1D_m
   use error_m
-  use grid_m
+  use grid_m, only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   implicit none
+
+  private
+  public grid1D
 
   type, extends(grid) :: grid1D
     !! 1D grid

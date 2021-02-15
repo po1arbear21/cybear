@@ -1,7 +1,12 @@
 module jacobian_matrix_m
-  use matrix_m
-  use vselector_m
+
+  use matrix_m,    only: add, sparse_real, block_real
+  use vselector_m, only: vselector
+
   implicit none
+
+  private
+  public jacobian_matrix, jacobian_matrix_ptr, vector_jacobian_matrix_ptr
 
   type, extends(block_real) :: jacobian_matrix
     !! jacobian in block matrix representation

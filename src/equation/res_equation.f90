@@ -1,9 +1,18 @@
 #include "../util/macro.f90.inc"
 
 module res_equation_m
-  use equation_m
+
+  use equation_m,  only: equation, equation_set_jaco_matr, equation_add_dep, equation_reset, equation_destruct
   use error_m
+  use jacobian_m,  only: jacobian, jacobian_ptr
+  use stencil_m,   only: stencil_ptr
+  use variable_m,  only: variable_ptr
+  use vselector_m, only: vselector
+
   implicit none
+
+  private
+  public res_equation, res_equation_ptr, vector_res_equation_ptr
 
   type, abstract, extends(equation) :: res_equation
     !! residual equation (is solved, not eliminated)

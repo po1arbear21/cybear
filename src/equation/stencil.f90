@@ -1,8 +1,14 @@
 #include "../util/macro.f90.inc"
 
 module stencil_m
-  use grid_m
+
+  use grid_m, only: grid
+
   implicit none
+
+  private
+  public stencil, stencil_ptr
+  public dirichlet_stencil
 
   type, abstract :: stencil
     !! abstract stencil

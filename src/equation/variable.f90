@@ -1,8 +1,12 @@
 module variable_m
-  use grid_m
-  use grid_data_m
-  use grid_table_m
+
+  use grid_m,      only: grid
+  use grid_data_m, only: grid_data_real, allocate_grid_data
+
   implicit none
+
+  private
+  public variable, variable_ptr
 
   type variable
     !! base variable

@@ -1,8 +1,21 @@
+#include "../util/macro.f90.inc"
+
 module esystem_dag_m
-  use res_equation_m
-  use jacobian_chain_m
-  use vector_m
+
+  use equation_m,        only: equation
+  use error_m
+  use jacobian_chain_m,  only: jacobian_chain, jacobian_add_chain, jacobian_mul_chain, jacobian_chain_ptr, vector_jacobian_chain_ptr
+  use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr, vector_jacobian_matrix_ptr
+  use res_equation_m,    only: res_equation
+  use vector_m,          only: vector_int
+  use vselector_m,       only: vselector
+
   implicit none
+
+  private
+  public dag
+  public vector_dag_node_ptr
+  public NDSTATUS_DEP, NDSTATUS_PROV, NDSTATUS_MAIN, NDSTATUS_RES
 
   ! node status
   integer, parameter :: NDSTATUS_DEP   = 0 ! created as dependency (temporary)

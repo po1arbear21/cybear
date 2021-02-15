@@ -1,8 +1,17 @@
 #include "../util/macro.f90.inc"
 
 module simple_equations_m
-  use equation_m
+
+  use equation_m,  only: equation
+  use jacobian_m,  only: jacobian
+  use stencil_m,   only: stencil_ptr, dirichlet_stencil
+  use vselector_m, only: vselector, vselector_ptr
+
   implicit none
+
+  private
+  public    dummy_equation,    dummy_equation_ptr, vector_dummy_equation_ptr
+  public selector_equation, selector_equation_ptr, vector_selector_equation_ptr
 
   type, extends(equation) :: dummy_equation
     !! dummy equation which provides values but does not change anything

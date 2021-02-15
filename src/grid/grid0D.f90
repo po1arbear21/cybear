@@ -1,9 +1,14 @@
 #include "../util/macro.f90.inc"
 
 module grid0D_m
+
   use error_m
-  use grid_m
+  use grid_m, only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+
   implicit none
+
+  private
+  public grid0D
 
   type, extends(grid) :: grid0D
     !! 0D pseudo grid (consists of single vertex at x=0), can be used for global scalar variables

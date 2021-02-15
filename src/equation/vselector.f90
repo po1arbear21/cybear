@@ -1,9 +1,17 @@
 #include "../util/macro.f90.inc"
 
 module vselector_m
+
   use error_m
-  use variable_m
+  use grid_m,       only: grid
+  use grid_table_m, only: grid_table_ptr
+  use grid_data_m,  only: grid_data_int, allocate_grid_data
+  use variable_m,   only: variable_ptr
+
   implicit none
+
+  private
+  public vselector, vselector_ptr, vector_vselector_ptr
 
   type vselector
     !! variable selector: select data from one or more variables using one or more grid tables

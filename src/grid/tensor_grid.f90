@@ -1,9 +1,14 @@
 #include "../util/macro.f90.inc"
 
 module tensor_grid_m
+
   use error_m
-  use grid_m
+  use grid_m, only: grid, grid_ptr, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+
   implicit none
+
+  private
+  public tensor_grid
 
   type, extends(grid) :: tensor_grid
     !! Combination of multiple sub-grids by a tensor product
@@ -366,4 +371,4 @@ contains
     nidx2 = 0
   end subroutine
 
-end module
+end modul

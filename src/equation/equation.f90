@@ -1,6 +1,20 @@
+#include "../util/macro.f90.inc"
+
 module equation_m
-  use jacobian_m
+
+  use error_m
+  use jacobian_m,  only: jacobian, jacobian_ptr
+  use stencil_m,   only: stencil_ptr
+  use vselector_m, only: vselector, vselector_ptr, vector_vselector_ptr
+
   implicit none
+
+  private
+  public equation, equation_ptr
+  public equation_add_dep
+  public equation_destruct
+  public equation_reset
+  public equation_set_jaco_matr
 
   type, abstract :: equation
     !! abstract equation base

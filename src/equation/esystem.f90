@@ -1,9 +1,20 @@
+#include "../util/macro.f90.inc"
+
 module esystem_m
-  use array_m
-  use esystem_dag_m
-  use matrix_m
-  use simple_equations_m
+
+  use array_m,            only: array_int
+  use error_m
+  use equation_m,         only: equation
+  use esystem_dag_m,      only: dag, vector_dag_node_ptr, NDSTATUS_DEP
+  use matrix_m,           only: block_real, sparse_real, sparse_cmplx, spbuild_real
+  use res_equation_m,     only: res_equation
+  use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
+  use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
+
   implicit none
+
+  private
+  public esystem
 
   type esystem
     !! equation system

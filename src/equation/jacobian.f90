@@ -1,8 +1,15 @@
 module jacobian_m
-  use array_m
-  use jacobian_matrix_m
-  use stencil_m
+
+  use array_m,           only: array4_real
+  use jacobian_matrix_m, only: jacobian_matrix
+  use matrix_m,          only: sparse_ptr_real, spbuild_real
+  use stencil_m,         only: stencil_ptr
+  use vselector_m,       only: vselector
+
   implicit none
+
+  private
+  public jacobian, jacobian_ptr
 
   type jacobian
     !! jacobian structure to store derivatives
