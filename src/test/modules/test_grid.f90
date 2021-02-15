@@ -14,7 +14,8 @@ module test_grid_m
   use vselector_m
   use jacobian_matrix_m
   use esystem_m
-  use math_m
+  use math_m, only: logspace
+  use util_m, only: int2str
   implicit none
 
 contains
@@ -25,26 +26,229 @@ contains
     print "(A)", "test_grid"
     call tc%init("grid")
 
-    block
-      type(grid1D)      :: g
-      real              :: p(1)
-      real, allocatable :: x(:)
+    call test_grid1D()
 
-      x = linspace(0.0, 10.0, 101)
+    call tc%finish()
+
+  contains
+
+    subroutine test_grid1D()
+      integer, parameter :: nx=101
+      type(grid1D)       :: g
+      real, allocatable  :: x(:)
+
+      allocate (x(nx))                ! remove gfortran warning
+      x = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
 
       call g%init(x)
 
-      call g%get_vertex([  1], p)
-      call tc%assert_eq(x(1), p(1), 0.0, "grid1D: get_vertex 1")
-      call g%get_vertex([  5], p)
-      call tc%assert_eq(x(5), p(1), 0.0, "grid1D: get_vertex 2")
-      call g%get_vertex([ 43], p)
-      call tc%assert_eq(x(43), p(1), 0.0, "grid1D: get_vertex 3")
-      call g%get_vertex([101], p)
-      call tc%assert_eq(x(101), p(1), 0.0, "grid1D: get_vertex 4")
-    end block
+      ! testing attributes
+      call tc%assert_eq( 1,  g%dim,      "grid1D: dim")
+      call tc%assert_eq( 1,  g%idx_dim,  "grid1D: idx_dim")
+      call tc%assert_eq([1], g%face_dim, "grid1D: face_dim")
+      call tc%assert_eq( 2,  g%cell_dim, "grid1D: cell_dim")
+      call tc%assert_eq( x,  g%x, 0.0,   "grid1D: x")
 
-    call tc%finish()
+      ! testing get_idx_bnd
+      block
+        integer :: bnd(1)
+
+        call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
+        call tc%assert_eq(nx, bnd(1), "grid1D: idx_bnd: IDX_VERTEX")
+
+        call g%get_idx_bnd(IDX_EDGE, 1, bnd)
+        call tc%assert_eq(nx-1, bnd(1), "grid1D: idx_bnd: IDX_EDGE")
+
+        call g%get_idx_bnd(IDX_FACE, 1, bnd)
+        call tc%assert_eq(nx, bnd(1), "grid1D: idx_bnd: IDX_FACE")
+
+        call g%get_idx_bnd(IDX_CELL, 0, bnd)
+        call tc%assert_eq(nx-1, bnd(1), "grid1D: idx_bnd: IDX_CELL")
+      end block
+
+      ! get_vertex
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx]
+        integer            :: i, i0
+        real               :: p(1)
+
+        do i = 1, size(i_arr)
+          i0 = i_arr(i)
+          call g%get_vertex([ i0], p)
+          call tc%assert_eq(x(i0), p(1), 0.0, "grid1D: get_vertex "//int2str(i0))
+        end do
+      end block
+
+      ! get_edge
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]
+        integer            :: i, i0
+        real               :: p(1,2)
+
+        do i = 1, size(i_arr)
+          i0 = i_arr(i)
+          call g%get_edge([i0], 1, p)
+          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, "grid1D: get_edge "//int2str(i0))
+        end do
+      end block
+
+      ! get_face
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx]
+        integer            :: i, i0
+        real               :: p(1,1)
+
+        do i = 1, size(i_arr)
+          i0 = i_arr(i)
+          call g%get_face([i0], 1, p)
+          call tc%assert_eq(x(i0), p(1,1), 0.0, "grid1D: get_face "//int2str(i0))
+        end do
+      end block
+
+      ! get_cell
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]
+        integer            :: i, i0
+        real               :: p(1,2)
+
+        do i = 1, size(i_arr)
+          i0 = i_arr(i)
+          call g%get_cell([i0], p)
+          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, "grid1D: get_cell "//int2str(i0))
+        end do
+      end block
+
+      ! get_vol
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]
+        integer            :: i, i0
+        real               :: vol
+
+        do i = 1, size(i_arr)
+          i0  = i_arr(i)
+          vol = g%get_vol([i0])
+          call tc%assert_eq(x(i0+1)-x(i0), vol, 5e-16, "grid1D: get_vol "//int2str(i0))
+        end do
+      end block
+
+      ! get_max_neighb
+      call tc%assert_eq(3, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "grid1D: get_max_neighb V V")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "grid1D: get_max_neighb V E")
+      call tc%assert_eq(1, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "grid1D: get_max_neighb V F")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "grid1D: get_max_neighb V C")
+      call tc%assert_eq(3, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "grid1D: get_max_neighb E E")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "grid1D: get_max_neighb E F")
+      call tc%assert_eq(1, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "grid1D: get_max_neighb E C")
+      call tc%assert_eq(3, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "grid1D: get_max_neighb F F")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "grid1D: get_max_neighb F C")
+      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "grid1D: get_max_neighb C C")
+
+      ! get_neighb
+      block
+        integer :: nidx2, idx2(1,3)
+
+        associate (V => IDX_VERTEX, E => IDX_EDGE, F => IDX_FACE, C => IDX_CELL)
+          ! V(ix=1) -> V_neigh=?
+          call g%get_neighb(V, 0, V, 0, [1], idx2(:,:g%get_max_neighb(V, 0, V, 0)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb V V: n")
+          call tc%assert_eq([1, 2], idx2(1,:nidx2), "grid1D: get_neighb V V: v")
+
+          ! V(ix=1) -> E_neigh=?
+          call g%get_neighb(V, 0, E, 1, [1], idx2(:,:g%get_max_neighb(V, 0, E, 1)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb V E: n")
+          call tc%assert_eq([1], idx2(1,:nidx2), "grid1D: get_neighb V E: v")
+
+          ! V(ix=1) -> F_neigh=?
+          call g%get_neighb(V, 0, F, 1, [1], idx2(:,:g%get_max_neighb(V, 0, F, 1)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb V F: n")
+          call tc%assert_eq([1], idx2(1,:nidx2), "grid1D: get_neighb V F: v")
+
+          ! V(ix=1) -> C_neigh=?
+          call g%get_neighb(V, 0, C, 0, [1], idx2(:,:g%get_max_neighb(V, 0, C, 0)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb V C: n")
+          call tc%assert_eq([1], idx2(1,:nidx2), "grid1D: get_neighb V C: v")
+
+          ! E(ix=1) -> E_neigh=?
+          call g%get_neighb(E, 1, E, 1, [1], idx2(:,:g%get_max_neighb(E, 1, E, 1)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb E E: n")
+          call tc%assert_eq([1, 2], idx2(1,:nidx2), "grid1D: get_neighb E E: v")
+
+          ! E(ix=1) -> F_neigh=?
+          call g%get_neighb(E, 1, F, 1, [1], idx2(:,:g%get_max_neighb(E, 1, F, 1)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb E F: n")
+          call tc%assert_eq([1, 2], idx2(1,:nidx2), "grid1D: get_neighb E F: v")
+
+          ! E(ix=1) -> C_neigh=?
+          call g%get_neighb(E, 1, C, 0, [1], idx2(:,:g%get_max_neighb(E, 1, C, 0)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb E C: n")
+          call tc%assert_eq([1], idx2(1,:nidx2), "grid1D: get_neighb E C: v")
+
+          ! F(ix=1) -> F_neigh=?
+          call g%get_neighb(F, 1, F, 1, [1], idx2(:,:g%get_max_neighb(F, 1, F, 1)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb E F: n")
+          call tc%assert_eq([1, 2], idx2(1,:nidx2), "grid1D: get_neighb E F: v")
+
+          ! F(ix=1) -> C_neigh=?
+          call g%get_neighb(F, 1, C, 0, [1], idx2(:,:g%get_max_neighb(F, 1, C, 0)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb E C: n")
+          call tc%assert_eq([1], idx2(1,:nidx2), "grid1D: get_neighb E C: v")
+
+          ! C(ix=1) -> C_neigh=?
+          call g%get_neighb(C, 0, C, 0, [1], idx2(:,:g%get_max_neighb(C, 0, C, 0)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb E C: n")
+          call tc%assert_eq([1, 2], idx2(1,:nidx2), "grid1D: get_neighb E C: v")
+
+          ! V(ix=5) -> V_neigh=?
+          call g%get_neighb(V, 0, V, 0, [5], idx2(:,:g%get_max_neighb(V, 0, V, 0)), nidx2)
+          call tc%assert_eq(3,         nidx2,          "grid1D: get_neighb V V: n")
+          call tc%assert_eq([4, 5, 6], idx2(1,:nidx2), "grid1D: get_neighb V V: v")
+
+          ! V(ix=5) -> E_neigh=?
+          call g%get_neighb(V, 0, E, 1, [5], idx2(:,:g%get_max_neighb(V, 0, E, 1)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb V E: n")
+          call tc%assert_eq([4, 5], idx2(1,:nidx2), "grid1D: get_neighb V E: v")
+
+          ! V(ix=5) -> F_neigh=?
+          call g%get_neighb(V, 0, F, 1, [5], idx2(:,:g%get_max_neighb(V, 0, F, 1)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb V F: n")
+          call tc%assert_eq([5], idx2(1,:nidx2), "grid1D: get_neighb V F: v")
+
+          ! V(ix=5) -> C_neigh=?
+          call g%get_neighb(V, 0, C, 0, [5], idx2(:,:g%get_max_neighb(V, 0, C, 0)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb V C: n")
+          call tc%assert_eq([4, 5], idx2(1,:nidx2), "grid1D: get_neighb V C: v")
+
+          ! E(ix=5) -> E_neigh=?
+          call g%get_neighb(E, 1, E, 1, [5], idx2(:,:g%get_max_neighb(E, 1, E, 1)), nidx2)
+          call tc%assert_eq(3,         nidx2,          "grid1D: get_neighb E E: n")
+          call tc%assert_eq([4, 5, 6], idx2(1,:nidx2), "grid1D: get_neighb E E: v")
+
+          ! E(ix=5) -> F_neigh=?
+          call g%get_neighb(E, 1, F, 1, [5], idx2(:,:g%get_max_neighb(E, 1, F, 1)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb E F: n")
+          call tc%assert_eq([5, 6], idx2(1,:nidx2), "grid1D: get_neighb E F: v")
+
+          ! E(ix=5) -> C_neigh=?
+          call g%get_neighb(E, 1, C, 0, [5], idx2(:,:g%get_max_neighb(E, 1, C, 0)), nidx2)
+          call tc%assert_eq(1,   nidx2,          "grid1D: get_neighb E C: n")
+          call tc%assert_eq([5], idx2(1,:nidx2), "grid1D: get_neighb E C: v")
+
+          ! F(ix=5) -> F_neigh=?
+          call g%get_neighb(F, 1, F, 1, [5], idx2(:,:g%get_max_neighb(F, 1, F, 1)), nidx2)
+          call tc%assert_eq(3,         nidx2,          "grid1D: get_neighb F F: n")
+          call tc%assert_eq([4, 5, 6], idx2(1,:nidx2), "grid1D: get_neighb F F: v")
+
+          ! F(ix=5) -> C_neigh=?
+          call g%get_neighb(F, 1, C, 0, [5], idx2(:,:g%get_max_neighb(F, 1, C, 0)), nidx2)
+          call tc%assert_eq(2,      nidx2,          "grid1D: get_neighb F C: n")
+          call tc%assert_eq([4, 5], idx2(1,:nidx2), "grid1D: get_neighb F C: v")
+
+          ! C(ix=5) -> C_neigh=?
+          call g%get_neighb(C, 0, C, 0, [5], idx2(:,:g%get_max_neighb(C, 0, C, 0)), nidx2)
+          call tc%assert_eq(3,         nidx2,          "grid1D: get_neighb C C: n")
+          call tc%assert_eq([4, 5, 6], idx2(1,:nidx2), "grid1D: get_neighb C C: v")
+        end associate
+      end block
+    end subroutine
   end subroutine
-
 end module
