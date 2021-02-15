@@ -371,4 +371,4 @@ contains
     nidx2 = 0
   end subroutine
 
-end modul
+end module
