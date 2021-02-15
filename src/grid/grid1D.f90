@@ -192,6 +192,8 @@ contains
     ASSERT((((idx2_type == IDX_VERTEX) .or. (idx2_type == IDX_CELL)) .and. (idx2_dir == 0)) \
       .or. (((idx2_type == IDX_EDGE  ) .or. (idx2_type == IDX_FACE)) .and. (idx2_dir == 1)))
 
+    IGNORE(this)
+
     max_neighb = n(idx1_type,idx2_type)
   end function
 
@@ -218,12 +220,15 @@ contains
 
     integer :: max_neighb
 
+    ASSERT(size(idx1) == 1)
+    ASSERT(size(idx2, dim=1) == 1)
     ASSERT((((idx1_type == IDX_VERTEX) .or. (idx1_type == IDX_CELL)) .and. (idx1_dir == 0)) \
       .or. (((idx1_type == IDX_EDGE  ) .or. (idx1_type == IDX_FACE)) .and. (idx1_dir == 1)))
     ASSERT((((idx2_type == IDX_VERTEX) .or. (idx2_type == IDX_CELL)) .and. (idx2_dir == 0)) \
       .or. (((idx2_type == IDX_EDGE  ) .or. (idx2_type == IDX_FACE)) .and. (idx2_dir == 1)))
 
     max_neighb = this%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir)
+    ASSERT(size(idx2, dim=2) == max_neighb)
 
     select case (max_neighb)
       case (1)
