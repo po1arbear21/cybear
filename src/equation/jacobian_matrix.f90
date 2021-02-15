@@ -140,7 +140,7 @@ contains
       ! add matrices
       do k = 1, size(jaco)
         call jaco(k)%p%get(i, j, s2)
-        call add(s, s2)
+        call add(s2, s)
       end do
     end do; end do
   end subroutine
@@ -206,7 +206,7 @@ contains
             s2 => null()
         end select
         call s1%mul_sparse(s2, tmp)
-        call add(s, tmp)
+        call add(tmp, s)
       end do
     end do; end do
   end subroutine
