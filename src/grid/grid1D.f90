@@ -48,7 +48,7 @@ contains
     integer,       intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,       intent(out) :: idx_bnd(:)
-      !! output upper bound for each index (1)
+      !! output: upper bound for each index. size: (1)
 
     ASSERT(size(idx_bnd) == 1)
 
@@ -69,12 +69,12 @@ contains
   end subroutine
 
   subroutine grid1D_get_vertex(this, idx, p)
-    !! get vertex coordinates from grid indices
+    !! get single vertex: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! vertex indices
+      !! vertex' grid indices. size: (idx_dim)
     real,          intent(out) :: p(:)
-      !! output vertex coordinates (dim)
+      !! output: vertex' coordinates. size: (dim)
 
     ASSERT(size(idx) == 1)
     ASSERT(size(p  ) == 1)
@@ -83,14 +83,14 @@ contains
   end subroutine
 
   subroutine grid1D_get_edge(this, idx, idx_dir, p)
-    !! get edge coordinates from grid indices
+    !! get single edge: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! edge indices
+      !! edge's indices. size: (idx_dim)
     integer,       intent(in)  :: idx_dir
-      !! edge direction
+      !! edge's direction
     real,          intent(out) :: p(:,:)
-      !! output edge coordinates (dim x 2)
+      !! output: edge's coordinates. size: (dim, 2)
 
     ASSERT(size(idx) == 1)
     ASSERT(idx_dir   == 1)
@@ -101,14 +101,14 @@ contains
   end subroutine
 
   subroutine grid1D_get_face(this, idx, idx_dir, p)
-    !! get face coordinates from grid indices
+    !! get single face: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! face indices
+      !! face's indices. size: (idx_dim)
     integer,       intent(in)  :: idx_dir
-      !! face direction
+      !! face's direction
     real,          intent(out) :: p(:,:)
-      !! output face coordinates (dim x face_dim(idx_dir))
+      !! output: face's coordinates. size: (dim, face_dim(idx_dir))
 
     ASSERT(size(idx) == 1)
     ASSERT(idx_dir   == 1)
@@ -119,12 +119,12 @@ contains
   end subroutine
 
   subroutine grid1D_get_cell(this, idx, p)
-    !! get cell coordinates from grid indices
+    !! get single cell: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! cell indices
+      !! cell's indices. size: (idx_dim)
     real,          intent(out) :: p(:,:)
-      !! output cell coordinates (dim x cell_dim)
+      !! output: cell's coordinates. size: (dim, cell_dim)
 
     ASSERT(size(idx) == 1)
     ASSERT(size(p,1) == 1)
@@ -134,14 +134,14 @@ contains
   end subroutine
 
   function grid1D_get_surf(this, idx, idx_dir) result(surf)
-    !! get size of face
+    !! get single face's surface
     class(grid1D), intent(in) :: this
     integer,       intent(in) :: idx(:)
-      !! face indices
+      !! face's indices. size: (idx_dim)
     integer,       intent(in) :: idx_dir
-      !! face direction
+      !! face's direction
     real                      :: surf
-      !! return size of face
+      !! output: size of face
 
     ASSERT(size(idx) == 1)
     ASSERT(idx_dir   == 1)
@@ -154,10 +154,10 @@ contains
   end function
 
   function grid1D_get_vol(this, idx) result(vol)
-    !! get cell volume
+    !! get single cell's volume
     class(grid1D), intent(in) :: this
     integer,       intent(in) :: idx(:)
-      !! cell indices
+      !! cell's indices. size: (idx_dim)
     real                      :: vol
       !! return cell volume
 
@@ -197,6 +197,9 @@ contains
 
   subroutine grid1D_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
     !! get nearest neighbours
+    !!
+    !! output might not be fully set. consider boundary nodes which have fewer neighbours.
+    !!    idx2(:,nidx2+1:) will be empty.
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx1_type
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
@@ -207,11 +210,11 @@ contains
     integer,       intent(in)  :: idx2_dir
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,       intent(in)  :: idx1(:)
-      !! first indices
+      !! first's indices. size: (idx_dim)
     integer,       intent(out) :: idx2(:,:)
-      !! output neighbour indices (idx_dim x max_neighb)
+      !! output: neighbours' indices. size: (idx_dim, max_neighb)
     integer,       intent(out) :: nidx2
-      !! output actual number of neighburs
+      !! output: actual number of neighbours.
 
     integer :: max_neighb
 

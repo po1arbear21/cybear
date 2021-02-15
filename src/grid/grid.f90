@@ -54,71 +54,71 @@ module grid_m
       integer,     intent(in)  :: idx_dir
         !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
       integer,     intent(out) :: idx_bnd(:)
-        !! output upper bound for each index (idx_dim)
+        !! output: upper bound for each index. size: (1)
     end subroutine
 
     subroutine grid_get_vertex(this, idx, p)
-      !! get vertex coordinates from grid indices
+      !! get single vertex: from grid indices to coordinates
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! vertex indices
+        !! vertex' grid indices. size: (idx_dim)
       real,        intent(out) :: p(:)
-        !! output vertex coordinates (dim)
+        !! output: vertex' coordinates. size: (dim)
     end subroutine
 
     subroutine grid_get_edge(this, idx, idx_dir, p)
-      !! get edge coordinates from grid indices
+      !! get single edge: from grid indices to coordinates
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! edge indices
+        !! edge's indices. size: (idx_dim)
       integer,     intent(in)  :: idx_dir
-        !! edge direction
+        !! edge's direction
       real,        intent(out) :: p(:,:)
-        !! output edge coordinates (dim x 2)
+        !! output: edge's coordinates. size: (dim, 2)
     end subroutine
 
     subroutine grid_get_face(this, idx, idx_dir, p)
-      !! get face coordinates from grid indices
+      !! get single face: from grid indices to coordinates
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! face indices
+        !! face's indices. size: (idx_dim)
       integer,     intent(in)  :: idx_dir
-        !! face direction
+        !! face's direction
       real,        intent(out) :: p(:,:)
-        !! output face coordinates (dim x face_dim(idx_dir))
+        !! output: face's coordinates. size: (dim, face_dim(idx_dir))
     end subroutine
 
     subroutine grid_get_cell(this, idx, p)
-      !! get cell coordinates from grid indices
+      !! get single cell: from grid indices to coordinates
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! cell indices
+        !! cell's indices. size: (idx_dim)
       real,        intent(out) :: p(:,:)
-        !! output cell coordinates (dim x cell_dim)
+        !! output: cell's coordinates. size: (dim, cell_dim)
     end subroutine
 
     function grid_get_surf(this, idx, idx_dir) result(surf)
-      !! get size of face
+      !! get single face's surface
       import grid
       class(grid), intent(in) :: this
       integer,     intent(in) :: idx(:)
-        !! face indices
+        !! face's indices. size: (idx_dim)
       integer,     intent(in) :: idx_dir
-        !! face direction
+        !! face's direction
       real                    :: surf
-        !! return size of face
+        !! output: size of face
     end function
 
     function grid_get_vol(this, idx) result(vol)
-      !! get cell volume
+      !! get single cell's volume
       import grid
       class(grid), intent(in) :: this
       integer,     intent(in) :: idx(:)
-        !! cell indices
+        !! cell's indices. size: (idx_dim)
       real                    :: vol
         !! return cell volume
     end function
@@ -141,6 +141,9 @@ module grid_m
 
     subroutine grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
       !! get nearest neighbours
+      !!
+      !! output might not be fully set. consider boundary nodes which have fewer neighbours.
+      !!    idx2(:,nidx2+1:) will be empty.
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx1_type
