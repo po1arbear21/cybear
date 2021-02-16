@@ -28,6 +28,7 @@ module grid_m
       !! number of points per cell
   contains
     procedure                                :: grid_init
+    procedure                                :: idx_allowed => grid_idx_allowed
     procedure(grid_get_idx_bnd),    deferred :: get_idx_bnd
     procedure(grid_get_vertex),     deferred :: get_vertex
     procedure(grid_get_edge),       deferred :: get_edge
@@ -54,7 +55,7 @@ module grid_m
       integer,     intent(in)  :: idx_dir
         !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
       integer,     intent(out) :: idx_bnd(:)
-        !! output: upper bound for each index. size: (1)
+        !! output: upper bound for each index. size: (idx_dim)
     end subroutine
 
     subroutine grid_get_vertex(this, idx, p)
@@ -155,9 +156,9 @@ module grid_m
       integer,     intent(in)  :: idx2_dir
         !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
       integer,     intent(in)  :: idx1(:)
-        !! first indices
+        !! first indices. size: (idx_dim)
       integer,     intent(out) :: idx2(:,:)
-        !! output neighbour indices (idx_dim x max_neighb)
+        !! output neighbour indices. size: (idx_dim, max_neighb)
       integer,     intent(out) :: nidx2
         !! output actual number of neighburs
     end subroutine
@@ -188,5 +189,32 @@ contains
     this%face_dim = face_dim
     this%cell_dim = cell_dim
   end subroutine
+
+  logical function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
+    !! checks if given indices are allowed for grid.
+    class(grid), intent(in)           :: this
+    integer,     intent(in)           :: idx_type
+      !! index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,     intent(in)           :: idx_dir
+      !! index direction.
+    integer,     intent(in), optional :: idx(:)
+      !! index. size: (idx_dim)
+
+    integer :: idx_bnd(this%idx_dim)
+
+    if ((idx_type == IDX_VERTEX) .or. (idx_type == IDX_CELL)) then
+      allowed = (idx_dir == 0)
+
+    else if ((idx_type == IDX_EDGE  ) .or. (idx_type == IDX_FACE)) then
+      allowed = ((idx_dir > 0) .and. (idx_dir <= this%idx_dim))
+    end if
+
+    if (present(idx)) then
+      allowed = allowed .and. (size(idx) == this%idx_dim) .and. all(idx > 0)
+
+      call this%get_idx_bnd(idx_type, idx_dir, idx_bnd)
+      allowed = allowed .and. all(idx <= idx_bnd)
+    end if
+  end function
 
 end module

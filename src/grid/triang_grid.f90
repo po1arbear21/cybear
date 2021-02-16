@@ -208,7 +208,9 @@ contains
     integer,            intent(in)  :: idx_dir
       !! index direction for edges and faces. (must be 0 for IDX_VERTEX and IDX_CELL as always)
     integer,            intent(out) :: idx_bnd(:)
-      !! output: upper bound for each index. size: (1)
+      !! output: upper bound for each index. size: (idx_dim=1)
+
+    ASSERT(this%idx_allowed(idx_type, idx_dir))
 
     ASSERT(size(idx_bnd) == 1)
     IGNORE(idx_dir)
@@ -233,8 +235,8 @@ contains
     real,               intent(out) :: p(:)
       !! output: vertex' coordinates. size: (dim=2)
 
-    ASSERT(size(idx) == 1)
-    ASSERT(size(p  ) == 2)
+    ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
+    ASSERT(size(p) == 2)
 
     p = this%vert(:,idx(1))
   end subroutine
@@ -251,10 +253,9 @@ contains
 
     integer :: iv
 
-    ASSERT(size(idx)      == 1)
-    ASSERT(size(p, dim=1) == 2)
-    ASSERT(size(p, dim=2) == 2)
+    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
     IGNORE(idx_dir)
+    ASSERT(all(shape(p) == [2, 2]))
 
     do iv = 1, 2
       p(:,iv) = this%vert(:,this%edge2vert(iv,idx(1)))
@@ -284,6 +285,8 @@ contains
 
     integer :: iv
 
+    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    ASSERT(all(shape(p) == [2, 3]))
 
     do iv = 1, 3
       p(:,iv) = this%vert(:,this%cell2vert(iv,idx(1)))
@@ -302,7 +305,7 @@ contains
 
     real :: p(2,2)
 
-    ASSERT(size(idx) == 1)
+    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
 
     call this%get_edge(idx, idx_dir, p)
     surf = norm2(p(:,1) - p(:,2))
@@ -319,7 +322,7 @@ contains
     integer :: iv
     real    :: v(2,3)
 
-    ASSERT(size(idx) == 1)
+    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
 
     ! vertices
     do iv = 1, 3
@@ -343,6 +346,8 @@ contains
     integer                        :: max_neighb
       !! return maximal number of nearest neighbours
 
+    ASSERT(this%idx_allowed(idx1_type, idx1_dir))
+    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
 
     IGNORE(this)
     IGNORE(idx1_dir)
@@ -376,14 +381,11 @@ contains
 
     integer :: max_neighb
 
-    IGNORE(idx1_dir)
-    IGNORE(idx2_dir)
-
-    ASSERT(size(idx1) == 1)
-    ASSERT(size(idx2, dim=1) == 1)
+    ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
+    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
 
     max_neighb = this%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir)
-    ASSERT(size(idx2, dim=2) == max_neighb)
+    ASSERT(all(shape(idx2) == [1, max_neighb]))
 
     nidx2 = 0
 
