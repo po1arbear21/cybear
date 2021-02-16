@@ -15,7 +15,7 @@ module triang_grid_m
   type, extends(grid) :: triang_grid
     !! unstructured 2d triangle grid
     real, allocatable :: vert(:,:)
-      !! vertices:  [x_i, y_i] = cert(1:2,i).
+      !! vertices:  [x_i, y_i] = vert(1:2,i).
       !! size: (2,nvert)
     integer, allocatable :: cell2vert(:,:)
       !! indices to cell's vertices: cell_i = [vert_1, vert_2, vert_3] = cell2vert(1:3,i)
@@ -23,7 +23,6 @@ module triang_grid_m
 
     integer, allocatable :: edge2vert(:,:)
       !! size: (2,nedge)
-
 
     integer, allocatable :: vert2edge_n(:), vert2edge_i(:)
       !! input:  vertex index i
@@ -38,9 +37,6 @@ module triang_grid_m
       !!         how many cells for vertex i? vert2cell_n(i+1)-vert2cell_n(i)
       !!         cells of vertex i? vert2cell_i(j), j=vert2cell_n(i),..,vert2cell_n(i+1)-1
       !! sizes: vert2cell_n(1:nvert+1), this%vert2cell_i(1:3*ncell))
-
-    ! indices to cell's vertices: cell_i = [vert_1, vert_2, vert_3] = icell(1:3,i)
-      !! size(3,ncell)
 
     integer :: max_neighb(4,4)
       !! maximal neighbours wrt idx_types
@@ -66,7 +62,7 @@ contains
     !! initialize 1D grid
     class(triang_grid), intent(out) :: this
     real,               intent(in)  :: vert(:,:)
-      !! vertices:  [x_i, y_i] = cert(1:2,i).
+      !! vertices:  [x_i, y_i] = vert(1:2,i).
       !! size: (2,nvert)
     integer,            intent(in)  :: icell(:,:)
       !! indices to cell's vertices: cell_i = [vert_1, vert_2, vert_3] = icell(1:3,i)
@@ -172,8 +168,8 @@ contains
       this%max_neighb(IDX_EDGE,IDX_CELL  ) = 2
 
       this%max_neighb(IDX_CELL,IDX_VERTEX) = 3 ! = this%cell_dim
-      this%max_neighb(IDX_CELL,IDX_EDGE) = 3
-      this%max_neighb(IDX_CELL,IDX_CELL) = 3
+      this%max_neighb(IDX_CELL,IDX_EDGE  ) = 3
+      this%max_neighb(IDX_CELL,IDX_CELL  ) = 3
 
       ! find this%max_neighb(IDX_EDGE,IDX_EDGE)
       n = 0
@@ -210,14 +206,12 @@ contains
     integer,            intent(in)  :: idx_type
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx_dir
-      !! index direction for edges and faces.
-      !! must be 0 for IDX_EDGE, IDX_FACE. no direction in unstructured grids!
-      !! (must be 0 for IDX_VERTEX and IDX_CELL as always)
+      !! index direction for edges and faces. (must be 0 for IDX_VERTEX and IDX_CELL as always)
     integer,            intent(out) :: idx_bnd(:)
       !! output: upper bound for each index. size: (1)
 
     ASSERT(size(idx_bnd) == 1)
-    ASSERT(idx_dir == 0)
+    IGNORE(idx_dir)
 
     select case (idx_type)
       case (IDX_VERTEX)
@@ -235,9 +229,9 @@ contains
     !! get single vertex: from grid indices to coordinates
     class(triang_grid), intent(in)  :: this
     integer,            intent(in)  :: idx(:)
-      !! vertex' grid indices. size: (1)
+      !! vertex' grid indices. size: (idx_dim=1)
     real,               intent(out) :: p(:)
-      !! output: vertex' coordinates. size: (2)
+      !! output: vertex' coordinates. size: (dim=2)
 
     ASSERT(size(idx) == 1)
     ASSERT(size(p  ) == 2)
@@ -251,16 +245,16 @@ contains
     integer,            intent(in)  :: idx(:)
       !! edge's indices. size: (1)
     integer,            intent(in)  :: idx_dir
-      !! edge's direction. should be 0, there are no directions in unstructured grids.
+      !! edge's index direction
     real,               intent(out) :: p(:,:)
       !! output: edge's coordinates. size: (dim=2, 2)
 
     integer :: iv
 
     ASSERT(size(idx)      == 1)
-    ASSERT(idx_dir        == 0)
     ASSERT(size(p, dim=1) == 2)
     ASSERT(size(p, dim=2) == 2)
+    IGNORE(idx_dir)
 
     do iv = 1, 2
       p(:,iv) = this%vert(:,this%edge2vert(iv,idx(1)))
@@ -270,11 +264,11 @@ contains
   subroutine triang_grid_get_face(this, idx, idx_dir, p)
     !! get single face: from grid indices to coordinates
     class(triang_grid), intent(in)  :: this
-    integer,       intent(in)  :: idx(:)
+    integer,            intent(in)  :: idx(:)
       !! face's indices. size: (idx_dim=1)
-    integer,       intent(in)  :: idx_dir
-      !! face's direction. should be 0, there are no directions in unstructured grids.
-    real,          intent(out) :: p(:,:)
+    integer,            intent(in)  :: idx_dir
+      !! face's index direction
+    real,               intent(out) :: p(:,:)
       !! output: face's coordinates. size: (dim=2, 2)
 
     call this%get_edge(idx, idx_dir, p)
@@ -283,16 +277,13 @@ contains
   subroutine triang_grid_get_cell(this, idx, p)
     !! get single cell: from grid indices to coordinates
     class(triang_grid), intent(in)  :: this
-    integer,       intent(in)  :: idx(:)
+    integer,            intent(in)  :: idx(:)
       !! cell's indices. size: (idx_dim=1)
-    real,          intent(out) :: p(:,:)
+    real,               intent(out) :: p(:,:)
       !! output: cell's coordinates. size: (dim=2, cell_dim=3)
 
     integer :: iv
 
-    ASSERT(size(idx) == 1)
-    ASSERT(size(p, dim=1) == 2)
-    ASSERT(size(p, dim=2) == 3)
 
     do iv = 1, 3
       p(:,iv) = this%vert(:,this%cell2vert(iv,idx(1)))
@@ -305,14 +296,13 @@ contains
     integer,            intent(in) :: idx(:)
       !! face's indices. size: (idx_dim=1)
     integer,            intent(in) :: idx_dir
-      !! face's direction. should be 0, there are no directions in unstructured grids.
+      !! face's index direction
     real                           :: surf
       !! output: size of face
 
     real :: p(2,2)
 
     ASSERT(size(idx) == 1)
-    ASSERT(idx_dir   == 0)
 
     call this%get_edge(idx, idx_dir, p)
     surf = norm2(p(:,1) - p(:,2))
@@ -327,7 +317,7 @@ contains
       !! return cell volume
 
     integer :: iv
-    real :: v(2,3)
+    real    :: v(2,3)
 
     ASSERT(size(idx) == 1)
 
@@ -346,17 +336,13 @@ contains
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in) :: idx1_dir
       !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-      !! all directions should be 0, there are no directions in unstructured grids.
     integer,            intent(in) :: idx2_type
       !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in) :: idx2_dir
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-      !! all directions should be 0, there are no directions in unstructured grids.
     integer                        :: max_neighb
       !! return maximal number of nearest neighbours
 
-    ASSERT(idx1_dir == 0)
-    ASSERT(idx2_dir == 0)
 
     IGNORE(this)
     IGNORE(idx1_dir)
@@ -390,8 +376,6 @@ contains
 
     integer :: max_neighb
 
-    ASSERT(idx1_dir == 0)
-    ASSERT(idx2_dir == 0)
     IGNORE(idx1_dir)
     IGNORE(idx2_dir)
 

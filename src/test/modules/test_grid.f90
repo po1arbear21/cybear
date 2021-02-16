@@ -293,10 +293,10 @@ contains
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
         call tc%assert_eq(nvert, bnd(1), "triang_grid: idx_bnd: IDX_VERTEX")
 
-        call g%get_idx_bnd(IDX_EDGE, 0, bnd)
+        call g%get_idx_bnd(IDX_EDGE, 1, bnd)
         call tc%assert_eq(12, bnd(1), "triang_grid: idx_bnd: IDX_EDGE")
 
-        call g%get_idx_bnd(IDX_FACE, 0, bnd)
+        call g%get_idx_bnd(IDX_FACE, 1, bnd)
         call tc%assert_eq(12, bnd(1), "triang_grid: idx_bnd: IDX_FACE")
 
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
@@ -339,23 +339,23 @@ contains
 
       ! get_max_neighb
       call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "triang_grid: get_max_neighb V V")
-      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   0), "triang_grid: get_max_neighb V E")
-      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   0), "triang_grid: get_max_neighb V F")
+      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "triang_grid: get_max_neighb V E")
+      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "triang_grid: get_max_neighb V F")
       call tc%assert_eq(4, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "triang_grid: get_max_neighb V C")
 
-      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb E V")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   0, IDX_EDGE,   0), "triang_grid: get_max_neighb E E")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   0, IDX_FACE,   0), "triang_grid: get_max_neighb E F")
-      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   0, IDX_CELL,   0), "triang_grid: get_max_neighb E C")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb E V")
+      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb E E")
+      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb E F")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb E C")
 
-      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb F V")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   0, IDX_EDGE,   0), "triang_grid: get_max_neighb F E")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   0, IDX_FACE,   0), "triang_grid: get_max_neighb F F")
-      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   0, IDX_CELL,   0), "triang_grid: get_max_neighb F C")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb F V")
+      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb F E")
+      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb F F")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb F C")
 
       call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb C V")
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   0), "triang_grid: get_max_neighb C E")
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_FACE,   0), "triang_grid: get_max_neighb C F")
+      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   1), "triang_grid: get_max_neighb C E")
+      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "triang_grid: get_max_neighb C F")
       call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "triang_grid: get_max_neighb C C")
 
       ! get_neighb
@@ -389,18 +389,18 @@ contains
 
         ! V E
         deallocate (idx2)
-        allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE, 0)))
+        allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE, 1)))
 
         idx1 = [1]
-        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call tc%assert_eq(4, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
 
         idx1 = [3]
-        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
 
         idx1 = [2]
-        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call tc%assert_eq(5, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
 
         ! V C
@@ -452,25 +452,25 @@ contains
 
         ! C E
         deallocate (idx2)
-        allocate (idx2(1,g%get_max_neighb(IDX_CELL, 0, IDX_EDGE, 0)))
+        allocate (idx2(1,g%get_max_neighb(IDX_CELL, 0, IDX_EDGE, 1)))
 
         idx1     = [1]
         exp_idx2 = reshape([1, 7, 9], [1, 3])
-        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call qsort(idx2(1,:nidx2))
         call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
         call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
 
         idx1     = [5]
         exp_idx2 = reshape([2, 3, 9], [1, 3])
-        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call qsort(idx2(1,:nidx2))
         call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
         call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
 
         idx1     = [6]
         exp_idx2 = reshape([4, 5, 12], [1, 3])
-        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 0, idx1, idx2, nidx2)
+        call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
         call qsort(idx2(1,:nidx2))
         call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
         call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
