@@ -1,6 +1,7 @@
 module test_qsort_m
   use test_case_m
-  use qsort_m
+  use qsort_m, only: qsort
+  use string_m
   implicit none
 
 contains
