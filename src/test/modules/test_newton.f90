@@ -3,6 +3,9 @@ module test_newton_m
   use newton_m
   implicit none
 
+  private
+  public test_newton
+
 contains
 
   subroutine test_newton()

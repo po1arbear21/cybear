@@ -5,6 +5,9 @@ module test_poly_m
   use util_m
   implicit none
 
+  private
+  public test_poly
+
 contains
 
   subroutine test_poly()
