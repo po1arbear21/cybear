@@ -46,7 +46,7 @@ contains
 
   procedure :: GRID_DATA_SET_POINT
   procedure :: GRID_DATA_SET_ALL
-  generic   :: set => GRID_DATA_SET_POINT
+  generic   :: set => GRID_DATA_SET_POINT, GRID_DATA_SET_ALL
 
 #ifndef TLOG
   procedure :: GRID_DATA_UPDATE_POINT
