@@ -284,7 +284,12 @@ contains
         end do
       end associate
     end do
-    this%n = this%i1(this%nbl)
+
+    if (this%nbl > 0) then
+      this%n = this%i1(this%nbl)
+    else
+      this%n = 0
+    end if
 
     ! allocate jacobians
     call this%df%init( this%i1 - this%i0 + 1)
