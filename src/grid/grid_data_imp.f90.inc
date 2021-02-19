@@ -5,18 +5,7 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
-#define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
-
 #define GRID_DATA_TYPE         CONCAT(grid_data,T)
-#define GRID_DATA_INIT         CONCAT3(grid_data,T,init)
-#define GRID_DATA_DESTRUCT     CONCAT3(grid_data,T,destruct)
-#define GRID_DATA_GET_POINT    CONCAT3(grid_data,T,get_point)
-#define GRID_DATA_GET_ALL      CONCAT3(grid_data,T,get_all)
-#define GRID_DATA_SET_POINT    CONCAT3(grid_data,T,set_point)
-#define GRID_DATA_SET_ALL      CONCAT3(grid_data,T,set_all)
-#define GRID_DATA_UPDATE_POINT CONCAT3(grid_data,T,update_point)
-#define GRID_DATA_UPDATE_ALL   CONCAT3(grid_data,T,update_all)
-
 #define GRID_DATA1_TYPE        CONCAT(grid_data1,T)
 #define GRID_DATA2_TYPE        CONCAT(grid_data2,T)
 #define GRID_DATA3_TYPE        CONCAT(grid_data3,T)
@@ -25,6 +14,25 @@
 #define GRID_DATA6_TYPE        CONCAT(grid_data6,T)
 #define GRID_DATA7_TYPE        CONCAT(grid_data7,T)
 #define GRID_DATA8_TYPE        CONCAT(grid_data8,T)
+
+#define GRID_DATA_INIT         CONCAT3(grid_data,T,init)
+#define GRID_DATA_DESTRUCT     CONCAT3(grid_data,T,destruct)
+#define GRID_DATA_GET_PTR1     CONCAT3(grid_data,T,get_ptr1)
+#define GRID_DATA_GET_PTR2     CONCAT3(grid_data,T,get_ptr2)
+#define GRID_DATA_GET_PTR3     CONCAT3(grid_data,T,get_ptr3)
+#define GRID_DATA_GET_PTR4     CONCAT3(grid_data,T,get_ptr4)
+#define GRID_DATA_GET_PTR5     CONCAT3(grid_data,T,get_ptr5)
+#define GRID_DATA_GET_PTR6     CONCAT3(grid_data,T,get_ptr6)
+#define GRID_DATA_GET_PTR7     CONCAT3(grid_data,T,get_ptr7)
+#define GRID_DATA_GET_PTR8     CONCAT3(grid_data,T,get_ptr8)
+#define GRID_DATA_GET_POINT    CONCAT3(grid_data,T,get_point)
+#define GRID_DATA_GET_ALL      CONCAT3(grid_data,T,get_all)
+#define GRID_DATA_SET_POINT    CONCAT3(grid_data,T,set_point)
+#define GRID_DATA_SET_ALL      CONCAT3(grid_data,T,set_all)
+#define GRID_DATA_UPDATE_POINT CONCAT3(grid_data,T,update_point)
+#define GRID_DATA_UPDATE_ALL   CONCAT3(grid_data,T,update_all)
+
+#define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
 
 subroutine ALLOCATE_GRID_DATA(gdata, dim)
   !! allocate grid data
@@ -152,6 +160,102 @@ subroutine GRID_DATA_DESTRUCT(this)
       if (allocated(this%data)) deallocate (this%data)
   end select
 end subroutine
+
+function GRID_DATA_GET_PTR1(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA1_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA1_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR2(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA2_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA2_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR3(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA3_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA3_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR4(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA4_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA4_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR5(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA5_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA5_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR6(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA6_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA6_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR7(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA7_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA7_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
+
+function GRID_DATA_GET_PTR8(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA8_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA8_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
 
 function GRID_DATA_GET_POINT(this, idx) result(d)
   !! get data for single point with bounds check (out of bounds: return default value)
@@ -357,18 +461,7 @@ end subroutine
 #undef CONCATHELP3
 #undef CONCAT3
 
-#undef ALLOCATE_GRID_DATA
-
 #undef GRID_DATA_TYPE
-#undef GRID_DATA_INIT
-#undef GRID_DATA_DESTRUCT
-#undef GRID_DATA_GET_POINT
-#undef GRID_DATA_GET_ALL
-#undef GRID_DATA_SET_POINT
-#undef GRID_DATA_SET_ALL
-#undef GRID_DATA_UPDATE_POINT
-#undef GRID_DATA_UPDATE_ALL
-
 #undef GRID_DATA1_TYPE
 #undef GRID_DATA2_TYPE
 #undef GRID_DATA3_TYPE
@@ -377,3 +470,22 @@ end subroutine
 #undef GRID_DATA6_TYPE
 #undef GRID_DATA7_TYPE
 #undef GRID_DATA8_TYPE
+
+#undef GRID_DATA_INIT
+#undef GRID_DATA_DESTRUCT
+#undef GRID_DATA_GET_PTR1
+#undef GRID_DATA_GET_PTR2
+#undef GRID_DATA_GET_PTR3
+#undef GRID_DATA_GET_PTR4
+#undef GRID_DATA_GET_PTR5
+#undef GRID_DATA_GET_PTR6
+#undef GRID_DATA_GET_PTR7
+#undef GRID_DATA_GET_PTR8
+#undef GRID_DATA_GET_POINT
+#undef GRID_DATA_GET_ALL
+#undef GRID_DATA_SET_POINT
+#undef GRID_DATA_SET_ALL
+#undef GRID_DATA_UPDATE_POINT
+#undef GRID_DATA_UPDATE_ALL
+
+#undef ALLOCATE_GRID_DATA

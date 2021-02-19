@@ -35,6 +35,7 @@ module grid_table_m
     procedure :: init_final => grid_table_init_final
     procedure :: get_idx    => grid_table_get_idx
     procedure :: get_flat   => grid_table_get_flat
+    procedure :: get_ptr    => grid_table_get_ptr
   end type
 
   type grid_table_ptr
@@ -121,6 +122,14 @@ contains
       !! return flat index (0 if grid point is not part of table)
 
     i = this%idx2flat%get(idx)
+  end function
+
+  function grid_table_get_ptr(this) result(ptr)
+    !! returns pointer type to this grid_table
+    class(grid_table), target, intent(in) :: this
+    type(grid_table_ptr)                  :: ptr
+
+    ptr%p => this
   end function
 
 end module

@@ -28,6 +28,7 @@ module variable_m
       !! values
   contains
     procedure :: variable_init
+    procedure :: get_ptr => variable_get_ptr
   end type
 
   type variable_ptr
@@ -60,5 +61,13 @@ contains
     call allocate_grid_data(this%data, g%idx_dim)
     call this%data%init(g, idx_type, idx_dir)
   end subroutine
+
+  function variable_get_ptr(this) result(ptr)
+    !! returns pointer type to this variable
+    class(variable), target, intent(in) :: this
+    type(variable_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
 
 end module

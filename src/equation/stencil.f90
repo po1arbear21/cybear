@@ -16,6 +16,7 @@ module stencil_m
       !! maximum number of dependency points
   contains
     procedure                            :: stencil_init
+    procedure                            :: get_ptr => stencil_get_ptr
     procedure(stencil_get_dep), deferred :: get_dep
   end type
 
@@ -72,6 +73,14 @@ contains
 
     this%max_ndep = max_ndep
   end subroutine
+
+  function stencil_get_ptr(this) result(ptr)
+    !! returns pointer type to this stencil
+    class(stencil), target, intent(in) :: this
+    type(stencil_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
 
   subroutine dirichlet_stencil_init(this)
     !! initialize dirichlet stencil
