@@ -7,6 +7,9 @@ module qsort_m
 
   implicit none
 
+  private
+  public qsort
+
   interface qsort
     module procedure :: qsort_int, qsort_string, qsort_real
   end interface

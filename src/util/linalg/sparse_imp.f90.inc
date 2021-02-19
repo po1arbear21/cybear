@@ -837,7 +837,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
 
     ! get upper limit on memory required
     j = ops(i1(ithread)) - ops(i1(ithread-1))
-    j = max(0, min(j, (i1(ithread) - i1(ithread-1)) * s2%ncols))
+    j = max(0, int(min(int(j, kind=int64), int(i1(ithread) - i1(ithread-1), kind=int64) * int(s2%ncols, kind=int64)), kind=int32))
 
     ! allocate thread local memory
     allocate (col(j))

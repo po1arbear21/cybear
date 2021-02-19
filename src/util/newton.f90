@@ -261,6 +261,7 @@ contains
       ! factorize and solve
       call dfdx%factorize()
       call dfdx%solve_vec(f, dx)
+      call dfdx%destruct()
 
       ! calculate new error
       err     = maxval(abs(dx) / (abs(x) + opt%atol / opt%rtol))

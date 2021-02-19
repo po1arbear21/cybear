@@ -38,7 +38,7 @@ contains
     call expm(A, expmA)
     call tc%assert_eq(expmA_exp, expmA%d, 1e-12, "expm(dense)")
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module

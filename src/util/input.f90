@@ -17,6 +17,14 @@ module input_m
   integer, parameter :: INPUT_TYPE_LOGIC   = 4
   integer, parameter :: INPUT_NUM_TYPES    = 4
 
+  ! variable type names
+  character(7), parameter :: INPUT_TYPE_NAMES(4) = [ &
+    "integer", &
+    "real   ", &
+    "string ", &
+    "logical"  &
+  ]
+
   type input_var
     character(:),   allocatable :: name
       !! Variable name
@@ -72,6 +80,8 @@ module input_m
     procedure :: load       => input_file_load
     procedure :: parse_line => input_file_parse_line
     procedure :: load_csv   => input_file_load_csv
+
+    procedure :: get_var    => input_file_get_var
 
     procedure :: input_file_get_int32
     procedure :: input_file_get_int32_arr
@@ -934,28 +944,20 @@ contains
       !! optional: output 0 on success; -1 if not found; >0 if not unique (if not present: error if not found or not unique)
 
     ! local variables
-    integer :: i, st
+    integer :: i, status_
 
-    st = -1
+    status_ = -1
     do i = 1, this%sections%n
-      if (this%sections%d(i)%name == section_name) then
-        section_id = i
-        st         = st + 1
-      end if
+      if (this%sections%d(i)%name /= section_name) cycle
+      section_id = i
+      status_    = status_ + 1
     end do
 
-    if (present(status)) status = st
-
-    if (st < 0) then
-      if (.not. present(status)) then
-        call program_error("section name '"//section_name//"' not found")
-      end if
-
-    else if (st > 0) then
-      if (.not. present(status)) then
-        print "(A)", section_name
-        call program_error("found multiple sections with name '"//section_name//"', use get_sections instead")
-      end if
+    if (present(status)) then
+      status = status_
+    else
+      if (status_ < 0) call program_error("section name '"//section_name//"' not found")
+      if (status_ > 0) call program_error("found multiple sections with name '"//section_name//"', use get_sections instead")
     end if
   end subroutine
 
@@ -981,6 +983,45 @@ contains
     allocate (section_ids(sv%n), source = sv%d(1:sv%n))
   end subroutine
 
+  subroutine input_file_get_var(this, section_id, name, type, scalar, var_idx, status)
+    !! search for variable by name
+    class(input_file)              :: this
+    integer,           intent(in)  :: section_id
+      !! section index
+    character(*),      intent(in)  :: name
+      !! variable name
+    integer,           intent(in)  :: type
+      !! variable type
+    logical,           intent(in)  :: scalar
+      !! scalar or array
+    integer,           intent(out) :: var_idx
+      !! output variable index
+    logical, optional, intent(out) :: status
+      !! optional output if appropriate var was found (if not present: error if not found)
+
+    if (present(status)) status = .false.
+
+    associate (sec => this%sections%d(section_id))
+      do var_idx = 1, sec%vars%n
+        associate (var => sec%vars%d(var_idx))
+          if (var%name /= name) cycle
+          if (scalar .and. (var%size /= 1)) then
+            if (present(status)) return
+            call program_error("variable '"//name//"' is not scalar")
+          end if
+          if (var%type /= type) then
+            if (present(status)) return
+            call program_error("variable '"//name//"' is not of type "//trim(INPUT_TYPE_NAMES(type)))
+          end if
+          if (present(status)) status = .true.
+          return
+        end associate
+      end do
+    end associate
+
+    if (.not. present(status)) call program_error("variable '"//name//"' not found")
+  end subroutine
+
   subroutine input_file_get_int32(this, section_id, name, value, status)
     !! get scalar integer value
     class(input_file), intent(in)  :: this
@@ -993,29 +1034,14 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
-            value = int(var%int_data(1), kind = int32)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .true., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    value = int(this%sections%d(section_id)%vars%d(var_idx)%int_data(1), kind = int32)
   end subroutine
 
   subroutine input_file_get_int32_arr(this, section_id, name, values, status)
@@ -1030,28 +1056,16 @@ contains
     logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
-            allocate (values(size(var%int_data)), source = int(var%int_data, kind = int32))
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .false., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    associate (var => this%sections%d(section_id)%vars%d(var_idx))
+      allocate (values(size(var%int_data)), source = int(var%int_data, kind = int32))
+    end associate
   end subroutine
 
   subroutine input_file_get_name_int32(this, section_name, name, value, status)
@@ -1066,16 +1080,13 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1096,16 +1107,13 @@ contains
     logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1126,29 +1134,14 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
-            value = var%int_data(1)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .true., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    value = this%sections%d(section_id)%vars%d(var_idx)%int_data(1)
   end subroutine
 
   subroutine input_file_get_int64_arr(this, section_id, name, values, status)
@@ -1163,28 +1156,14 @@ contains
     logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%type /= INPUT_TYPE_INTEGER) call program_error("variable '"//name//"' is not an integer")
-            allocate (values(size(var%int_data)), source = var%int_data)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .false., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    values = this%sections%d(section_id)%vars%d(var_idx)%int_data
   end subroutine
 
   subroutine input_file_get_name_int64(this, section_name, name, value, status)
@@ -1199,16 +1178,13 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1229,16 +1205,13 @@ contains
     logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1263,38 +1236,21 @@ contains
     logical,             optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
     logical :: normalize_
 
-    ! optional values
-    normalize_ = .true.
-    if (present(normalize)) normalize_ = normalize
-
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
-            if (var%type /= INPUT_TYPE_REAL) call program_error("variable '"//name//"' is not real")
-            if (normalize_) then
-              value = norm(var%real_data(1), var%unit, n = norm_object)
-            else
-              value = var%real_data(1)
-            end if
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_REAL, .true., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    associate (var => this%sections%d(section_id)%vars%d(var_idx))
+      value = var%real_data(1)
+
+      normalize_ = .true.
+      if (present(normalize)) normalize_ = normalize
+      if (normalize_) value = norm(value, var%unit, n = norm_object)
+    end associate
   end subroutine
 
   subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object, status)
@@ -1313,38 +1269,21 @@ contains
     logical,             optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
     logical :: normalize_
 
-    ! optional values
-    normalize_ = .true.
-    if (present(normalize)) normalize_ = normalize
-
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%type /= INPUT_TYPE_REAL) call program_error("variable '"//name//"' is not real")
-            if (normalize_) then
-              allocate (values(size(var%real_data)))
-              values = norm(var%real_data, var%unit, n = norm_object)
-            else
-              allocate (values(size(var%real_data)), source = var%real_data)
-            end if
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_REAL, .false., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    associate (var => this%sections%d(section_id)%vars%d(var_idx))
+      values = var%real_data
+
+      normalize_ = .true.
+      if (present(normalize)) normalize_ = normalize
+      if (normalize_) values = norm(values, var%unit, n = norm_object)
+    end associate
   end subroutine
 
   subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object, status)
@@ -1363,16 +1302,13 @@ contains
     logical,             optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1398,16 +1334,13 @@ contains
     logical,             optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1429,29 +1362,14 @@ contains
     logical,      optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
-            if (var%type /= INPUT_TYPE_STRING) call program_error("variable '"//name//"' is not a string")
-            value = var%str_data(1)%s
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_STRING, .true., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    value = this%sections%d(section_id)%vars%d(var_idx)%str_data(1)%s
   end subroutine
 
   subroutine input_file_get_string_arr(this, section_id, name, values, status)
@@ -1467,28 +1385,14 @@ contains
     logical,      optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%type /= INPUT_TYPE_STRING) call program_error("variable '"//name//"' is not a string")
-            allocate (values(size(var%str_data)), source = var%str_data)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_STRING, .false., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    values = this%sections%d(section_id)%vars%d(var_idx)%str_data
   end subroutine
 
   subroutine input_file_get_name_string(this, section_name, name, value, status)
@@ -1503,16 +1407,13 @@ contains
     logical,      optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1533,16 +1434,13 @@ contains
     logical,      optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1563,29 +1461,14 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%size /= 1) call program_error("variable '"//name//"' is not scalar")
-            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable '"//name//"' is not logical")
-            value = var%logic_data(1)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_LOGIC, .true., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    value = this%sections%d(section_id)%vars%d(var_idx)%logic_data(1)
   end subroutine
 
   subroutine input_file_get_logical_arr(this, section_id, name, values, status)
@@ -1600,28 +1483,14 @@ contains
     logical, optional,    intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
 
-    ! local variables
-    integer :: i
+    integer :: var_idx
 
-    associate (sect => this%sections%d(section_id))
-      do i = 1, sect%vars%n
-        associate (var => sect%vars%d(i))
-          if (var%name == name) then
-            if (var%type /= INPUT_TYPE_LOGIC) call program_error("variable '"//name//"' is not logical")
-            allocate (values(size(var%logic_data)), source = var%logic_data)
-            if (present(status)) status = .true.
-            return
-          end if
-        end associate
-      end do
-    end associate
-
+    call this%get_var(section_id, name, INPUT_TYPE_LOGIC, .false., var_idx, status = status)
     if (present(status)) then
-      status = .false.
-    else
-      print "(A)", name
-      call program_error("variable '"//name//"' not found")
+      if (.not. status) return
     end if
+
+    values = this%sections%d(section_id)%vars%d(var_idx)%logic_data
   end subroutine
 
   subroutine input_file_get_name_logical(this, section_name, name, value, status)
@@ -1642,10 +1511,8 @@ contains
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if
@@ -1672,10 +1539,8 @@ contains
     ! get section
     if (present(status)) then
       call this%get_section(section_name, section_id, status = st)
-      if (st /= 0) then
-        status = .false.
-        return
-      end if
+      status = (st == 0)
+      if (.not. status) return
     else
       call this%get_section(section_name, section_id)
     end if

@@ -9,6 +9,7 @@ module matrix_m
 #ifdef USE_ILUPACK
   use ilupack_m
 #endif
+  use iso_fortran_env, only: int32, int64
   use lapack95
 #ifdef USE_MUMPS
   use mumps_m
