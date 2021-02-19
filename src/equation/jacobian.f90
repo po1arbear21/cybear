@@ -1,6 +1,6 @@
 module jacobian_m
 
-  use array_m,           only: array4_real
+  use array_m,           only: array4_real, ptr2_real
   use jacobian_matrix_m, only: jacobian_matrix
   use matrix_m,          only: sparse_ptr_real, spbuild_real
   use stencil_m,         only: stencil_ptr
@@ -21,6 +21,8 @@ module jacobian_m
       !! stencils (v1%ntab)
     type(array4_real), allocatable :: d(:)
       !! derivatives (v1%nval x v2%nval x st(itab1)%max_ndep x v1%tab(itab1)%n) x (v1%ntab)
+    type(ptr2_real),   allocatable :: e(:)
+      !! pointers to d(itab1)%d(1,1,:,:); can be used in case of v1%nval == v2%nval == 1 (scalar var selectors)
   contains
     procedure :: init     => jacobian_init
     procedure :: destruct => jacobian_destruct
@@ -36,7 +38,7 @@ contains
 
   subroutine jacobian_init(this, v1, v2, st, const, zero, valmsk)
     !! initialize jacobian
-    class(jacobian),         intent(out) :: this
+    class(jacobian), target, intent(out) :: this
     type(vselector), target, intent(in)  :: v1
       !! result variable selector
     type(vselector), target, intent(in)  :: v2
@@ -106,6 +108,15 @@ contains
       if (.not. associated(st(itab1)%p)) cycle
       allocate (this%d(itab1)%d(v1%nval, v2%nval, st(itab1)%p%max_ndep, v1%tab(itab1)%p%n), source = 0.0)
     end do
+
+    ! set pointers for scalar case
+    if ((v1%nval == 1) .and. (v2%nval == 1)) then
+      allocate (this%e(v1%ntab))
+      do itab1 = 1, v1%ntab
+        if (.not. associated(st(itab1)%p)) cycle
+        this%e(itab1)%p => this%d(itab1)%d(1,1,:,:)
+      end do
+    end if
   end subroutine
 
   subroutine jacobian_destruct(this)
