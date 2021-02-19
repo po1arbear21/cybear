@@ -5,21 +5,19 @@ module test_esystem_m
   use error_m
   use test_case_m
 
-  use esystem_m,        only: esystem
   use equation_m,       only: equation
-  use esystem_m
-  use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
-  use grid1D_m,         only: grid1D
-  use grid_table_m,     only: grid_table, grid_table_ptr
+  use esystem_m,        only: esystem
   use jacobian_m,       only: jacobian
-  use stencil_m,        only: dirichlet_stencil, stencil_ptr
-  use variable_m,       only: variable, variable_ptr
-  use vselector_m,      only: vselector, vselector_ptr
-  use simple_equations_m
-  use matrix_m
-  use res_equation_m
-  use grid_data_m
-  use newton_m
+  use grid_data_m,      only: grid_data1_real
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_table_m,     only: grid_table
+  use grid1D_m,         only: grid1D
+  use matrix_m,         only: matrix_real, sparse_real
+  use newton_m,         only: newton_opt, newton
+  use res_equation_m,   only: res_equation
+  use stencil_m,        only: dirichlet_stencil
+  use variable_m,       only: variable
+  use vselector_m,      only: vselector
 
   implicit none
 
@@ -110,10 +108,8 @@ contains
     type(res_equation2) :: req2
 
     integer                   :: iv
-    real, allocatable         :: f(:), dx(:)
     type(newton_opt)          :: opt
     type(sparse_real), target :: df
-
 
     print "(A)", "test_esystem"
     call tc%init("esystem")
@@ -190,6 +186,11 @@ contains
         !! output pointer to jacobian of f wrt x
       real, optional,              intent(out) :: dfdp(:,:)
         !! optional output jacobian of f wrt p
+
+      ASSERT(size(p) == 0)
+      ASSERT(.not. present(dfdp))
+      IGNORE(p)
+      IGNORE(dfdp)
 
       call es%set_x(x)
       call es%eval(f, df)
