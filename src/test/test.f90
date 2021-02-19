@@ -2,12 +2,6 @@ program test
 
   use test_gmres_m
   use test_matop_m
-#ifdef USE_MUMPS
-  use test_mumps_m
-#endif
-#ifdef USE_ILUPACK
-  use test_ilupack_m
-#endif
   use test_poly_m
   use test_random_m
   use test_high_precision_m
@@ -21,9 +15,6 @@ program test
   use test_newton_m
   use test_matrix_m
   use test_qsort_m
-#ifdef USE_QUADPACK
-  use test_quadpack_m
-#endif
   use test_vector_m
   use test_sqrtm_m
   use test_arnoldi_m
@@ -35,12 +26,6 @@ program test
 
   call test_gmres
   call test_matop
-#ifdef USE_MUMPS
-  call test_mumps
-#endif
-#ifdef USE_ILUPACK
-  call test_ilupack
-#endif
   call test_poly
   call test_random
   call test_high_precision
@@ -54,14 +39,35 @@ program test
   call test_newton
   call test_matrix
   call test_qsort
-#ifdef USE_QUADPACK
-  call test_quadpack
-#endif
   call test_vector
   call test_sqrtm
   call test_arnoldi
   call test_schur
   call test_plotmtv
   call test_util
+
+#ifdef USE_ILUPACK
+  block
+    use test_ilupack_m
+
+    call test_ilupack()
+  end block
+#endif
+
+#ifdef USE_MUMPS
+  block
+    use test_mumps_m
+
+    call test_mumps()
+  end block
+#endif
+
+#ifdef USE_QUADPACK
+  block
+    use quadpack_m
+
+    call test_quadpack()
+  end block
+#endif
 
 end program
