@@ -208,8 +208,9 @@ contains
           if (this%matr%const(itab1, itab2) .and. .not. const_) cycle
           if (.not. this%matr%const(itab1, itab2) .and. .not. nonconst_) cycle
 
-          ! get sparse matrix block
+          ! get sparse matrix block (and delete any remaining data)
           call this%matr%get(itab1, itab2, s(itab2)%p)
+          call s(itab2)%p%reset()
 
           ! init sparse builder
           call sb(itab2)%init(s(itab2)%p)
