@@ -128,7 +128,7 @@ contains
 
     x%d%data = g%x+1
     y%d%data = 0.1*(g%x+1)
-    z%d%data = 1.0+0.01*g%x
+    z%d%data = 1.0+0.1*g%x
 
     ! setup grid table + ptr
     call gtab%init('all vertices', g, IDX_VERTEX, 0)
@@ -163,10 +163,6 @@ contains
       allocate (x0(es%n))
       allocate (x(es%n))
       x0 = es%get_x()
-print * , es%n
-call es%eval(x, df)
-call df%destruct()
-call es%eval(x, df)
       call es%get_df(df)
       call df%output("t")
 
@@ -176,6 +172,7 @@ call es%eval(x, df)
     end block
 
     print *, x%d%data
+    print *, z%d%data
 
     ! call tc%assert_eq([1.0, 1.0],      Asp%a, 1e-12, "delete block: a" )
 
@@ -374,8 +371,8 @@ call es%eval(x, df)
       idx = gtab%get_idx(i)
 
       x = this%x%get(idx)
-      y = this%x%get(idx)
-      z = this%x%get(idx)
+      y = this%y%get(idx)
+      z = this%z%get(idx)
 
       call this%f%set(idx, z*x+y)
 
