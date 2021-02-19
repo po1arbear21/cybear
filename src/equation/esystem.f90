@@ -203,7 +203,7 @@ contains
 
           print "(A)", "Missing variable selector:"
           call n%v%print()
-          call program_error("Can not fix equation system")
+          call program_error("Cannot fix equation system")
         end if
 
         ! save equation and add to system

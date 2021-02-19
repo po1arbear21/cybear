@@ -3,6 +3,7 @@ program test
   use test_arnoldi_m
   use test_deque_m
   use test_dual_m
+  use test_esystem_m
   use test_expm_m
   use test_gmres_m
   use test_grid_m
@@ -67,5 +68,6 @@ program test
   call test_util()
   call test_grid()
   call test_grid_table()
+  call test_esystem()
 
 end program
