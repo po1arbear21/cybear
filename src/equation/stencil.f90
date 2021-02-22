@@ -2,50 +2,82 @@
 
 module stencil_m
 
-  use grid_m, only: grid
+  use grid_m,   only: grid
+  use vector_m, only: vector_int, vector_real
 
   implicit none
 
   private
   public stencil, stencil_ptr
+  public dynamic_stencil
+  public stationary_stencil
   public dirichlet_stencil
+  public near_neighb_stencil
 
   type, abstract :: stencil
     !! abstract stencil
-    integer :: nmax
-      !! maximum number of dependency points
   contains
-    procedure                        :: stencil_init
-    procedure                        :: get_ptr => stencil_get_ptr
-    procedure(stencil_get), deferred :: get
+    procedure :: get_ptr => stencil_get_ptr
   end type
-
-  abstract interface
-    subroutine stencil_get(this, idx1, idx2, ndep)
-      !! get list of dependency points
-      import stencil
-      class(stencil), intent(in)  :: this
-      integer,        intent(in)  :: idx1(:)
-        !! result indices (idx_dim1)
-      integer,        intent(out) :: idx2(:,:)
-        !! output dependency indices (idx_dim2 x nmax)
-      integer,        intent(out) :: ndep
-        !! output actual number of dependency points
-    end subroutine
-  end interface
 
   type stencil_ptr
     class(stencil), pointer :: p => null()
   end type
 
-  type, extends(stencil) :: dirichlet_stencil
+  type, abstract, extends(stencil) :: stationary_stencil
+    !! abstract stationary stencil
+    !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
+    !! useful when exact stencil is known.
+    integer :: nmax
+      !! maximum number of dependency points
+  contains
+    procedure                                   :: stationary_stencil_init
+    ! procedure                                   :: setup   => stationary_stencil_setup
+    procedure(stationary_stencil_get), deferred :: get
+  end type
+
+  abstract interface
+    subroutine stationary_stencil_get(this, idx1, idx2, ndep)
+      !! get list of dependency points
+      import stationary_stencil
+      class(stationary_stencil), intent(in)  :: this
+      integer,                   intent(in)  :: idx1(:)
+        !! result indices (idx_dim1)
+      integer,                   intent(out) :: idx2(:,:)
+        !! output dependency indices (idx_dim2 x nmax)
+      integer,                   intent(out) :: ndep
+        !! output actual number of dependency points
+    end subroutine
+  end interface
+
+  type, extends(stencil) :: dynamic_stencil
+    !! dynamic stencil.
+    !! useful when number of neighbors is not known and using all neighbors is just too memory inefficient.
+
+    type(vector_int), allocatable :: idx2_vec(:)
+      !! dependency vectors. one vector for each idx1.
+      !! size: v1%tab(itab1)%n
+      !! each vector idx2_vec(iflat1)
+      !!  contains dependency indices of idx1.
+      !!  idx2 (which is an array) is saved as multiple integers.
+      !!  length: idx2_vec(iflat1)%n == idx2_dim * ndep(iflat1)
+    type(vector_real), allocatable :: d_vec(:)
+      !! derivative vectors. one vector for each idx1.
+      !! size: v1%tab(itab1)%n
+      !! idx2_vec(iflat1)%n == ndep(iflat1)
+  contains
+    procedure :: dynamic_stencil_init
+    procedure :: init => dynamic_stencil_init
+  end type
+
+  type, extends(stationary_stencil) :: dirichlet_stencil
     !! dirichlet stencil, selects only one grid point
   contains
     procedure :: init => dirichlet_stencil_init
     procedure :: get  => dirichlet_stencil_get
   end type
 
-  type, extends(stencil) :: near_neighb_stencil
+  type, extends(stationary_stencil) :: near_neighb_stencil
     !! nearest neighbours stencil
     class(grid), pointer :: g => null()
       !! grid this stencil is defined on
@@ -65,15 +97,6 @@ module stencil_m
 
 contains
 
-  subroutine stencil_init(this, nmax)
-    !! initialize base stencil
-    class(stencil), intent(out) :: this
-    integer,        intent(in)  :: nmax
-      !! maximum number of dependency points
-
-    this%nmax = nmax
-  end subroutine
-
   function stencil_get_ptr(this) result(ptr)
     !! returns pointer type to this stencil
     class(stencil), target, intent(in) :: this
@@ -82,12 +105,26 @@ contains
     ptr%p => this
   end function
 
+  subroutine stationary_stencil_init(this, nmax)
+    !! initialize base stencil
+    class(stationary_stencil), intent(out) :: this
+    integer,                   intent(in)  :: nmax
+      !! maximum number of dependency points
+
+    this%nmax = nmax
+  end subroutine
+
+  ! subroutine stencil_setup(this, idx1)
+  !   class(stencil), intent(in) :: this
+  !   integer,        intent(in)  :: idx1(:)
+  ! end subroutine
+
   subroutine dirichlet_stencil_init(this)
     !! initialize dirichlet stencil
     class(dirichlet_stencil), intent(out) :: this
 
     ! init base
-    call this%stencil_init(1)
+    call this%stationary_stencil_init(1)
   end subroutine
 
   subroutine dirichlet_stencil_get(this, idx1, idx2, ndep)
@@ -121,7 +158,7 @@ contains
     integer,                    intent(in)  :: idx2_dir
       !! dependency index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    call this%stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
+    call this%stationary_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
 
     ! set members
     this%g => g
@@ -142,6 +179,15 @@ contains
       !! output actual number of dependency points
 
     call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, idx2, ndep)
+  end subroutine
+
+  subroutine dynamic_stencil_init(this, n)
+    class(dynamic_stencil), intent(out) :: this
+    integer,                intent(in)  :: n
+      !! number of entries per grid point, e.g. v1%tab(itab1)%n
+
+    allocate (this%idx2_vec(n))
+    allocate (this%d_vec(n))
   end subroutine
 
 end module

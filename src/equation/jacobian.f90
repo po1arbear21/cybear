@@ -1,9 +1,12 @@
+#include "../util/macro.f90.inc"
+
 module jacobian_m
 
   use array_m,           only: array4_real, ptr2_real
+  use error_m
   use jacobian_matrix_m, only: jacobian_matrix
   use matrix_m,          only: sparse_ptr_real, spbuild_real
-  use stencil_m,         only: stencil_ptr
+  use stencil_m,         only: stencil_ptr, stationary_stencil
   use vselector_m,       only: vselector
 
   implicit none
@@ -55,6 +58,8 @@ contains
     integer :: i, j, itab1, itab2, ndep
     logical :: const_(v1%ntab,v2%ntab), zero_(v1%ntab,v2%ntab), valmsk_(v1%nval,v2%nval,v1%ntab,v2%ntab)
 
+    ASSERT(size(st) == v1%ntab)
+
     ! optional arguments
     const_ = .false.
     if (present(const)) const_ = const
@@ -64,28 +69,33 @@ contains
       ! set zero flags automatically by checking stencils
       zero_ = .true.
       do itab1 = 1, v1%ntab
-        ! do nothing for empty stencil
-        if (.not. associated(st(itab1)%p)) cycle
+        select type (st_ptr => st(itab1)%p)
+          class is (stationary_stencil)
+            ! do nothing for empty stencil
+            if (.not. associated(st_ptr)) cycle
 
-        block
-          integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st(itab1)%p%nmax)
+            block
+              integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st_ptr%nmax)
 
-          ! loop over result points
-          do i = 1, v1%tab(itab1)%p%n
-            ! get result grid indices
-            idx1 = v1%tab(itab1)%p%get_idx(i)
+              ! loop over result points
+              do i = 1, v1%tab(itab1)%p%n
+                ! get result grid indices
+                idx1 = v1%tab(itab1)%p%get_idx(i)
 
-            ! get dependency grid indices
-            call st(itab1)%p%get(idx1, idx2, ndep)
+                ! get dependency grid indices
+                call st_ptr%get(idx1, idx2, ndep)
 
-            ! loop over dependency grid indices
-            do j = 1, ndep
-              ! stencil connects itab1 to itab2 => not zero
-              itab2 = v2%itab%get(idx2(:,j))
-              zero_(itab1,itab2) = .false.
-            end do
-          end do
-        end block
+                ! loop over dependency grid indices
+                do j = 1, ndep
+                  ! stencil connects itab1 to itab2 => not zero
+                  itab2 = v2%itab%get(idx2(:,j))
+                  zero_(itab1,itab2) = .false.
+                end do
+              end do
+            end block
+          class default
+            call program_error("only stationary_stencil supported")
+        end select
       end do
     end if
     const_ = (const_ .or. zero_) ! zero blocks are also constant
@@ -101,12 +111,24 @@ contains
 
     ! save stencil pointers
     this%st = st
+    do itab1 = 1, size(st)
+      select type (tmp => st(itab1)%p)
+        class is (stationary_stencil)
+        class default
+          call program_error("only stationary_stencil supported")
+      end select
+    end do
 
     ! allocate memory for derivatives
     allocate (this%d(v1%ntab))
     do itab1 = 1, v1%ntab
-      if (.not. associated(st(itab1)%p)) cycle
-      allocate (this%d(itab1)%d(v1%nval, v2%nval, st(itab1)%p%nmax, v1%tab(itab1)%p%n), source = 0.0)
+      select type (st_ptr => st(itab1)%p)
+        class is (stationary_stencil)
+          if (.not. associated(st_ptr)) cycle
+          allocate (this%d(itab1)%d(v1%nval, v2%nval, st_ptr%nmax, v1%tab(itab1)%p%n), source = 0.0)
+        class default
+          call program_error("only stationary_stencil supported")
+      end select
     end do
 
     ! set pointers for scalar case
@@ -158,29 +180,32 @@ contains
           cycle
         end if
 
-        associate (st => this%st(itab1)%p)
-          block
-            integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st%nmax)
+        select type (st => this%st(itab1)%p)
+          class is (stationary_stencil)
+            block
+              integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st%nmax)
 
-            ! loop over result points
-            do i = 1, v1%tab(itab1)%p%n
-              ! get result grid indices
-              idx1 = v1%tab(itab1)%p%get_idx(i)
+              ! loop over result points
+              do i = 1, v1%tab(itab1)%p%n
+                ! get result grid indices
+                idx1 = v1%tab(itab1)%p%get_idx(i)
 
-              ! get dependency grid indices
-              call st%get(idx1, idx2, ndep)
+                ! get dependency grid indices
+                call st%get(idx1, idx2, ndep)
 
-              ! loop over dependency grid indices
-              do j = 1, ndep
-                ! get dependency table index
-                itab2 = v2%itab%get(idx2(:,j))
+                ! loop over dependency grid indices
+                do j = 1, ndep
+                  ! get dependency table index
+                  itab2 = v2%itab%get(idx2(:,j))
 
-                ! reset only if flag is set
-                if (reset(itab1,itab2)) this%d(itab1)%d(:,:,j,i) = 0
+                  ! reset only if flag is set
+                  if (reset(itab1,itab2)) this%d(itab1)%d(:,:,j,i) = 0
+                end do
               end do
-            end do
-          end block
-        end associate
+            end block
+          class default
+            call program_error("only stationary_stencil supported")
+        end select
       end do
     end associate
   end subroutine
@@ -236,46 +261,49 @@ contains
         ! do nothing for empty stencil or if all blocks in this block row are zero
         if ((.not. associated(this%st(itab1)%p)) .or. all(this%matr%zero(itab1,:))) cycle
 
-        associate (st => this%st(itab1)%p)
-          block
-            integer :: idx1(v1%g%idx_dim)
-            integer :: idx2(v2%g%idx_dim,st%nmax)
+        select type (st => this%st(itab1)%p)
+          class is (stationary_stencil)
+            block
+              integer :: idx1(v1%g%idx_dim)
+              integer :: idx2(v2%g%idx_dim,st%nmax)
 
-            ! loop over points in result table
-            do i = 1, v1%tab(itab1)%p%n
-              ! get result grid indices
-              idx1 = v1%tab(itab1)%p%get_idx(i)
+              ! loop over points in result table
+              do i = 1, v1%tab(itab1)%p%n
+                ! get result grid indices
+                idx1 = v1%tab(itab1)%p%get_idx(i)
 
-              ! get row base index
-              row0 = (i - 1) * v1%nval
+                ! get row base index
+                row0 = (i - 1) * v1%nval
 
-              ! get dependency points
-              call st%get(idx1, idx2, ndep)
+                ! get dependency points
+                call st%get(idx1, idx2, ndep)
 
-              ! loop over dependency points
-              do j = 1, ndep
-                ! get dependency table index
-                itab2 = v2%itab%get(idx2(:,j))
+                ! loop over dependency points
+                do j = 1, ndep
+                  ! get dependency table index
+                  itab2 = v2%itab%get(idx2(:,j))
 
-                ! do nothing if dependency matrix is not used (const or zero flag prevents it)
-                if (.not. associated(s(itab2)%p)) cycle
+                  ! do nothing if dependency matrix is not used (const or zero flag prevents it)
+                  if (.not. associated(s(itab2)%p)) cycle
 
-                ! get column base index
-                col0 = (v2%tab(itab2)%p%get_flat(idx2(:,j)) - 1) * v2%nval
+                  ! get column base index
+                  col0 = (v2%tab(itab2)%p%get_flat(idx2(:,j)) - 1) * v2%nval
 
-                ! set derivatives
-                do ival1 = 1, v1%nval
-                  row = row0 + ival1
-                  do ival2 = 1, v2%nval
-                    if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
-                    col = col0 + ival2
-                    call sb(itab2)%set(row, col, this%d(itab1)%d(ival1,ival2,j,i), search = .false.)
+                  ! set derivatives
+                  do ival1 = 1, v1%nval
+                    row = row0 + ival1
+                    do ival2 = 1, v2%nval
+                      if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
+                      col = col0 + ival2
+                      call sb(itab2)%set(row, col, this%d(itab1)%d(ival1,ival2,j,i), search = .false.)
+                    end do
                   end do
                 end do
               end do
-            end do
-          end block
-        end associate
+            end block
+          class default
+            call program_error("only stationary_stencil supported")
+        end select
 
         ! save values in sparse matrices
         do itab2 = 1, v2%ntab
