@@ -186,8 +186,10 @@ contains
     call this%equation_init('eq1: y=x+1')
 
     ! variable selectors
-    call this%x%init('xv', [x%get_ptr()], [gtab%get_ptr()])
-    call this%y%init('yv', [y%get_ptr()], [gtab%get_ptr()])
+    call this%x%init(x, [gtab%get_ptr()])
+    call this%y%init(y, [gtab%get_ptr()])
+
+    ! temp data
     allocate (this%y_tmp(this%y%n))
 
     ! provide n
@@ -233,8 +235,8 @@ contains
     call this%equation_init('req1: f=y-x')
 
     ! variable selectors
-    call this%x%init('xv', [x%get_ptr()], [gtab%get_ptr()])
-    call this%y%init('yv', [y%get_ptr()], [gtab%get_ptr()])
+    call this%x%init(x, [gtab%get_ptr()])
+    call this%y%init(y, [gtab%get_ptr()])
 
     call this%init_f(this%x)
 
@@ -291,9 +293,9 @@ contains
     call this%equation_init('req1: f=y-x')
 
     ! variable selectors
-    call this%x%init('xv', [x%get_ptr()], [gtab%get_ptr()])
-    call this%y%init('yv', [y%get_ptr()], [gtab%get_ptr()])
-    call this%z%init('zv', [z%get_ptr()], [gtab%get_ptr()])
+    call this%x%init(x, [gtab%get_ptr()])
+    call this%y%init(y, [gtab%get_ptr()])
+    call this%z%init(z, [gtab%get_ptr()])
 
     ! setting main var
     call this%init_f(this%z)

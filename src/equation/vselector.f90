@@ -6,7 +6,7 @@ module vselector_m
   use grid_m,       only: grid
   use grid_table_m, only: grid_table_ptr
   use grid_data_m,  only: grid_data_int, allocate_grid_data
-  use variable_m,   only: variable_ptr
+  use variable_m,   only: variable, variable_ptr
 
   implicit none
 
@@ -44,7 +44,10 @@ module vselector_m
     class(grid_data_int), allocatable :: itab
       !! get table index from grid indices
   contains
-    procedure :: init    => vselector_init
+    procedure, private :: vselector_init_one
+    procedure, private :: vselector_init_many
+    generic            :: init => vselector_init_one, vselector_init_many
+
     procedure :: reset   => vselector_reset
     procedure :: compare => vselector_compare
 
@@ -80,8 +83,29 @@ contains
 #define TT type(vselector_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine vselector_init(this, name, v, tab)
-    !! initialize variable selector
+  subroutine vselector_init_one(this, v, tab, name)
+    !! initialize variable selector given only one variable.
+    class(vselector),       intent(out) :: this
+    class(variable),        intent(in)  :: v
+      !! variable
+    type(grid_table_ptr),   intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)  :: name
+      !! selector name
+      !! default: variable%name
+
+    character(:), allocatable :: name_
+
+    ! optional name parsing
+    allocate (character(0) :: name_)      ! remove gfortran warning
+    name_ = v%name
+    if (present(name)) name_ = name
+
+    call this%init(name_, [v%get_ptr()], tab)
+  end subroutine
+
+  subroutine vselector_init_many(this, name, v, tab)
+    !! initialize variable selector given multiple variables.
     class(vselector),     intent(out) :: this
     character(*),         intent(in)  :: name
       !! selector name
