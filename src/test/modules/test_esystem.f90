@@ -108,7 +108,6 @@ contains
     type(res_equation2) :: req2
 
     integer                   :: iv
-    type(newton_opt)          :: opt
     type(sparse_real), target :: df
 
     print "(A)", "test_esystem"
@@ -133,7 +132,6 @@ contains
 
     ! equation system
     call es%init('test eqs system')
-    ! call es%provide(y_vsel)
 
     ! equation1
     call eq1%init(y, x)
@@ -150,11 +148,10 @@ contains
     ! finish equation system
     call es%init_final()
 
-    call opt%init(es%n, log=.true.)
-
     block
-      real :: p(0)
+      real              :: p(0)
       real, allocatable :: x0(:), x(:)
+      type(newton_opt)  :: opt
 
       allocate (x0(es%n))
       allocate (x(es%n))
@@ -162,6 +159,7 @@ contains
       call es%get_df(df)
       call df%output("t")
 
+      call opt%init(es%n, log=.true.)
       call newton(fun, p, opt, x0, x)
 
       call es%set_x(x)
@@ -170,7 +168,8 @@ contains
     print *, x%d%data
     print *, z%d%data
 
-    ! call tc%assert_eq([1.0, 1.0],      Asp%a, 1e-12, "delete block: a" )
+    call tc%assert_eq([(-0.5, iv=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
+    call tc%assert_eq([(-1.0, iv=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
 
     call tc%finish()
 
