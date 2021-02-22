@@ -12,8 +12,6 @@ module test_esystem_m
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use grid_table_m,     only: grid_table
   use grid1D_m,         only: grid1D
-  use matrix_m,         only: matrix_real, sparse_real
-  use newton_m,         only: newton_opt, newton
   use res_equation_m,   only: res_equation
   use stencil_m,        only: dirichlet_stencil
   use variable_m,       only: variable
@@ -107,8 +105,7 @@ contains
     type(res_equation1) :: req1
     type(res_equation2) :: req2
 
-    integer                   :: iv
-    type(sparse_real), target :: df
+    integer :: iv
 
     print "(A)", "test_esystem"
     call tc%init("esystem")
@@ -148,22 +145,8 @@ contains
     ! finish equation system
     call es%init_final()
 
-    block
-      real              :: p(0)
-      real, allocatable :: x0(:), x(:)
-      type(newton_opt)  :: opt
-
-      allocate (x0(es%n))
-      allocate (x(es%n))
-      x0 = es%get_x()
-      call es%get_df(df)
-      call df%output("t")
-
-      call opt%init(es%n, log=.true.)
-      call newton(fun, p, opt, x0, x)
-
-      call es%set_x(x)
-    end block
+    ! solve esystem
+    call es%solve()
 
     print *, x%d%data
     print *, z%d%data
@@ -172,29 +155,6 @@ contains
     call tc%assert_eq([(-1.0, iv=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
 
     call tc%finish()
-
-  contains
-    subroutine fun(x, p, f, dfdx, dfdp)
-      real,                        intent(in)  :: x(:)
-        !! arguments
-      real,                        intent(in)  :: p(:)
-        !! parameters
-      real,                        intent(out) :: f(:)
-        !! output function values
-      class(matrix_real), pointer, intent(out) :: dfdx
-        !! output pointer to jacobian of f wrt x
-      real, optional,              intent(out) :: dfdp(:,:)
-        !! optional output jacobian of f wrt p
-
-      ASSERT(size(p) == 0)
-      ASSERT(.not. present(dfdp))
-      IGNORE(p)
-      IGNORE(dfdp)
-
-      call es%set_x(x)
-      call es%eval(f, df)
-      dfdx => df
-    end subroutine
   end subroutine
 
   subroutine var_init(this, idx_type)

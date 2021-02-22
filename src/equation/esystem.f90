@@ -6,7 +6,8 @@ module esystem_m
   use error_m
   use equation_m,         only: equation
   use esystem_dag_m,      only: dag, vector_dag_node_ptr, NDSTATUS_DEP
-  use matrix_m,           only: block_real, sparse_real, sparse_cmplx, spbuild_real
+  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real
+  use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
@@ -63,6 +64,7 @@ module esystem_m
     procedure :: get_main_var    => esystem_get_main_var
     procedure :: get_res_equ     => esystem_get_res_equ
     procedure :: search_main_var => esystem_search_main_var
+    procedure :: solve           => esystem_solve
 
     procedure :: esystem_get_x
     procedure :: esystem_get_x_block
@@ -441,6 +443,54 @@ contains
       call program_error("main variable with name "//name//" not found")
     end if
   end function
+
+  subroutine esystem_solve(this)
+    !! solves equations system by newton-raphson method.
+    class(esystem), intent(inout) :: this
+
+    real                      :: p(0)
+    real, allocatable         :: x0(:), x(:)
+    type(newton_opt)          :: opt
+    type(sparse_real), target :: df
+
+    allocate (x0(this%n), x(this%n))
+
+    ! load initial esystem variables' values
+    x0 = this%get_x()
+
+    call opt%init(this%n, log=.true.)
+    call newton(fun, p, opt, x0, x)
+
+    ! save newton's result in esystem's variables
+    call this%set_x(x)
+
+  contains
+    subroutine fun(x, p, f, dfdx, dfdp)
+      real,                        intent(in)  :: x(:)
+        !! arguments
+      real,                        intent(in)  :: p(:)
+        !! parameters
+      real,                        intent(out) :: f(:)
+        !! output function values
+      class(matrix_real), pointer, intent(out) :: dfdx
+        !! output pointer to jacobian of f wrt x
+      real, optional,              intent(out) :: dfdp(:,:)
+        !! optional output jacobian of f wrt p
+
+      ! params not needed
+      ASSERT(size(p) == 0)
+      ASSERT(.not. present(dfdp))
+      IGNORE(p)
+      IGNORE(dfdp)
+
+      ! save input variable
+      call this%set_x(x)
+
+      ! compute residue and jacobian
+      call this%eval(f, df)
+      dfdx => df
+    end subroutine
+  end subroutine
 
   function esystem_get_x(this) result(x)
     !! get main variables in flat array
