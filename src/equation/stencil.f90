@@ -12,23 +12,23 @@ module stencil_m
 
   type, abstract :: stencil
     !! abstract stencil
-    integer :: max_ndep
+    integer :: nmax
       !! maximum number of dependency points
   contains
-    procedure                            :: stencil_init
-    procedure                            :: get_ptr => stencil_get_ptr
-    procedure(stencil_get_dep), deferred :: get_dep
+    procedure                        :: stencil_init
+    procedure                        :: get_ptr => stencil_get_ptr
+    procedure(stencil_get), deferred :: get
   end type
 
   abstract interface
-    subroutine stencil_get_dep(this, idx1, idx2, ndep)
+    subroutine stencil_get(this, idx1, idx2, ndep)
       !! get list of dependency points
       import stencil
       class(stencil), intent(in)  :: this
       integer,        intent(in)  :: idx1(:)
         !! result indices (idx_dim1)
       integer,        intent(out) :: idx2(:,:)
-        !! output dependency indices (idx_dim2 x max_ndep)
+        !! output dependency indices (idx_dim2 x nmax)
       integer,        intent(out) :: ndep
         !! output actual number of dependency points
     end subroutine
@@ -41,8 +41,8 @@ module stencil_m
   type, extends(stencil) :: dirichlet_stencil
     !! dirichlet stencil, selects only one grid point
   contains
-    procedure :: init    => dirichlet_stencil_init
-    procedure :: get_dep => dirichlet_stencil_get_dep
+    procedure :: init => dirichlet_stencil_init
+    procedure :: get  => dirichlet_stencil_get
   end type
 
   type, extends(stencil) :: near_neighb_stencil
@@ -59,19 +59,19 @@ module stencil_m
     integer :: idx2_dir
       !! dependency index direction for edges and faces
   contains
-    procedure :: init    => near_neighb_stencil_init
-    procedure :: get_dep => near_neighb_stencil_get_dep
+    procedure :: init => near_neighb_stencil_init
+    procedure :: get  => near_neighb_stencil_get
   end type
 
 contains
 
-  subroutine stencil_init(this, max_ndep)
+  subroutine stencil_init(this, nmax)
     !! initialize base stencil
     class(stencil), intent(out) :: this
-    integer,        intent(in)  :: max_ndep
+    integer,        intent(in)  :: nmax
       !! maximum number of dependency points
 
-    this%max_ndep = max_ndep
+    this%nmax = nmax
   end subroutine
 
   function stencil_get_ptr(this) result(ptr)
@@ -90,13 +90,13 @@ contains
     call this%stencil_init(1)
   end subroutine
 
-  subroutine dirichlet_stencil_get_dep(this, idx1, idx2, ndep)
+  subroutine dirichlet_stencil_get(this, idx1, idx2, ndep)
     !! get list of dependency points
     class(dirichlet_stencil), intent(in)  :: this
     integer,                  intent(in)  :: idx1(:)
       !! result indices (idx_dim1)
     integer,                  intent(out) :: idx2(:,:)
-      !! output dependency indices (idx_dim2 x max_ndep)
+      !! output dependency indices (idx_dim2 x nmax)
     integer,                  intent(out) :: ndep
       !! output actual number of dependency points
 
@@ -131,13 +131,13 @@ contains
     this%idx2_dir  = idx2_dir
   end subroutine
 
-  subroutine near_neighb_stencil_get_dep(this, idx1, idx2, ndep)
+  subroutine near_neighb_stencil_get(this, idx1, idx2, ndep)
     !! get list of dependency points
     class(near_neighb_stencil), intent(in)  :: this
     integer,                    intent(in)  :: idx1(:)
       !! result indices (idx_dim1)
     integer,                    intent(out) :: idx2(:,:)
-      !! output dependency indices (idx_dim2 x max_ndep)
+      !! output dependency indices (idx_dim2 x nmax)
     integer,                    intent(out) :: ndep
       !! output actual number of dependency points
 

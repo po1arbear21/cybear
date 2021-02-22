@@ -20,7 +20,7 @@ module jacobian_m
     type(stencil_ptr), allocatable :: st(:)
       !! stencils (v1%ntab)
     type(array4_real), allocatable :: d(:)
-      !! derivatives (v1%nval x v2%nval x st(itab1)%max_ndep x v1%tab(itab1)%n) x (v1%ntab)
+      !! derivatives (v1%nval x v2%nval x st(itab1)%nmax x v1%tab(itab1)%n) x (v1%ntab)
     type(ptr2_real),   allocatable :: e(:)
       !! pointers to d(itab1)%d(1,1,:,:); can be used in case of v1%nval == v2%nval == 1 (scalar var selectors)
   contains
@@ -68,7 +68,7 @@ contains
         if (.not. associated(st(itab1)%p)) cycle
 
         block
-          integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st(itab1)%p%max_ndep)
+          integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st(itab1)%p%nmax)
 
           ! loop over result points
           do i = 1, v1%tab(itab1)%p%n
@@ -76,7 +76,7 @@ contains
             idx1 = v1%tab(itab1)%p%get_idx(i)
 
             ! get dependency grid indices
-            call st(itab1)%p%get_dep(idx1, idx2, ndep)
+            call st(itab1)%p%get(idx1, idx2, ndep)
 
             ! loop over dependency grid indices
             do j = 1, ndep
@@ -106,7 +106,7 @@ contains
     allocate (this%d(v1%ntab))
     do itab1 = 1, v1%ntab
       if (.not. associated(st(itab1)%p)) cycle
-      allocate (this%d(itab1)%d(v1%nval, v2%nval, st(itab1)%p%max_ndep, v1%tab(itab1)%p%n), source = 0.0)
+      allocate (this%d(itab1)%d(v1%nval, v2%nval, st(itab1)%p%nmax, v1%tab(itab1)%p%n), source = 0.0)
     end do
 
     ! set pointers for scalar case
@@ -160,7 +160,7 @@ contains
 
         associate (st => this%st(itab1)%p)
           block
-            integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st%max_ndep)
+            integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim, st%nmax)
 
             ! loop over result points
             do i = 1, v1%tab(itab1)%p%n
@@ -168,7 +168,7 @@ contains
               idx1 = v1%tab(itab1)%p%get_idx(i)
 
               ! get dependency grid indices
-              call st%get_dep(idx1, idx2, ndep)
+              call st%get(idx1, idx2, ndep)
 
               ! loop over dependency grid indices
               do j = 1, ndep
@@ -239,7 +239,7 @@ contains
         associate (st => this%st(itab1)%p)
           block
             integer :: idx1(v1%g%idx_dim)
-            integer :: idx2(v2%g%idx_dim,st%max_ndep)
+            integer :: idx2(v2%g%idx_dim,st%nmax)
 
             ! loop over points in result table
             do i = 1, v1%tab(itab1)%p%n
@@ -250,7 +250,7 @@ contains
               row0 = (i - 1) * v1%nval
 
               ! get dependency points
-              call st%get_dep(idx1, idx2, ndep)
+              call st%get(idx1, idx2, ndep)
 
               ! loop over dependency points
               do j = 1, ndep
