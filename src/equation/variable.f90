@@ -8,8 +8,9 @@ module variable_m
   private
   public variable, variable_ptr
 
-  type variable
+  type, abstract :: variable
     !! base variable
+    !! derive for specific variable, e.g. potential...
 
     character(:), allocatable :: name
       !! name of variable
