@@ -1137,7 +1137,7 @@ function SPARSE_ZERO(nrows, ncols) result(zero)
   allocate (zero%a( 0))
 end function
 
-subroutine SPBUILD_INIT(this, s, n_per_row)
+subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
   !! Initialize sparse matrix builder.
 
   class(SPBUILD_TYPE),       intent(out) :: this
@@ -1146,12 +1146,18 @@ subroutine SPBUILD_INIT(this, s, n_per_row)
     !! Sparse matrix this builder is tied to
   integer, optional,         intent(in)  :: n_per_row
     !! Optional: provide hint for number of elements per row (default: 8)
+  logical, optional,         intent(in)  :: assume_unique
+    !! Optional: user ensures no duplicate entries (default: .false.)
 
   integer :: i, c
 
   ! number of elements per row
   c = 8
   if (present(n_per_row)) c = n_per_row
+
+  ! assume unique
+  this%assume_unique = .false.
+  if (present(assume_unique)) this%assume_unique = assume_unique
 
   ! save pointer to matrix
   this%sp => s
@@ -1299,7 +1305,10 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
     end if
 
     ! make sure that appending without searching happens in order
-    ASSERT(search_ .or. this%sorted(row))
+    ! user can disable this check if he ensures no duplicates
+    if (.not. this%assume_unique) then
+      ASSERT(search_ .or. this%sorted(row))
+    end if
 
     ! append new value
     call this%cols(row)%push(col)
