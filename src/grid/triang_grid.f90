@@ -63,7 +63,7 @@ contains
     class(triang_grid), intent(out) :: this
     real,               intent(in)  :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
-      !! size: (2,nvert)
+      !! size: (dim=2,nvert)
     integer,            intent(in)  :: icell(:,:)
       !! indices to cell's vertices: cell_i = [vert_1, vert_2, vert_3] = icell(1:3,i)
       !! size(3,ncell)
@@ -73,11 +73,14 @@ contains
       !! edge (iv<->iv2) is only saved at one vertex, either iv or iv2.
     type(vector_int), allocatable :: vert2edge_vec(:), vert2cell_vec(:)
 
-    ncell = size(icell, dim=2)
-    nvert = size(vert, dim=2)
+    ASSERT(2 == size(vert,  dim=1))
+    ASSERT(3 == size(icell, dim=1))
 
     ! init base
     call this%grid_init(2, 1, [2], 3)
+
+    ncell = size(icell, dim=2)
+    nvert = size(vert, dim=2)
 
     ! save grid data
     this%vert = vert
@@ -211,8 +214,8 @@ contains
       !! output: upper bound for each index. size: (idx_dim=1)
 
     ASSERT(this%idx_allowed(idx_type, idx_dir))
+    ASSERT(size(idx_bnd) == this%idx_dim)
 
-    ASSERT(size(idx_bnd) == 1)
     IGNORE(idx_dir)
 
     select case (idx_type)
@@ -236,7 +239,7 @@ contains
       !! output: vertex' coordinates. size: (dim=2)
 
     ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
-    ASSERT(size(p) == 2)
+    ASSERT(size(p) == this%dim)
 
     p = this%vert(:,idx(1))
   end subroutine
@@ -254,8 +257,9 @@ contains
     integer :: iv
 
     ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    ASSERT(all(shape(p) == [this%dim, 2]))
+
     IGNORE(idx_dir)
-    ASSERT(all(shape(p) == [2, 2]))
 
     do iv = 1, 2
       p(:,iv) = this%vert(:,this%edge2vert(iv,idx(1)))
@@ -272,6 +276,9 @@ contains
     real,               intent(out) :: p(:,:)
       !! output: face's coordinates. size: (dim=2, 2)
 
+    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    ASSERT(all(shape(p) == [this%dim, this%face_dim]))
+
     call this%get_edge(idx, idx_dir, p)
   end subroutine
 
@@ -286,7 +293,7 @@ contains
     integer :: iv
 
     ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    ASSERT(all(shape(p) == [2, 3]))
+    ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
 
     do iv = 1, 3
       p(:,iv) = this%vert(:,this%cell2vert(iv,idx(1)))
@@ -356,38 +363,40 @@ contains
     max_neighb = this%max_neighb(idx1_type,idx2_type)
   end function
 
-  subroutine triang_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
-    !! get nearest neighbours
-    !!
-    !! output might not be fully set. consider boundary nodes which have fewer neighbours.
-    !!    idx2(:,nidx2+1:) will be empty.
+  subroutine triang_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
+      !! get j-th neighbour.
+      !!
+      !! j: we count neighbors from 1,2,...,N.
+      !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
+      !! status: indicates if j-th neighbor exists
     class(triang_grid), intent(in)  :: this
     integer,            intent(in)  :: idx1_type
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx1_dir
       !! first index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-      !! all directions should be 0, there are no directions in unstructured grids.
     integer,            intent(in)  :: idx2_type
       !! neighbour index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx2_dir
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-      !! all directions should be 0, there are no directions in unstructured grids.
     integer,            intent(in)  :: idx1(:)
-      !! first's indices. size: (idx_dim=1)
-    integer,            intent(out) :: idx2(:,:)
-      !! output: neighbours' indices. size: (idx_dim=1, max_neighb)
-    integer,            intent(out) :: nidx2
-      !! output: actual number of neighbours.
+      !! first indices. size: (idx_dim)
+    integer,            intent(in)  :: j
+      !! j-th neighbor
+    integer,            intent(out) :: idx2(:)
+      !! output neighbour indices. size: (idx_dim)
+    logical,            intent(out) :: status
+      !! does j-th neighbor exist?
 
     integer :: max_neighb
 
     ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+    ASSERT(size(idx2) == size(idx1))
 
     max_neighb = this%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir)
-    ASSERT(all(shape(idx2) == [1, max_neighb]))
 
-    nidx2 = 0
+    status = .false.
+    if ((j < 1) .or. (j > max_neighb)) return
 
     if (idx1_type == IDX_VERTEX) then
       block
@@ -399,35 +408,36 @@ contains
           block
             integer :: ie, ie_, iv2, iv2_
 
-            do ie_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
-              ie = this%vert2edge_i(ie_)
+            if (j <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)) then  ! j must be smaller/equal than number of edges
+              ie_ = this%vert2edge_n(iv1) + j-1
+              ie  = this%vert2edge_i(ie_)
               do iv2_ = 1, 2
                 iv2 = this%edge2vert(iv2_,ie)
                 if (iv2 == iv1) cycle
-                nidx2 = nidx2 + 1
-                idx2(1,nidx2) = iv2
+                idx2 = iv2
               end do
-            end do
+              status = .true.
+            end if
           end block
 
         else if ((idx2_type == IDX_EDGE) .or. (idx2_type == IDX_FACE)) then
           block
             integer :: ie_
 
-            do ie_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
-              nidx2 = nidx2 + 1
-              idx2(1,nidx2) = this%vert2edge_i(ie_)
-            end do
+            if (j <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)) then  ! j must be smaller/equal than number of edges
+              ie_  = this%vert2edge_n(iv1) + j-1
+              idx2 = this%vert2edge_i(ie_)
+            end if
           end block
 
         else if (idx2_type == IDX_CELL) then
           block
             integer :: ic_
 
-            do ic_ = this%vert2cell_n(iv1), this%vert2cell_n(iv1+1)-1
-              nidx2 = nidx2 + 1
-              idx2(1,nidx2) = this%vert2cell_i(ic_)
-            end do
+            if (j <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)) then  ! j must be smaller/equal than number of cells
+              ic_  = this%vert2cell_n(iv1) + j-1
+              idx2 = this%vert2cell_i(ic_)
+            end if
           end block
         end if            ! idx2_type
       end block           ! idx1_type==IDX_VERTEX
@@ -439,42 +449,60 @@ contains
         ie1 = idx1(1)
 
         if (idx2_type == IDX_VERTEX) then
-          nidx2 = 2
-          idx2(1,1:2) = this%edge2vert(:,ie1)
+          if (j < 3) idx2 = this%edge2vert(j,ie1)
 
         else if ((idx2_type == IDX_EDGE) .or. (idx2_type == IDX_FACE)) then
           block
-            integer :: iv1, iv1_, ie2, ie2_
+            integer :: iv1, iv1_, ie2, ie2_, ne2
 
-            do iv1_ = 1, 2
+            ! how many edges we encountered this far
+            ne2 = 0
+
+            OUTER: do iv1_ = 1, 2
               iv1 = this%edge2vert(iv1_,ie1)
-              do ie2_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
-                ie2 = this%vert2edge_i(ie2_)
-                if (ie1 == ie2) cycle
-                nidx2 = nidx2 + 1
-                idx2(1,nidx2) = ie2
-              end do
-            end do
+              ! j must be smaller/equal than number of edges for that specific vertex
+              ! (minus 1, b.c. of self counting edge_1)
+              if (j-ne2 <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)-1) then
+                do ie2_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
+                  ie2 = this%vert2edge_i(ie2_)
+                  if (ie1 == ie2) cycle
+                  ne2 = ne2 + 1
+                  if (ne2 == j) then
+                    idx2   = ie2
+                    status = .true.
+                    exit OUTER
+                  end if
+                end do
+              else
+                ne2 = ne2 + this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)-1
+              end if
+            end do OUTER
           end block
 
         else if (idx2_type == IDX_CELL) then
           block
-            integer :: iv1(2), ic2, ic2_, iv2_
+            integer :: iv1(2), ic2, ic2_, iv2_, nc2
 
+            ! make sure iv1(1) has fewer neighb cells than iv1(2) as we only loop over one vertex' cells
             iv1 = this%edge2vert(:,ie1)
-
-            ! make sure iv1(1) has fewer neighb cells than iv1(2)
             if (this%vert2cell_n(iv1(2)+1)-this%vert2cell_n(iv1(2)) < this%vert2cell_n(iv1(1)+1) - this%vert2cell_n(iv1(1))) then
               iv1 = [iv1(2), iv1(1)]
             end if
+
+            ! how many cells we encountered this far
+            nc2 = 0
 
             do ic2_ = this%vert2cell_n(iv1(1)), this%vert2cell_n(iv1(1)+1)-1
               ic2 = this%vert2cell_i(ic2_)
 
               ! does iv1(1)'s neighb cell ic2 contain iv1(2) aka is edge ie1 part of ic2?
               if (count([(this%cell2vert(iv2_,ic2) == iv1(2), iv2_ = 1, 3)]) > 0) then
-                nidx2 = nidx2 + 1
-                idx2(1,nidx2) = ic2
+                nc2 = nc2 + 1
+                if (nc2 == j) then
+                  idx2   = ic2
+                  status = .true.
+                  exit
+                end if
               end if
             end do
           end block
@@ -488,32 +516,32 @@ contains
         ic1 = idx1(1)
 
         if (idx2_type == IDX_VERTEX) then
-          nidx2 = 3
-          idx2(1,1:3) = this%cell2vert(:,ic1)
+          idx2   = this%cell2vert(j,ic1)
+          status = .true.
 
         else if ((idx2_type == IDX_EDGE) .or. (idx2_type == IDX_FACE)) then
           block
             integer :: iv1, iv1_, iv11, iv11_, ie2, ie2_
 
-            do iv1_ = 1, 3
-              iv11_ = merge(iv1_+1, 1, iv1_<3)
-              iv1  = this%cell2vert(iv1_, ic1)
-              iv11 = this%cell2vert(iv11_,ic1)
-              do ie2_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
-                ie2 = this%vert2edge_i(ie2_)
-                if (any(iv11 == this%edge2vert(:,ie2))) then
-                  nidx2 = nidx2 + 1
-                  idx2(1,nidx2) = ie2
-                  exit
-                end if
-              end do
+            iv1_  = j
+            iv11_ = merge(iv1_+1, 1, iv1_<3)
+            iv1   = this%cell2vert(iv1_, ic1)
+            iv11  = this%cell2vert(iv11_,ic1)
+            do ie2_ = this%vert2edge_n(iv1), this%vert2edge_n(iv1+1)-1
+              ie2 = this%vert2edge_i(ie2_)
+              if (any(iv11 == this%edge2vert(:,ie2))) then
+                idx2   = ie2
+                status = .true.
+                exit
+              end if
             end do
           end block
 
         else if (idx2_type == IDX_CELL) then
           block
-            integer :: iv1, iv1_, iv11, iv11_, ic2, ic2_
+            integer :: iv1, iv1_, iv11, iv11_, ic2, ic2_, nc2
 
+            nc2 = 0
             do iv1_ = 1, 3
               iv11_ = merge(iv1_+1, 1, iv1_<3)
               iv1  = this%cell2vert(iv1_, ic1)
@@ -522,9 +550,12 @@ contains
                 ic2 = this%vert2cell_i(ic2_)
                 if (ic2 == ic1) cycle
                 if (any(iv11 == this%cell2vert(:, ic2))) then
-                  nidx2 = nidx2 + 1
-                  idx2(1,nidx2) = ic2
-                  exit
+                  nc2 = nc2 + 1
+                  if (nc2 == j) then
+                    idx2   = ic2
+                    status = .true.
+                    exit
+                  end if
                 end if
               end do
             end do

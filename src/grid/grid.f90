@@ -140,11 +140,12 @@ module grid_m
         !! return maximal number of nearest neighbours
     end function
 
-    subroutine grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
-      !! get nearest neighbours
+    subroutine grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
+      !! get j-th neighbour.
       !!
-      !! output might not be fully set. consider boundary nodes which have fewer neighbours.
-      !!    idx2(:,nidx2+1:) will be empty.
+      !! j: we count neighbors from 1,2,...,N.
+      !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
+      !! status: indicates if j-th neighbor exists
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx1_type
@@ -157,10 +158,12 @@ module grid_m
         !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
       integer,     intent(in)  :: idx1(:)
         !! first indices. size: (idx_dim)
-      integer,     intent(out) :: idx2(:,:)
-        !! output neighbour indices. size: (idx_dim, max_neighb)
-      integer,     intent(out) :: nidx2
-        !! output actual number of neighburs
+      integer,     intent(in)  :: j
+        !! j-th neighbor
+      integer,     intent(out) :: idx2(:)
+        !! output neighbour indices. size: (idx_dim)
+      logical,     intent(out) :: status
+        !! does j-th neighbor exist?
     end subroutine
   end interface
 

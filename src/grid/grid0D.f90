@@ -183,8 +183,8 @@ contains
     max_neighb = 0
   end function
 
-  subroutine grid0D_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
-    !! get nearest neighbours
+  subroutine grid0D_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
+    !! get j-th neighbor
     class(grid0D), intent(in)  :: this
     integer,       intent(in)  :: idx1_type
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
@@ -196,10 +196,12 @@ contains
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,       intent(in)  :: idx1(:)
       !! first indices
-    integer,       intent(out) :: idx2(:,:)
-      !! output neighbour indices (idx_dim x max_neighb)
-    integer,       intent(out) :: nidx2
-      !! output actual number of neighburs
+    integer,       intent(in)  :: j
+      !! j-th neighbor
+    integer,       intent(out) :: idx2(:)
+      !! output neighbour indices (idx_dim)
+    logical,       intent(out) :: status
+      !! does j-th neighb exist?
 
     IGNORE(this     )
     IGNORE(idx1_type)
@@ -208,8 +210,8 @@ contains
     IGNORE(idx2_dir )
     IGNORE(idx1     )
 
-    idx2  = 0
-    nidx2 = 0
+    idx2   = 0
+    status = (j == 0)
   end subroutine
 
 end module

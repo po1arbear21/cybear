@@ -348,8 +348,12 @@ contains
     max_neighb = 0
   end function
 
-  subroutine tensor_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, idx2, nidx2)
-    !! get nearest neighbours
+  subroutine tensor_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
+      !! get j-th neighbour.
+      !!
+      !! j: we count neighbors from 1,2,...,N.
+      !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
+      !! status: indicates if j-th neighbor exists
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx1_type
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
@@ -360,15 +364,17 @@ contains
     integer,            intent(in)  :: idx2_dir
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,            intent(in)  :: idx1(:)
-      !! first indices
-    integer,            intent(out) :: idx2(:,:)
-      !! output neighbour indices (idx_dim x max_neighb)
-    integer,            intent(out) :: nidx2
-      !! output actual number of neighbours
+      !! first indices. size: (idx_dim)
+    integer,            intent(in)  :: j
+      !! j-th neighbor
+    integer,            intent(out) :: idx2(:)
+      !! output neighbour indices. size: (idx_dim)
+    logical,            intent(out) :: status
+      !! does j-th neighbor exist?
 
     ! FIXME
     idx2 = 0
-    nidx2 = 0
+    status = .false.
   end subroutine
 
 end module
