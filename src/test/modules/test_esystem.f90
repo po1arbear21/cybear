@@ -193,7 +193,7 @@ contains
     allocate (this%y_tmp(this%y%n))
 
     ! provide n
-    call this%add_prov(this%y)
+    call this%provide(this%y)
 
     ! stencil
     call this%st%init() ! dirichlet stencil

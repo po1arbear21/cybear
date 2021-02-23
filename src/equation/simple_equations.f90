@@ -65,7 +65,7 @@ contains
     call this%equation_init("Provide"//v%name)
 
     ! add provided var
-    call this%add_prov(v)
+    call this%provide(v)
 
     ! finish initialization
     call this%init_final()
@@ -96,7 +96,7 @@ contains
     call this%equation_init("Select"//v1%name)
 
     ! provide v1
-    call this%add_prov(v1)
+    call this%provide(v1)
 
     ! stencil
     call this%st%init() ! dirichlet stencil

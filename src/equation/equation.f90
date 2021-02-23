@@ -3,9 +3,12 @@
 module equation_m
 
   use error_m
-  use jacobian_m,  only: jacobian, jacobian_ptr
-  use stencil_m,   only: stencil_ptr
-  use vselector_m, only: vselector, vselector_ptr, vector_vselector_ptr
+  use grid_table_m, only: grid_table_ptr
+  use jacobian_m,   only: jacobian, jacobian_ptr
+  use stencil_m,    only: stencil_ptr
+  use variable_m,   only: variable
+  use vector_m,     only: vector_int
+  use vselector_m,  only: vselector, vselector_ptr, vector_vselector_ptr
 
   implicit none
 
@@ -26,6 +29,8 @@ module equation_m
       !! provided variable selectors
     type(vector_vselector_ptr) :: vdep
       !! dependency variable selectors
+    type(vector_int)           :: vprov_alc
+      !! which vprov%d(i)%p were allocated in this%provide(var, grid)?
 
     type(jacobian_ptr), allocatable :: jaco(:,:)
       !! derivatives of vprov wrt vdep (vprov%n x vdep%n)
@@ -36,13 +41,16 @@ module equation_m
     procedure :: equation_init
     procedure :: destruct      => equation_destruct
     procedure :: reset         => equation_reset
-    procedure :: add_prov      => equation_add_prov
     procedure :: add_dep       => equation_add_dep
     procedure :: realloc_jaco  => equation_realloc_jaco
     procedure :: init_jaco     => equation_init_jaco
     procedure :: init_final    => equation_init_final
     procedure :: set_jaco_matr => equation_set_jaco_matr
     procedure :: test          => equation_test
+
+    procedure, private :: equation_provide_vselector
+    procedure, private :: equation_provide_variable
+    generic            :: provide => equation_provide_vselector, equation_provide_variable
 
     procedure(equation_eval), deferred :: eval
   end type
@@ -81,8 +89,9 @@ contains
     this%name = name
 
     ! init vprov and vdep vectors
-    call this%vprov%init(0, c = cap)
-    call this%vdep%init( 0, c = cap)
+    call this%vprov%init(    0, c = cap)
+    call this%vdep%init(     0, c = cap)
+    call this%vprov_alc%init(0, c = cap)
 
     ! allocate jaco
     allocate (this%jaco(cap,cap))
@@ -98,8 +107,14 @@ contains
     integer :: i, j
 
     if (allocated(this%name)) deallocate (this%name)
+
+    do i = 1, this%vprov_alc%n
+      deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
+    end do
+
     call this%vprov%destruct()
     call this%vdep%destruct()
+    call this%vprov_alc%destruct()
 
     ! destruct jacobians
     do j = 1, size(this%jaco,2); do i = 1, size(this%jaco,1)
@@ -129,13 +144,36 @@ contains
     end do; end do
   end subroutine
 
-  subroutine equation_add_prov(this, v)
+  subroutine equation_provide_variable(this, var, tab, name)
+    !! add new provided var selector
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: var
+      !! new provided variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! vselector's name.
+      !! default: var%name
+
+    character(:), allocatable :: name_
+    type(vselector), pointer  :: vsel
+
+    name_ = var%name
+    if (present(name)) name_ = name
+
+    allocate (vsel)
+
+    call vsel%init(var, tab, name=name_)
+    call this%provide(vsel)
+
+    call this%vprov_alc%push(this%vprov%n)
+  end subroutine
+
+  subroutine equation_provide_vselector(this, vsel)
     !! add new provided var selector
     class(equation),          intent(inout) :: this
-    class(vselector), target, intent(in)    :: v
+    class(vselector), target, intent(in)    :: vsel
       !! new provided var selector
-
-    type(vselector_ptr) :: vptr
 
     ! reallocate jaco if necessary
     if (this%vprov%n >= size(this%vprov%d)) then
@@ -143,8 +181,7 @@ contains
     end if
 
     ! add var selector to provided variables
-    vptr%p => v
-    call this%vprov%push(vptr)
+    call this%vprov%push(vsel%get_ptr())
   end subroutine
 
   subroutine equation_add_dep(this, v)
