@@ -2,7 +2,7 @@
 FC     := gfortran
 FFLAGS := -cpp -ffree-line-length-none -I./ -march=native -Wall -fopenmp -fuse-ld=bfd -fdefault-real-8
 ifeq ($(BUILD),debug)
-  FFLAGS += -O0 -g3 -ggdb -fcheck=all -fbacktrace
+  FFLAGS += -O0 -g3 -ggdb -fcheck=all -fbacktrace -finit-integer=-9999 -finit-real=-inf
 endif
 ifeq ($(BUILD),release)
   FFLAGS += -O2
