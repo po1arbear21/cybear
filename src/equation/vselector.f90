@@ -44,12 +44,13 @@ module vselector_m
     class(grid_data_int), allocatable :: itab
       !! get table index from grid indices
   contains
-    procedure, private :: vselector_init_one
-    procedure, private :: vselector_init_many
-    generic            :: init => vselector_init_one, vselector_init_many
+    procedure, private :: vselector_init_single
+    procedure, private :: vselector_init_multiple
+    generic            :: init => vselector_init_single, vselector_init_multiple
 
     procedure :: reset   => vselector_reset
     procedure :: compare => vselector_compare
+    procedure :: get_ptr => vselector_get_ptr
 
     procedure :: vselector_get_single
     procedure :: vselector_get_block
@@ -83,7 +84,7 @@ contains
 #define TT type(vselector_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine vselector_init_one(this, v, tab, name)
+  subroutine vselector_init_single(this, v, tab, name)
     !! initialize variable selector given only one variable.
     class(vselector),       intent(out) :: this
     class(variable),        intent(in)  :: v
@@ -104,7 +105,7 @@ contains
     call this%init(name_, [v%get_ptr()], tab)
   end subroutine
 
-  subroutine vselector_init_many(this, name, v, tab)
+  subroutine vselector_init_multiple(this, name, v, tab)
     !! initialize variable selector given multiple variables.
     class(vselector),     intent(out) :: this
     character(*),         intent(in)  :: name
@@ -269,6 +270,14 @@ contains
       call this%v(i)%p%data%set(idx, x(i))
     end do
   end subroutine
+
+  function vselector_get_ptr(this) result(ptr)
+    !! returns pointer type to this vselector
+    class(vselector), target, intent(in) :: this
+    type(vselector_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
 
   subroutine vselector_set_block(this, itab, x)
     !! set data for whole block
