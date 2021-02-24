@@ -14,7 +14,7 @@ module equation_m
 
   private
   public equation, equation_ptr
-  public equation_add_dep
+  public equation_depend_vselector
   public equation_destruct
   public equation_reset
   public equation_set_jaco_matr
@@ -30,7 +30,9 @@ module equation_m
     type(vector_vselector_ptr) :: vdep
       !! dependency variable selectors
     type(vector_int)           :: vprov_alc
-      !! which vprov%d(i)%p were allocated in this%provide(var, grid)?
+      !! which vprov%d(i)%p were allocated in this%provide(var, tab)?
+    type(vector_int)           :: vdep_alc
+      !! which vdep%d(i)%p were allocated in this%depend(var, tab)?
 
     type(jacobian_ptr), allocatable :: jaco(:,:)
       !! derivatives of vprov wrt vdep (vprov%n x vdep%n)
@@ -41,7 +43,6 @@ module equation_m
     procedure :: equation_init
     procedure :: destruct      => equation_destruct
     procedure :: reset         => equation_reset
-    procedure :: add_dep       => equation_add_dep
     procedure :: realloc_jaco  => equation_realloc_jaco
     procedure :: init_jaco     => equation_init_jaco
     procedure :: init_final    => equation_init_final
@@ -51,6 +52,10 @@ module equation_m
     procedure, private :: equation_provide_vselector
     procedure, private :: equation_provide_variable
     generic            :: provide => equation_provide_vselector, equation_provide_variable
+
+    procedure, private :: equation_depend_vselector
+    procedure, private :: equation_depend_variable
+    generic            :: depend => equation_depend_vselector, equation_depend_variable
 
     procedure(equation_eval), deferred :: eval
   end type
@@ -92,6 +97,7 @@ contains
     call this%vprov%init(    0, c = cap)
     call this%vdep%init(     0, c = cap)
     call this%vprov_alc%init(0, c = cap)
+    call this%vdep_alc%init( 0, c = cap)
 
     ! allocate jaco
     allocate (this%jaco(cap,cap))
@@ -111,10 +117,14 @@ contains
     do i = 1, this%vprov_alc%n
       deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
     end do
+    do i = 1, this%vdep_alc%n
+      deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
+    end do
 
     call this%vprov%destruct()
     call this%vdep%destruct()
     call this%vprov_alc%destruct()
+    call this%vdep_alc%destruct()
 
     ! destruct jacobians
     do j = 1, size(this%jaco,2); do i = 1, size(this%jaco,1)
@@ -158,15 +168,18 @@ contains
     character(:), allocatable :: name_
     type(vselector), pointer  :: vsel
 
+    ! optional argument
+    allocate (character(0) :: name_)    ! remove gfortran warning
     name_ = var%name
     if (present(name)) name_ = name
 
+    ! create vselector from variable and keep track of memory
     allocate (vsel)
-
     call vsel%init(var, tab, name=name_)
-    call this%provide(vsel)
-
     call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    call this%provide(vsel)
   end subroutine
 
   subroutine equation_provide_vselector(this, vsel)
@@ -184,10 +197,38 @@ contains
     call this%vprov%push(vsel%get_ptr())
   end subroutine
 
-  subroutine equation_add_dep(this, v)
+  subroutine equation_depend_variable(this, var, tab, name)
+    !! add new dependency variable
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: var
+      !! new dependency variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! vselector's name.
+      !! default: var%name
+
+    character(:), allocatable :: name_
+    type(vselector), pointer  :: vsel
+
+    ! optional argument
+    allocate (character(0) :: name_)    ! remove gfortran warning
+    name_ = var%name
+    if (present(name)) name_ = name
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(var, tab, name=name_)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependency vselector
+    call this%depend(vsel)
+  end subroutine
+
+  subroutine equation_depend_vselector(this, vsel)
     !! add new dependency var
     class(equation),          intent(inout) :: this
-    class(vselector), target, intent(in)    :: v
+    class(vselector), target, intent(in)    :: vsel
       !! new dependency var selector
 
     type(vselector_ptr) :: vptr
@@ -198,7 +239,7 @@ contains
     end if
 
     ! add var selector to dependent variables
-    vptr%p => v
+    vptr%p => vsel
     call this%vdep%push(vptr)
   end subroutine
 

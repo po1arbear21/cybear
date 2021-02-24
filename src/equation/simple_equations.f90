@@ -131,7 +131,7 @@ contains
         if (any(itab2 <= 0)) cycle
 
         ! add dependency
-        call this%add_dep(v2(i)%p)
+        call this%depend(v2(i)%p)
 
         ! init+set jacobian
         block

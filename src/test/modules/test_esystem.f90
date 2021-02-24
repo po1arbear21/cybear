@@ -199,7 +199,7 @@ contains
     call this%st%init() ! dirichlet stencil
 
     ! add dependency
-    call this%add_dep(this%x)
+    call this%depend(this%x)
 
     ! init jacobian
     this%dydx => this%init_jaco(1, 1, [this%st%get_ptr()], const = .true.)
@@ -247,7 +247,7 @@ contains
     call this%st%init() ! dirichlet stencil
 
     ! add dependencies
-    call this%add_dep(this%x)
+    call this%depend(this%x)
 
     ! init jacobian for x: dfdx
     this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
@@ -256,7 +256,7 @@ contains
       call this%dfdx%set(1, idx1, 1, -1.0)
     end do
 
-    call this%add_dep(this%y)
+    call this%depend(this%y)
 
     ! init jacobian for y: dfdy
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
@@ -307,15 +307,15 @@ contains
     call this%st%init() ! dirichlet stencil
 
     ! add main: z
-    call this%add_dep(this%z)
+    call this%depend(this%z)
     this%dfdz => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()])
 
     ! add dep: x
-    call this%add_dep(this%x)
+    call this%depend(this%x)
     this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()])
 
     ! add dep: y
-    call this%add_dep(this%y)
+    call this%depend(this%y)
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)

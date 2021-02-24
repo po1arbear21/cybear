@@ -2,7 +2,7 @@
 
 module res_equation_m
 
-  use equation_m,  only: equation, equation_set_jaco_matr, equation_add_dep, equation_reset, equation_destruct
+  use equation_m,  only: equation, equation_set_jaco_matr, equation_depend_vselector, equation_reset, equation_destruct
   use error_m
   use jacobian_m,  only: jacobian, jacobian_ptr
   use stencil_m,   only: stencil_ptr
@@ -136,7 +136,7 @@ contains
     type(jacobian_ptr), allocatable :: jaco_f_tmp(:), jaco_ft_tmp(:)
 
     ! base
-    call equation_add_dep(this, v)
+    call equation_depend_vselector(this, v)
 
     ! reallocate jaco_f and jaco_ft if necessary
     if (this%vdep%n >= ubound(this%jaco_f,1)) then
