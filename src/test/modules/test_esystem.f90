@@ -180,7 +180,7 @@ contains
     type(var),        target, intent(in)  :: x
       !! dependent var
 
-    integer :: i, idx1(1)
+    integer :: i
 
     ! init base
     call this%equation_init('eq1: y=x+1')
@@ -204,8 +204,7 @@ contains
     ! init jacobian
     this%dydx => this%init_jaco(1, 1, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      call this%dydx%set(1, idx1, 1, 3.0)
+      call this%dydx%set(1, i, 1, 3.0)
     end do
 
     ! finish initialization
@@ -230,7 +229,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: i, idx1(1)
+    integer :: i
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -252,8 +251,7 @@ contains
     ! init jacobian for x: dfdx
     this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      call this%dfdx%set(1, idx1, 1, -1.0)
+      call this%dfdx%set(1, i, 1, -1.0)
     end do
 
     call this%depend(this%y)
@@ -261,8 +259,7 @@ contains
     ! init jacobian for y: dfdy
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      call this%dfdy%set(1, idx1, 1, 1.0)
+      call this%dfdy%set(1, i, 1, 1.0)
     end do
 
     ! finish initialization
@@ -290,7 +287,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: i, idx1(1)
+    integer :: i
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -318,8 +315,7 @@ contains
     call this%depend(this%y)
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      call this%dfdy%set(1, idx1, 1, 1.0)
+      call this%dfdy%set(1, i, 1, 1.0)
     end do
 
     ! finish initialization
@@ -342,8 +338,8 @@ contains
 
       call this%f%set(idx1, z*x+y)
 
-      call this%dfdx%set(1, idx1, 1, z(1))
-      call this%dfdz%set(1, idx1, 1, x(1))
+      call this%dfdx%set(1, i, 1, z(1))
+      call this%dfdz%set(1, i, 1, x(1))
     end do
   end subroutine
 
