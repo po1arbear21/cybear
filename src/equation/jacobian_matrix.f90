@@ -18,8 +18,10 @@ module jacobian_matrix_m
 
     type(sparse_ptr_real), allocatable :: s(:,:)
       !! size: (v1%ntab, v2%ntab)
+      !! size of matrix s(itab1,itab2): (v1%nvals(itab1), v2%nvals(itab2))
     type(spbuild_real),    allocatable :: sb(:,:)
       !! size: (v1%ntab, v2%ntab)
+      !! size of matrix sb(itab1,itab2): (v1%nvals(itab1), v2%nvals(itab2))
 
     logical, allocatable :: const(:,:)
       !! const flags for each block (true means linear equation)

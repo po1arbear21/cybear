@@ -105,7 +105,7 @@ contains
     type(res_equation1) :: req1
     type(res_equation2) :: req2
 
-    integer :: iv
+    integer :: i
 
     print "(A)", "test_esystem"
     call tc%init("esystem")
@@ -124,7 +124,7 @@ contains
 
     ! setup grid table + ptr
     call gtab%init('all vertices', g, IDX_VERTEX, 0)
-    call gtab%flags%set([(.true., iv=1, 4)])
+    call gtab%flags%set([(.true., i=1, 4)])
     call gtab%init_final()
 
     ! equation system
@@ -151,8 +151,8 @@ contains
     print *, x%d%data
     print *, z%d%data
 
-    call tc%assert_eq([(-0.5, iv=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
-    call tc%assert_eq([(-1.0, iv=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
+    call tc%assert_eq([(-0.5, i=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
+    call tc%assert_eq([(-1.0, i=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
 
     call tc%finish()
   end subroutine
@@ -180,7 +180,7 @@ contains
     type(var),        target, intent(in)  :: x
       !! dependent var
 
-    integer :: iv
+    integer :: i, idx1(1)
 
     ! init base
     call this%equation_init('eq1: y=x+1')
@@ -203,8 +203,9 @@ contains
 
     ! init jacobian
     this%dydx => this%init_jaco(1, 1, [this%st%get_ptr()], const = .true.)
-    do iv = 1, gtab%n
-      this%dydx%d(1)%d(1,1,1,iv) = 3
+    do i = 1, gtab%n
+      idx1 = gtab%get_idx(i)
+      call this%dydx%set(1, idx1, 1, 3.0)
     end do
 
     ! finish initialization
@@ -229,7 +230,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: iv
+    integer :: i, idx1(1)
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -250,16 +251,18 @@ contains
 
     ! init jacobian for x: dfdx
     this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
-    do iv = 1, gtab%n
-      this%dfdx%d(1)%d(1,1,1,iv) = -1
+    do i = 1, gtab%n
+      idx1 = gtab%get_idx(i)
+      call this%dfdx%set(1, idx1, 1, -1.0)
     end do
 
     call this%add_dep(this%y)
 
     ! init jacobian for y: dfdy
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
-    do iv = 1, gtab%n
-      this%dfdy%d(1)%d(1,1,1,iv) = 1
+    do i = 1, gtab%n
+      idx1 = gtab%get_idx(i)
+      call this%dfdy%set(1, idx1, 1, 1.0)
     end do
 
     ! finish initialization
@@ -287,7 +290,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: iv
+    integer :: i, idx1(1)
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -314,8 +317,9 @@ contains
     ! add dep: y
     call this%add_dep(this%y)
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
-    do iv = 1, gtab%n
-      this%dfdy%d(1)%d(1,1,1,iv) = 1
+    do i = 1, gtab%n
+      idx1 = gtab%get_idx(i)
+      call this%dfdy%set(1, idx1, 1, 1.0)
     end do
 
     ! finish initialization
@@ -326,20 +330,20 @@ contains
     !! evaluate equation: f=z*x+y
     class(res_equation2), intent(inout) :: this
 
-    integer :: i, idx(1)
+    integer :: i, idx1(1)
     real    :: x(1), y(1), z(1)
 
     do i = 1, gtab%n
-      idx = gtab%get_idx(i)
+      idx1 = gtab%get_idx(i)
 
-      x = this%x%get(idx)
-      y = this%y%get(idx)
-      z = this%z%get(idx)
+      x = this%x%get(idx1)
+      y = this%y%get(idx1)
+      z = this%z%get(idx1)
 
-      call this%f%set(idx, z*x+y)
+      call this%f%set(idx1, z*x+y)
 
-      this%dfdx%d(1)%d(:,1,1,i) = z
-      this%dfdz%d(1)%d(:,1,1,i) = x
+      call this%dfdx%set(1, idx1, 1, z(1))
+      call this%dfdz%set(1, idx1, 1, x(1))
     end do
   end subroutine
 
