@@ -21,14 +21,14 @@ module res_equation_m
       !! main var selector
 
     type(variable_ptr), allocatable :: fvar(:)
-      !! residual data
+      !! residual data. size: mvar%nval (mvar supplied at init).
     type(vselector)                 :: f
       !! residual var selector
 
     type(jacobian_ptr), allocatable :: jaco_f(:)
-      !! derivatives of f wrt vdep
+      !! derivatives of f wrt vdep. size: this%vdep%d
     type(jacobian_ptr), allocatable :: jaco_ft(:)
-      !! derivatives of f wrt d/dt(vdep), must be const
+      !! derivatives of f wrt d/dt(vdep), must be const. size: this%vdep%d
   contains
     procedure :: init_f        => res_equation_init_f
     procedure :: destruct      => res_equation_destruct
