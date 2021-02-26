@@ -4,7 +4,7 @@ module vselector_m
 
   use error_m
   use grid_m,       only: grid
-  use grid_table_m, only: grid_table_ptr
+  use grid_table_m, only: grid_table, grid_table_ptr
   use grid_data_m,  only: grid_data_int, allocate_grid_data
   use variable_m,   only: variable, variable_ptr
 
@@ -44,9 +44,14 @@ module vselector_m
     class(grid_data_int), allocatable :: itab
       !! get table index from grid indices
   contains
-    procedure, private :: vselector_init_single
-    procedure, private :: vselector_init_multiple
-    generic            :: init => vselector_init_single, vselector_init_multiple
+    procedure, private :: vselector_init_nvar_ntab
+    procedure, private :: vselector_init_var_ntab
+    procedure, private :: vselector_init_nvar_tab
+    procedure, private :: vselector_init_var_tab
+    generic            :: init => vselector_init_nvar_ntab, &
+      &                           vselector_init_var_ntab, &
+      &                           vselector_init_nvar_tab, &
+      &                           vselector_init_var_tab
 
     procedure :: reset   => vselector_reset
     procedure :: compare => vselector_compare
@@ -84,36 +89,15 @@ contains
 #define TT type(vselector_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine vselector_init_single(this, v, tab, name)
-    !! initialize variable selector given only one variable.
-    class(vselector),       intent(out) :: this
-    class(variable),        intent(in)  :: v
-      !! variable
-    type(grid_table_ptr),   intent(in)  :: tab(:)
-      !! grid table pointers
-    character(*), optional, intent(in)  :: name
-      !! selector name
-      !! default: variable%name
-
-    character(:), allocatable :: name_
-
-    ! optional name parsing
-    allocate (character(0) :: name_)      ! remove gfortran warning
-    name_ = v%name
-    if (present(name)) name_ = name
-
-    call this%init(name_, [v%get_ptr()], tab)
-  end subroutine
-
-  subroutine vselector_init_multiple(this, name, v, tab)
-    !! initialize variable selector given multiple variables.
+  subroutine vselector_init_nvar_ntab(this, v, tab, name)
+    !! initialize variable selector given multiple variables and multiple tables.
     class(vselector),     intent(out) :: this
-    character(*),         intent(in)  :: name
-      !! selector name
     type(variable_ptr),   intent(in)  :: v(:)
       !! variable pointers
     type(grid_table_ptr), intent(in)  :: tab(:)
       !! grid table pointers
+    character(*),         intent(in)  :: name
+      !! selector name
 
     integer :: i, itab, idx(v(1)%p%g%idx_dim)
 
@@ -156,6 +140,65 @@ contains
         call this%itab%set(idx, itab)
       end do
     end do
+  end subroutine
+
+  subroutine vselector_init_var_ntab(this, v, tab, name)
+    !! initialize variable selector given one variable and multiple tables.
+    class(vselector),       intent(out) :: this
+    class(variable),        intent(in)  :: v
+      !! variable
+    type(grid_table_ptr),   intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)  :: name
+      !! selector name
+      !! default: variable%name
+
+    character(:), allocatable :: name_
+
+    ! optional name parsing
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = v%name)
+    end if
+
+    call this%init([v%get_ptr()], tab, name_)
+  end subroutine
+
+  subroutine vselector_init_nvar_tab(this, v, tab, name)
+    !! initialize variable selector given multiple variables and one table.
+    class(vselector),         intent(out) :: this
+    type(variable_ptr),       intent(in)  :: v(:)
+      !! variable pointers
+    type(grid_table), target, intent(in)  :: tab
+      !! grid table
+    character(*),             intent(in)  :: name
+      !! selector name
+
+    call this%init(v, [tab%get_ptr()], name)
+  end subroutine
+
+  subroutine vselector_init_var_tab(this, v, tab, name)
+    !! initialize variable selector given one variable and one table.
+    class(vselector),         intent(out) :: this
+    class(variable),          intent(in)  :: v
+      !! variable
+    type(grid_table), target, intent(in)  :: tab
+      !! grid table
+    character(*), optional,   intent(in)  :: name
+      !! selector name
+      !! default: variable%name
+
+    character(:), allocatable :: name_
+
+    ! optional name parsing
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = v%name)
+    end if
+
+    call this%init([v%get_ptr()], [tab%get_ptr()], name_)
   end subroutine
 
   subroutine vselector_reset(this)

@@ -71,7 +71,7 @@ contains
     end do
 
     ! init residual var selector based on mvar
-    call this%f%init(mvar%name//"_res", this%fvar, mvar%tab)
+    call this%f%init(this%fvar, mvar%tab, mvar%name//"_res")
 
     ! allocate f jacobians
     allocate (this%jaco_f( size(this%vdep%d)))

@@ -70,7 +70,7 @@ program test
 
 #ifdef USE_QUADPACK
   block
-    use quadpack_m
+    use test_quadpack_m
 
     call test_quadpack()
   end block

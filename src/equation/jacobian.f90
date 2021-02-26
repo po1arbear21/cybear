@@ -28,37 +28,56 @@ module jacobian_m
     procedure :: destruct => jacobian_destruct
     procedure :: reset    => jacobian_reset
     procedure :: set_matr => jacobian_set_matr
-    generic   :: set      => jacobian_set_multi_stat,  &
-      &                      jacobian_set_multi_dyn,   &
-      &                      jacobian_set_single_stat, &
-      &                      jacobian_set_single_dyn,  &
-      &                      jacobian_set_scalar_stat, &
-      &                      jacobian_set_scalar_dyn
-    generic   :: update   => jacobian_update_multi_stat,  &
-      &                      jacobian_update_multi_dyn,   &
-      &                      jacobian_update_single_stat, &
-      &                      jacobian_update_single_dyn,  &
-      &                      jacobian_update_scalar_stat, &
-      &                      jacobian_update_scalar_dyn
+    generic   :: set      => jacobian_set_itab_nval_stat, &
+      &                      jacobian_set_itab_ival_stat, &
+      &                      jacobian_set_itab_stat, &
+      &                      jacobian_set_itab_nval_dyn, &
+      &                      jacobian_set_itab_ival_dyn, &
+      &                      jacobian_set_itab_dyn, &
+      &                      jacobian_set_nval_stat, &
+      &                      jacobian_set_ival_stat, &
+      &                      jacobian_set_stat, &
+      &                      jacobian_set_nval_dyn, &
+      &                      jacobian_set_ival_dyn, &
+      &                      jacobian_set_dyn
+    generic   :: add      => jacobian_add_itab_nval_stat, &
+      &                      jacobian_add_itab_ival_stat, &
+      &                      jacobian_add_itab_stat, &
+      &                      jacobian_add_itab_nval_dyn, &
+      &                      jacobian_add_itab_ival_dyn, &
+      &                      jacobian_add_itab_dyn, &
+      &                      jacobian_add_nval_stat, &
+      &                      jacobian_add_ival_stat, &
+      &                      jacobian_add_stat, &
+      &                      jacobian_add_nval_dyn, &
+      &                      jacobian_add_ival_dyn, &
+      &                      jacobian_add_dyn
 
-    procedure, private :: jacobian_set_multi_stat
-    procedure, private :: jacobian_set_multi_dyn
-    procedure, private :: jacobian_set_single_stat
-    procedure, private :: jacobian_set_single_dyn
-    procedure, private :: jacobian_set_scalar_stat
-    procedure, private :: jacobian_set_scalar_dyn
+    procedure, private :: jacobian_set_itab_nval_stat
+    procedure, private :: jacobian_set_itab_ival_stat
+    procedure, private :: jacobian_set_itab_stat
+    procedure, private :: jacobian_set_itab_nval_dyn
+    procedure, private :: jacobian_set_itab_ival_dyn
+    procedure, private :: jacobian_set_itab_dyn
+    procedure, private :: jacobian_set_nval_stat
+    procedure, private :: jacobian_set_ival_stat
+    procedure, private :: jacobian_set_stat
+    procedure, private :: jacobian_set_nval_dyn
+    procedure, private :: jacobian_set_ival_dyn
+    procedure, private :: jacobian_set_dyn
 
-    procedure, private :: jacobian_update_multi_stat
-    procedure, private :: jacobian_update_multi_dyn
-    procedure, private :: jacobian_update_single_stat
-    procedure, private :: jacobian_update_single_dyn
-    procedure, private :: jacobian_update_scalar_stat
-    procedure, private :: jacobian_update_scalar_dyn
-
-    procedure, private :: jacobian_edit_multi_stat
-    procedure, private :: jacobian_edit_multi_dyn
-    procedure, private :: jacobian_edit_single_stat
-    procedure, private :: jacobian_edit_single_dyn
+    procedure, private :: jacobian_add_itab_nval_stat
+    procedure, private :: jacobian_add_itab_ival_stat
+    procedure, private :: jacobian_add_itab_stat
+    procedure, private :: jacobian_add_itab_nval_dyn
+    procedure, private :: jacobian_add_itab_ival_dyn
+    procedure, private :: jacobian_add_itab_dyn
+    procedure, private :: jacobian_add_nval_stat
+    procedure, private :: jacobian_add_ival_stat
+    procedure, private :: jacobian_add_stat
+    procedure, private :: jacobian_add_nval_dyn
+    procedure, private :: jacobian_add_ival_dyn
+    procedure, private :: jacobian_add_dyn
   end type
 
   type jacobian_ptr
@@ -323,225 +342,114 @@ contains
     end associate
   end subroutine
 
-  !
-  ! stationary stencil procedures
-  !
-  subroutine jacobian_set_multi_stat(this, itab1, i, j, d)
-    !! set one element of multidimensional derivative for static stencil.
-    !! see arguments' documentation in jacobian_edit_multi_stat.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: j
-    real,            intent(in)    :: d(:,:)
 
-    call this%jacobian_edit_multi_stat(itab1, i, j, d, set=.true.)
-  end subroutine
-
-  subroutine jacobian_update_multi_stat(this, itab1, i, j, d)
-    !! update one element of multidimensional derivative for static stencil.
-    !! see arguments' documentation in jacobian_edit_multi_stat.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: j
-    real,            intent(in)    :: d(:,:)
-
-    call this%jacobian_edit_multi_stat(itab1, i, j, d, update=.true.)
-  end subroutine
-
-  subroutine jacobian_edit_multi_stat(this, itab1, i, j, d, set, update)
-    !! set/update full (multidimensional) derivative for static stencil
+  subroutine jacobian_set_itab_nval_stat(this, itab1, i, j, d, add)
+    !! set/update derivatives for static stencil (select a grid_table, non-scalar variables)
     class(jacobian),   intent(inout) :: this
     integer,           intent(in)    :: itab1
-      !! grid table index
+      !! result grid_table index
     integer,           intent(in)    :: i
-      !! flat result index
+      !! result grid_table entry index
     integer,           intent(in)    :: j
-      !! stencil dependency index
-    real,            intent(in)      :: d(:,:)
-      !! derivatives. size: (v1%nval, v2%nval)
-    logical, optional, intent(in)    :: set, update
-      !! flags to either set or update the derivative. (default: false)
-      !! exactly one must be true.
+      !! dependency stencil index
+    real,              intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
 
-    logical :: set_, update_
+    logical :: add_
 
     ASSERT(size(d, dim=1) == this%matr%v1%nval)
     ASSERT(size(d, dim=2) == this%matr%v2%nval)
 
     ! optional flags
-    set_ = .false.
-    if (present(set)) set_ = set
-    update_ = .false.
-    if (present(update)) update_ = update
-    ASSERT(set_ .neqv. update_)
+    add_ = .false.
+    if (present(add)) add_ = add
 
-    ! edit derivative
-    if      (set_   ) then
-      this%d(itab1)%d(:,:,j,i) = d
-    else if (update_) then
+    ! edit derivatives
+    if (add_) then
       this%d(itab1)%d(:,:,j,i) = d + this%d(itab1)%d(:,:,j,i)
+    else
+      this%d(itab1)%d(:,:,j,i) = d
     end if
   end subroutine
 
-
-  subroutine jacobian_set_single_stat(this, itab1, i, j, ival1, ival2, d)
-    !! set one element of multidimensional derivative for static stencil.
-    !! see arguments' documentation in jacobian_edit_single_stat.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: j
-    integer,         intent(in)    :: ival1
-    integer,         intent(in)    :: ival2
-    real,            intent(in)    :: d
-
-    call this%jacobian_edit_single_stat(itab1, i, j, ival1, ival2, d, set=.true.)
-  end subroutine
-
-  subroutine jacobian_update_single_stat(this, itab1, i, j, ival1, ival2, d)
-    !! update one element of multidimensional derivative for static stencil.
-    !! see arguments' documentation in jacobian_edit_single_stat.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: j
-    integer,         intent(in)    :: ival1
-    integer,         intent(in)    :: ival2
-    real,            intent(in)    :: d
-
-    call this%jacobian_edit_single_stat(itab1, i, j, ival1, ival2, d, update=.true.)
-  end subroutine
-
-  subroutine jacobian_edit_single_stat(this, itab1, i, j, ival1, ival2, d, set, update)
-    !! set/update one element of multidimensional derivative for static stencil
+  subroutine jacobian_set_itab_ival_stat(this, itab1, i, j, ival1, ival2, d, add)
+    !! set/update one element of derivatives for static stencil (select a grid_table, non-scalar variables)
     class(jacobian),   intent(inout) :: this
     integer,           intent(in)    :: itab1
-      !! grid table index
+      !! result grid_table index
     integer,           intent(in)    :: i
-      !! flat result index
+      !! result grid_table entry index
     integer,           intent(in)    :: j
-      !! stencil dependency index
+      !! dependency stencil index
     integer,           intent(in)    :: ival1
-      !! result dimension
+      !! result value index
     integer,           intent(in)    :: ival2
-      !! dependency dimension
+      !! dependency value index
     real,              intent(in)    :: d
       !! derivative
-    logical, optional, intent(in)    :: set, update
-    !! flags to either set or update the derivative. (default: false)
-    !! exactly one must be true.
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
 
-    logical :: set_, update_
+    logical :: add_
 
     ! optional flags
-    set_ = .false.
-    if (present(set)) set_ = set
-    update_ = .false.
-    if (present(update)) update_ = update
-    ASSERT(set_ .neqv. update_)
+    add_ = .false.
+    if (present(add)) add_ = add
 
     ! edit derivative
-    if      (set_   ) then
-      this%d(itab1)%d(ival1,ival2,j,i) = d
-    else if (update_) then
+    if (add_) then
       this%d(itab1)%d(ival1,ival2,j,i) = d + this%d(itab1)%d(ival1,ival2,j,i)
+    else
+      this%d(itab1)%d(ival1,ival2,j,i) = d
     end if
   end subroutine
 
-
-  subroutine jacobian_set_scalar_stat(this, itab1, i, j, d)
-    !! set scalar derivative for static stencil of one-dimensional variables.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-      !! grid table index
-    integer,         intent(in)    :: i
-      !! flat result index
-    integer,         intent(in)    :: j
-      !! stencil dependency index
-    real,            intent(in)    :: d
-      !! derivative
-
-    ASSERT(this%matr%v1%nval == 1)
-    ASSERT(this%matr%v2%nval == 1)
-
-    call this%set(itab1, i, j, 1, 1, d)
-  end subroutine
-
-  subroutine jacobian_update_scalar_stat(this, itab1, i, j, d)
-    !! update scalar derivative for static stencil of one-dimensional variables.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-      !! grid table index
-    integer,         intent(in)    :: i
-      !! flat result index
-    integer,         intent(in)    :: j
-      !! stencil dependency index
-    real,            intent(in)    :: d
-      !! derivative
-
-    ASSERT(this%matr%v1%nval == 1)
-    ASSERT(this%matr%v2%nval == 1)
-
-    call this%update(itab1, i, j, 1, 1, d)
-  end subroutine
-
-
-  !
-  ! dynamical stencil procedures
-  !
-  subroutine jacobian_set_multi_dyn(this, itab1, i, idx2, d)
-    !! set full (multidimensional) derivative for dynamic stencil
-    !! see arguments' documentation in jacobian_edit_multi_dyn.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: idx2(:)
-    real,            intent(in)    :: d(:,:)
-
-    call this%jacobian_edit_multi_dyn(itab1, i, idx2, d, set=.true.)
-  end subroutine
-
-  subroutine jacobian_update_multi_dyn(this, itab1, i, idx2, d)
-    !! update full (multidimensional) derivative for dynamic stencil
-    !! see arguments' documentation in jacobian_edit_multi_dyn.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: idx2(:)
-    real,            intent(in)    :: d(:,:)
-
-    call this%jacobian_edit_multi_dyn(itab1, i, idx2, d, update=.true.)
-  end subroutine
-
-  subroutine jacobian_edit_multi_dyn(this, itab1, i, idx2, d, set, update)
-    !! set/update full (multidimensional) derivative for dynamic stencil
+  subroutine jacobian_set_itab_stat(this, itab1, i, j, d, add)
+    !! set/update derivative for static stencil (select a grid_table, scalar variables)
     class(jacobian),   intent(inout) :: this
     integer,           intent(in)    :: itab1
-      !! grid table index
+      !! result grid_table index
     integer,           intent(in)    :: i
-      !! flat result index
+      !! result grid_table entry index
+    integer,           intent(in)    :: j
+      !! dependency stencil index
+    real,              intent(in)    :: d
+      !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%nval == 1)
+    ASSERT(this%matr%v2%nval == 1)
+
+    call this%jacobian_set_itab_ival_stat(itab1, i, j, 1, 1, d, add = add)
+  end subroutine
+
+
+  subroutine jacobian_set_itab_nval_dyn(this, itab1, i, idx2, d, add)
+    !! set/update derivatives for dynamic stencil (select a grid_table, non-scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: itab1
+      !! result grid_table index
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
     integer,           intent(in)    :: idx2(:)
-      !! dependency index
+      !! dependency grid indices
     real,              intent(in)    :: d(:,:)
-      !! derivatives. size: (v1%nval, v2%nval)
-    logical, optional, intent(in)    :: set, update
-      !! flags to either set or update the derivative. (default: false)
-      !! exactly one must be true.
+      !! derivatives (nval1 x nval2)
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
 
     integer :: itab2, ival1, ival2, col, col0, row, row0
-    logical :: set_, update_
+    logical :: add_
 
     ASSERT(size(d, dim=1) == this%matr%v1%nval)
     ASSERT(size(d, dim=2) == this%matr%v2%nval)
 
     ! optional flags
-    set_ = .false.
-    if (present(set)) set_ = set
-    update_ = .false.
-    if (present(update)) update_ = update
-    ASSERT(set_ .neqv. update_)
+    add_ = .false.
+    if (present(add)) add_ = add
 
     ! get row base index
     row0 = (i - 1) * this%matr%v1%nval
@@ -555,72 +463,39 @@ contains
       row = row0 + ival1
       do ival2 = 1, this%matr%v2%nval
         col = col0 + ival2
-        if      (set_   ) then
-          call this%matr%sb(itab1,itab2)%set(row, col, d(ival1,ival2))
-        else if (update_) then
+        if (add_) then
           call this%matr%sb(itab1,itab2)%add(row, col, d(ival1,ival2))
+        else
+          call this%matr%sb(itab1,itab2)%set(row, col, d(ival1,ival2))
         end if
       end do
     end do
   end subroutine
 
-
-  subroutine jacobian_set_single_dyn(this, itab1, i, idx2, ival1, ival2, d)
-    !! set one element of multidimensional derivative for dynamic stencil.
-    !! see arguments' documentation in jacobian_edit_single_dyn.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: idx2(:)
-    integer,         intent(in)    :: ival1
-    integer,         intent(in)    :: ival2
-    real,            intent(in)    :: d
-
-    call this%jacobian_edit_single_dyn(itab1, i, idx2, ival1, ival2, d, set=.true.)
-  end subroutine
-
-  subroutine jacobian_update_single_dyn(this, itab1, i, idx2, ival1, ival2, d)
-    !! update one element of multidimensional derivative for dynamic stencil.
-    !! see arguments' documentation in jacobian_edit_single_dyn.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-    integer,         intent(in)    :: i
-    integer,         intent(in)    :: idx2(:)
-    integer,         intent(in)    :: ival1
-    integer,         intent(in)    :: ival2
-    real,            intent(in)    :: d
-
-    call this%jacobian_edit_single_dyn(itab1, i, idx2, ival1, ival2, d, update=.true.)
-  end subroutine
-
-  subroutine jacobian_edit_single_dyn(this, itab1, i, idx2, ival1, ival2, d, set, update)
-    !! set/update one element of multidimensional derivative for dynamic stencil
+  subroutine jacobian_set_itab_ival_dyn(this, itab1, i, idx2, ival1, ival2, d, add)
+    !! set/update one element of derivatives for dynamic stencil (select a grid_table, non-scalar variables)
     class(jacobian),   intent(inout) :: this
     integer,           intent(in)    :: itab1
-      !! grid table index
+      !! result grid_table index
     integer,           intent(in)    :: i
-      !! flat result index
+      !! result grid_table entry index
     integer,           intent(in)    :: idx2(:)
-      !! dependency index
+      !! dependency grid indices
     integer,           intent(in)    :: ival1
-      !! result dimension
+      !! result value index
     integer,           intent(in)    :: ival2
-      !! dependency dimension
+      !! dependency value index
     real,              intent(in)    :: d
       !! derivative
-    logical, optional, intent(in)    :: set, update
-      !! flags to either set or update the derivative. (default: false)
-      !! exactly one must be true.
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
 
     integer :: itab2, col, col0, row, row0
-    logical :: set_, update_
+    logical :: add_
 
     ! optional flags
-    set_ = .false.
-    if (present(set)) set_ = set
-    update_ = .false.
-    if (present(update)) update_ = update
-    ASSERT(set_ .neqv. update_)
+    add_ = .false.
+    if (present(add)) add_ = add
 
     ! get row base index
     row0 = (i - 1) * this%matr%v1%nval
@@ -629,51 +504,334 @@ contains
     itab2 = this%matr%v2%itab%get(idx2)
     col0  = (this%matr%v2%tab(itab2)%p%get_flat(idx2) - 1) * this%matr%v2%nval
 
-    ! set derivatives
+    ! edit derivative
     row = row0 + ival1
     col = col0 + ival2
-    if      (set_   ) then
-      call this%matr%sb(itab1,itab2)%set(row, col, d)
-    else if (update_) then
+    if (add_) then
       call this%matr%sb(itab1,itab2)%add(row, col, d)
+    else
+      call this%matr%sb(itab1,itab2)%set(row, col, d)
     end if
   end subroutine
 
-
-  subroutine jacobian_set_scalar_dyn(this, itab1, i, idx2, d)
-    !! set scalar derivative for dynamic stencil of one-dimensional variables.
-    class(jacobian), intent(inout) :: this
-    integer,         intent(in)    :: itab1
-      !! grid table index
-    integer,         intent(in)    :: i
-      !! flat result index
-    integer,         intent(in)    :: idx2(:)
-      !! dependency index
-    real,            intent(in)    :: d
+  subroutine jacobian_set_itab_dyn(this, itab1, i, idx2, d, add)
+    !! set/update derivative for dynamic stencil (select a grid_table, scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: itab1
+      !! result grid_table index
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,              intent(in)    :: d
       !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
 
     ASSERT(this%matr%v1%nval == 1)
     ASSERT(this%matr%v2%nval == 1)
 
-    call this%set(itab1, i, idx2, 1, 1, d)
+    call this%jacobian_set_itab_ival_dyn(itab1, i, idx2, 1, 1, d, add = add)
   end subroutine
 
-  subroutine jacobian_update_scalar_dyn(this, itab1, i, idx2, d)
-    !! update scalar derivative for dynamic stencil of one-dimensional variables.
+
+  subroutine jacobian_set_nval_stat(this, i, j, d, add)
+    !! set/update derivatives for static stencil (single grid_table case, non-scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: j
+      !! dependency stencil index
+    real,              intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_nval_stat(1, i, j, d, add = add)
+  end subroutine
+
+  subroutine jacobian_set_ival_stat(this, i, j, ival1, ival2, d, add)
+    !! set/update one element of derivatives for static stencil (single grid_table case, non-scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: j
+      !! dependency stencil index
+    integer,           intent(in)    :: ival1
+      !! result value index
+    integer,           intent(in)    :: ival2
+      !! dependency value index
+    real,              intent(in)    :: d
+      !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_ival_stat(1, i, j, ival1, ival2, d, add = add)
+  end subroutine
+
+  subroutine jacobian_set_stat(this, i, j, d, add)
+    !! set/update derivative for static stencil (single grid_table case, scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: j
+      !! dependency stencil index
+    real,              intent(in)    :: d
+      !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_stat(1, i, j, d, add = add)
+  end subroutine
+
+
+  subroutine jacobian_set_nval_dyn(this, i, idx2, d, add)
+    !! set/update derivatives for dynamic stencil (single grid_table case, non-scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,              intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_nval_dyn(1, i, idx2, d, add = add)
+  end subroutine
+
+  subroutine jacobian_set_ival_dyn(this, i, idx2, ival1, ival2, d, add)
+    !! set/update one element of derivatives for dynamic stencil (single grid_table case, non-scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: idx2(:)
+      !! dependency grid indices
+    integer,           intent(in)    :: ival1
+      !! result value index
+    integer,           intent(in)    :: ival2
+      !! dependency value index
+    real,              intent(in)    :: d
+      !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_ival_dyn(1, i, idx2, ival1, ival2, d, add = add)
+  end subroutine
+
+  subroutine jacobian_set_dyn(this, i, idx2, d, add)
+    !! set/update derivative for dynamic stencil (single grid_table case, scalar variables)
+    class(jacobian),   intent(inout) :: this
+    integer,           intent(in)    :: i
+      !! result grid_table entry index
+    integer,           intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,              intent(in)    :: d
+      !! derivative
+    logical, optional, intent(in)    :: add
+      !! addition flag (default: false)
+
+    ASSERT(this%matr%v1%ntab == 1)
+
+    call this%jacobian_set_itab_dyn(1, i, idx2, d, add = add)
+  end subroutine
+
+
+  subroutine jacobian_add_itab_nval_stat(this, itab1, i, j, d)
+    !! update derivatives for static stencil (select a grid_table, non-scalar variables)
     class(jacobian), intent(inout) :: this
     integer,         intent(in)    :: itab1
-      !! grid table index
+      !! result grid_table index
     integer,         intent(in)    :: i
-      !! flat result index
-    integer,         intent(in)    :: idx2(:)
-      !! dependency index
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    real,            intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+
+    call this%jacobian_set_itab_nval_stat(itab1, i, j, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_itab_ival_stat(this, itab1, i, j, ival1, ival2, d)
+    !! update one element of derivatives for static stencil (select a grid_table, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: itab1
+      !! result grid_table index
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    integer,         intent(in)    :: ival1
+      !! result value index
+    integer,         intent(in)    :: ival2
+      !! dependency value index
     real,            intent(in)    :: d
       !! derivative
 
-    ASSERT(this%matr%v1%nval == 1)
-    ASSERT(this%matr%v2%nval == 1)
+    call this%jacobian_set_itab_ival_stat(itab1, i, j, ival1, ival2, d, add = .true.)
+  end subroutine
 
-    call this%update(itab1, i, idx2, 1, 1, d)
+  subroutine jacobian_add_itab_stat(this, itab1, i, j, d)
+    !! update derivative for static stencil (select a grid_table, scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: itab1
+      !! result grid_table index
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_itab_stat(itab1, i, j, d, add = .true.)
+  end subroutine
+
+
+  subroutine jacobian_add_itab_nval_dyn(this, itab1, i, idx2, d)
+    !! update derivatives for dynamic stencil (select a grid_table, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: itab1
+      !! result grid_table index
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,            intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+
+    call this%jacobian_set_itab_nval_dyn(itab1, i, idx2, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_itab_ival_dyn(this, itab1, i, idx2, ival1, ival2, d)
+    !! update one element of derivatives for dynamic stencil (select a grid_table, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: itab1
+      !! result grid_table index
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    integer,         intent(in)    :: ival1
+      !! result value index
+    integer,         intent(in)    :: ival2
+      !! dependency value index
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_itab_ival_dyn(itab1, i, idx2, ival1, ival2, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_itab_dyn(this, itab1, i, idx2, d)
+    !! update derivative for dynamic stencil (select a grid_table, scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: itab1
+      !! result grid_table index
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_itab_dyn(itab1, i, idx2, d, add = .true.)
+  end subroutine
+
+
+  subroutine jacobian_add_nval_stat(this, i, j, d)
+    !! update derivatives for static stencil (single grid_table case, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    real,            intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+
+    call this%jacobian_set_nval_stat(i, j, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_ival_stat(this, i, j, ival1, ival2, d)
+    !! update one element of derivatives for static stencil (single grid_table case, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    integer,         intent(in)    :: ival1
+      !! result value index
+    integer,         intent(in)    :: ival2
+      !! dependency value index
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_ival_stat(i, j, ival1, ival2, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_stat(this, i, j, d)
+    !! update derivative for static stencil (single grid_table case, scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: j
+      !! dependency stencil index
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_stat(i, j, d, add = .true.)
+  end subroutine
+
+
+  subroutine jacobian_add_nval_dyn(this, i, idx2, d)
+    !! update derivatives for dynamic stencil (single grid_table case, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,            intent(in)    :: d(:,:)
+      !! derivatives (nval1 x nval2)
+
+    call this%jacobian_set_nval_dyn(i, idx2, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_ival_dyn(this, i, idx2, ival1, ival2, d)
+    !! update one element of derivatives for dynamic stencil (single grid_table case, non-scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    integer,         intent(in)    :: ival1
+      !! result value index
+    integer,         intent(in)    :: ival2
+      !! dependency value index
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_ival_dyn(i, idx2, ival1, ival2, d, add = .true.)
+  end subroutine
+
+  subroutine jacobian_add_dyn(this, i, idx2, d)
+    !! update derivative for dynamic stencil (single grid_table case, scalar variables)
+    class(jacobian), intent(inout) :: this
+    integer,         intent(in)    :: i
+      !! result grid_table entry index
+    integer,         intent(in)    :: idx2(:)
+      !! dependency grid indices
+    real,            intent(in)    :: d
+      !! derivative
+
+    call this%jacobian_set_dyn(i, idx2, d, add = .true.)
   end subroutine
 
 end module

@@ -186,8 +186,8 @@ contains
     call this%equation_init('eq1: y=x+1')
 
     ! variable selectors
-    call this%x%init(x, [gtab%get_ptr()])
-    call this%y%init(y, [gtab%get_ptr()])
+    call this%x%init(x, gtab%get_ptr()])
+    call this%y%init(y, gtab%get_ptr()])
 
     ! temp data
     allocate (this%y_tmp(this%y%n))
@@ -204,7 +204,7 @@ contains
     ! init jacobian
     this%dydx => this%init_jaco(1, 1, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      call this%dydx%set(1, i, 1, 3.0)
+      call this%dydx%set(i, 1, 3.0)
     end do
 
     ! finish initialization
@@ -235,8 +235,8 @@ contains
     call this%equation_init('req1: f=y-x')
 
     ! variable selectors
-    call this%x%init(x, [gtab%get_ptr()])
-    call this%y%init(y, [gtab%get_ptr()])
+    call this%x%init(x, gtab)
+    call this%y%init(y, gtab)
 
     call this%init_f(this%x)
 
@@ -251,7 +251,7 @@ contains
     ! init jacobian for x: dfdx
     this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      call this%dfdx%set(1, i, 1, -1.0)
+      call this%dfdx%set(i, 1, -1.0)
     end do
 
     call this%depend(this%y)
@@ -259,7 +259,7 @@ contains
     ! init jacobian for y: dfdy
     this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      call this%dfdy%set(1, i, 1, 1.0)
+      call this%dfdy%set(i, 1, 1.0)
     end do
 
     ! finish initialization
@@ -293,9 +293,9 @@ contains
     call this%equation_init('req1: f=y-x')
 
     ! variable selectors
-    call this%x%init(x, [gtab%get_ptr()])
-    call this%y%init(y, [gtab%get_ptr()])
-    call this%z%init(z, [gtab%get_ptr()])
+    call this%x%init(x, gtab)
+    call this%y%init(y, gtab)
+    call this%z%init(z, gtab)
 
     ! setting main var
     call this%init_f(this%z)
@@ -338,8 +338,8 @@ contains
 
       call this%f%set(idx1, z*x+y)
 
-      call this%dfdx%set(1, i, 1, z(1))
-      call this%dfdz%set(1, i, 1, x(1))
+      call this%dfdx%set(i, 1, z(1))
+      call this%dfdz%set(i, 1, x(1))
     end do
   end subroutine
 
