@@ -8,6 +8,7 @@ program test
   use test_gmres_m
   use test_grid_m
   use test_grid_table_m
+  use test_hashmap_m
   use test_high_precision_m
   use test_input_m
   use test_math_m
@@ -31,6 +32,7 @@ program test
   call test_matop()
   call test_poly()
   call test_random()
+  call test_hashmap()
   call test_high_precision()
   call test_math()
   call test_deque()

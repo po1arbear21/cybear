@@ -4,8 +4,8 @@ module util_m
   use vector_m
   implicit none
 
-  interface hash_int
-    module procedure :: hash_int32, hash_int64
+  interface hash
+    module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array
   end interface
 
   ! interfaces to C routines
@@ -15,10 +15,22 @@ module util_m
       integer(kind=c_int32_t), value, intent(in) :: i
       integer(kind=c_int32_t)                    :: h
     end function
+    function c_hash_int32_array(a, n) result(h) bind(c)
+      import :: c_int32_t, c_size_t
+      integer(kind=c_int32_t),       intent(in) :: a(*)
+      integer(kind=c_size_t), value, intent(in) :: n
+      integer(kind=c_int32_t)                   :: h
+    end function
     function c_hash_int64(i) result(h) bind(c)
       import :: c_int64_t
       integer(kind=c_int64_t), value, intent(in) :: i
       integer(kind=c_int64_t)                    :: h
+    end function
+    function c_hash_int64_array(a, n) result(h) bind(c)
+      import :: c_int64_t, c_size_t
+      integer(kind=c_int64_t),       intent(in) :: a(*)
+      integer(kind=c_size_t), value, intent(in) :: n
+      integer(kind=c_int64_t)                   :: h
     end function
   end interface
 
@@ -141,12 +153,36 @@ contains
     h = c_hash_int32(i)
   end function
 
+  function hash_int32_array(i) result(h)
+    !! 32-bit integer hash function for arrays
+    integer(kind=4), intent(in) :: i(:)
+    integer(kind=4)             :: h
+
+    integer(kind=c_size_t) :: n
+
+    n = size(i)
+
+    h = c_hash_int32_array(i, n)
+  end function
+
   function hash_int64(i) result(h)
     !! 64-bit integer hash function (splitmix64)
     integer(kind=8), intent(in) :: i
     integer(kind=8)             :: h
 
     h = c_hash_int64(i)
+  end function
+
+  function hash_int64_array(i) result(h)
+    !! 64-bit integer hash function (splitmix64)
+    integer(kind=8), intent(in) :: i(:)
+    integer(kind=8)             :: h
+
+    integer(kind=c_size_t) :: n
+
+    n = size(i)
+
+    h = c_hash_int64_array(i, n)
   end function
 
   subroutine load_array(file, x)

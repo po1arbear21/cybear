@@ -89,7 +89,7 @@ contains
     logical,                          intent(out) :: status
       !! return success/fail: success=true, fail=false
 
-    integer           :: i, j, ival1, ival2, itab1, itab2(v1%ntab)
+    integer           :: i, j, ival1, ival2, itab1, itab2(v1%ntab), idx2(v1%g%idx_dim)
     type(stencil_ptr) :: st(v1%ntab)
 
     ! init base
@@ -147,8 +147,9 @@ contains
           ! set jacobian entries
           do itab1 = 1, v1%ntab
             do j = 1, v1%tab(itab1)%p%n
+              idx2 = v1%tab(itab1)%p%get_idx(j)
               ! set derivative to 1
-              jaco_ptr%d(itab1)%d(ival1,ival2,1,j) = 1.0
+              call jaco_ptr%set(itab1, j, idx2, ival1, ival2, 1.0)
             end do
           end do
         end block

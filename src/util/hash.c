@@ -1,10 +1,11 @@
 #include <inttypes.h>
+#include <stddef.h>
 
 // 32-bit integer hash function (nullprogram.com/blog/2018/07/31/)
 uint32_t c_hash_int32(uint32_t i) {
   uint32_t h;
 
-  h = i + 0x7f4a7c15;
+  h = i + 0x7f4a7c15; // avoid i == 0 -> h == 0
   h = h ^ (h >> 17);
   h = h * 0xed5ad4bb;
   h = h ^ (h >> 11);
@@ -16,16 +17,54 @@ uint32_t c_hash_int32(uint32_t i) {
   return h;
 }
 
+// hash 32-bit integer array
+uint32_t c_hash_int32_array(const uint32_t *a, size_t n) {
+  uint32_t h;
+  size_t i;
+
+  if (n == 0) return 0;
+
+  h = c_hash_int32(a[0]);
+  for (i = 1; i < n; ++i) {
+    // rotate left by 17 bits (prime close to 16)
+    h = ((h << 17) | (h >> 15));
+
+    // combine using xor
+    h = h ^ c_hash_int32(a[i]);
+  }
+
+  return h;
+}
+
 // 64-bit integer hash function (splitmix64)
 uint64_t c_hash_int64(uint64_t i) {
   uint64_t h;
 
-  h = i + 0x9e3779b97f4a7c15;
+  h = i + 0x9e3779b97f4a7c15; // avoid i == 0 -> h == 0
   h = h ^ (h >> 30);
   h = h * 0xbf58476d1ce4e5b9;
   h = h ^ (h >> 27);
   h = h * 0x94d049bb133111eb;
   h = h ^ (h >> 31);
+
+  return h;
+}
+
+// hash 64-bit integer array
+uint64_t c_hash_int64_array(const uint64_t *a, size_t n) {
+  uint64_t h;
+  size_t i;
+
+  if (n == 0) return 0;
+
+  h = c_hash_int64(a[0]);
+  for (i = 1; i < n; ++i) {
+    // rotate left by 31 bits (prime close to 32)
+    h = ((h << 31) | (h >> 33));
+
+    // combine using xor
+    h = h ^ c_hash_int64(a[i]);
+  }
 
   return h;
 }
