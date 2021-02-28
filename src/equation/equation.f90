@@ -3,7 +3,7 @@
 module equation_m
 
   use error_m
-  use grid_table_m, only: grid_table_ptr
+  use grid_table_m, only: grid_table, grid_table_ptr
   use jacobian_m,   only: jacobian, jacobian_ptr
   use stencil_m,    only: stencil_ptr
   use variable_m,   only: variable
@@ -14,7 +14,7 @@ module equation_m
 
   private
   public equation, equation_ptr
-  public equation_depend_vselector
+  public equation_realloc_jaco
   public equation_destruct
   public equation_reset
   public equation_set_jaco_matr
@@ -49,13 +49,15 @@ module equation_m
     procedure :: set_jaco_matr => equation_set_jaco_matr
     procedure :: test          => equation_test
 
-    procedure, private :: equation_provide_vselector
-    procedure, private :: equation_provide_variable
-    generic            :: provide => equation_provide_vselector, equation_provide_variable
+    procedure, private :: provide_vselector     => equation_provide_vselector
+    procedure, private :: provide_variable_ntab => equation_provide_variable_ntab
+    procedure, private :: provide_variable      => equation_provide_variable
+    generic            :: provide => provide_vselector, provide_variable_ntab, provide_variable
 
-    procedure, private :: equation_depend_vselector
-    procedure, private :: equation_depend_variable
-    generic            :: depend => equation_depend_vselector, equation_depend_variable
+    procedure, private :: depend_vselector     => equation_depend_vselector
+    procedure, private :: depend_variable_ntab => equation_depend_variable_ntab
+    procedure, private :: depend_variable      => equation_depend_variable
+    generic            :: depend => depend_vselector, depend_variable_ntab, depend_variable
 
     procedure(equation_eval), deferred :: eval
   end type
@@ -154,39 +156,13 @@ contains
     end do; end do
   end subroutine
 
-  subroutine equation_provide_variable(this, var, tab, name)
-    !! add new provided var selector
-    class(equation),        intent(inout) :: this
-    class(variable),        intent(in)    :: var
-      !! new provided variable
-    type(grid_table_ptr),   intent(in)    :: tab(:)
-      !! grid table pointers
-    character(*), optional, intent(in)    :: name
-      !! vselector's name.
-      !! default: var%name
-
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    allocate (character(0) :: name_)    ! remove gfortran warning
-    name_ = var%name
-    if (present(name)) name_ = name
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(var, tab, name=name_)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
-    call this%provide(vsel)
-  end subroutine
-
-  subroutine equation_provide_vselector(this, vsel)
-    !! add new provided var selector
-    class(equation),          intent(inout) :: this
-    class(vselector), target, intent(in)    :: vsel
+  function equation_provide_vselector(this, vsel) result(iprov)
+    !! provide var selector
+    class(equation),         intent(inout) :: this
+    type(vselector), target, intent(in)    :: vsel
       !! new provided var selector
+    integer                                :: iprov
+      !! return provided index
 
     ! reallocate jaco if necessary
     if (this%vprov%n >= size(this%vprov%d)) then
@@ -195,41 +171,80 @@ contains
 
     ! add var selector to provided variables
     call this%vprov%push(vsel%get_ptr())
-  end subroutine
 
-  subroutine equation_depend_variable(this, var, tab, name)
-    !! add new dependency variable
+    ! return index
+    iprov = this%vprov%n
+  end function
+
+  function equation_provide_variable_ntab(this, var, tab, name) result(iprov)
+    !! provide variable for multiple grid tables, creates var selector internally
     class(equation),        intent(inout) :: this
     class(variable),        intent(in)    :: var
-      !! new dependency variable
+      !! new provided variable
     type(grid_table_ptr),   intent(in)    :: tab(:)
       !! grid table pointers
     character(*), optional, intent(in)    :: name
-      !! vselector's name.
-      !! default: var%name
+      !! name of new var selector (default: var%name)
+    integer                               :: iprov
+      !! return provided index
 
     character(:), allocatable :: name_
     type(vselector), pointer  :: vsel
 
     ! optional argument
-    allocate (character(0) :: name_)    ! remove gfortran warning
-    name_ = var%name
-    if (present(name)) name_ = name
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = var%name)
+    end if
 
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(var, tab, name=name_)
-    call this%vdep_alc%push(this%vdep%n)
+    call this%vprov_alc%push(this%vprov%n)
 
-    ! add dependency vselector
-    call this%depend(vsel)
-  end subroutine
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
 
-  subroutine equation_depend_vselector(this, vsel)
-    !! add new dependency var
+  function equation_provide_variable(this, var, tab, name) result(iprov)
+    !! provide variable for single grid table, creates var selector internally
+    class(equation),          intent(inout) :: this
+    class(variable),          intent(in)    :: var
+      !! new provided variable
+    type(grid_table), target, intent(in)    :: tab
+      !! grid table pointers
+    character(*), optional,   intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                                 :: iprov
+      !! return provided index
+
+    character(:), allocatable :: name_
+    type(vselector), pointer  :: vsel
+
+    ! optional argument
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = var%name)
+    end if
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(var, tab, name=name_)
+    call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
+
+  function equation_depend_vselector(this, vsel) result(idep)
+    !! depend on var selector
     class(equation),          intent(inout) :: this
     class(vselector), target, intent(in)    :: vsel
       !! new dependency var selector
+    integer                                 :: idep
+      !! return dependency index
 
     type(vselector_ptr) :: vptr
 
@@ -241,7 +256,72 @@ contains
     ! add var selector to dependent variables
     vptr%p => vsel
     call this%vdep%push(vptr)
-  end subroutine
+
+    ! return dependency index
+    idep = this%vdep%n
+  end function
+
+  function equation_depend_variable_ntab(this, var, tab, name) result(idep)
+    !! add new dependency variable, creates var selector internally
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: var
+      !! new dependency variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                               :: idep
+      !! return dependency index
+
+    character(:), allocatable :: name_
+    type(vselector), pointer  :: vsel
+
+    ! optional argument
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = var%name)
+    end if
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(var, tab, name=name_)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependency vselector
+    idep = this%depend(vsel)
+  end function
+
+  function equation_depend_variable(this, var, tab, name) result(idep)
+    !! add new dependency variable for single grid table, creates var selector internally
+    class(equation),          intent(inout) :: this
+    class(variable),          intent(in)    :: var
+      !! new dependency variable
+    type(grid_table), target, intent(in)    :: tab
+      !! grid table pointers
+    character(*), optional,   intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                                 :: idep
+      !! return dependency index
+
+    character(:), allocatable :: name_
+    type(vselector), pointer  :: vsel
+
+    ! optional argument
+    if (present(name)) then
+      allocate (name_, source = name)
+    else
+      allocate (name_, source = var%name)
+    end if
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(var, tab, name=name_)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependency vselector
+    idep = this%depend(vsel)
+  end function
 
   subroutine equation_realloc_jaco(this, cprov, cdep)
     !! reallocate this%jaco, if initial capacity was not big enough

@@ -61,11 +61,13 @@ contains
     class(vselector), target, intent(in)  :: v
       !! dummy variable
 
+    integer :: iprov
+
     ! init base
     call this%equation_init("Provide"//v%name)
 
     ! add provided var
-    call this%provide(v)
+    iprov = this%provide(v)
 
     ! finish initialization
     call this%init_final()
@@ -89,14 +91,14 @@ contains
     logical,                          intent(out) :: status
       !! return success/fail: success=true, fail=false
 
-    integer           :: i, j, ival1, ival2, itab1, itab2(v1%ntab), idx2(v1%g%idx_dim)
+    integer           :: i, j, iprov, idep, ival1, ival2, itab1, itab2(v1%ntab), idx2(v1%g%idx_dim)
     type(stencil_ptr) :: st(v1%ntab)
 
     ! init base
     call this%equation_init("Select"//v1%name)
 
     ! provide v1
-    call this%provide(v1)
+    iprov = this%provide(v1)
 
     ! stencil
     call this%st%init() ! dirichlet stencil
@@ -131,7 +133,7 @@ contains
         if (any(itab2 <= 0)) cycle
 
         ! add dependency
-        call this%depend(v2(i)%p)
+        idep = this%depend(v2(i)%p)
 
         ! init+set jacobian
         block
@@ -142,7 +144,7 @@ contains
           valmsk(ival1,ival2) = .true.
 
           ! init jacobian
-          jaco_ptr => this%init_jaco(1, this%vdep%n, st, const = .true., valmsk = valmsk)
+          jaco_ptr => this%init_jaco(iprov, idep, st, const = .true., valmsk = valmsk)
 
           ! set jacobian entries
           do itab1 = 1, v1%ntab

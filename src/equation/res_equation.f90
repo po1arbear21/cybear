@@ -2,12 +2,13 @@
 
 module res_equation_m
 
-  use equation_m,  only: equation, equation_set_jaco_matr, equation_depend_vselector, equation_reset, equation_destruct
+  use equation_m,   only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
   use error_m
-  use jacobian_m,  only: jacobian, jacobian_ptr
-  use stencil_m,   only: stencil_ptr
-  use variable_m,  only: variable_ptr
-  use vselector_m, only: vselector
+  use grid_table_m, only: grid_table, grid_table_ptr
+  use jacobian_m,   only: jacobian, jacobian_ptr
+  use stencil_m,    only: stencil_ptr
+  use variable_m,   only: variable, variable_ptr
+  use vselector_m,  only: vselector
 
   implicit none
 
@@ -33,7 +34,7 @@ module res_equation_m
     procedure :: init_f        => res_equation_init_f
     procedure :: destruct      => res_equation_destruct
     procedure :: reset         => res_equation_reset
-    procedure :: add_dep       => res_equation_add_dep
+    procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
   end type
@@ -127,23 +128,25 @@ contains
     end do
   end subroutine
 
-  subroutine res_equation_add_dep(this, v)
-    !! add a new dependency var (override)
-    class(res_equation),      intent(inout) :: this
-    class(vselector), target, intent(in)    :: v
-      !! var selector dependency
+  subroutine res_equation_realloc_jaco(this, cprov, cdep)
+    !! reallocate this%jaco, this%jaco_f and this%jaco_ft if initial capacity was not big enough
+    class(res_equation), intent(inout) :: this
+    integer,             intent(in)    :: cprov
+      !! new prov capacity
+    integer,             intent(in)    :: cdep
+      !! new dep capacity
 
     type(jacobian_ptr), allocatable :: jaco_f_tmp(:), jaco_ft_tmp(:)
 
-    ! base
-    call equation_depend_vselector(this, v)
+    ! call base (reallocate this%jaco)
+    call equation_realloc_jaco(this, cprov, cdep)
 
-    ! reallocate jaco_f and jaco_ft if necessary
-    if (this%vdep%n >= ubound(this%jaco_f,1)) then
-      allocate (jaco_f_tmp( 2 * this%vdep%n))
-      allocate (jaco_ft_tmp(2 * this%vdep%n))
-      jaco_f_tmp( 1:ubound(this%jaco_f ,1)) = this%jaco_f
-      jaco_ft_tmp(1:ubound(this%jaco_ft,1)) = this%jaco_ft
+    ! reallocate this%jaco_f and this%jaco_ft
+    if (cdep > this%vdep%n) then
+      allocate (jaco_f_tmp( cdep))
+      allocate (jaco_ft_tmp(cdep))
+      jaco_f_tmp( 1:this%vdep%n) = this%jaco_f
+      jaco_ft_tmp(1:this%vdep%n) = this%jaco_ft
       call move_alloc(jaco_f_tmp,  this%jaco_f )
       call move_alloc(jaco_ft_tmp, this%jaco_ft)
     end if

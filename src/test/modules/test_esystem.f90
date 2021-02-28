@@ -180,7 +180,7 @@ contains
     type(var),        target, intent(in)  :: x
       !! dependent var
 
-    integer :: i, idx1(1), idx2(1)
+    integer :: i, idx1(1), idx2(1), ix, iy
 
     ! init base
     call this%equation_init('eq1: y=x+1')
@@ -192,17 +192,17 @@ contains
     ! temp data
     allocate (this%y_tmp(this%y%n))
 
-    ! provide n
-    call this%provide(this%y)
+    ! provide y
+    iy = this%provide(this%y)
 
     ! stencil
     call this%st%init() ! dirichlet stencil
 
     ! add dependency
-    call this%depend(this%x)
+    ix = this%depend(this%x)
 
     ! init jacobian
-    this%dydx => this%init_jaco(1, 1, [this%st%get_ptr()], const = .true.)
+    this%dydx => this%init_jaco(iy, ix, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
@@ -231,7 +231,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: i, idx1(1), idx2(1)
+    integer :: i, idx1(1), idx2(1), idep
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -248,20 +248,20 @@ contains
     call this%st%init() ! dirichlet stencil
 
     ! add dependencies
-    call this%depend(this%x)
+    idep = this%depend(this%x)
 
     ! init jacobian for x: dfdx
-    this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
+    this%dfdx => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
       call this%dfdx%set(idx1, idx2, -1.0)
     end do
 
-    call this%depend(this%y)
+    idep = this%depend(this%y)
 
     ! init jacobian for y: dfdy
-    this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
+    this%dfdy => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
@@ -293,7 +293,7 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: i, idx1(1), idx2(1)
+    integer :: i, idx1(1), idx2(1), idep
 
     ! init base
     call this%equation_init('req1: f=y-x')
@@ -310,16 +310,16 @@ contains
     call this%st%init() ! dirichlet stencil
 
     ! add main: z
-    call this%depend(this%z)
-    this%dfdz => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()])
+    idep = this%depend(this%z)
+    this%dfdz => this%init_jaco_f(idep, [this%st%get_ptr()])
 
     ! add dep: x
-    call this%depend(this%x)
-    this%dfdx => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()])
+    idep = this%depend(this%x)
+    this%dfdx => this%init_jaco_f(idep, [this%st%get_ptr()])
 
     ! add dep: y
-    call this%depend(this%y)
-    this%dfdy => this%init_jaco_f(this%vdep%n, [this%st%get_ptr()], const = .true.)
+    idep = this%depend(this%y)
+    this%dfdy => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
