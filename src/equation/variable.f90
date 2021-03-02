@@ -30,6 +30,8 @@ module variable_m
   contains
     procedure :: variable_init
     procedure :: get_ptr => variable_get_ptr
+    procedure :: get     => variable_get
+    procedure :: set     => variable_set
   end type
 
   type variable_ptr
@@ -70,5 +72,27 @@ contains
 
     ptr%p => this
   end function
+
+  function variable_get(this, idx) result(d)
+    !! returns data for given grid indices
+    class(variable), intent(in) :: this
+    integer,         intent(in) :: idx(:)
+      !! grid indices
+    real                        :: d
+      !! value
+
+    d = this%data%get(idx)
+  end function
+
+  subroutine variable_set(this, idx, d)
+    !! set data for given grid indices
+    class(variable), intent(inout) :: this
+    integer,         intent(in)    :: idx(:)
+      !! grid indices
+    real,            intent(in)    :: d
+      !! value
+
+    call this%data%set(idx, d)
+  end subroutine
 
 end module

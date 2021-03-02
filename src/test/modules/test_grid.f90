@@ -422,11 +422,11 @@ contains
 
       ! get_neighb
       block
-        integer              :: idx1(1), nidx2
-        integer, allocatable :: idx2(:,:), exp_idx2(:,:)
+        ! integer              :: idx1(1), nidx2
+        ! integer, allocatable :: idx2(:,:), exp_idx2(:,:)
 
-        ! V V
-        allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)))
+        ! ! V V
+        ! allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)))
 
         ! idx1     = [1]
         ! exp_idx2 = reshape([2, 4, 5, 6], [1, 4])

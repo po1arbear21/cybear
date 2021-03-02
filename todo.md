@@ -1,8 +1,10 @@
-# equation
+# grid
+## tensor grid
+get_neighb
 
-## provide/depend
-- make equation_provide a function returning iprov
-- make equation_depend a function returning idep
+## test grid
+uncomment test region (line 426??)
+  aka uncrapify
 
 ## test
 - test

@@ -209,33 +209,17 @@ contains
 
   function equation_provide_variable(this, var, tab, name) result(iprov)
     !! provide variable for single grid table, creates var selector internally
-    class(equation),          intent(inout) :: this
-    class(variable),          intent(in)    :: var
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: var
       !! new provided variable
-    type(grid_table), target, intent(in)    :: tab
+    type(grid_table),       intent(in)    :: tab
       !! grid table pointers
-    character(*), optional,   intent(in)    :: name
+    character(*), optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
-    integer                                 :: iprov
+    integer                               :: iprov
       !! return provided index
 
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    if (present(name)) then
-      allocate (name_, source = name)
-    else
-      allocate (name_, source = var%name)
-    end if
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(var, tab, name=name_)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
-    iprov = this%provide(vsel)
+    iprov = this%provide(var, [tab%get_ptr()], name=name)
   end function
 
   function equation_depend_vselector(this, vsel) result(idep)
@@ -294,33 +278,17 @@ contains
 
   function equation_depend_variable(this, var, tab, name) result(idep)
     !! add new dependency variable for single grid table, creates var selector internally
-    class(equation),          intent(inout) :: this
-    class(variable),          intent(in)    :: var
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: var
       !! new dependency variable
-    type(grid_table), target, intent(in)    :: tab
+    type(grid_table),       intent(in)    :: tab
       !! grid table pointers
-    character(*), optional,   intent(in)    :: name
+    character(*), optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
-    integer                                 :: idep
+    integer                               :: idep
       !! return dependency index
 
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    if (present(name)) then
-      allocate (name_, source = name)
-    else
-      allocate (name_, source = var%name)
-    end if
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(var, tab, name=name_)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependency vselector
-    idep = this%depend(vsel)
+    idep = this%depend(var, [tab%get_ptr()], name=name)
   end function
 
   subroutine equation_realloc_jaco(this, cprov, cdep)

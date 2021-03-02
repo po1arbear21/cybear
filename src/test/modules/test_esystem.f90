@@ -72,11 +72,11 @@ module test_esystem_m
   type, extends(res_equation) :: res_equation2
     !! residuum: f = z*x+y == 0
 
-    type(vselector) :: z
+    type(var), pointer :: z => null()
       !! main variable
-    type(vselector) :: x
+    type(var), pointer :: x => null()
       !! dependent
-    type(vselector) :: y
+    type(var), pointer :: y => null()
       !! dependent
 
     type(jacobian), pointer :: dfdx => null()
@@ -293,37 +293,36 @@ contains
     type(var),            target, intent(in)  :: y
       !! dependent var
 
-    integer :: i, idx1(1), idx2(1), idep
+    integer :: i, idx(1), idep
 
     ! init base
-    call this%equation_init('req1: f=y-x')
+    call this%equation_init('req1: f=z*x+y')
 
-    ! variable selectors
-    call this%x%init(x, gtab)
-    call this%y%init(y, gtab)
-    call this%z%init(z, gtab)
+    ! save variables
+    this%x => x
+    this%y => y
+    this%z => z
 
     ! setting main var
-    call this%init_f(this%z)
+    call this%init_f(z, gtab)
 
     ! stencil
     call this%st%init() ! dirichlet stencil
 
     ! add main: z
-    idep = this%depend(this%z)
+    idep = this%depend(z, gtab)
     this%dfdz => this%init_jaco_f(idep, [this%st%get_ptr()])
 
     ! add dep: x
-    idep = this%depend(this%x)
+    idep = this%depend(x, gtab)
     this%dfdx => this%init_jaco_f(idep, [this%st%get_ptr()])
 
     ! add dep: y
-    idep = this%depend(this%y)
+    idep = this%depend(y, gtab)
     this%dfdy => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      idx2 = idx1
-      call this%dfdy%set(idx1, idx2, 1.0)
+      idx = gtab%get_idx(i)
+      call this%dfdy%set(idx, idx, 1.0)
     end do
 
     ! finish initialization
@@ -334,21 +333,20 @@ contains
     !! evaluate equation: f=z*x+y
     class(res_equation2), intent(inout) :: this
 
-    integer :: i, idx1(1), idx2(1)
-    real    :: x(1), y(1), z(1)
+    integer :: i, idx(1)
+    real    :: x, y, z
 
     do i = 1, gtab%n
-      idx1 = gtab%get_idx(i)
-      idx2 = idx1
+      idx = gtab%get_idx(i)
 
-      x = this%x%get(idx1)
-      y = this%y%get(idx1)
-      z = this%z%get(idx1)
+      x = this%x%get(idx)
+      y = this%y%get(idx)
+      z = this%z%get(idx)
 
-      call this%f%set(idx1, z*x+y)
+      call this%f%set(idx, [z*x+y])
 
-      call this%dfdx%set(idx1, idx2, z(1))
-      call this%dfdz%set(idx1, idx2, x(1))
+      call this%dfdx%set(idx, idx, z)
+      call this%dfdz%set(idx, idx, x)
     end do
   end subroutine
 
