@@ -30,8 +30,14 @@ module variable_m
   contains
     procedure :: variable_init
     procedure :: get_ptr => variable_get_ptr
-    procedure :: get     => variable_get
-    procedure :: set     => variable_set
+
+    procedure, private :: variable_get_point
+    procedure, private :: variable_get_all
+    generic            :: get => variable_get_point, variable_get_all
+
+    procedure, private :: variable_set_point
+    procedure, private :: variable_set_all
+    generic            :: set => variable_set_point, variable_set_all
   end type
 
   type variable_ptr
@@ -73,26 +79,44 @@ contains
     ptr%p => this
   end function
 
-  function variable_get(this, idx) result(d)
-    !! returns data for given grid indices
+  function variable_get_point(this, idx) result(d)
+    !! get data for single point with bounds check (out of bounds: return default value)
     class(variable), intent(in) :: this
     integer,         intent(in) :: idx(:)
       !! grid indices
     real                        :: d
-      !! value
+      !! return data
 
     d = this%data%get(idx)
   end function
 
-  subroutine variable_set(this, idx, d)
-    !! set data for given grid indices
+  function variable_get_all(this) result(d)
+    !! get data for all points in flat array
+    class(variable), intent(in) :: this
+    real                        :: d(this%data%n)
+      !! return all data
+
+    d = this%data%get()
+  end function
+
+  subroutine variable_set_point(this, idx, d)
+    !! set data for single point with bounds check (do nothing if out of bounds)
     class(variable), intent(inout) :: this
     integer,         intent(in)    :: idx(:)
-      !! grid indices
+      !! grid indices (idx_dim)
     real,            intent(in)    :: d
-      !! value
+      !! new value
 
     call this%data%set(idx, d)
+  end subroutine
+
+  subroutine variable_set_all(this, d)
+    !! set data for all points
+    class(variable), intent(inout) :: this
+    real,            intent(in)    :: d(:)
+      !! new values
+
+    call this%data%set(d)
   end subroutine
 
 end module
