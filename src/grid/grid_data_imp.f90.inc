@@ -357,8 +357,10 @@ end subroutine
 subroutine GRID_DATA_SET_ALL(this, d)
   !! set data for all points
   class(GRID_DATA_TYPE), intent(inout) :: this
-  TT,                    intent(in)    :: d(this%n)
+  TT,                    intent(in)    :: d(:)
     !! new values
+
+  ASSERT(size(d) == this%n)
 
   ! set data
   select type (this)
@@ -425,8 +427,10 @@ end subroutine
 subroutine GRID_DATA_UPDATE_ALL(this, d)
   !! update data for all points
   class(GRID_DATA_TYPE), intent(inout) :: this
-  TT,                    intent(in)    :: d(this%n)
+  TT,                    intent(in)    :: d(:)
     !! delta values
+
+  ASSERT(size(d) == this%n)
 
   ! set data
   select type (this)
