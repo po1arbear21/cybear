@@ -2,7 +2,9 @@
 
 module stencil_m
 
-  use grid_m, only: grid
+  use error_m, only: assert_failed
+  use grid_m,  only: grid
+  use math_m,  only: eye_int
 
   implicit none
 
@@ -12,6 +14,7 @@ module stencil_m
   public static_stencil
   public dirichlet_stencil
   public near_neighb_stencil
+
 
   type, abstract :: stencil
     !! abstract stencil
@@ -57,7 +60,18 @@ module stencil_m
   end type
 
   type, extends(static_stencil) :: dirichlet_stencil
-    !! dirichlet stencil, selects only one grid point
+    !! dirichlet stencil
+    !!
+    !! capable of connecting different grids, and possible index ranges.
+    !! index transformation by
+    !!    idx2 = M*idx1 + off1:off2
+
+    integer, allocatable :: M(:,:)
+      !! transfer matrix M
+    integer, allocatable :: off1(:)
+      !! start offset vector
+    integer, allocatable :: off2(:)
+      !! end offset vector
   contains
     procedure :: init => dirichlet_stencil_init
     procedure :: get  => dirichlet_stencil_get
@@ -100,12 +114,60 @@ contains
     this%nmax = nmax
   end subroutine
 
-  subroutine dirichlet_stencil_init(this)
+  subroutine dirichlet_stencil_init(this, g1, g2, M, off1, off2)
     !! initialize dirichlet stencil
-    class(dirichlet_stencil), intent(out) :: this
+    !!
+    !! computtation by: idx2 = M*idx1 + off1:off2
+    class(dirichlet_stencil),      intent(out) :: this
+    class(grid),           target, intent(in)  :: g1
+      !! result grid
+    class(grid), optional, target, intent(in)  :: g2
+      !! dependency grid (default: g1)
+    integer,     optional,         intent(in)  :: M(:,:)
+      !! transfer matrix M (default: eye)
+    integer,     optional,         intent(in)  :: off1(:)
+      !! start offset vector (default: 0)
+    integer,     optional,         intent(in)  :: off2(:)
+      !! end offset vector (default: off1)
+
+    class(grid), pointer :: g2_
+    integer, allocatable :: off1_(:), off2_(:)
+
+    ! optional g2
+    g2_ => g1
+    if (present(g2)) g2_ => g2
+
+    ! optional off1
+    allocate (off1_(g2_%idx_dim), source=0)
+    if (present(off1)) then
+      off1_ = off1
+    end if
+
+    ! optional off2
+    off2_ = off1_
+    if (present(off2)) then
+      ASSERT(present(off1))
+      ASSERT(size(off2) == g2_%idx_dim)
+      off2_ = off2
+    end if
 
     ! init base
-    call this%static_stencil_init(1)
+    call this%static_stencil_init(product(off2_-off1_+1))
+
+    ! optional M
+    if (associated(g2_, target=g1)) then
+      this%M = eye_int(g1%idx_dim)
+    else
+      ASSERT(present(M))
+    end if
+    if (present(M)) then
+      ASSERT(all(shape(M) == [g2_%idx_dim, g1%idx_dim]))
+      this%M = M
+    end if
+
+    ! save off1_, off2_
+    allocate (this%off1(size(off1_)), source=off1_)
+    allocate (this%off2(size(off2_)), source=off2_)
   end subroutine
 
   subroutine dirichlet_stencil_get(this, idx1, j, idx2, status)
@@ -120,11 +182,25 @@ contains
     logical,                  intent(out) :: status
       !! is j-th dependency used?
 
-    IGNORE(this)
+    integer :: i, k, div, rem
 
-    ! only one dependency point
-    idx2   = idx1
-    status = (j == 1)
+    ! status
+    status = ((j >= 1) .and. (j <= this%nmax))
+    if (.not. status) return
+
+    ! idx2 <- M * idx1 + off1
+    idx2 = matmul(this%M, idx1)
+    idx2 = idx2 + this%off1
+
+    ! idx2 += 0:(off2-off1)
+    if (all(this%off1 == this%off2)) return
+    k = j
+    do i = 1, size(this%off1)
+      div     = k / (  this%off2(i)-this%off1(i)+1)
+      rem     = mod(k, this%off2(i)-this%off1(i)+1)
+      idx2(i) = idx2(i) + rem
+      k       = div
+    end do
   end subroutine
 
   subroutine near_neighb_stencil_init(this, g, idx1_type, idx1_dir, idx2_type, idx2_dir)

@@ -196,7 +196,7 @@ contains
     iy = this%provide(this%y)
 
     ! stencil
-    call this%st%init() ! dirichlet stencil
+    call this%st%init(g) ! dirichlet stencil
 
     ! add dependency
     ix = this%depend(this%x)
@@ -245,7 +245,7 @@ contains
     allocate (this%f_tmp(this%f%n))
 
     ! stencil
-    call this%st%init() ! dirichlet stencil
+    call this%st%init(g) ! dirichlet stencil
 
     ! add dependencies
     idep = this%depend(this%x)
@@ -307,7 +307,7 @@ contains
     call this%init_f(z, gtab)
 
     ! stencil
-    call this%st%init() ! dirichlet stencil
+    call this%st%init(g) ! dirichlet stencil
 
     ! add main: z
     idep = this%depend(z, gtab)

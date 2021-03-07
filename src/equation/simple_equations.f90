@@ -101,7 +101,7 @@ contains
     iprov = this%provide(v1)
 
     ! stencil
-    call this%st%init() ! dirichlet stencil
+    call this%st%init(v1%g) ! dirichlet stencil
     do itab1 = 1, v1%ntab
       st(itab1)%p => this%st
     end do
