@@ -62,12 +62,22 @@ module stencil_m
   type, extends(static_stencil) :: dirichlet_stencil
     !! dirichlet stencil
     !!
-    !! capable of connecting different grids, and possible index ranges.
-    !! index transformation by
-    !!    idx2 = M*idx1 + off1:off2
+    !! computation by: idx2 = perm(idx1) + off1:off2
+    !!    idx1: result index
+    !!    idx2: dependency index
+    !!
+    !! example
+    !!    connect two grids in the following way
+    !!      idx1 = (ix, iy,  iz     )
+    !!      idx2 = (ix, 1:N, iz+2, 3)
+    !!    you need following arguments for that
+    !!      perm = (1, -1, 3, -1)
+    !!      off1 = (0, 0,   2, 2)
+    !!      off2 = (0, N-1, 2, 2)
 
-    integer, allocatable :: M(:,:)
-      !! transfer matrix M
+    integer, allocatable :: perm(:)
+      !! permutation array.
+      !! -1 for empty index element.
     integer, allocatable :: off1(:)
       !! start offset vector
     integer, allocatable :: off2(:)
@@ -114,23 +124,27 @@ contains
     this%nmax = nmax
   end subroutine
 
-  subroutine dirichlet_stencil_init(this, g1, g2, M, off1, off2)
+  subroutine dirichlet_stencil_init(this, g1, g2, perm, off1, off2)
     !! initialize dirichlet stencil
     !!
-    !! computtation by: idx2 = M*idx1 + off1:off2
+    !! computation by: idx2 = perm(idx1) + off1:off2
+    !!    idx1: result index
+    !!    idx2: dependency index
     class(dirichlet_stencil),      intent(out) :: this
     class(grid),           target, intent(in)  :: g1
       !! result grid
     class(grid), optional, target, intent(in)  :: g2
       !! dependency grid (default: g1)
-    integer,     optional,         intent(in)  :: M(:,:)
-      !! transfer matrix M (default: eye)
+    integer,     optional,         intent(in)  :: perm(:)
+      !! permutation array (default: identity).
+      !! -1 for empty index element.
     integer,     optional,         intent(in)  :: off1(:)
       !! start offset vector (default: 0)
     integer,     optional,         intent(in)  :: off2(:)
       !! end offset vector (default: off1)
 
     class(grid), pointer :: g2_
+    integer              :: i
     integer, allocatable :: off1_(:), off2_(:)
 
     ! optional g2
@@ -154,15 +168,18 @@ contains
     ! init base
     call this%static_stencil_init(product(off2_-off1_+1))
 
-    ! optional M
+    ! optional perm
     if (associated(g2_, target=g1)) then
-      this%M = eye_int(g1%idx_dim)
+      allocate (this%perm(g1%idx_dim), source=[(i, i=1,g1%idx_dim)])
     else
-      ASSERT(present(M))
+      ASSERT(present(perm))
     end if
-    if (present(M)) then
-      ASSERT(all(shape(M) == [g2_%idx_dim, g1%idx_dim]))
-      this%M = M
+    if (present(perm)) then
+      ASSERT(size(perm) == g2_%idx_dim)
+      ASSERT(minval(perm) >= -1)
+      ASSERT(maxval(perm) <= g1%idx_dim)
+      ASSERT(.not. any(perm == 0))
+      this%perm = perm
     end if
 
     ! save off1_, off2_
@@ -184,12 +201,22 @@ contains
 
     integer :: i, k, div, rem
 
+    ASSERT(j > 0)
+
     ! status
     status = ((j >= 1) .and. (j <= this%nmax))
     if (.not. status) return
 
-    ! idx2 <- M * idx1 + off1
-    idx2 = matmul(this%M, idx1)
+    ! idx2 <- perm(idx1)
+    do i = 1, size(this%perm)
+      if (this%perm(i) == -1) then
+        idx2(i) = 1
+      else
+        idx2(i) = idx1(this%perm(i))
+      end if
+    end do
+
+    ! idx2 += off1
     idx2 = idx2 + this%off1
 
     ! idx2 += 0:(off2-off1)
