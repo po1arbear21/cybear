@@ -145,6 +145,7 @@ contains
     const_ = .false.
     if (present(const)) const_ = const
     if (present(zero)) then
+      ASSERT(all(shape(zero) == [v1%ntab, v2%ntab]))
       zero_ = zero
     else
       ! set zero flags automatically by checking stencils
@@ -189,6 +190,7 @@ contains
     const_  = (const_ .or. zero_) ! zero blocks are also constant
     valmsk_ = .true.
     if (present(valmsk)) then
+      ASSERT(all(shape(valmsk) == [v1%ntab, v2%ntab]))
       do itab2 = 1, v2%ntab; do itab1 = 1, v1%ntab
         valmsk_(:,:,itab1,itab2) = valmsk
       end do; end do
