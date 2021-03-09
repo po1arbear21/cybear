@@ -11,6 +11,7 @@ module stencil_m
   private
   public stencil, stencil_ptr
   public dynamic_stencil
+  public empty_stencil
   public static_stencil
   public dirichlet_stencil
   public near_neighb_stencil
@@ -24,6 +25,10 @@ module stencil_m
 
   type stencil_ptr
     class(stencil), pointer :: p => null()
+  end type
+
+  type, extends(stencil) :: empty_stencil
+    !! indicates no dependence on this variable
   end type
 
   type, abstract, extends(stencil) :: static_stencil
