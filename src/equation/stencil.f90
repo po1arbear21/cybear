@@ -11,9 +11,8 @@ module stencil_m
   private
   public stencil, stencil_ptr
   public dynamic_stencil
-  public base_static_stencil
-  public empty_stencil
   public static_stencil
+  public empty_stencil
   public dirichlet_stencil
   public near_neighb_stencil
 
@@ -28,27 +27,14 @@ module stencil_m
     class(stencil), pointer :: p => null()
   end type
 
-  type, abstract, extends(stencil) :: base_static_stencil
-    !! abstract static stencil.
-    !! stencil w/ constant numbers of neighbors
+  type, abstract, extends(stencil) :: static_stencil
+    !! abstract stationary stencil
+    !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
+    !! use when exact stencil is known at initialization time.
     integer :: nmax
       !! maximum number of dependency points
   contains
-    procedure, private :: base_static_stencil_init
-  end type
-
-  type, extends(base_static_stencil) :: empty_stencil
-    !! empty stencil with no neighbors.
-    !! indicates no dependence on this variable
-  contains
-    procedure :: init => empty_stencil_init
-  end type
-
-  type, abstract, extends(base_static_stencil) :: static_stencil
-    !! abstract stationary stencil
-    !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
-    !! useful when exact stencil is known and actual neighbors exist (in contrast to empty_stencil).
-  contains
+    procedure                               :: static_stencil_init
     procedure(static_stencil_get), deferred :: get
   end type
 
@@ -72,6 +58,16 @@ module stencil_m
 
   type, extends(stencil) :: dynamic_stencil
     !! placeholder to distinguish from static stencils.
+    !! use when exact stencil is only known at evaluation time
+    !! (in contrast to static_stencil which is known at initialization time.)
+  end type
+
+  type, extends(static_stencil) :: empty_stencil
+    !! empty stencil with no neighbors.
+    !! indicates no dependence on this variable
+  contains
+    procedure :: init => empty_stencil_init
+    procedure :: get  => empty_stencil_get
   end type
 
   type, extends(static_stencil) :: dirichlet_stencil
@@ -87,8 +83,8 @@ module stencil_m
     !!      idx2 = (ix, 1:N, iz+2, 3)
     !!    you need following arguments for that
     !!      perm = (1, -1, 3, -1)
-    !!      off1 = (0, 0,   2, 2)
-    !!      off2 = (0, N-1, 2, 2)
+    !!      off1 = (0,  1, 2,  3)
+    !!      off2 = (0,  N, 2,  3)
 
     integer, allocatable :: perm(:)
       !! permutation array.
@@ -130,10 +126,10 @@ contains
     ptr%p => this
   end function
 
-  subroutine base_static_stencil_init(this, nmax)
-    !! initialize base stencil
-    class(base_static_stencil), intent(out) :: this
-    integer,                    intent(in)  :: nmax
+  subroutine static_stencil_init(this, nmax)
+    !! initialize static stencil
+    class(static_stencil), intent(out) :: this
+    integer,               intent(in)  :: nmax
       !! maximum number of dependency points
 
     this%nmax = nmax
@@ -143,7 +139,27 @@ contains
     !! initialize empty stencil
     class(empty_stencil), intent(out) :: this
 
-    call this%base_static_stencil_init(0)
+    call this%static_stencil_init(0)
+  end subroutine
+
+  subroutine empty_stencil_get(this, idx1, j, idx2, status)
+    !! get j-th dependency wrt idx1
+    class(empty_stencil), intent(in)  :: this
+    integer,              intent(in)  :: idx1(:)
+      !! result indices. size: idx_dim1
+    integer,              intent(in)  :: j
+      !! j-th dependency
+    integer,              intent(out) :: idx2(:)
+      !! output j-th dependency indices. size: idx_dim2
+    logical,              intent(out) :: status
+      !! is j-th dependency used?
+
+    IGNORE(this)
+    IGNORE(idx1)
+    IGNORE(j)
+    IGNORE(idx2)
+
+    status = .false.
   end subroutine
 
   subroutine dirichlet_stencil_init(this, g1, g2, perm, off1, off2)
@@ -175,9 +191,7 @@ contains
 
     ! optional off1
     allocate (off1_(g2_%idx_dim), source=0)
-    if (present(off1)) then
-      off1_ = off1
-    end if
+    if (present(off1)) off1_ = off1
 
     ! optional off2
     off2_ = off1_
@@ -188,7 +202,7 @@ contains
     end if
 
     ! init base
-    call this%base_static_stencil_init(product(off2_-off1_+1))
+    call this%static_stencil_init(product(off2_-off1_+1))
 
     ! optional perm
     if (associated(g2_, target=g1)) then
@@ -230,13 +244,11 @@ contains
     if (.not. status) return
 
     ! idx2 <- perm(idx1)
-    do i = 1, size(this%perm)
-      if (this%perm(i) == -1) then
-        idx2(i) = 1
-      else
-        idx2(i) = idx1(this%perm(i))
-      end if
-    end do
+    where (this%perm > 0)
+      idx2 = idx1(this%perm)
+    elsewhere
+      idx2 = 0
+    end where
 
     ! idx2 += off1
     idx2 = idx2 + this%off1
@@ -266,7 +278,7 @@ contains
     integer,                    intent(in)  :: idx2_dir
       !! dependency index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    call this%base_static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
+    call this%static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
 
     ! set members
     this%g => g
