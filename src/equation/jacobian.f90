@@ -178,7 +178,7 @@ contains
             end block
 
           class is (dynamic_stencil)
-            zero_ = .false.
+            zero_(itab1,:) = .false.
 
           class default
             call program_error("stencil type not supported; derive from static or dynamic stencil!")
