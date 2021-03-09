@@ -11,6 +11,7 @@ module stencil_m
   private
   public stencil, stencil_ptr
   public dynamic_stencil
+  public base_static_stencil
   public empty_stencil
   public static_stencil
   public dirichlet_stencil
@@ -27,18 +28,27 @@ module stencil_m
     class(stencil), pointer :: p => null()
   end type
 
-  type, extends(stencil) :: empty_stencil
-    !! indicates no dependence on this variable
-  end type
-
-  type, abstract, extends(stencil) :: static_stencil
-    !! abstract stationary stencil
-    !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
-    !! useful when exact stencil is known.
+  type, abstract, extends(stencil) :: base_static_stencil
+    !! abstract static stencil.
+    !! stencil w/ constant numbers of neighbors
     integer :: nmax
       !! maximum number of dependency points
   contains
-    procedure                               :: static_stencil_init
+    procedure, private :: base_static_stencil_init
+  end type
+
+  type, extends(base_static_stencil) :: empty_stencil
+    !! empty stencil with no neighbors.
+    !! indicates no dependence on this variable
+  contains
+    procedure :: init => empty_stencil_init
+  end type
+
+  type, abstract, extends(base_static_stencil) :: static_stencil
+    !! abstract stationary stencil
+    !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
+    !! useful when exact stencil is known and actual neighbors exist (in contrast to empty_stencil).
+  contains
     procedure(static_stencil_get), deferred :: get
   end type
 
@@ -120,13 +130,20 @@ contains
     ptr%p => this
   end function
 
-  subroutine static_stencil_init(this, nmax)
+  subroutine base_static_stencil_init(this, nmax)
     !! initialize base stencil
-    class(static_stencil), intent(out) :: this
-    integer,               intent(in)  :: nmax
+    class(base_static_stencil), intent(out) :: this
+    integer,                    intent(in)  :: nmax
       !! maximum number of dependency points
 
     this%nmax = nmax
+  end subroutine
+
+  subroutine empty_stencil_init(this)
+    !! initialize empty stencil
+    class(empty_stencil), intent(out) :: this
+
+    call this%base_static_stencil_init(0)
   end subroutine
 
   subroutine dirichlet_stencil_init(this, g1, g2, perm, off1, off2)
@@ -171,7 +188,7 @@ contains
     end if
 
     ! init base
-    call this%static_stencil_init(product(off2_-off1_+1))
+    call this%base_static_stencil_init(product(off2_-off1_+1))
 
     ! optional perm
     if (associated(g2_, target=g1)) then
@@ -249,7 +266,7 @@ contains
     integer,                    intent(in)  :: idx2_dir
       !! dependency index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    call this%static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
+    call this%base_static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
 
     ! set members
     this%g => g

@@ -5,7 +5,7 @@ module jacobian_m
   use error_m
   use hashmap_m,         only: int3, hashmap_int3_int
   use jacobian_matrix_m, only: jacobian_matrix
-  use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil, empty_stencil
+  use stencil_m,         only: stencil_ptr, base_static_stencil, static_stencil, dynamic_stencil, empty_stencil
   use vselector_m,       only: vselector
 
   implicit none
