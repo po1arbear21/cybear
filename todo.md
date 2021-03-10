@@ -1,4 +1,9 @@
 # grid
+## edge
+get edge length
+  procedure: get_len(idx)
+  idx: edge index
+
 ## tensor grid
 get_neighb
 
@@ -20,3 +25,17 @@ uncomment test region (line 426??)
   - optional
   - loop dependencies
     - relative step width
+
+# simple_eq
+## vsel <-> var + tab
+- `call dum_eq%init(var, tab, name)`
+  - creates vselector internally
+  - generic routine
+  - name optional
+
+# variable
+## output
+- csv
+- plt
+
+# AC+transient+HB
