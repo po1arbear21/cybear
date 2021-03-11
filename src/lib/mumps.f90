@@ -114,7 +114,8 @@ contains
       m%PAR  = 1              ! run calculation on host cpu
       call exec_dmumps(m, -1) ! initialize
 
-      m%ICNTL(4) = 1
+      m%ICNTL( 4) = 1
+      m%ICNTL(14) = 100
     end associate
   end function
 
@@ -143,7 +144,8 @@ contains
       m%PAR  = 1              ! run calculation on host cpu
       call exec_zmumps(m, -1) ! initialize
 
-      m%ICNTL(4) = 1
+      m%ICNTL( 4) = 1
+      m%ICNTL(14) = 100       ! increase memory in steps of 100%
     end associate
   end function
 
