@@ -34,6 +34,7 @@ module grid_m
     procedure(grid_get_edge),       deferred :: get_edge
     procedure(grid_get_face),       deferred :: get_face
     procedure(grid_get_cell),       deferred :: get_cell
+    procedure(grid_get_len),        deferred :: get_len
     procedure(grid_get_surf),       deferred :: get_surf
     procedure(grid_get_vol),        deferred :: get_vol
     procedure(grid_get_max_neighb), deferred :: get_max_neighb
@@ -102,16 +103,28 @@ module grid_m
         !! output: cell's coordinates. size: (dim, cell_dim)
     end subroutine
 
-    function grid_get_surf(this, idx, idx_dir) result(surf)
-      !! get single face's surface
+    function grid_get_len(this, idx, idx_dir) result(len)
+      !! get edge length
       import grid
       class(grid), intent(in) :: this
       integer,     intent(in) :: idx(:)
-        !! face's indices. size: (idx_dim)
+        !! edge indices (idx_dim)
       integer,     intent(in) :: idx_dir
-        !! face's direction
+        !! edge direction
+      real                    :: len
+        !! return edge length
+    end function
+
+    function grid_get_surf(this, idx, idx_dir) result(surf)
+      !! get face area
+      import grid
+      class(grid), intent(in) :: this
+      integer,     intent(in) :: idx(:)
+        !! face indices (idx_dim)
+      integer,     intent(in) :: idx_dir
+        !! face direction
       real                    :: surf
-        !! output: size of face
+        !! return face area
     end function
 
     function grid_get_vol(this, idx) result(vol)
@@ -193,7 +206,7 @@ contains
     this%cell_dim = cell_dim
   end subroutine
 
-  logical function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
+  function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
     !! checks if given indices are allowed for grid.
     class(grid), intent(in)           :: this
     integer,     intent(in)           :: idx_type
@@ -202,16 +215,21 @@ contains
       !! index direction.
     integer,     intent(in), optional :: idx(:)
       !! index. size: (idx_dim)
+    logical                           :: allowed
 
     integer :: idx_bnd(this%idx_dim)
 
-    if ((idx_type == IDX_VERTEX) .or. (idx_type == IDX_CELL)) then
-      allowed = (idx_dir == 0)
+    ! check idx_type, idx_dir
+    select case (idx_type)
+      case (IDX_VERTEX, IDX_CELL)
+        allowed = (idx_dir == 0)
+      case (IDX_EDGE, IDX_FACE)
+        allowed = ((idx_dir > 0) .and. (idx_dir <= this%idx_dim))
+      case default
+        allowed = .false.
+    end select
 
-    else if ((idx_type == IDX_EDGE  ) .or. (idx_type == IDX_FACE)) then
-      allowed = ((idx_dir > 0) .and. (idx_dir <= this%idx_dim))
-    end if
-
+    ! check idx
     if (present(idx)) then
       allowed = allowed .and. (size(idx) == this%idx_dim) .and. all(idx > 0)
 

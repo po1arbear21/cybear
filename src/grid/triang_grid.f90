@@ -50,6 +50,7 @@ module triang_grid_m
     procedure :: get_edge       => triang_grid_get_edge
     procedure :: get_face       => triang_grid_get_face
     procedure :: get_cell       => triang_grid_get_cell
+    procedure :: get_len        => triang_grid_get_len
     procedure :: get_surf       => triang_grid_get_surf
     procedure :: get_vol        => triang_grid_get_vol
     procedure :: get_max_neighb => triang_grid_get_max_neighb
@@ -300,22 +301,35 @@ contains
     end do
   end subroutine
 
+  function triang_grid_get_len(this, idx, idx_dir) result(len)
+    !! get edge length
+    class(triang_grid), intent(in) :: this
+    integer,            intent(in) :: idx(:)
+      !! edge indices (idx_dim)
+    integer,            intent(in) :: idx_dir
+      !! edge direction
+    real                           :: len
+      !! return edge length
+
+    real :: p(2,2)
+
+    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+
+    call this%get_edge(idx, idx_dir, p)
+    len = norm2(p(:,1) - p(:,2))
+  end function
+
   function triang_grid_get_surf(this, idx, idx_dir) result(surf)
-    !! get single face's surface
+    !! get face area
     class(triang_grid), intent(in) :: this
     integer,            intent(in) :: idx(:)
       !! face's indices. size: (idx_dim=1)
     integer,            intent(in) :: idx_dir
       !! face's index direction
     real                           :: surf
-      !! output: size of face
+      !! return face area
 
-    real :: p(2,2)
-
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-
-    call this%get_edge(idx, idx_dir, p)
-    surf = norm2(p(:,1) - p(:,2))
+    surf = this%get_len(idx, idx_dir)
   end function
 
   function triang_grid_get_vol(this, idx) result(vol)

@@ -122,6 +122,19 @@ contains
         end do
       end block
 
+      ! get_len
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]
+        integer            :: i, i0
+        real               :: len
+
+        do i = 1, size(i_arr)
+          i0  = i_arr(i)
+          len = g%get_len([i0], 1)
+          call tc%assert_eq(x(i0+1)-x(i0), len, 5e-16, "grid1D: get_len "//int2str(i0))
+        end do
+      end block
+
       ! get_vol
       block
         integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]

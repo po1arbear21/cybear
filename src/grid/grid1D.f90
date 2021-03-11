@@ -19,6 +19,7 @@ module grid1D_m
     procedure :: get_edge       => grid1D_get_edge
     procedure :: get_face       => grid1D_get_face
     procedure :: get_cell       => grid1D_get_cell
+    procedure :: get_len        => grid1D_get_len
     procedure :: get_surf       => grid1D_get_surf
     procedure :: get_vol        => grid1D_get_vol
     procedure :: get_max_neighb => grid1D_get_max_neighb
@@ -128,6 +129,23 @@ contains
 
     p(1,1:2) = this%x(idx(1):idx(1)+1)
   end subroutine
+
+  function grid1D_get_len(this, idx, idx_dir) result(len)
+    !! get edge length
+    class(grid1D), intent(in) :: this
+    integer,       intent(in) :: idx(:)
+      !! edge indices (idx_dim)
+    integer,       intent(in) :: idx_dir
+      !! edge direction
+    real                      :: len
+      !! return edge length
+
+    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+
+    IGNORE(idx_dir)
+
+    len = this%x(idx(1)+1) - this%x(idx(1))
+  end function
 
   function grid1D_get_surf(this, idx, idx_dir) result(surf)
     !! get single face's surface

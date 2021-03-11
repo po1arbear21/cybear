@@ -21,6 +21,7 @@ module tensor_grid_m
     procedure :: get_edge       => tensor_grid_get_edge
     procedure :: get_face       => tensor_grid_get_face
     procedure :: get_cell       => tensor_grid_get_cell
+    procedure :: get_len        => tensor_grid_get_len
     procedure :: get_surf       => tensor_grid_get_surf
     procedure :: get_vol        => tensor_grid_get_vol
     procedure :: get_max_neighb => tensor_grid_get_max_neighb
@@ -276,6 +277,36 @@ contains
     end do
   end subroutine
 
+  function tensor_grid_get_len(this, idx, idx_dir) result(len)
+    !! get edge length
+    class(tensor_grid), intent(in) :: this
+    integer,            intent(in) :: idx(:)
+      !! edge indices (idx_dim)
+    integer,            intent(in) :: idx_dir
+      !! edge direction
+    real                           :: len
+      !! return edge length
+
+    integer :: i, j0, j1, rdir
+
+    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+
+    j1 = 0
+    do i = 1, size(this%g)
+      j0 = j1 + 1
+      j1 = j1 + this%g(i)%p%idx_dim
+
+      ! relative direction for i-th grid
+      rdir = idx_dir - j0 + 1
+
+      ! get edge length
+      if ((rdir >= 1) .and. (rdir <= this%g(i)%p%idx_dim)) then
+        len = this%g(i)%p%get_len(idx, rdir)
+        return
+      end if
+    end do
+  end function
+
   function tensor_grid_get_surf(this, idx, idx_dir) result(surf)
     !! get size of face
     class(tensor_grid), intent(in) :: this
@@ -288,8 +319,7 @@ contains
 
     integer :: i, j0, j1, rdir
 
-    ASSERT(size(idx) == this%idx_dim)
-    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
+    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
 
     surf = 1.0
     j1   = 0
@@ -319,7 +349,7 @@ contains
 
     integer :: i, j0, j1
 
-    ASSERT(size(idx) == this%idx_dim)
+    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
 
     vol = 1.0
     j1  = 0

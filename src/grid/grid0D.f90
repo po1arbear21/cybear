@@ -19,6 +19,7 @@ module grid0D_m
     procedure :: get_edge       => grid0D_get_edge
     procedure :: get_face       => grid0D_get_face
     procedure :: get_cell       => grid0D_get_cell
+    procedure :: get_len        => grid0D_get_len
     procedure :: get_surf       => grid0D_get_surf
     procedure :: get_vol        => grid0D_get_vol
     procedure :: get_max_neighb => grid0D_get_max_neighb
@@ -124,6 +125,25 @@ contains
 
     call program_error("0D Grid does not have cells")
   end subroutine
+
+  function grid0D_get_len(this, idx, idx_dir) result(len)
+    !! get edge length
+    class(grid0D), intent(in) :: this
+    integer,       intent(in) :: idx(:)
+      !! edge indices (idx_dim)
+    integer,       intent(in) :: idx_dir
+      !! edge direction
+    real                      :: len
+      !! return edge length
+
+    IGNORE(this)
+    IGNORE(idx)
+    IGNORE(idx_dir)
+
+    call program_error("0D Grid does not have edges")
+
+    len = 0
+  end function
 
   function grid0D_get_surf(this, idx, idx_dir) result(surf)
     !! get size of face
