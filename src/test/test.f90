@@ -22,6 +22,16 @@ program test
   use test_util_m
   use test_vector_m
 
+#ifdef USE_ILUPACK
+  use test_ilupack_m
+#endif
+#ifdef USE_MUMPS
+  use test_mumps_m
+#endif
+#ifdef USE_QUADPACK
+  use test_quadpack_m
+#endif
+
   implicit none
 
   call test_arnoldi()
@@ -47,27 +57,13 @@ program test
   call test_vector()
 
 #ifdef USE_ILUPACK
-  block
-    use test_ilupack_m
-
-    call test_ilupack()
-  end block
+  call test_ilupack()
 #endif
-
 #ifdef USE_MUMPS
-  block
-    use test_mumps_m
-
-    call test_mumps()
-  end block
+  call test_mumps()
 #endif
-
 #ifdef USE_QUADPACK
-  block
-    use quadpack_m
-
-    call test_quadpack()
-  end block
+  call test_quadpack()
 #endif
 
 end program
