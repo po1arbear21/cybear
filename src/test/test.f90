@@ -2,6 +2,12 @@ program test
 
   use test_gmres_m
   use test_matop_m
+#ifdef USE_MUMPS
+  use test_mumps_m
+#endif
+#ifdef USE_ILUPACK
+  use test_ilupack_m
+#endif
   use test_poly_m
   use test_random_m
   use test_high_precision_m
@@ -24,27 +30,33 @@ program test
 
   implicit none
 
-  call test_gmres
-  call test_matop
-  call test_poly
-  call test_random
-  call test_high_precision
-  call test_math
-  call test_deque
-  call test_input
-  call test_expm
-  call test_normalization
-  call test_dual
-  call test_radau5
-  call test_newton
-  call test_matrix
-  call test_qsort
-  call test_vector
-  call test_sqrtm
-  call test_arnoldi
-  call test_schur
-  call test_plotmtv
-  call test_util
+  call test_gmres()
+  call test_matop()
+#ifdef USE_MUMPS
+  call test_mumps()
+#endif
+#ifdef USE_ILUPACK
+  call test_ilupack()
+#endif
+  call test_poly()
+  call test_random()
+  call test_high_precision()
+  call test_math()
+  call test_deque()
+  call test_input()
+  call test_expm()
+  call test_normalization()
+  call test_dual()
+  call test_radau5()
+  call test_newton()
+  call test_matrix()
+  call test_qsort()
+  call test_vector()
+  call test_sqrtm()
+  call test_arnoldi()
+  call test_schur()
+  call test_plotmtv()
+  call test_util()
 
 #ifdef USE_ILUPACK
   block
