@@ -3,9 +3,10 @@
 module triang_grid_m
 
   use error_m
-  use grid_m,   only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
-  use math_m,   only: cross_product_2d
-  use vector_m, only: vector_int
+  use grid_m,    only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use math_m,    only: cross_product_2d
+  use plotmtv_m, only: plotmtv, plotset_options
+  use vector_m,  only: vector_int
 
   implicit none
 
@@ -14,35 +15,30 @@ module triang_grid_m
 
   type, extends(grid) :: triang_grid
     !! unstructured 2d triangle grid
-    real, allocatable :: vert(:,:)
+    real,    allocatable :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
       !! size: (2,nvert)
     integer, allocatable :: cell2vert(:,:)
       !! indices to cell's vertices: cell_i = [vert_1, vert_2, vert_3] = cell2vert(1:3,i)
       !! size(3,ncell)
-
     integer, allocatable :: edge2vert(:,:)
       !! size: (2,nedge)
-
     integer, allocatable :: vert2edge_n(:), vert2edge_i(:)
       !! input:  vertex index i
       !! output: edges' number for vertex i.
       !!         how many edges for vertex i? vert2edge_n(i+1)-vert2edge_n(i)
       !!         edges of vertex i? vert2edge_i(j), j=vert2edge_n(i),..,vert2edge_n(i+1)-1
       !! sizes: vert2edge_n(1:nvert+1), this%vert2edge_i(1:2*nedge))
-
     integer, allocatable :: vert2cell_n(:), vert2cell_i(:)
       !! input:  vertex index i
       !! output: cells' number for vertex i.
       !!         how many cells for vertex i? vert2cell_n(i+1)-vert2cell_n(i)
       !!         cells of vertex i? vert2cell_i(j), j=vert2cell_n(i),..,vert2cell_n(i+1)-1
       !! sizes: vert2cell_n(1:nvert+1), this%vert2cell_i(1:3*ncell))
-
-    integer :: max_neighb(4,4)
+    integer              :: max_neighb(4,4)
       !! maximal neighbours wrt idx_types
       !! indices: (idx1_type, idx2_type), each idx_type = IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
       !! max_neighb(idx1_type, idx2_type): idx1_type has how many neighbours of type idx2_type
-
   contains
     procedure :: init           => triang_grid_init
     procedure :: get_idx_bnd    => triang_grid_get_idx_bnd
@@ -55,6 +51,7 @@ module triang_grid_m
     procedure :: get_vol        => triang_grid_get_vol
     procedure :: get_max_neighb => triang_grid_get_max_neighb
     procedure :: get_neighb     => triang_grid_get_neighb
+    procedure :: output         => triang_grid_output
   end type
 
 contains
@@ -579,4 +576,45 @@ contains
     end if                ! idx1_type
   end subroutine
 
+  subroutine triang_grid_output(this, fname)
+    !! writes grid to plotmtv file "<fname>.plt" and a separate csv files "<fname>_vert.csv", "<fname>_icell.csv".
+    class(triang_grid), intent(in) :: this
+    character(*),       intent(in) :: fname
+      !! output folder, e.g. "output/tmp/triang"
+
+    ! write plotmtv file
+    block
+      integer               :: ie
+      type(plotmtv)         :: pmtv
+      type(plotset_options) :: opts
+
+      call pmtv%init(fname//".plt")
+
+      opts%equalscale = .true.
+      call pmtv%write_header(plotset_opts=opts)
+
+      do ie = 1, size(this%edge2vert, dim=2)
+        call pmtv%write_curve(this%vert(1,this%edge2vert(:,ie)), this%vert(2,this%edge2vert(:,ie)))
+      end do
+
+      call pmtv%close()
+    end block
+
+    ! write csv
+    block
+      integer :: iounit, i
+
+      open (newunit=iounit, file=fname//'_vert.csv', action='write')
+      do i = 1, size(this%vert, dim=2)
+        write (iounit, *) this%vert(:,i)
+      end do
+      close (unit=iounit)
+
+      open (newunit=iounit, file=fname//'_icell.csv', action='write')
+      do i = 1, size(this%cell2vert, dim=2)
+        write (iounit, *) this%cell2vert(:,i)
+      end do
+      close (unit=iounit)
+    end block
+  end subroutine
 end module
