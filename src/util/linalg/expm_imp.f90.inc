@@ -76,11 +76,11 @@ subroutine EXPM(A, E)
     Ak%d = Ak_%d
 
     ! B = sum_{k=1}^{q} (-1)^k * fact_k * As^k
-    call add(Ak, B, fact=merge(fact, -fact, pm))
+    call matrix_add(Ak, B, fact=merge(fact, -fact, pm))
     pm = .not. pm
 
     ! C = sum_{k=1}^{q} fact_k * As^k
-    call add(Ak, C, fact=fact)
+    call matrix_add(Ak, C, fact=fact)
   end do
 
   ! E = inv(B) * C

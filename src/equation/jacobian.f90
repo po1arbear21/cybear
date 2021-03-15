@@ -1,7 +1,6 @@
 #include "../util/macro.f90.inc"
 
 module jacobian_m
-
   use error_m
   use hashmap_m,         only: int3, hashmap_int3_int
   use jacobian_matrix_m, only: jacobian_matrix
@@ -70,9 +69,7 @@ module jacobian_m
   type jacobian_ptr
     type(jacobian), pointer :: p => null()
   end type
-
 contains
-
   subroutine static_data_init(this, v1, v2, itab1, st)
     class(static_data),    intent(out) :: this
     type(vselector),       intent(in)  :: v1
@@ -687,5 +684,4 @@ contains
 
     call this%jacobian_set(idx1, idx2, d, add = .true.)
   end subroutine
-
 end module

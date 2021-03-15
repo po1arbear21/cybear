@@ -7,13 +7,22 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
+
 #define BAND_TYPE            CONCAT(band,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
 #define DENSE_INIT_BY_SIZE   CONCAT3(dense,T,init_by_size)
@@ -25,13 +34,6 @@
 #define DENSE_FACTORIZE      CONCAT3(dense,T,factorize)
 #define DENSE_SOLVE_VEC      CONCAT3(dense,T,solve_vec)
 #define DENSE_SOLVE_MAT      CONCAT3(dense,T,solve_mat)
-#define DENSE_TO_DENSE       CONCAT3(dense,T,to_dense)
-#define DENSE_TO_SPARSE      CONCAT3(dense,T,to_sparse)
-#ifdef TCMPLX
-#define DENSE_TO_REAL        CONCAT3(dense,T,to_real)
-#else
-#define DENSE_TO_CMPLX       CONCAT3(dense,T,to_cmplx)
-#endif
 #define DENSE_TRANSPOSE      CONCAT3(dense,T,transpose)
 #define DENSE_TRANSPOSE2     CONCAT3(dense,T,transpose2)
 #define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
@@ -39,7 +41,7 @@
 #define DENSE_OUTPUT         CONCAT3(dense,T,output)
 #define DENSE_EYE            CONCAT3(dense,eye,T)
 
-subroutine DENSE_INIT_BY_DATA(this, d)
+module subroutine DENSE_INIT_BY_DATA(this, d)
   !! Initialize dense matrix.
 
   class(DENSE_TYPE), intent(out) :: this
@@ -53,7 +55,7 @@ subroutine DENSE_INIT_BY_DATA(this, d)
   this%d = d
 end subroutine
 
-subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
+module subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
   !! Initialize dense matrix.
 
   class(DENSE_TYPE), intent(out) :: this
@@ -76,7 +78,7 @@ subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
   this%d = 0
 end subroutine
 
-subroutine DENSE_DESTRUCT(this)
+module subroutine DENSE_DESTRUCT(this)
   !! Destruct dense matrix; i.e. deallocate its members.
 
   class(DENSE_TYPE), intent(inout) :: this
@@ -88,7 +90,7 @@ subroutine DENSE_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-subroutine DENSE_RESET(this, only_factorization)
+module subroutine DENSE_RESET(this, only_factorization)
   !! Reset dense matrix to zero (optionally only the factorization).
 
   class(DENSE_TYPE), intent(inout) :: this
@@ -113,7 +115,7 @@ subroutine DENSE_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-subroutine DENSE_SCALE(this, fact)
+module subroutine DENSE_SCALE(this, fact)
   !! Scale dense matrix by a factor.
 
   class(DENSE_TYPE), intent(inout) :: this
@@ -128,7 +130,7 @@ subroutine DENSE_SCALE(this, fact)
   this%d = fact * this%d
 end subroutine
 
-subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -146,7 +148,7 @@ subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
   call gemv(this%d, x, y, beta = fact_y, trans = trans)
 end subroutine
 
-subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -164,7 +166,7 @@ subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
   call gemm(this%d, x, y, transa = trans, beta = fact_y)
 end subroutine
 
-subroutine DENSE_FACTORIZE(this)
+module subroutine DENSE_FACTORIZE(this)
   !! Calculate LU decomposition.
   !! Call this subroutine before solving!
 
@@ -186,7 +188,7 @@ subroutine DENSE_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for a single right-hand side.
   !! Solves: this * x = rhs, where x and rhs are raw vectors. Call this%factorize() first!
 
@@ -210,7 +212,7 @@ subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   x = x_(:,1)
 end subroutine
 
-subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for multiple right-hand sides.
   !! Solves: this * x = rhs, where x and rhs are raw matrices. Call this%factorize() first!
 
@@ -247,111 +249,7 @@ subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-subroutine DENSE_TO_DENSE(this, d, i0, j0)
-  !! Insert dense matrix into another dense matrix.
-
-  class(DENSE_TYPE), intent(in)    :: this
-    !! First dense matrix (unchanged)
-  type(DENSE_TYPE),  intent(inout) :: d
-    !! Second dense matrix (updated)
-  integer, optional, intent(in)    :: i0
-    !! Optional: row offset in second matrix (default 1)
-  integer, optional, intent(in)    :: j0
-    !! Optional: col offset in second matrix (default 1)
-
-  ! local variables
-  integer :: i0_, j0_, i1, j1
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! end indices
-  i1 = i0_ + this%nrows - 1
-  j1 = j0_ + this%ncols - 1
-
-  d%d(i0_:i1, j0_:j1) = this%d
-end subroutine
-
-subroutine DENSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert dense matrix into a sparse matrix.
-
-  class(DENSE_TYPE),  intent(in)    :: this
-    !! Dense matrix (unchanged)
-  type(SPBUILD_TYPE), intent(inout) :: sb
-    !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,  intent(in)    :: i0
-    !! Optional: row offset in sparse matrix
-  integer, optional,  intent(in)    :: j0
-    !! Optional: col offset in sparse matrix
-  logical, optional,  intent(in)    :: struct(:,:)
-    !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,  intent(in)    :: drop_zeros
-    !! Optional: determine sparsity structure by checking for zero entries
-
-  ! local variables
-  integer :: i0_, j0_, i, j
-  logical :: drop_zeros_
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  ASSERT(i0_ > 0)
-  ASSERT(i0_ + this%nrows -1 <= sb%sp%nrows)
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-  ASSERT(j0_ > 0)
-  ASSERT(j0_ + this%ncols -1 <= sb%sp%ncols)
-  if (present(struct)) then
-    ASSERT(size(this%d, 1) == size(struct, 1) .and. size(this%d, 2) == size(struct, 2))
-  end if
-
-  ! insert values
-  do i = 1, this%nrows
-    do j = 1, this%ncols
-      ! check structure
-      if (present(struct)) then
-        if (.not. struct(i,j)) cycle
-      elseif (drop_zeros_) then
-        if (this%d(i,j) == 0) cycle
-      end if
-
-      ! insert value without searching (append to rows)
-      call sb%set(i0_+i-1, j0_+j-1, this%d(i,j), search = .false.)
-    end do
-  end do
-end subroutine
-
-#ifdef TCMPLX
-subroutine DENSE_TO_REAL(this, d)
-  !! Convert dense complex matrix to real by ignoring imaginary part.
-
-  class(dense_cmplx), intent(in)  :: this
-    !! Dense complex matrix
-  class(dense_real),  intent(out) :: d
-    !! Output real(this)
-
-  call d%init(real(this%d))
-end subroutine
-#else
-subroutine DENSE_TO_CMPLX(this, d)
-  !! Convert dense real matrix to complex with zero imaginary part.
-
-  class(dense_real),  intent(in)  :: this
-    !! Dense real matrix
-  class(dense_cmplx), intent(out) :: d
-    !! Output cmplx(this)
-
-  call d%init(cmplx(this%d))
-end subroutine
-#endif
-
-subroutine DENSE_TRANSPOSE(this)
+module subroutine DENSE_TRANSPOSE(this)
   !! Transpose dense matrix
 
   class(DENSE_TYPE), intent(inout) :: this
@@ -370,7 +268,7 @@ subroutine DENSE_TRANSPOSE(this)
   this%ncols = size(this%d,2)
 end subroutine
 
-subroutine DENSE_TRANSPOSE2(this, d2)
+module subroutine DENSE_TRANSPOSE2(this, d2)
   !! Transpose matrix and store result in second matrix
 
   class(DENSE_TYPE), intent(in) :: this
@@ -381,7 +279,7 @@ subroutine DENSE_TRANSPOSE2(this, d2)
   call d2%init(transpose(this%d))
 end subroutine
 
-subroutine DENSE_MUL_DENSE(this, d2, d3)
+module subroutine DENSE_MUL_DENSE(this, d2, d3)
   !! Multiply two dense matrices, store result in a third dense matrix.
   !!  Operation: d3 <- this * d2
 
@@ -399,7 +297,7 @@ subroutine DENSE_MUL_DENSE(this, d2, d3)
   call gemm(this%d, d2%d, d3%d)
 end subroutine
 
-subroutine DENSE_EIG(this, e, R, L, sort)
+module subroutine DENSE_EIG(this, e, R, L, sort)
   !! Perform a dense eigenvalue decomposition.
 
   class(DENSE_TYPE), intent(in)  :: this
@@ -496,7 +394,7 @@ subroutine DENSE_EIG(this, e, R, L, sort)
   end if
 end subroutine
 
-subroutine DENSE_OUTPUT(this, file, funit, fmt)
+module subroutine DENSE_OUTPUT(this, file, funit, fmt)
   !! Write dense matrix to file or stream.
 
   class(DENSE_TYPE),      intent(in) :: this
@@ -550,7 +448,7 @@ subroutine DENSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-function DENSE_EYE(nrows, ncols) result(eye)
+module function DENSE_EYE(nrows, ncols) result(eye)
   !! dense identity matrix
 
   integer,            intent(in)  :: nrows
@@ -581,13 +479,22 @@ end function
 
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
-#undef DENSE_TYPE
-#undef SPARSE_TYPE
-#undef SPBUILD_TYPE
+
 #undef BAND_TYPE
-#undef HESSENBERG_TYPE
-#undef TRIANG_TYPE
+#undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef DENSE_INIT_BY_DATA
 #undef DENSE_INIT_BY_SIZE
@@ -599,10 +506,6 @@ end function
 #undef DENSE_FACTORIZE
 #undef DENSE_SOLVE_VEC
 #undef DENSE_SOLVE_MAT
-#undef DENSE_TO_DENSE
-#undef DENSE_TO_SPARSE
-#undef DENSE_TO_REAL
-#undef DENSE_TO_CMPLX
 #undef DENSE_TRANSPOSE
 #undef DENSE_TRANSPOSE2
 #undef DENSE_MUL_DENSE

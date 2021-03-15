@@ -1,12 +1,11 @@
 #include "../util/macro.f90.inc"
 
 module esystem_m
-
   use array_m,            only: array_int
   use error_m
   use equation_m,         only: equation
   use esystem_dag_m,      only: dag, vector_dag_node_ptr, NDSTATUS_DEP
-  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real
+  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
@@ -88,9 +87,7 @@ module esystem_m
 
     procedure :: print => esystem_print
   end type
-
 contains
-
   subroutine esystem_init(this, name)
     !! initialize equation system
     class(esystem), intent(out) :: this
@@ -608,7 +605,7 @@ contains
 
     call df%init(this%n)
     call sb%init(df)
-    call this%df%to_sparse(sb)
+    call matrix_convert(this%df, sb)
     call sb%save()
   end subroutine
 
@@ -624,9 +621,9 @@ contains
 
     call df_real%init(this%n)
     call sb%init(df_real)
-    call this%df%to_sparse(sb)
+    call matrix_convert(this%df, sb)
     call sb%save()
-    call df_real%to_cmplx(df)
+    call matrix_convert(df_real, df)
   end subroutine
 
   subroutine esystem_get_dft(this, dft)
@@ -640,7 +637,7 @@ contains
 
     call dft%init(this%n)
     call sb%init(dft)
-    call this%dft%to_sparse(sb)
+    call matrix_convert(this%dft, sb)
     call sb%save()
   end subroutine
 
@@ -656,9 +653,9 @@ contains
 
     call dft_real%init(this%n)
     call sb%init(dft_real)
-    call this%dft%to_sparse(sb)
+    call matrix_convert(this%dft, sb)
     call sb%save()
-    call dft_real%to_cmplx(dft)
+    call matrix_convert(dft_real, dft)
   end subroutine
 
   subroutine esystem_print(this)
@@ -680,5 +677,4 @@ contains
       end associate
     end do
   end subroutine
-
 end module

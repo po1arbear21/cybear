@@ -1,4 +1,8 @@
 # grid
+## triang
+neighbors
+  not include itself (otherwise tensor grid broken)
+
 ## edge
 get edge length
   procedure: get_len(idx)

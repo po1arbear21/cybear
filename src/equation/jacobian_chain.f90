@@ -1,5 +1,4 @@
 module jacobian_chain_m
-
   use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr
 
   implicit none
@@ -146,5 +145,4 @@ contains
         end do; end do
     end select
   end subroutine
-
 end module

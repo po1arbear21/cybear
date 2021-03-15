@@ -7,13 +7,22 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
+
 #define BAND_TYPE            CONCAT(band,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
 #define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
@@ -26,14 +35,6 @@
 #define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
 #define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
 #define SPARSE_SOLVE_MAT     CONCAT3(sparse,T,solve_mat)
-#define SPARSE_TO_BAND       CONCAT3(sparse,T,to_band)
-#define SPARSE_TO_DENSE      CONCAT3(sparse,T,to_dense)
-#define SPARSE_TO_SPARSE     CONCAT3(sparse,T,to_sparse)
-#ifdef TCMPLX
-#define SPARSE_TO_REAL       CONCAT3(sparse,T,to_real)
-#else
-#define SPARSE_TO_CMPLX      CONCAT3(sparse,T,to_cmplx)
-#endif
 #define SPARSE_TRANSPOSE     CONCAT3(sparse,T,transpose)
 #define SPARSE_TRANSPOSE2    CONCAT3(sparse,T,transpose2)
 #define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
@@ -55,7 +56,7 @@
 #define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
 #define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
 
-subroutine SPARSE_INIT(this, nrows, ncols)
+module subroutine SPARSE_INIT(this, nrows, ncols)
   !! Initialize sparse matrix.
 
   class(SPARSE_TYPE), intent(out) :: this
@@ -70,7 +71,7 @@ subroutine SPARSE_INIT(this, nrows, ncols)
   this%solver = default_solver
 end subroutine
 
-subroutine SPARSE_DESTRUCT(this)
+module subroutine SPARSE_DESTRUCT(this)
   !! Destruct sparse matrix by deallocating memory and deleting factorization.
 
   class(SPARSE_TYPE), intent(inout) :: this
@@ -79,7 +80,7 @@ subroutine SPARSE_DESTRUCT(this)
   call this%reset()
 end subroutine
 
-subroutine SPARSE_RESET(this, only_factorization)
+module subroutine SPARSE_RESET(this, only_factorization)
   !! Reset sparse matrix to empty state (optionally only the factorization).
 
   class(SPARSE_TYPE), intent(inout) :: this
@@ -124,7 +125,7 @@ subroutine SPARSE_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-subroutine SPARSE_SCALE(this, fact)
+module subroutine SPARSE_SCALE(this, fact)
   !! Scale sparse matrix by a factor.
 
   class(SPARSE_TYPE), intent(inout) :: this
@@ -139,7 +140,7 @@ subroutine SPARSE_SCALE(this, fact)
   if (.not. this%is_empty()) this%a = fact * this%a
 end subroutine
 
-subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
+module subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
   !! Multiply sparse matrix by a raw vector where only some rows of y are computed.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -189,7 +190,7 @@ subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
   !$omp end parallel do
 end subroutine
 
-subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -277,7 +278,7 @@ subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -365,7 +366,7 @@ subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine SPARSE_INIT_SOLVER(this)
+module subroutine SPARSE_INIT_SOLVER(this)
   !! creates solver handle
   !!
   !! this routine exists s.t. one can init ilupack, then get its handler and change parameters.
@@ -400,7 +401,7 @@ subroutine SPARSE_INIT_SOLVER(this)
   end select
 end subroutine
 
-subroutine SPARSE_FACTORIZE(this)
+module subroutine SPARSE_FACTORIZE(this)
   !! Factorize Matrix using PARDISO or ILUPACK.
 
   class(SPARSE_TYPE), intent(inout) :: this
@@ -426,7 +427,7 @@ subroutine SPARSE_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve Linear equation system this * x = rhs using PARDISO.
   !!
   !! Call this%factorize() first!
@@ -470,7 +471,7 @@ subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   end select
 end subroutine
 
-subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve Linear equation system this * x = rhs using PARDISO.
   !!
   !! Call this%factorize() first.
@@ -522,159 +523,7 @@ subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine
 
-subroutine SPARSE_TO_BAND(this, b, i0, j0)
-  !! Insert sparse matrix into a band matrix.
-
-  class(SPARSE_TYPE), intent(in)    :: this
-    !! Sparse matrix (unchanged)
-  type(BAND_TYPE),    intent(inout) :: b
-    !! Band matrix (updated)
-  integer, optional,  intent(in)    :: i0
-    !! optional: row offset in second matrix (default 1)
-  integer, optional,  intent(in)    :: j0
-    !! optional: col offset in second matrix (default 1)
-
-  integer             :: i, i0_, j0_
-  integer(SPARSE_IDX) :: j
-
-  ASSERT(.not. this%is_empty())
-  ASSERT(allocated(b%d))
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert values into band matrix
-  do i = 1, this%nrows
-    do j = this%ia(i), this%ia(i+1)-1
-      call b%set_elem(i0_+i-1, j0_+this%ja(j)-1, this%a(j))
-    end do
-  end do
-end subroutine
-
-subroutine SPARSE_TO_DENSE(this, d, i0, j0)
-  !! Insert sparse matrix into a dense matrix.
-
-  class(SPARSE_TYPE), intent(in)    :: this
-    !! Sparse matrix (unchanged)
-  type(DENSE_TYPE),   intent(inout) :: d
-    !! Dense matrix (updated)
-  integer, optional,  intent(in)    :: i0
-    !! optional: row offset in second matrix (default 1)
-  integer, optional,  intent(in)    :: j0
-    !! optional: col offset in second matrix (default 1)
-
-  integer             :: i, i0_, j0_
-  integer(SPARSE_IDX) :: j
-
-  ASSERT(.not. this%is_empty())
-  ASSERT(allocated(d%d))
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert values into dense matrix
-  do i = 1, this%nrows
-    do j = this%ia(i), this%ia(i+1)-1
-      d%d(i0_+i-1,j0_+this%ja(j)-1) = this%a(j)
-    end do
-  end do
-end subroutine
-
-subroutine SPARSE_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert sparse matrix into another sparse matrix.
-
-  class(SPARSE_TYPE), intent(in)    :: this
-    !! First sparse matrix (unchanged)
-  type(SPBUILD_TYPE), intent(inout) :: sb
-    !! Second sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,  intent(in)    :: i0
-    !! optional: row offset in sparse matrix
-  integer, optional,  intent(in)    :: j0
-    !! optional: col offset in sparse matrix
-  logical, optional,  intent(in)    :: struct(:,:)
-    !! optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,  intent(in)    :: drop_zeros
-    !! optional: determine sparsity structure by checking for zero entries
-
-  integer             :: i, i0_, j0_
-  integer(SPARSE_IDX) :: j
-  logical             :: drop_zeros_
-
-  ! do nothing if empty
-  if (this%is_empty()) return
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert values into second sparse matrix
-  do i = 1, this%nrows
-    do j = this%ia(i), this%ia(i+1)-1
-      ! check structure
-      if (present(struct)) then
-        if (.not. struct(i,this%ja(j))) cycle
-      else if (drop_zeros_) then
-        if (this%a(j) == 0) cycle
-      end if
-
-      ! insert value without searching (append to rows)
-      call sb%set(i0_+i-1, j0_+this%ja(j)-1, this%a(j), search = .false.)
-    end do
-  end do
-end subroutine
-
-#ifdef TCMPLX
-subroutine SPARSE_TO_REAL(this, s)
-  !! Convert sparse complex matrix to real by ignoring imaginary part
-
-  class(sparse_cmplx), intent(in)  :: this
-    !! Sparse complex matrix
-  class(sparse_real),  intent(out) :: s
-    !! Output real(this)
-
-  ! init s
-  call s%init(this%nrows, ncols = this%ncols)
-
-  ! copy csr
-  if (.not. this%is_empty()) then
-    allocate (s%ia(size(this%ia,kind=SPARSE_IDX)), source = this%ia     )
-    allocate (s%ja(size(this%ja,kind=SPARSE_IDX)), source = this%ja     )
-    allocate (s%a( size(this%a ,kind=SPARSE_IDX)), source = real(this%a))
-  end if
-end subroutine
-#else
-subroutine SPARSE_TO_CMPLX(this, s)
-  !! Convert sparse real matrix to complex
-
-  class(sparse_real),  intent(in)  :: this
-    !! Sparse real matrix
-  class(sparse_cmplx), intent(out) :: s
-    !! Output cmplx(this)
-
-  ! init s
-  call s%init(this%nrows, ncols = this%ncols)
-
-  ! copy csr
-  if (.not. this%is_empty()) then
-    allocate (s%ia(size(this%ia,kind=SPARSE_IDX)), source = this%ia      )
-    allocate (s%ja(size(this%ja,kind=SPARSE_IDX)), source = this%ja      )
-    allocate (s%a( size(this%a ,kind=SPARSE_IDX)), source = cmplx(this%a))
-  end if
-end subroutine
-#endif
-
-subroutine SPARSE_TRANSPOSE(this)
+module subroutine SPARSE_TRANSPOSE(this)
   !! Transpose sparse matrix.
 
   class(SPARSE_TYPE), intent(inout) :: this
@@ -698,7 +547,7 @@ subroutine SPARSE_TRANSPOSE(this)
   end if
 end subroutine
 
-subroutine SPARSE_TRANSPOSE2(this, s2)
+module subroutine SPARSE_TRANSPOSE2(this, s2)
   !! Transpose sparse matrix, store result in second matrix.
 
   class(SPARSE_TYPE), intent(in)  :: this
@@ -751,7 +600,7 @@ subroutine SPARSE_TRANSPOSE2(this, s2)
   end do
 end subroutine
 
-subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
+module subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !! Multiply two sparse matrices, store result in sparse third matrix.
   !!
   !! operation: s3 <- this * s2
@@ -913,7 +762,7 @@ subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !$omp end parallel
 end subroutine
 
-subroutine SPARSE_INPUT(this, file, funit)
+module subroutine SPARSE_INPUT(this, file, funit)
   !! Read sparse matrix from file or stream (does not work for large matrices with more than 2^31 non-zero entries)
 
   class(SPARSE_TYPE),     intent(out) :: this
@@ -991,7 +840,7 @@ subroutine SPARSE_INPUT(this, file, funit)
   call sb%save()
 end subroutine
 
-subroutine SPARSE_OUTPUT(this, file, funit, fmt)
+module subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   !! Write sparse matrix to file or stream
 
   class(SPARSE_TYPE),     intent(in) :: this
@@ -1045,7 +894,7 @@ subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-function SPARSE_NNZ(this, only_nonzeros) result(nnz)
+module function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   !! computes number of non-zero elements
 
   class(SPARSE_TYPE), intent(in) :: this
@@ -1070,7 +919,7 @@ function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   end if
 end function
 
-function SPARSE_IS_EMPTY(this) result(empty)
+module function SPARSE_IS_EMPTY(this) result(empty)
   !! check if sparse matrix is empty (CSR not allocated)
 
   class(SPARSE_TYPE), intent(in) :: this
@@ -1088,7 +937,7 @@ function SPARSE_IS_EMPTY(this) result(empty)
   end if
 end function
 
-function SPARSE_EYE(nrows, ncols) result(eye)
+module function SPARSE_EYE(nrows, ncols) result(eye)
   !! sparse identity matrix
 
   integer,            intent(in)  :: nrows
@@ -1119,7 +968,7 @@ function SPARSE_EYE(nrows, ncols) result(eye)
   end do
 end function
 
-function SPARSE_ZERO(nrows, ncols) result(zero)
+module function SPARSE_ZERO(nrows, ncols) result(zero)
   !! create empty sparse matrix
 
   integer,           intent(in) :: nrows
@@ -1137,7 +986,7 @@ function SPARSE_ZERO(nrows, ncols) result(zero)
   allocate (zero%a( 0))
 end function
 
-subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
+module subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
   !! Initialize sparse matrix builder.
 
   class(SPBUILD_TYPE),       intent(out) :: this
@@ -1180,7 +1029,7 @@ subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
   call this%load()
 end subroutine
 
-subroutine SPBUILD_DESTRUCT(this)
+module subroutine SPBUILD_DESTRUCT(this)
   !! Deallocate memory.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1194,7 +1043,7 @@ subroutine SPBUILD_DESTRUCT(this)
   if (allocated(this%keep_struct)) deallocate (this%keep_struct)
 end subroutine
 
-subroutine SPBUILD_RESET(this)
+module subroutine SPBUILD_RESET(this)
   !! Delete all values of each row
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1207,7 +1056,7 @@ subroutine SPBUILD_RESET(this)
   end do
 end subroutine
 
-subroutine SPBUILD_RESET_ROW(this, row)
+module subroutine SPBUILD_RESET_ROW(this, row)
   !! Delete all values of a row
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1230,7 +1079,7 @@ subroutine SPBUILD_RESET_ROW(this, row)
   end if
 end subroutine
 
-subroutine SPBUILD_SET(this, row, col, val, fact, search)
+module subroutine SPBUILD_SET(this, row, col, val, fact, search)
   !! Insert/Update value.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1325,7 +1174,7 @@ subroutine SPBUILD_SET(this, row, col, val, fact, search)
   end if
 end subroutine
 
-subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
+module subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   !! Insert continuous block of values.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1367,7 +1216,7 @@ subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   end do
 end subroutine
 
-subroutine SPBUILD_ADD(this, row, col, val)
+module subroutine SPBUILD_ADD(this, row, col, val)
   !! Insert new element or add to existing value.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1388,7 +1237,7 @@ subroutine SPBUILD_ADD(this, row, col, val)
   call this%set(row, col, val, fact = fact)
 end subroutine
 
-subroutine SPBUILD_SORT(this)
+module subroutine SPBUILD_SORT(this)
   !! Sort column indices.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1427,7 +1276,7 @@ subroutine SPBUILD_SORT(this)
   !$omp end parallel
 end subroutine
 
-subroutine SPBUILD_LOAD(this)
+module subroutine SPBUILD_LOAD(this)
   !! Load existing values from sparse matrix into builder.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1458,7 +1307,7 @@ subroutine SPBUILD_LOAD(this)
   end do
 end subroutine
 
-subroutine SPBUILD_SAVE(this)
+module subroutine SPBUILD_SAVE(this)
   !! Save values in sparse matrix.
 
   class(SPBUILD_TYPE), intent(inout) :: this
@@ -1516,13 +1365,22 @@ end subroutine
 
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
-#undef DENSE_TYPE
-#undef SPARSE_TYPE
-#undef SPBUILD_TYPE
+
 #undef BAND_TYPE
-#undef HESSENBERG_TYPE
-#undef TRIANG_TYPE
+#undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef SPARSE_INIT
 #undef SPARSE_INIT_SOLVER
@@ -1535,11 +1393,6 @@ end subroutine
 #undef SPARSE_FACTORIZE
 #undef SPARSE_SOLVE_VEC
 #undef SPARSE_SOLVE_MAT
-#undef SPARSE_TO_BAND
-#undef SPARSE_TO_DENSE
-#undef SPARSE_TO_SPARSE
-#undef SPARSE_TO_REAL
-#undef SPARSE_TO_CMPLX
 #undef SPARSE_TRANSPOSE
 #undef SPARSE_TRANSPOSE2
 #undef SPARSE_MUL_SPARSE

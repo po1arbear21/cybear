@@ -1,7 +1,6 @@
 #include "../util/macro.f90.inc"
 
 module equation_m
-
   use error_m
   use grid_table_m, only: grid_table, grid_table_ptr
   use jacobian_m,   only: jacobian, jacobian_ptr
@@ -368,5 +367,4 @@ contains
 
     ! FIXME
   end subroutine
-
 end module
