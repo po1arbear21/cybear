@@ -105,133 +105,6 @@ contains
       call tc%assert_eq(e, x, 1e-12, "solve_mat")
     end block
 
-    ! to_dense
-    block
-      integer           :: i, j
-      type(dense_real)  :: d1, d2
-      real              :: val
-
-      call d1%init(3)
-      call d2%init(5)
-      do i = 1, 5
-        do j = 1, 5
-          if (i <= 3 .and. j <= 3) d1%d(i,j) = 1.0
-          d2%d(i,j) = 2.0
-        end do
-      end do
-
-      call d1%to_dense(d2, i0=1, j0=3)
-
-      do i = 1, 5
-        do j = 1, 5
-          val = 2.0
-          if (i <= 3 .and. j >= 3) val = 1.0
-          call tc%assert_eq(d2%d(i,j), val, 1e-12, "to_dense")
-        end do
-      end do
-    end block
-
-    ! to_sparse
-    block
-      integer           :: i, j
-      type(dense_real)  :: d
-      real              :: mat(5,5), e(5), v(5), v_exp(5)
-      real, allocatable :: tmp(:,:)
-      logical, allocatable :: sparsity(:,:)
-      type(sparse_real)  :: s
-      type(spbuild_real) :: sb
-
-      ! test 1: add dense to empty sparse
-      call s%init(5)
-      call sb%init(s)
-
-      call d%init(3)
-      mat = 0.0
-      do i = 1, 3
-        do j = 1, 3
-          d%d(i,j)    = i-2*j
-          mat(i, j+2) = i-2*j
-        end do
-      end do
-
-      call d%to_sparse(sb, i0=1, j0=3)
-      call sb%save
-
-      ! test 2: add dense to partially filled sparse
-      do i = 1, 5
-        e     = 0.0
-        e(i)  = 1.0
-        v_exp = matmul(mat, e)
-        call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
-      end do
-
-      tmp = reshape([1,3,5,7],[2,2],order=[2,1])
-      call d%init(tmp)
-
-      call d%to_sparse(sb, i0=4, j0=2)
-      call s%init(5)
-      call sb%save
-      mat(4:5,2:3) = tmp
-
-      do i = 1, 5
-        e     = 0.0
-        e(i)  = 1.0
-        v_exp = matmul(mat, e)
-        call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
-      end do
-
-      ! test 3: use sparsity struct
-      tmp = reshape([4,1,0,2, &
-                    &8,5,2,0, &
-                    &0,9,6,3, &
-                    &1,0,10,7 ], [4, 4], order=[2, 1])
-      call d%init(tmp)
-
-      allocate(sparsity(4,4), source=.true.)
-      sparsity(1,2) = .false.
-      sparsity(2,2) = .false.
-      sparsity(4,3) = .false.
-
-      mat = 0.0
-      mat(1:4,2:5) = tmp
-      mat(1,2+1) = 0.0
-      mat(2,2+1) = 0.0
-      mat(4,3+1) = 0.0
-
-      call s%init(5)
-      call sb%init(s)
-      call d%to_sparse(sb, i0=1, j0=2, struct=sparsity)
-      call sb%save
-
-      do i = 1, 5
-        e     = 0.0
-        e(i)  = 1.0
-        v_exp = matmul(mat, e)
-        call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: sparsity")
-      end do
-
-      ! test 4: use drop_zeros
-      mat = 0.0
-      mat(2:5,1:4) = tmp
-
-      call s%init(5)
-      call sb%init(s)
-      call d%to_sparse(sb, i0=2, j0=1, drop_zeros=.true.)
-      call sb%save
-
-      do i = 1, 5
-        e     = 0.0
-        e(i)  = 1.0
-        v_exp = matmul(mat, e)
-        call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: drop zeros")
-      end do
-      call tc%assert_eq(count(s%a == 0.0), 0, "to_sparse: drop zeros")
-    end block
-
     ! transpose
     block
       integer           :: i, j
@@ -278,12 +151,12 @@ contains
       end do
 
       ! d1 <- d1 + fact*d2
-      call add(d2, d1, fact=2.0)
+      call matrix_add(d2, d1, fact=2.0)
       mat1 = mat1 + 2*mat2
       call tc%assert_eq(d1%d, mat1, 1e-12, "add dense")
 
       ! d3 <- fact1*d1 + fact2*d2
-      call add(d1, d2, d3, fact1=3.0, fact2=2.0)
+      call matrix_add(d1, d2, d3, fact1=3.0, fact2=2.0)
       mat3 = 3*mat1 + 2*mat2
       call tc%assert_eq(d3%d, mat3, 1e-12, "add dense3")
     end block
@@ -310,15 +183,15 @@ contains
       mat1 = d1%d
 
       ! test adding empty sparse matrix to d1
-      call add(s1, d1)
+      call matrix_add(s1, d1)
       call tc%assert_eq(d1%d, mat1, 1e-16, "add empty sparse")
-      call add(s1, d1, d3, fact1=7.8, fact2=2.5)
+      call matrix_add(s1, d1, d3, fact1=7.8, fact2=2.5)
       call tc%assert_eq(d3%d, 2.5 * mat1, 1e-16, "add empty sparse3")
 
       ! build sparse s1
       call sb1%init(s1)
-      call d1%to_sparse(sb1)
-      call sb1%save
+      call matrix_convert(d1, sb1)
+      call sb1%save()
 
       ! build dense d2, mat2
       call d2%init(3)
@@ -330,12 +203,12 @@ contains
       mat2 = d2%d
 
       ! test adding: d2 <- d2 + fact*s1
-      call add(s1, d2, fact=3.0)
+      call matrix_add(s1, d2, fact=3.0)
       mat2 = mat2 + 3*mat1
       call tc%assert_eq(d2%d, mat2, 1e-12, "add sparse")
 
       ! d3 <- fact1*s1 + fact2*d2
-      call add(s1, d2, d3, fact1=2.0, fact2=3.0)
+      call matrix_add(s1, d2, d3, fact1=2.0, fact2=3.0)
       mat3 = 2*mat1 + 3*mat2
       call tc%assert_eq(d3%d, mat3, 1e-12, "add sparse3")
     end block
@@ -367,11 +240,11 @@ contains
       mat1 = d1%d
 
       ! add band
-      call add(b, d1, fact=2.0)
+      call matrix_add(b, d1, fact=2.0)
       mat1 = mat1 + 2*mat_b
       call tc%assert_eq(d1%d, mat1, 1e-12, "add band")
 
-      call add(b, d1, d2, fact1=2.0, fact2=3.0)
+      call matrix_add(b, d1, d2, fact1=2.0, fact2=3.0)
       mat2 = 2*mat_b + 3*mat1
       call tc%assert_eq(d2%d, mat2, 1e-12, "add band3")
     end block

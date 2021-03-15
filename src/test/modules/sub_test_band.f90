@@ -5,9 +5,8 @@ submodule (test_matrix_m) test_band_m
 contains
 
   module subroutine test_band()
-    real, dimension(5,5) :: d_band
-    type(band_real)      :: tri, band, penta, diag
-    type(test_case)      :: tc
+    type(band_real) :: tri, band, penta, diag
+    type(test_case) :: tc
 
     print "(A)", "test_band"
     call tc%init("band")
@@ -53,14 +52,8 @@ contains
       !   0   17   13    9    5
       !   0    0   18   14   10
       !   0    0    0   19   15
-      d0 = reshape([(i, i=1,20)], [4,5], order=[2,1])
-      call band%init(5, 1, nupper=2, d0=d0)
-      call band%factorize
-      d_band = reshape([11, 16,  0,  0,  0, &
-        &                7, 12, 17,  0,  0, &
-        &                3,  8, 13, 18,  0, &
-        &                0,  4,  9, 14, 19, &
-        &                0,  0,  5, 10, 15], [5,5])
+      call matrix2(band)
+      call band%factorize()
     end block
 
     ! mul_vec
@@ -123,48 +116,6 @@ contains
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: band")
     end block
 
-    ! to dense
-    block
-      type(dense_real) :: dense
-      real             :: mat_exp(7,7)
-
-      call dense%init(7)
-      call band%to_dense(dense, 2, 2)
-
-      mat_exp          = 0
-      mat_exp(2:6,2:6) = d_band
-
-      call tc%assert_eq(mat_exp, dense%d, 1e-12, "to dense")
-    end block
-
-    ! to sparse
-    block
-      type(sparse_real)    :: s
-      type(spbuild_real)   :: sb
-      real, allocatable    :: a_exp(:)
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-
-      call s%init(7)
-      call sb%init(s)
-
-      call band%to_sparse(sb, 2, 2)
-      call sb%save
-
-      ! s(2:6,2:6) =
-      !  11    7    3    0    0
-      !  16   12    8    4    0
-      !   0   17   13    9    5
-      !   0    0   18   14   10
-      !   0    0    0   19   15
-      a_exp  = [11, 7, 3, 16, 12, 8, 4, 17, 13, 9, 5, 18, 14, 10, 19, 15]
-      ia_exp = [1, 1, 4, 8, 12, 15, 17, 17]
-      ja_exp = [2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 5, 6]
-
-      call tc%assert_eq(a_exp, s%a, 1e-12, "to sparse: a")
-      call tc%assert_eq(ia_exp, int(s%ia), "to sparse: ia")
-      call tc%assert_eq(ja_exp, s%ja, "to sparse: ja")
-    end block
-
     ! set_elem
     block
       type(band_real)   :: m
@@ -184,7 +135,7 @@ contains
       call m%set_elem(3, 3, 4.0)
 
       call d%init(3)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([1,0,0,2,0,3,0,1,4], [3,3])
 
@@ -205,7 +156,7 @@ contains
       call m%set_elem(4, 4, 4.0)
 
       call d%init(4)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([1,0,0,0, 2,0,0,0, 0,1,1,0, 0,3,0,4], [4,4])
 
@@ -232,7 +183,7 @@ contains
       call m%set_elem(3, 3, 4.0)
 
       call d%init(3)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([1,0,0,2,0,3,0,1,4], [3,3])
 
@@ -260,7 +211,7 @@ contains
       call m%set_elem(4, 4, 4.0)
 
       call d%init(4)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([1,0,0,0, 2,0,0,0, 0,1,1,0, 0,3,0,4], [4,4])
 
@@ -301,7 +252,7 @@ contains
       call m%add_elem(3, 3, 1.0)
 
       call d%init(3)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([3,4,0, 5,0,9, 0,6,5], [3,3])
 
@@ -329,7 +280,7 @@ contains
       call m%add_elem(4, 4, 5.0)
 
       call d%init(4)
-      call m%to_dense(d)
+      call matrix_convert(m, d)
 
       mat_exp = reshape([1,0,0,0, 3,3,0,0, 2,1,6,0, 0,7,0,9], [4,4])
 
@@ -358,15 +309,15 @@ contains
             b0 = band
         end select
 
-        call d0%reset
-        call b0%to_dense(d0)                        ! save their dense representation for value comparisons
+        call d0%reset()
+        call matrix_convert(b0, d0)                 ! save their dense representation for value comparisons
 
         do j = 1, 5                                 ! reset row j of b0
           b = b0                                    ! always start w/ fresh b0 s.t. we just reset row j
           call b%reset_row(j)
 
-          call d%reset
-          call b%to_dense(d)                        ! d will be dense representation of b0 where row j was resetted
+          call d%reset()
+          call matrix_convert(b, d)                 ! d will be dense representation of b0 where row j was resetted
 
           do k = 1, 5                               ! compare all rows k of b and b0 (take care to overwrite row j of b0)
             val = d%d(k,:)

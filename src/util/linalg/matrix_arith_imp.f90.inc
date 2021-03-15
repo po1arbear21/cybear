@@ -4,9 +4,20 @@
 #define CONCAT(X, Y)         CONCATHELP(X,Y)
 
 #define BAND_TYPE            CONCAT(band,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
+#define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
 #define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define ADD_BAND2            CONCAT(add_band2,T)
 #define ADD_BAND3            CONCAT(add_band3,T)
@@ -28,7 +39,7 @@
 #define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
 #define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
 
-#define ROW_APPROX_SPARSE    CONCAT(row_approx_sparse,T)
+#define APPROX_SPARSE        CONCAT(approx_sparse,T)
 
 ! fixme needs testing
 module subroutine ADD_BAND2(b1, b2, fact)
@@ -93,10 +104,10 @@ module subroutine ADD_BAND3(b1, b2, b3, fact1, fact2)
   ! case selection: hopefully no tmp array needs to be allocated
   if ((b1%nupper >= b2%nupper) .and. (b1%nlower >= b2%nlower)) then
     call b3%init(b1%nrows, b1%nlower, nupper=b1%nupper, d0=fact1_*b1%d)     ! b3 <- fact1*b1
-    call add(b2, b3, fact=fact2_)                                           ! b3 += fact2*b2
+    call matrix_add(b2, b3, fact=fact2_)                                           ! b3 += fact2*b2
   else
     call b3%init(b2%nrows, b2%nlower, nupper=b2%nupper, d0=fact2_*b2%d)     ! b3 <- fact2*b2
-    call add(b1, b3, fact=fact1_)                                           ! b3 += fact1*b1
+    call matrix_add(b1, b3, fact=fact1_)                                           ! b3 += fact1*b1
   end if
 end subroutine
 
@@ -165,7 +176,7 @@ module subroutine ADD_BAND_DENSE2(b1, d2, d3, fact1, fact2)
   call d3%init(fact2_ * d2%d)
 
   ! d3 += fact1 * b1
-  call add(b1, d3, fact = fact1)
+  call matrix_add(b1, d3, fact = fact1)
 end subroutine
 
 module subroutine ADD_BAND_SPARSE(b, s, fact)
@@ -294,7 +305,7 @@ module subroutine ADD_BAND_SPARSE2(b1, s2, s3, fact1, fact2)
   end if
 
   ! s3 += fact1 * b1
-  call add(b1, s3, fact = fact1)
+  call matrix_add(b1, s3, fact = fact1)
 end subroutine
 
 module subroutine ADD_DENSE2(d1, d2, fact)
@@ -412,7 +423,7 @@ module subroutine ADD_SPARSE_DENSE2(s1, d2, d3, fact1, fact2)
   call d3%init(fact2_ * d2%d)
 
   ! d3 += fact1 * s1
-  if (.not. s1%is_empty()) call add(s1, d3, fact = fact1)
+  if (.not. s1%is_empty()) call matrix_add(s1, d3, fact = fact1)
 end subroutine
 
 module subroutine ADD_SPARSE2(s1, s2, fact)
@@ -542,7 +553,7 @@ module subroutine ADD_SPARSE3(s1, s2, s3, fact1, fact2)
   end if
 
   ! s3 += fact2 * s2
-  call add(s2, s3, fact = fact2)
+  call matrix_add(s2, s3, fact = fact2)
 end subroutine
 
 ! fixme add testing
@@ -658,7 +669,7 @@ module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
 end subroutine
 
 ! fixme needs testing for complex case
-module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
+module subroutine APPROX_SPARSE(thres, s1, s2)
   !! take row-wise approximation of matrix:
   !!
   !!      s2_ij = { 0,        if |s1_ij| <  thres * |s1_ii|
@@ -679,7 +690,7 @@ module subroutine ROW_APPROX_SPARSE(thres, s1, s2)
 
   ! apply threshold to each row
   do i = 1, s1%nrows
-    ! find diagonal index j0, i.e. sb%cols(j0) == i
+    ! find diagonal index j0, i.e. sb%cols(i)%d(j0) == i
     j0 = BIN_SEARCH(sb%cols(i)%d(1:sb%cols(i)%n), i)
 
     ! did we find diagonal index? if not keep all of rows elements
@@ -708,10 +719,24 @@ end subroutine
 #undef CONCATHELP
 #undef CONCAT
 
+#undef ARRAY_TYPE
+#undef VECTOR_TYPE
+
 #undef BAND_TYPE
+#undef BAND_PTR_TYPE
+#undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
 #undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
 #undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
 #undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef ADD_BAND2
 #undef ADD_BAND3
@@ -733,4 +758,4 @@ end subroutine
 #undef DIAG_DENSE_ARR
 #undef DIAG_SPARSE_ARR
 
-#undef ROW_APPROX_SPARSE
+#undef APPROX_SPARSE
