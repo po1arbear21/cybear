@@ -7,14 +7,22 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
+
 #define BAND_TYPE            CONCAT(band,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define BLOCK_INIT           CONCAT3(block,T,init)
 #define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
@@ -26,8 +34,6 @@
 #define BLOCK_FACTORIZE      CONCAT3(block,T,factorize)
 #define BLOCK_SOLVE_VEC      CONCAT3(block,T,solve_vec)
 #define BLOCK_SOLVE_MAT      CONCAT3(block,T,solve_mat)
-#define BLOCK_TO_DENSE       CONCAT3(block,T,to_dense)
-#define BLOCK_TO_SPARSE      CONCAT3(block,T,to_sparse)
 #define BLOCK_GET_GLOBAL_IDX CONCAT3(block,T,get_global_idx)
 #define BLOCK_GET_LOCAL_IDX  CONCAT3(block,T,get_local_idx)
 #define BLOCK_SET_BLOCK_TYPE CONCAT3(block,T,set_block_type)
@@ -41,7 +47,7 @@
 #define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
 #define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
 
-subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
+module subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   !! Initialize Block matrix.
 
   class(BLOCK_TYPE), intent(out) :: this
@@ -108,7 +114,7 @@ subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
   this%factorized = .false.
 end subroutine
 
-subroutine BLOCK_DESTRUCT(this)
+module subroutine BLOCK_DESTRUCT(this)
   !! Destruct block matrix.
 
   class(BLOCK_TYPE), intent(inout) :: this
@@ -139,7 +145,7 @@ subroutine BLOCK_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
+module subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
   !! Deletes block (ib, jb).
   !!
   !! Necessary in case one "get"s a block but doesnt insert any data (e.g. 0 matrix).
@@ -162,7 +168,7 @@ subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
   this%factorized = .false.
 end subroutine
 
-subroutine BLOCK_RESET(this, only_factorization)
+module subroutine BLOCK_RESET(this, only_factorization)
   !! Reset block matrix to zero (optionally only factorization).
 
   class(BLOCK_TYPE), intent(inout) :: this
@@ -183,7 +189,7 @@ subroutine BLOCK_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-subroutine BLOCK_SCALE(this, fact)
+module subroutine BLOCK_SCALE(this, fact)
   !! Scale block matrix by factor.
 
   class(BLOCK_TYPE), intent(inout) :: this
@@ -205,7 +211,7 @@ subroutine BLOCK_SCALE(this, fact)
   end do
 end subroutine
 
-subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
   class(BLOCK_TYPE),   intent(in)    :: this
@@ -279,7 +285,7 @@ subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
   end associate
 end subroutine
 
-subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   !! Perform operation: y = this * x + fact_y * y
 
   class(BLOCK_TYPE),   intent(in)    :: this
@@ -353,7 +359,7 @@ subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
   end associate
 end subroutine
 
-subroutine BLOCK_FACTORIZE(this)
+module subroutine BLOCK_FACTORIZE(this)
   !! Factorize diagonal Block Matrix.
 
   class(BLOCK_TYPE), intent(inout) :: this
@@ -376,7 +382,7 @@ subroutine BLOCK_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve block diagonal system: this * x = rhs. Call this%factorize() first.
 
   class(BLOCK_TYPE),   intent(in)  :: this
@@ -404,7 +410,7 @@ subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
   class(BLOCK_TYPE),   intent(in)  :: this
@@ -433,117 +439,7 @@ subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-subroutine BLOCK_TO_DENSE(this, d, i0, j0)
-  !! Insert block matrix into a dense matrix.
-
-  class(BLOCK_TYPE), intent(in)    :: this
-    !! Block matrix (unchanged)
-  type(DENSE_TYPE),  intent(inout) :: d
-    !! Dense matrix (updated)
-  integer, optional, intent(in)    :: i0
-    !! optional: row offset in second matrix (default 1)
-  integer, optional, intent(in)    :: j0
-    !! optional: col offset in second matrix (default 1)
-
-  ! local variables
-  integer :: i0_, j0_, ib, jb
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ASSERT(this%check_sizes())
-
-  ! insert elements blockwise
-  associate (bi0 => this%i0, bj0 => this%j0)
-    do ib = 1, this%nbrows
-      if (this%diag) then
-        if (.not. associated(this%b(ib,ib)%p)) cycle
-        call this%b(ib,ib)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(ib)-1)
-      elseif (this%tridiag) then
-        do jb = ib - 1, ib + 1
-          if ((jb < 1) .or. (jb > this%nbcols)) cycle
-          if (.not. associated(this%b(ib,jb)%p)) cycle
-          call this%b(ib,jb)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1)
-        end do
-      else
-        do jb = 1, this%nbcols
-          if (.not. associated(this%b(ib,jb)%p)) cycle
-          call this%b(ib,jb)%p%to_dense(d, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1)
-        end do
-      end if
-    end do
-  end associate
-end subroutine
-
-subroutine BLOCK_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert block matrix into a sparse matrix.
-
-  class(BLOCK_TYPE),  intent(in)    :: this
-    !! Block matrix (unchanged)
-  type(SPBUILD_TYPE), intent(inout) :: sb
-    !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,  intent(in)    :: i0
-    !! Optional: row offset in sparse matrix
-  integer, optional,  intent(in)    :: j0
-    !! Optional: col offset in sparse matrix
-  logical, optional,  intent(in)    :: struct(:,:)
-    !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,  intent(in)    :: drop_zeros
-    !! Optional: determine sparsity structure by checking for zero entries
-
-  ! local variables
-  integer :: i0_, j0_, ib, jb
-  logical :: drop_zeros_
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ASSERT(this%check_sizes())
-
-  ! insert elements blockwise
-  associate (bi0 => this%i0, bi1 => this%i1, bj0 => this%j0, bj1 => this%j1)
-    do ib = 1, this%nbrows
-      if (this%diag) then
-        if (.not. associated(this%b(ib,ib)%p)) cycle
-        if (present(struct)) then
-          call this%b(ib,ib)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(ib)-1, struct = struct(bi0(ib):bi1(ib), bj0(ib):bj1(ib)))
-        else
-          call this%b(ib,ib)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(ib)-1, drop_zeros = drop_zeros)
-        end if
-      elseif (this%tridiag) then
-        do jb = ib - 1, ib + 1
-          if ((jb < 1) .or. (jb > this%nbcols)) cycle
-          if (.not. associated(this%b(ib,jb)%p)) cycle
-          if (present(struct)) then
-            call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-          else
-            call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-          end if
-        end do
-      else
-        do jb = 1, this%nbcols
-          if (.not. associated(this%b(ib,jb)%p)) cycle
-          if (present(struct)) then
-            call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-          else
-            call this%b(ib,jb)%p%to_sparse(sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-          end if
-        end do
-      end if
-    end do
-  end associate
-end subroutine
-
-subroutine BLOCK_GET_GLOBAL_IDX(this, ib, jb, il, jl, ig, jg)
+module subroutine BLOCK_GET_GLOBAL_IDX(this, ib, jb, il, jl, ig, jg)
   !! Get global index from block and local index.
 
   class(BLOCK_TYPE), intent(in)  :: this
@@ -565,7 +461,7 @@ subroutine BLOCK_GET_GLOBAL_IDX(this, ib, jb, il, jl, ig, jg)
   jg = this%j0(jb) + jl - 1
 end subroutine
 
-subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
+module subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
   !! Get block and local index from global index.
 
   class(BLOCK_TYPE), intent(in)  :: this
@@ -596,7 +492,7 @@ subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
   jl = jg + 1 - this%j0(jb)
 end subroutine
 
-subroutine BLOCK_GET_DENSE(this, ib, jb, p)
+module subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   !! Return pointer to dense block.
 
   class(BLOCK_TYPE),         intent(inout) :: this
@@ -625,7 +521,7 @@ subroutine BLOCK_GET_DENSE(this, ib, jb, p)
   end select
 end subroutine
 
-subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
+module subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
   !! Return pointer to sparse block.
 
   class(BLOCK_TYPE),          intent(inout) :: this
@@ -654,7 +550,7 @@ subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
   end select
 end subroutine
 
-subroutine BLOCK_GET_BAND(this, ib, jb, p)
+module subroutine BLOCK_GET_BAND(this, ib, jb, p)
   !! Return pointer to BAND block.
 
   class(BLOCK_TYPE),         intent(inout) :: this
@@ -683,7 +579,7 @@ subroutine BLOCK_GET_BAND(this, ib, jb, p)
   end select
 end subroutine
 
-subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
+module subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   !! Return pointer to BLOCK block.
 
   class(BLOCK_TYPE),         intent(inout) :: this
@@ -712,7 +608,7 @@ subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
   end select
 end subroutine
 
-subroutine BLOCK_SET(this, ib, jb, b, fact)
+module subroutine BLOCK_SET(this, ib, jb, b, fact)
   !! Set one specific block (deep copy)
   class(BLOCK_TYPE),  intent(inout) :: this
     !! Block matrix
@@ -752,7 +648,7 @@ subroutine BLOCK_SET(this, ib, jb, b, fact)
   if (present(fact)) call this%b(ib,jb)%p%scale(fact)
 end subroutine
 
-subroutine BLOCK_SET_PTR(this, ib, jb, b)
+module subroutine BLOCK_SET_PTR(this, ib, jb, b)
   !! Set one specific block by pointer
   class(BLOCK_TYPE),          intent(inout) :: this
     !! Block matrix
@@ -777,7 +673,7 @@ subroutine BLOCK_SET_PTR(this, ib, jb, b)
   this%b(ib,jb)%p => b
 end subroutine
 
-subroutine BLOCK_COPY(this, copy)
+module subroutine BLOCK_COPY(this, copy)
   !! create deep copy of this block matrix (shallow copy for non-owned pointers)
   class(BLOCK_TYPE), intent(in)  :: this
   type(BLOCK_TYPE),  intent(out) :: copy
@@ -814,7 +710,7 @@ subroutine BLOCK_COPY(this, copy)
   end do
 end subroutine
 
-function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
+module function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
   !! Checks if block given by row ib, col jb is allowed (bounds, diag, tridiag?)
 
   class(BLOCK_TYPE), intent(in) :: this
@@ -836,7 +732,7 @@ function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
   end if
 end function
 
-function BLOCK_CHECK_SIZES(this) result(tf)
+module function BLOCK_CHECK_SIZES(this) result(tf)
   !! Checks if the allocated matrix blocks have correct sizes.
 
   class(BLOCK_TYPE), intent(in) :: this
@@ -873,13 +769,22 @@ end function
 
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
-#undef DENSE_TYPE
-#undef SPARSE_TYPE
-#undef SPBUILD_TYPE
+
 #undef BAND_TYPE
-#undef HESSENBERG_TYPE
-#undef TRIANG_TYPE
+#undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef BLOCK_INIT
 #undef BLOCK_DESTRUCT
@@ -891,8 +796,6 @@ end function
 #undef BLOCK_FACTORIZE
 #undef BLOCK_SOLVE_VEC
 #undef BLOCK_SOLVE_MAT
-#undef BLOCK_TO_DENSE
-#undef BLOCK_TO_SPARSE
 #undef BLOCK_GET_GLOBAL_IDX
 #undef BLOCK_GET_LOCAL_IDX
 #undef BLOCK_SET_BLOCK_TYPE

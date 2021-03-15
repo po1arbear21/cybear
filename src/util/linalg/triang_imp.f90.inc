@@ -5,9 +5,24 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
+#define ARRAY_TYPE           CONCAT(array,T)
+#define VECTOR_TYPE          CONCAT(vector,T)
+
+#define BAND_TYPE            CONCAT(band,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
+#define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
 #define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
 #define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define TRIANG_INIT          CONCAT3(triang,T,init)
 #define TRIANG_DESTRUCT      CONCAT3(triang,T,destruct)
@@ -19,12 +34,8 @@
 #define TRIANG_FACTORIZE     CONCAT3(triang,T,factorize)
 #define TRIANG_SOLVE_VEC     CONCAT3(triang,T,solve_vec)
 #define TRIANG_SOLVE_MAT     CONCAT3(triang,T,solve_mat)
-#define TRIANG_TO_DENSE      CONCAT3(triang,T,to_dense)
-#define TRIANG_TO_SPARSE     CONCAT3(triang,T,to_sparse)
-#define TRIANG_TO_REAL       CONCAT3(triang,T,to_real)
-#define TRIANG_TO_CMPLX      CONCAT3(triang,T,to_cmplx)
 
-subroutine TRIANG_INIT(this, n, upper)
+module subroutine TRIANG_INIT(this, n, upper)
   !! Initialize (square) triangular matrix
 
   class(TRIANG_TYPE), intent(out) :: this
@@ -47,7 +58,7 @@ subroutine TRIANG_INIT(this, n, upper)
   this%factorized = .true.
 end subroutine
 
-subroutine TRIANG_DESTRUCT(this)
+module subroutine TRIANG_DESTRUCT(this)
   !! Destruct triangular matrix by deallocating its memory.
 
   class(TRIANG_TYPE), intent(inout) :: this
@@ -56,7 +67,7 @@ subroutine TRIANG_DESTRUCT(this)
   if (allocated(this%d)) deallocate (this%d)
 end subroutine
 
-subroutine TRIANG_RESET(this, only_factorization)
+module subroutine TRIANG_RESET(this, only_factorization)
   !! Reset triangular matrix to zero
 
   class(TRIANG_TYPE), intent(inout) :: this
@@ -69,7 +80,7 @@ subroutine TRIANG_RESET(this, only_factorization)
   this%d = 0
 end subroutine
 
-subroutine TRIANG_SCALE(this, fact)
+module subroutine TRIANG_SCALE(this, fact)
   !! Scale triangular matrix by a factor.
 
   class(TRIANG_TYPE), intent(inout) :: this
@@ -91,7 +102,7 @@ subroutine TRIANG_SCALE(this, fact)
   end if
 end subroutine
 
-subroutine TRIANG_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine TRIANG_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply triangular matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -119,7 +130,7 @@ subroutine TRIANG_MUL_VEC(this, x, y, fact_y, trans)
   if (present(fact_y)) y = y + fact_y*y0
 end subroutine
 
-subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
+module subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
   !! Multiply triangular matrix by a raw matrix.
   !! Performs operation: y <- this * x + fact_y * y
   !!
@@ -139,7 +150,7 @@ subroutine TRIANG_MUL_MAT_ADD(this, x, y, fact_y, trans)
   call gemm(this%d, x, y, transa=trans, beta=fact_y)
 end subroutine
 
-subroutine TRIANG_MUL_MAT_SIDES(this, y, fact, trans, right)
+module subroutine TRIANG_MUL_MAT_SIDES(this, y, fact, trans, right)
   !! Multiply triangular matrix by a raw matrix.
   !! Performs operation:
   !!
@@ -175,7 +186,7 @@ subroutine TRIANG_MUL_MAT_SIDES(this, y, fact, trans, right)
   call trmm(this%d, y, side=side, uplo=uplo, transa=trans, alpha=fact)
 end subroutine
 
-subroutine TRIANG_FACTORIZE(this)
+module subroutine TRIANG_FACTORIZE(this)
   !! Throws error: triangular matrix doesnt need to be factorized! One can solve with it.
 
   class(TRIANG_TYPE), intent(inout) :: this
@@ -185,7 +196,7 @@ subroutine TRIANG_FACTORIZE(this)
   IGNORE(this)
 end subroutine
 
-subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for a single right-hand side.
   !! Solves: this * x = rhs, where x and rhs are raw vectors.
 
@@ -212,7 +223,7 @@ subroutine TRIANG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   call trsv(this%d, x, uplo=uplo, trans=trans)
 end subroutine
 
-subroutine TRIANG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine TRIANG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for multiple right-hand sides.
   !! Solves: this * x = rhs, where x and rhs are raw matrices.
 
@@ -239,108 +250,6 @@ subroutine TRIANG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   call trsm(this%d, x, uplo=uplo, transa=trans)
 end subroutine
 
-subroutine TRIANG_TO_DENSE(this, d, i0, j0)
-  !! Insert triangular matrix into a dense matrix.
-
-  class(TRIANG_TYPE),  intent(in)    :: this
-    !! triangular matrix (unchanged)
-  type(DENSE_TYPE),    intent(inout) :: d
-    !! Dense matrix (updated)
-  integer, optional,   intent(in)    :: i0
-    !! Optional: row offset in second matrix (default 1)
-  integer, optional,   intent(in)    :: j0
-    !! Optional: col offset in second matrix (default 1)
-
-  integer :: i0_, j0_, n
-
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  n = this%nrows
-  d%d(i0_:i0_+n-1,j0_:j0_+n-1) = this%d
-end subroutine
-
-subroutine TRIANG_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert triangular matrix into a sparse matrix.
-
-  class(TRIANG_TYPE), intent(in)    :: this
-    !! Band matrix (unchanged)
-  type(SPBUILD_TYPE), intent(inout) :: sb
-    !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,  intent(in)    :: i0
-    !! Optional: row offset in sparse matrix
-  integer, optional,  intent(in)    :: j0
-    !! Optional: col offset in sparse matrix
-  logical, optional,  intent(in)    :: struct(:,:)
-    !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,  intent(in)    :: drop_zeros
-    !! Optional: determine sparsity structure by checking for zero entries
-
-  ! local variables
-  integer :: i0_, j0_, i, j, jmin, jmax
-  logical :: drop_zeros_
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert values
-  do i = 1, this%nrows
-    if (this%upper) then
-      jmin = i
-      jmax = this%nrows
-    else
-      jmin = 1
-      jmax = i
-    end if
-
-    do j = jmin, jmax
-      ! check structure
-      if (present(struct)) then
-        if (.not. struct(i,j)) cycle
-      elseif (drop_zeros_) then
-        if (this%d(i,j) == 0) cycle
-      end if
-
-      ! insert value without searching (append to rows)
-      call sb%set(i0_+i-1, j0_+j-1, this%d(i,j), search=.false.)
-    end do
-  end do
-end subroutine
-
-#ifdef TCMPLX
-subroutine TRIANG_TO_REAL(this, a)
-  !! Convert triangular complex matrix to real by ignoring imaginary part.
-
-  class(TRIANG_cmplx), intent(in)  :: this
-    !! TRIANG complex matrix
-  type(TRIANG_real),   intent(out) :: a
-    !! Output real(this)
-
-  call a%init(this%nrows, this%upper)
-  a%d = real(this%d)
-end subroutine
-#else
-subroutine TRIANG_TO_CMPLX(this, a)
-  !! Convert triangular real matrix to complex.
-
-  class(TRIANG_real), intent(in)  :: this
-    !! Triangular real matrix
-  type(TRIANG_cmplx), intent(out) :: a
-    !! Output cmplx(this)
-
-  call a%init(this%nrows, this%upper)
-  a%d = this%d
-end subroutine
-#endif
-
 #undef T
 #undef TT
 #undef TCMPLX
@@ -352,9 +261,24 @@ end subroutine
 #undef CONCATHELP3
 #undef CONCAT3
 
+#undef ARRAY_TYPE
+#undef VECTOR_TYPE
+
+#undef BAND_TYPE
+#undef BAND_PTR_TYPE
+#undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
 #undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
 #undef SPBUILD_TYPE
 #undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef TRIANG_INIT
 #undef TRIANG_DESTRUCT
@@ -366,8 +290,3 @@ end subroutine
 #undef TRIANG_FACTORIZE
 #undef TRIANG_SOLVE_VEC
 #undef TRIANG_SOLVE_MAT
-#undef TRIANG_TO_DENSE
-#undef TRIANG_TO_SPARSE
-#undef TRIANG_TO_TRIANG
-#undef TRIANG_TO_REAL
-#undef TRIANG_TO_CMPLX

@@ -1,7 +1,6 @@
 submodule(test_matrix_m) test_sparse_m
 
   use ieee_arithmetic
-  use matrix_m
   use math_m,         only: PI
 
   implicit none
@@ -20,7 +19,7 @@ contains
       real,              allocatable :: a_exp(:)
       type(sparse_real), target      :: sA        ! spbuilder needs target attribute of argument at init
 
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
 
       a_exp  = [1, 2, 4, 1, 1, 5]
       ia_exp = [1, 3, 4, 5, 7]
@@ -127,7 +126,7 @@ contains
       call sb%add(4, 4, 5.0)
 
       call sb%save()
-      call sp%to_dense(d_exp)
+      call matrix_convert(sp, d_exp)
 
       !
       ! test 1: reset row 1 -> set_row(1)
@@ -143,7 +142,7 @@ contains
       call sb%reset_row(row)
       call sb%set_row(row, vals)
       call sb%save()
-      call sp%to_dense(d)
+      call matrix_convert(sp, d)
       d_exp%d(row,:) = vals
 
       call tc%assert_eq(d_exp%d,  d%d, 1e-12, "sparse_builder: set -> reset_row -> set_row: 1: full row")
@@ -164,7 +163,7 @@ contains
       call sb%reset_row(row)
       call sb%set_row(row, vals, j0=j0, j1=j1)
       call sb%save()
-      call sp%to_dense(d)
+      call matrix_convert(sp, d)
       d_exp%d(row,j0:j1) = vals
 
       call tc%assert_eq(d_exp%d,  d%d, 1e-12, "sparse_builder: set -> reset_row -> set_row: 2: slice of row")
@@ -181,7 +180,7 @@ contains
 
       ! get matrices
       call get_empty_matrix(sE)
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
 
       ! test: y <- A*x
       y     = ieee_value(y, ieee_quiet_nan)
@@ -260,7 +259,7 @@ contains
       allocate (y(2))
 
       ! get matrix
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
 
       ! testing i0, i1. y <- A*x-2y
       y_exp = [-5, -8]
@@ -314,7 +313,7 @@ contains
       !  0     9     0
       y_exp = reshape([1, 0, 0, 0, 10, 16, 0, 9, 0, 0, 1, 0], [4,3])
 
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       call sA%mul_mat(x, y)
       call tc%assert_eq(y_exp, y, 1e-12, "mul_mat 1")
 
@@ -327,8 +326,8 @@ contains
         call get_test_matrix2(sB)
         call dA%init(4)
         call dB%init(4)
-        call sA%to_dense(dA)
-        call sB%to_dense(dB)
+        call matrix_convert(sA, dA)
+        call matrix_convert(sB, dB)
 
         ! y = transpose(A)*B -2*A =
         ! -2    -4     5     1
@@ -351,7 +350,7 @@ contains
 
         call get_test_matrix3(n, sA)
         call dA%init(n)
-        call sA%to_dense(dA)
+        call matrix_convert(sA, dA)
 
         x = dA%d
         y = dA%d
@@ -369,7 +368,7 @@ contains
       type(spbuild_real)             :: sbuild
 
       call get_empty_matrix(sE)
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
 
       ! test 1: small matrices. check each entry
       ! B =
@@ -450,14 +449,14 @@ contains
       allocate (x(4))
 
       ! test 1: using default solver
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       call sA%factorize()
       call sA%solve_vec(b, x)
       call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: default solver")
 
       ! test 2: using pardiso solver
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       sA%solver=SOLVER_PARDISO
       call sA%factorize()
       call sA%solve_vec(b, x)
@@ -466,7 +465,7 @@ contains
 
 #ifdef USE_ILUPACK
       ! test 3: using ilupack solver
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       sA%solver=SOLVER_ILUPACK
       call sA%factorize()
       call sA%solve_vec(b, x)
@@ -479,7 +478,7 @@ contains
 
         type(ilupack_handle), pointer :: ilu
 
-        call get_test_matrix(sA)
+        call example_matrix3(sA)
         sA%solver=SOLVER_ILUPACK
         call sA%init_solver()
 
@@ -519,7 +518,7 @@ contains
       x_exp = reshape([3.0, -1.0, 7.0, -1.8, -4.5, 1.25, -8.0, 1.95, 6.0, -1.5, 9.0, -2.1], [4,3])
       allocate (x(4,3))
 
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       call sA%factorize()
       call sA%solve_mat(b, x)
       call sA%destruct()
@@ -534,27 +533,27 @@ contains
       type(sparse_real), target      :: sA, sB, sE, sE2
 
       call get_test_matrix2(sA)
-      call get_test_matrix(sB)
+      call example_matrix3(sB)
       call get_empty_matrix(sE)
 
       a_exp  = sA%a
       ia_exp = int(sA%ia)
       ja_exp = sA%ja
-      call add(sE, sA, fact=-1.5)
+      call matrix_add(sE, sA, fact=-1.5)
       call tc%assert_eq(a_exp,  sA%a,  0.0, "add_sparse empty 1: a")
       call tc%assert_eq(ia_exp, int(sA%ia), "add_sparse empty 1: ia")
       call tc%assert_eq(ja_exp, sA%ja,      "add_sparse empty 1: ja")
 
       call get_test_matrix2(sA)
       a_exp = 3 * sA%a
-      call add(sA, sE, fact=3.0)
+      call matrix_add(sA, sE, fact=3.0)
       call tc%assert_eq(a_exp,  sE%a,  0.0, "add_sparse empty 2: a")
       call tc%assert_eq(ia_exp, int(sE%ia), "add_sparse empty 2: ia")
       call tc%assert_eq(ja_exp, sE%ja,      "add_sparse empty 2: ja")
 
       call get_empty_matrix(sE)
       call get_empty_matrix(sE2)
-      call add(sE2, sE, fact=9.5)
+      call matrix_add(sE2, sE, fact=9.5)
       call tc%assert(sE%is_empty(), "add_sparse empty 3")
 
       ! A - 2 * B =
@@ -570,7 +569,7 @@ contains
       a_exp  = [-2,-4,5,1,-6,-2,-3,-1,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call add(sB, sA, fact=-2.0)
+      call matrix_add(sB, sA, fact=-2.0)
 
       call tc%assert_eq(a_exp,  sA%a, 1e-12, "add_sparse: a")
       call tc%assert_eq(ia_exp, int(sA%ia),  "add_sparse: ia")
@@ -583,17 +582,17 @@ contains
       real,              allocatable :: a_exp(:)
       type(sparse_real), target      :: sA, sB, sC, sE
 
-      call get_test_matrix(sA)
+      call example_matrix3(sA)
       call get_test_matrix2(sB)
       call get_empty_matrix(sE)
 
-      call add(sA, sE, sC, fact1=3.0, fact2=-5.0)
+      call matrix_add(sA, sE, sC, fact1=3.0, fact2=-5.0)
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 1: a")
       call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 1: ia")
       call tc%assert_eq(    sA%ja ,     sC%ja ,        "add_sparse3 empty 1: ja")
 
-      call add(sE, sA, sC, fact1=-5.0, fact2=3.0)
+      call matrix_add(sE, sA, sC, fact1=-5.0, fact2=3.0)
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
       call tc%assert_eq(3.0*sA%a  ,     sC%a  , 1e-12, "add_sparse3 empty 2: a")
       call tc%assert_eq(int(sA%ia), int(sC%ia),        "add_sparse3 empty 2: ia")
@@ -611,7 +610,7 @@ contains
       a_exp  = [-2,-4,15,3,-2,-2,-9,-3,-2,-10]
       ia_exp = [1,5,6,8,11]
       ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call add(sB, sA, sC, fact1=3.0, fact2=-2.0)
+      call matrix_add(sB, sA, sC, fact1=3.0, fact2=-2.0)
 
       call tc%assert_eq(a_exp,  sC%a, 1e-12, "add_sparse3: a")
       call tc%assert_eq(ia_exp, int(sC%ia),  "add_sparse3: ia")
@@ -644,12 +643,12 @@ contains
       ia_exp = [1, 3, 6, 9, 11]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
       call get_empty_matrix(S)
-      call add(B, S, fact=2.0)
+      call matrix_add(B, S, fact=2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-16, "add_band empty: a")
       call tc%assert_eq(ia_exp, int(S%ia),  "add_band empty: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band empty: ja")
 
-      call get_test_matrix(S)
+      call example_matrix3(S)
 
       ! S+2*B=
       !  7    -2     0     0
@@ -659,7 +658,7 @@ contains
       a_exp  = [7, -2, -2, 10, -4, -2, 7, -4, 1, -2, 11]
       ia_exp = [1, 3,  6,  9, 12]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call add(B, S, fact=2.0)
+      call matrix_add(B, S, fact=2.0)
       call tc%assert_eq(a_exp,  S%a, 1e-12, "add_band: a")
       call tc%assert_eq(ia_exp, int(S%ia),  "add_band: ia")
       call tc%assert_eq(ja_exp, S%ja,       "add_band: ja")
@@ -691,12 +690,12 @@ contains
       ia_exp = [1, 3, 6, 9, 11]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
       call get_empty_matrix(S)
-      call add(B, S, S2, fact1 = 2.0, fact2 = 1e99)
+      call matrix_add(B, S, S2, fact1 = 2.0, fact2 = 1e99)
       call tc%assert_eq(a_exp,  S2%a, 1e-16, "add_band3 empty: a")
       call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3 empty: ia")
       call tc%assert_eq(ja_exp, S2%ja,       "add_band3 empty: ja")
 
-      call get_test_matrix(S)
+      call example_matrix3(S)
 
       ! -1*S + 2*B=
       !  5    -6     0     0
@@ -706,7 +705,7 @@ contains
       a_exp  = [5, -6, -2, 2, -4, -2, 5, -4, -1, -2, 1]
       ia_exp = [1, 3,  6,  9, 12]
       ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call add(B, S, S2, fact1 = 2.0, fact2 = -1.0)
+      call matrix_add(B, S, S2, fact1 = 2.0, fact2 = -1.0)
 
       call tc%assert_eq(a_exp,  S2%a, 1e-12, "add_band3: a")
       call tc%assert_eq(ia_exp, int(S2%ia),  "add_band3: ia")
@@ -723,7 +722,7 @@ contains
       z_sp = sparse_zero_real(n)
 
       call z_d%init(n)
-      call z_sp%to_dense(z_d)
+      call matrix_convert(z_sp, z_d)
 
       allocate (z_exp(n,n), source=0.0)
 
@@ -738,10 +737,10 @@ contains
       call get_empty_matrix(s)
       call tc%assert_eq(0, int(s%nnz()), "nnz 1")
 
-      call get_test_matrix(s)
+      call example_matrix3(s)
       call tc%assert_eq(6, int(s%nnz()), "nnz 2")
 
-      call get_test_matrix(s)
+      call example_matrix3(s)
       call tc%assert_eq(6, int(s%nnz(only_nonzeros=.true.)), "nnz 3")
 
       call get_test_matrix2(s)
@@ -767,69 +766,6 @@ contains
       call spb%save()
 
       call tc%assert_eq(6, int(s%nnz()), "nnz 6")
-    end block
-
-    ! to_band
-    block
-      type(band_real)           :: b
-      type(sparse_real), target :: s
-
-      !
-      ! test 1: set band equal sparse, not insertion as block anywhere
-      !
-      call get_test_matrix(s)
-      call b%init(4, 2, nupper=1)
-      call s%to_band(b)
-
-      ! just for testing purposes
-      block
-        real, allocatable :: d_exp(:,:)
-
-        allocate (d_exp(4,4))
-        d_exp(1,:) = [0, 2, 0, 0]
-        d_exp(2,:) = [1, 4, 1, 5]
-        d_exp(3,:) = 0
-        d_exp(4,:) = [0, 1, 0, 0]
-
-        call tc%assert_eq(d_exp, b%d, 1e-12, "to_band: no insertion arguments")
-      end block
-
-      !
-      ! test 2: insert sparse into band
-      !
-      call get_test_matrix(s)
-      call b%init(7, 3, nupper=0)
-      b%d = -1                          ! just for testing purposes: to see which data will get overwritten
-      call s%to_band(b, i0=3, j0=2)
-
-      ! just for testing purposes
-      block
-        integer           :: i, j
-        real, allocatable :: d_exp(:,:)
-        type(dense_real)  :: d
-
-        allocate (d_exp(7,7), source=0.0)
-
-        ! set default value "-1" for bands
-        do i = 1, 7
-          do j = 1, 7
-            if (j > i) exit
-            if (j < i-3) cycle
-            d_exp(i,j) = -1
-          end do
-        end do
-
-        ! insert values from test matrix
-        d_exp(3  ,2:3) = [1, 2]
-        d_exp(4  ,3  ) =     4
-        d_exp(5  ,4  ) =        1
-        d_exp(6  ,3  ) =     1
-        d_exp(6  ,5  ) =          5
-
-        call d%init(7)
-        call b%to_dense(d)
-        call tc%assert_eq(d_exp, d%d, 1e-12, "to_band: insert sparse into band")
-      end block
     end block
 
     ! eye
@@ -892,34 +828,6 @@ contains
     type(sparse_real), intent(out) :: S
 
     call S%init(4)
-  end subroutine
-
-  subroutine get_test_matrix(S)
-    type(sparse_real), intent(out), target :: S
-
-    type(spbuild_real) :: sbuild
-
-    ! S =
-    !  1     2     0     0
-    !  0     4     0     0
-    !  0     0     1     0
-    !  0     1     0     5
-    !
-    ! a  = [1 2 4 1 1 5]
-    ! ia = [1 3 4 5 7]
-    ! ja = [1 2 2 3 2 4]
-
-    call S%init(4)
-    call sbuild%init(S)
-
-    call sbuild%add(1, 1, 1.0)
-    call sbuild%add(1, 2, 2.0)
-    call sbuild%add(2, 2, 4.0)
-    call sbuild%add(3, 3, 1.0)
-    call sbuild%add(4, 2, 1.0)
-    call sbuild%add(4, 4, 5.0)
-
-    call sbuild%save()
   end subroutine
 
   subroutine get_test_matrix2(S)

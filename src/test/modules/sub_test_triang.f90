@@ -80,7 +80,7 @@ contains
       call tc%assert_eq(x_exp, x, 1e-12, "solve_mat")
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end submodule

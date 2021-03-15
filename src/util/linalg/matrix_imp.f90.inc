@@ -8,20 +8,23 @@
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 
+#define BAND_TYPE            CONCAT(band,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
+#define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
 #define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_ALC_TYPE      CONCAT(matrix_alc,T)
 #define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-#define MATRIX_INIT          CONCAT3(matrix,T,init)
-#define MATRIX_DESTRUCT      CONCAT3(matrix,T,destruct)
-#define MATRIX_RESET         CONCAT3(matrix,T,reset)
-#define MATRIX_SCALE         CONCAT3(matrix,T,scale)
-#define MATRIX_MUL_VEC       CONCAT3(matrix,T,mul_vec)
-#define MATRIX_MUL_MAT       CONCAT3(matrix,T,mul_mat)
-#define MATRIX_FACTORIZE     CONCAT3(matrix,T,factorize)
-#define MATRIX_SOLVE_VEC     CONCAT3(matrix,T,solve_vec)
-#define MATRIX_SOLVE_MAT     CONCAT3(matrix,T,solve_mat)
-#define MATRIX_TO_DENSE      CONCAT3(matrix,T,to_dense)
-#define MATRIX_TO_SPARSE     CONCAT3(matrix,T,to_sparse)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
+
+#define MATRIX_INIT CONCAT3(matrix,T,init)
 
 subroutine MATRIX_INIT(this, dum, nrows, ncols)
   !! Initialize matrix.
@@ -61,16 +64,20 @@ end subroutine
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
 
+#undef BAND_TYPE
+#undef BAND_PTR_TYPE
+#undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
 #undef MATRIX_TYPE
-#undef MATRIX_ALC_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
+
 #undef MATRIX_INIT
-#undef MATRIX_DESTRUCT
-#undef MATRIX_RESET
-#undef MATRIX_SCALE
-#undef MATRIX_MUL_VEC
-#undef MATRIX_MUL_MAT
-#undef MATRIX_FACTORIZE
-#undef MATRIX_SOLVE_VEC
-#undef MATRIX_SOLVE_MAT
-#undef MATRIX_TO_DENSE
-#undef MATRIX_TO_SPARSE

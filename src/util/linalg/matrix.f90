@@ -70,9 +70,10 @@ module matrix_m
   public :: block_ptr_real
   public :: block_ptr_cmplx
 
-  public add
-  public diag
-  public row_approx
+  public matrix_add
+  public matrix_convert
+  public matrix_diag
+  public matrix_approx
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
@@ -84,6 +85,7 @@ module matrix_m
 #endif
   integer            :: default_solver = SOLVER_PARDISO
 
+  ! matrix types
 #define T real
 #define TT real
 #include "matrix_def.f90.inc"
@@ -92,6 +94,80 @@ module matrix_m
 #define TT complex
 #define TCMPLX
 #include "matrix_def.f90.inc"
+
+#define T real
+#define TT real
+#include "band_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "band_def.f90.inc"
+
+#define T real
+#define TT real
+#include "dense_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "dense_def.f90.inc"
+
+#define T real
+#define TT real
+#include "hessenberg_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "hessenberg_def.f90.inc"
+
+#define T real
+#define TT real
+#include "sparse_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "sparse_def.f90.inc"
+
+#define T real
+#define TT real
+#include "triang_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "triang_def.f90.inc"
+
+#define T real
+#define TT real
+#include "block_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "block_def.f90.inc"
+
+  ! matrix arithmetics
+#define T real
+#define TT real
+#include "matrix_arith_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "matrix_arith_def.f90.inc"
+
+  ! matrix conversions
+#define T real
+#define TT real
+#include "matrix_conv_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#define TCMPLX
+#include "matrix_conv_def.f90.inc"
 
 contains
 
@@ -99,63 +175,9 @@ contains
 #define TT real
 #include "matrix_imp.f90.inc"
 
-#define T real
-#define TT real
-#include "dense_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "sparse_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "band_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "hessenberg_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "triang_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "block_imp.f90.inc"
-
 #define T cmplx
 #define TT complex
 #define TCMPLX
 #include "matrix_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "dense_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "sparse_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "band_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "hessenberg_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "triang_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "block_imp.f90.inc"
 
 end module
