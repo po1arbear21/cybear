@@ -1,28 +1,23 @@
 #include "../../util/macro.f90.inc"
 
 module test_grid_m
-  use test_case_m
-  use equation_m
-  use res_equation_m
-  use jacobian_chain_m
-  use stencil_m
-  use grid_m
-  use grid0D_m
-  use grid1D_m
+  use test_case_m,   only: test_case
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid1D_m,      only: grid1D
+  use math_m,        only: logspace
+  use qsort_m,       only: qsort
   use triang_grid_m, only: triang_grid
+  use util_m,        only: int2str
+
+  ! no tests implemented but used s.t. modules get compiled at all
+  use sum_grid_m
   use tensor_grid_m
-  use variable_m
-  use vselector_m
-  use jacobian_matrix_m
-  use esystem_m
-  use math_m, only: logspace
-  use util_m, only: int2str
-  use qsort_m, only: qsort
 
   implicit none
 
+  private
+  public test_grid
 contains
-
   subroutine test_grid()
     type(test_case) :: tc
 
@@ -33,9 +28,7 @@ contains
     call test_triang_grid()
 
     call tc%finish()
-
   contains
-
     subroutine test_grid1D()
       integer, parameter :: nx=101
       type(grid1D)       :: g
