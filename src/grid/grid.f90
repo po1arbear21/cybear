@@ -1,7 +1,7 @@
 #include "../util/macro.f90.inc"
 
 module grid_m
-  use error_m
+  use error_m, only: assert_failed
   implicit none
 
   private
@@ -28,6 +28,7 @@ module grid_m
       !! number of points per cell
   contains
     procedure                                :: grid_init
+    procedure                                :: get_ptr     => grid_get_ptr
     procedure                                :: idx_allowed => grid_idx_allowed
     procedure(grid_get_idx_bnd),    deferred :: get_idx_bnd
     procedure(grid_get_vertex),     deferred :: get_vertex
@@ -46,7 +47,6 @@ module grid_m
   end type
 
   abstract interface
-
     subroutine grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
       !! get grid index bounds
       import grid
@@ -179,9 +179,7 @@ module grid_m
         !! does j-th neighbor exist?
     end subroutine
   end interface
-
 contains
-
   subroutine grid_init(this, dim, idx_dim, face_dim, cell_dim)
     !! initialize grid
     class(grid), intent(out) :: this
@@ -205,6 +203,14 @@ contains
     this%face_dim = face_dim
     this%cell_dim = cell_dim
   end subroutine
+
+  function grid_get_ptr(this) result(ptr)
+    !! returns pointer type to this grid
+    class(grid), target, intent(in) :: this
+    type(grid_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
 
   function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
     !! checks if given indices are allowed for grid.
@@ -237,5 +243,4 @@ contains
       allowed = allowed .and. all(idx <= idx_bnd)
     end if
   end function
-
 end module
