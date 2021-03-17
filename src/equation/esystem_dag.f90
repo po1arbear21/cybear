@@ -1,7 +1,6 @@
 #include "../util/macro.f90.inc"
 
 module esystem_dag_m
-
   use equation_m,        only: equation
   use error_m
   use jacobian_chain_m,  only: jacobian_chain, jacobian_add_chain, jacobian_mul_chain, jacobian_chain_ptr, vector_jacobian_chain_ptr
@@ -124,7 +123,6 @@ module esystem_dag_m
     procedure :: add_node => dag_add_node
     procedure :: analyze  => dag_analyze
   end type
-
 contains
 
 #define T dag_node_ptr
@@ -624,5 +622,4 @@ contains
       end associate
     end do
   end subroutine
-
 end module

@@ -7,13 +7,22 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
+
 #define BAND_TYPE            CONCAT(band,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define BAND_INIT            CONCAT3(band,T,init)
 #define BAND_DESTRUCT        CONCAT3(band,T,destruct)
@@ -25,13 +34,6 @@
 #define BAND_FACTORIZE       CONCAT3(band,T,factorize)
 #define BAND_SOLVE_VEC       CONCAT3(band,T,solve_vec)
 #define BAND_SOLVE_MAT       CONCAT3(band,T,solve_mat)
-#define BAND_TO_DENSE        CONCAT3(band,T,to_dense)
-#define BAND_TO_SPARSE       CONCAT3(band,T,to_sparse)
-#ifdef TCMPLX
-#define BAND_TO_REAL         CONCAT3(band,T,to_real)
-#else
-#define BAND_TO_CMPLX        CONCAT3(band,T,to_cmplx)
-#endif
 #define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
 #define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
 #define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
@@ -40,7 +42,7 @@
 #define BAND_OUTPUT          CONCAT3(band,T,output)
 #define BAND_EYE             CONCAT3(band,eye,T)
 
-subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
+module subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   !! Initialize band matrix
 
   class(BAND_TYPE),  intent(out) :: this
@@ -81,7 +83,7 @@ subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   end if
 end subroutine
 
-subroutine BAND_DESTRUCT(this)
+module subroutine BAND_DESTRUCT(this)
   !! Destruct band matrix by deallocating its memory.
 
   class(BAND_TYPE), intent(inout) :: this
@@ -94,7 +96,7 @@ subroutine BAND_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-subroutine BAND_RESET(this, only_factorization)
+module subroutine BAND_RESET(this, only_factorization)
   !! Reset band matrix to zero (optionally only the factorization).
 
   class(BAND_TYPE),  intent(inout) :: this
@@ -118,7 +120,7 @@ subroutine BAND_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-subroutine BAND_RESET_ROW(this, i)
+module subroutine BAND_RESET_ROW(this, i)
   !! Reset i-th row to zero and its factorization.
 
   class(BAND_TYPE),  intent(inout) :: this
@@ -149,7 +151,7 @@ subroutine BAND_RESET_ROW(this, i)
   this%factorized = .false.
 end subroutine
 
-subroutine BAND_SCALE(this, fact)
+module subroutine BAND_SCALE(this, fact)
   !! Scale band matrix by a factor.
 
   class(BAND_TYPE), intent(inout) :: this
@@ -163,7 +165,7 @@ subroutine BAND_SCALE(this, fact)
   this%d = this%d * fact
 end subroutine
 
-subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply band matrix by a raw vector.
   !! Operation: y <- this * x + fact_y * y
 
@@ -189,7 +191,7 @@ subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply band matrix by a raw matrix.
   !! Operation: y <- this * x + fact_y * y
 
@@ -223,7 +225,7 @@ subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine BAND_FACTORIZE(this)
+module subroutine BAND_FACTORIZE(this)
   !! Factorize band matrix. Call this before solving!
 
   class(BAND_TYPE), intent(inout) :: this
@@ -265,7 +267,7 @@ subroutine BAND_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first!
 
   class(BAND_TYPE),    intent(in)  :: this
@@ -287,7 +289,7 @@ subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   x = x_(:,1)
 end subroutine
 
-subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
   class(BAND_TYPE),    intent(in)  :: this
@@ -348,110 +350,7 @@ subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-subroutine BAND_TO_DENSE(this, d, i0, j0)
-  !! Insert band matrix into a dense matrix.
-
-  class(BAND_TYPE),  intent(in)    :: this
-    !! Band matrix (unchanged)
-  type(DENSE_TYPE),  intent(inout) :: d
-    !! Dense matrix (updated)
-  integer, optional, intent(in)    :: i0
-    !! Optional: row offset in second matrix (default 1)
-  integer, optional, intent(in)    :: j0
-    !! Optional: col offset in second matrix (default 1)
-
-  integer :: i0_, j0_, i, j, k
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert elements into dense matrix
-  do j = 1, this%ncols
-    do i = -this%nupper, this%nlower
-      k = j + i ! actual row
-      if ((k < 1) .or. (k > this%nrows)) cycle
-
-      d%d(i0_+k-1,j0_+j-1) = this%d(i,j)
-    end do
-  end do
-end subroutine
-
-subroutine BAND_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert band matrix into a sparse matrix.
-
-  class(BAND_TYPE),   intent(in)    :: this
-    !! Band matrix (unchanged)
-  type(SPBUILD_TYPE), intent(inout) :: sb
-    !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,  intent(in)    :: i0
-    !! Optional: row offset in sparse matrix
-  integer, optional,  intent(in)    :: j0
-    !! Optional: col offset in sparse matrix
-  logical, optional,  intent(in)    :: struct(:,:)
-    !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,  intent(in)    :: drop_zeros
-    !! Optional: determine sparsity structure by checking for zero entries
-
-  ! local variables
-  integer :: i0_, j0_, i, j, k
-  logical :: drop_zeros_
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! insert values
-  do j = 1, this%ncols
-    do i = -this%nupper, this%nlower
-      k = j + i ! actual row
-      if ((k < 1) .or. (k > this%nrows)) cycle
-
-      ! check structure
-      if      (present(struct)) then
-        if (.not. struct(k,j)) cycle
-      else if (drop_zeros_) then
-        if (this%d(i,j) == 0) cycle
-      end if
-
-      ! insert value without searching (append to rows)
-      call sb%set(i0_+k-1, j0_+j-1, this%d(i,j), search=.false.)
-    end do
-  end do
-end subroutine
-
-#ifdef TCMPLX
-subroutine BAND_TO_REAL(this, b)
-  !! Convert band complex matrix to real by ignoring imaginary part.
-
-  class(band_cmplx), intent(in)  :: this
-    !! Band complex matrix
-  class(band_real),  intent(out) :: b
-    !! Output real(this)
-
-  call b%init(this%nrows, this%nlower, nupper=this%nupper, d0=real(this%d))
-end subroutine
-#else
-subroutine BAND_TO_CMPLX(this, b)
-  !! Convert band real matrix to complex.
-
-  class(band_real),  intent(in)  :: this
-    !! Band real matrix
-  class(band_cmplx), intent(out) :: b
-    !! Output cmplx(this)
-
-  call b%init(this%nrows, this%nlower, nupper=this%nupper, d0=cmplx(this%d))
-end subroutine
-#endif
-
-subroutine BAND_OUTPUT(this, file, funit, fmt)
+module subroutine BAND_OUTPUT(this, file, funit, fmt)
   !! Write band matrix to file or stream.
 
   class(BAND_TYPE),       intent(in) :: this
@@ -506,7 +405,7 @@ subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-subroutine BAND_ADD_ELEM(this, i, j, x)
+module subroutine BAND_ADD_ELEM(this, i, j, x)
   class(BAND_TYPE), intent(inout) :: this
   integer,          intent(in)    :: i
     !! row index of full matrix to represent
@@ -521,7 +420,7 @@ subroutine BAND_ADD_ELEM(this, i, j, x)
   this%d(i-j,j) = this%get_elem(i,j) + x
 end subroutine
 
-function BAND_GET_ELEM(this, i, j) result(x)
+module function BAND_GET_ELEM(this, i, j) result(x)
   class(BAND_TYPE), intent(in) :: this
   integer,          intent(in) :: i
     !! row index of full matrix to represent
@@ -536,7 +435,7 @@ function BAND_GET_ELEM(this, i, j) result(x)
   x = this%d(i-j,j)
 end function
 
-subroutine BAND_SET_ELEM(this, i, j, x)
+module subroutine BAND_SET_ELEM(this, i, j, x)
   class(BAND_TYPE), intent(inout) :: this
   integer,          intent(in)    :: i
     !! row index of full matrix to represent
@@ -551,7 +450,7 @@ subroutine BAND_SET_ELEM(this, i, j, x)
   this%d(i-j,j) = x
 end subroutine
 
-subroutine BAND_SET_DIAG_VAL(this, val, k)
+module subroutine BAND_SET_DIAG_VAL(this, val, k)
   !! inserts same value on the k-th diagonal.
 
   class(BAND_TYPE), intent(inout)        :: this
@@ -572,7 +471,7 @@ subroutine BAND_SET_DIAG_VAL(this, val, k)
   call this%set_diag([(val, i=1,this%nrows-abs(k_))], k=k_)
 end subroutine
 
-subroutine BAND_SET_DIAG_ARR(this, vals, k)
+module subroutine BAND_SET_DIAG_ARR(this, vals, k)
   !! inserts values on the k-th diagonal.
 
   class(BAND_TYPE), intent(inout)        :: this
@@ -598,7 +497,7 @@ subroutine BAND_SET_DIAG_ARR(this, vals, k)
   this%d(k_,i1:i2) = vals
 end subroutine
 
-function BAND_EYE(nrows) result(eye)
+module function BAND_EYE(nrows) result(eye)
   !! band identity matrix
 
   integer, intent(in) :: nrows
@@ -622,13 +521,22 @@ end function
 
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
-#undef DENSE_TYPE
-#undef SPARSE_TYPE
-#undef SPBUILD_TYPE
+
 #undef BAND_TYPE
-#undef HESSENBERG_TYPE
-#undef TRIANG_TYPE
+#undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef BAND_INIT
 #undef BAND_DESTRUCT
@@ -640,10 +548,6 @@ end function
 #undef BAND_FACTORIZE
 #undef BAND_SOLVE_VEC
 #undef BAND_SOLVE_MAT
-#undef BAND_TO_DENSE
-#undef BAND_TO_SPARSE
-#undef BAND_TO_REAL
-#undef BAND_TO_CMPLX
 #undef BAND_ADD_ELEM
 #undef BAND_GET_ELEM
 #undef BAND_SET_ELEM

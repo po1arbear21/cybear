@@ -7,13 +7,22 @@
 
 #define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
+
 #define BAND_TYPE            CONCAT(band,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
+#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
 #define BLOCK_TYPE           CONCAT(block,T)
+#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
+#define DENSE_TYPE           CONCAT(dense,T)
+#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE          CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE          CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE         CONCAT(spbuild,T)
+#define TRIANG_TYPE          CONCAT(triang,T)
+#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define HESSENBERG_INIT      CONCAT3(hessenberg,T,init)
 #define HESSENBERG_DESTRUCT  CONCAT3(hessenberg,T,destruct)
@@ -24,17 +33,9 @@
 #define HESSENBERG_FACTORIZE CONCAT3(hessenberg,T,factorize)
 #define HESSENBERG_SOLVE_VEC CONCAT3(hessenberg,T,solve_vec)
 #define HESSENBERG_SOLVE_MAT CONCAT3(hessenberg,T,solve_mat)
-#define HESSENBERG_TO_DENSE  CONCAT3(hessenberg,T,to_dense)
-#define HESSENBERG_TO_SPARSE CONCAT3(hessenberg,T,to_sparse)
-#define HESSENBERG_TO_TRIANG CONCAT3(hessenberg,T,to_triang)
 #define HESSENBERG_IS_TRIANG CONCAT3(hessenberg,T,is_triang)
-#ifdef TCMPLX
-#define HESSENBERG_TO_REAL   CONCAT3(hessenberg,T,to_real)
-#else
-#define HESSENBERG_TO_CMPLX  CONCAT3(hessenberg,T,to_cmplx)
-#endif
 
-subroutine HESSENBERG_INIT(this, nrows, upper)
+module subroutine HESSENBERG_INIT(this, nrows, upper)
   !! Initialize hessenberg matrix
 
   class(HESSENBERG_TYPE), intent(out) :: this
@@ -55,7 +56,7 @@ subroutine HESSENBERG_INIT(this, nrows, upper)
   this%d = 0
 end subroutine
 
-subroutine HESSENBERG_DESTRUCT(this)
+module subroutine HESSENBERG_DESTRUCT(this)
   !! Destruct hessenberg matrix by deallocating its memory.
 
   class(HESSENBERG_TYPE), intent(inout) :: this
@@ -67,7 +68,7 @@ subroutine HESSENBERG_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-subroutine HESSENBERG_RESET(this, only_factorization)
+module subroutine HESSENBERG_RESET(this, only_factorization)
   !! Reset hessenberg matrix to zero (optionally only the factorization).
 
   class(HESSENBERG_TYPE), intent(inout) :: this
@@ -91,7 +92,7 @@ subroutine HESSENBERG_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-subroutine HESSENBERG_SCALE(this, fact)
+module subroutine HESSENBERG_SCALE(this, fact)
   !! Scale hessenberg matrix by a factor.
 
   class(HESSENBERG_TYPE), intent(inout) :: this
@@ -118,7 +119,7 @@ subroutine HESSENBERG_SCALE(this, fact)
   end if
 end subroutine
 
-subroutine HESSENBERG_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine HESSENBERG_MUL_VEC(this, x, y, fact_y, trans)
   !! Multiply hessenberg matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -195,7 +196,7 @@ subroutine HESSENBERG_MUL_VEC(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine HESSENBERG_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine HESSENBERG_MUL_MAT(this, x, y, fact_y, trans)
   !! Multiply hessenberg matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
@@ -272,7 +273,7 @@ subroutine HESSENBERG_MUL_MAT(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-subroutine HESSENBERG_FACTORIZE(this)
+module subroutine HESSENBERG_FACTORIZE(this)
   !! Factorize hessenberg matrix
 
   class(HESSENBERG_TYPE), intent(inout) :: this
@@ -333,7 +334,7 @@ subroutine HESSENBERG_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first!
 
   class(HESSENBERG_TYPE), intent(in)  :: this
@@ -361,7 +362,7 @@ subroutine HESSENBERG_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   x = x_(:,1)
 end subroutine
 
-subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
   class(HESSENBERG_TYPE), intent(in)  :: this
@@ -522,134 +523,7 @@ subroutine HESSENBERG_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-subroutine HESSENBERG_TO_DENSE(this, d, i0, j0)
-  !! Insert hessenberg matrix into a dense matrix.
-
-  class(HESSENBERG_TYPE), intent(in)    :: this
-    !! Hessenberg matrix (unchanged)
-  type(DENSE_TYPE),       intent(inout) :: d
-    !! Dense matrix (updated)
-  integer, optional,      intent(in)    :: i0
-    !! Optional: row offset in second matrix (default 1)
-  integer, optional,      intent(in)    :: j0
-    !! Optional: col offset in second matrix (default 1)
-
-  ! local variables
-  integer :: i0_, j0_, i, n
-
-  ! optional arguments
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! system size
-  n = this%nrows
-
-  ! insert elements into dense matrix
-  if (this%upper) then
-    d%d(i0_,j0_:j0_+n-1) = this%d(1,1:n)
-    do i = 2, n
-      d%d(i0_+i-1,j0_+i-2:j0_+n-1) = this%d(i,i-1:n)
-    end do
-  else
-    do i = 1, n - 1
-      d%d(i0_+i-1,j0_:j0_+i) = this%d(i,1:i+1)
-    end do
-    d%d(i0_+n-1,j0_:j0_+n-1) = this%d(n,1:n)
-  end if
-end subroutine
-
-subroutine HESSENBERG_TO_SPARSE(this, sb, i0, j0, struct, drop_zeros)
-  !! Insert hessenberg matrix into a sparse matrix.
-
-  class(HESSENBERG_TYPE), intent(in)    :: this
-    !! Hessenberg matrix (unchanged)
-  type(SPBUILD_TYPE),     intent(inout) :: sb
-    !! Sparse matrix represented by sparse matrix builder (updated)
-  integer, optional,      intent(in)    :: i0
-    !! Optional: row offset in sparse matrix
-  integer, optional,      intent(in)    :: j0
-    !! Optional: col offset in sparse matrix
-  logical, optional,      intent(in)    :: struct(:,:)
-    !! Optional: use sparsity structure (true means an element exists; false means it does not)
-  logical, optional,      intent(in)    :: drop_zeros
-    !! Optional: determine sparsity structure by checking for zero entries
-
-  ! local variables
-  integer :: i0_, j0_, i, j, n
-  logical :: drop_zeros_
-
-  ! optional arguments
-  drop_zeros_ = .false.
-  if (present(drop_zeros)) drop_zeros_ = drop_zeros
-  ASSERT(.not. (present(struct) .and. drop_zeros_))
-  i0_ = 1
-  if (present(i0)) i0_ = i0
-  j0_ = 1
-  if (present(j0)) j0_ = j0
-
-  ! system size
-  n = this%nrows
-
-  ! insert values
-  if (this%upper) then
-    do i = 1, n
-      do j = max(i-1,1), n
-        ! check structure
-        if (present(struct)) then
-          if (.not. struct(i,j)) cycle
-        elseif (drop_zeros_) then
-          if (this%d(i,j) == 0) cycle
-        end if
-
-        ! insert value without searching (append to rows)
-        call sb%set(i0_+i-1,j0_+j-1, this%d(i,j), search = .false.)
-      end do
-    end do
-  else
-    do i = 1, n
-      do j = 1, min(i+1,n)
-        ! check structure
-        if (present(struct)) then
-          if (.not. struct(i,j)) cycle
-        elseif (drop_zeros_) then
-          if (this%d(i,j) == 0) cycle
-        end if
-
-        ! insert value without searching (append to rows)
-        call sb%set(i0_+i-1,j0_+j-1, this%d(i,j), search = .false.)
-      end do
-    end do
-  end if
-end subroutine
-
-subroutine HESSENBERG_TO_TRIANG(this, t)
-  !! Convert Hessenberg matrix to triangular matrix (copy triangular part and neglect offdiagonal part)
-
-  class(HESSENBERG_TYPE), intent(in)  :: this
-    !! Hessenberg matrix
-  type(TRIANG_TYPE),      intent(out) :: t
-    !! Output triangular matrix. Same upper/lower format as Hessenberg
-
-  integer :: i
-
-  call t%init(this%nrows, this%upper)
-  t%d = this%d
-
-  ! neglect offdiag part, not part of triangular
-  do i = 1, this%nrows
-    if (this%upper) then
-      if (i == 1) cycle
-      t%d(i,i-1) = 0
-    else
-      if (i == this%nrows) cycle
-      t%d(i,i+1) = 0
-    end if
-  end do
-end subroutine
-
-logical function HESSENBERG_IS_TRIANG(this, abs_tol)
+logical module function HESSENBERG_IS_TRIANG(this, abs_tol)
   !! Checks if Hessenberg matrix is a triangular matrix.
   !! Only checks if offdiagonal part across Hessenerg's triangular part is zero.
 
@@ -671,60 +545,6 @@ logical function HESSENBERG_IS_TRIANG(this, abs_tol)
   end if
 end function
 
-#ifdef TCMPLX
-subroutine HESSENBERG_TO_REAL(this, h)
-  !! Convert hessenberg complex matrix to real by ignoring imaginary part.
-
-  class(hessenberg_cmplx), intent(in)  :: this
-    !! Hessenberg complex matrix
-  type(hessenberg_real),   intent(out) :: h
-    !! Output real(this)
-
-  ! local variables
-  integer :: i, j
-
-  call h%init(this%nrows, this%upper)
-
-  if (this%upper) then
-    do i = 1, this%nrows
-      j = max(i-1,1)
-      h%d(i,j:this%nrows) = real(this%d(i,j:this%nrows))
-    end do
-  else
-    do i = 1, this%nrows
-      j = min(i+1,this%nrows)
-      h%d(i,1:j) = real(this%d(i,1:j))
-    end do
-  end if
-end subroutine
-#else
-subroutine HESSENBERG_TO_CMPLX(this, h)
-  !! Convert hessenberg real matrix to complex.
-
-  class(hessenberg_real), intent(in)  :: this
-    !! Hessenberg real matrix
-  type(hessenberg_cmplx), intent(out) :: h
-    !! Output cmplx(this)
-
-  ! local variables
-  integer :: i, j
-
-  call h%init(this%nrows, this%upper)
-
-  if (this%upper) then
-    do i = 1, this%nrows
-      j = max(i-1,1)
-      h%d(i,j:this%nrows) = cmplx(this%d(i,j:this%nrows))
-    end do
-  else
-    do i = 1, this%nrows
-      j = min(i+1,this%nrows)
-      h%d(i,1:j) = cmplx(this%d(i,1:j))
-    end do
-  end if
-end subroutine
-#endif
-
 #undef T
 #undef TT
 #undef TCMPLX
@@ -738,13 +558,22 @@ end subroutine
 
 #undef ARRAY_TYPE
 #undef VECTOR_TYPE
-#undef DENSE_TYPE
-#undef SPARSE_TYPE
-#undef SPBUILD_TYPE
+
 #undef BAND_TYPE
-#undef HESSENBERG_TYPE
-#undef TRIANG_TYPE
+#undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
+#undef BLOCK_PTR_TYPE
+#undef DENSE_TYPE
+#undef DENSE_PTR_TYPE
+#undef HESSENBERG_TYPE
+#undef HESSENBERG_PTR_TYPE
+#undef MATRIX_TYPE
+#undef MATRIX_PTR_TYPE
+#undef SPARSE_TYPE
+#undef SPARSE_PTR_TYPE
+#undef SPBUILD_TYPE
+#undef TRIANG_TYPE
+#undef TRIANG_PTR_TYPE
 
 #undef HESSENBERG_INIT
 #undef HESSENBERG_DESTRUCT
@@ -755,9 +584,4 @@ end subroutine
 #undef HESSENBERG_FACTORIZE
 #undef HESSENBERG_SOLVE_VEC
 #undef HESSENBERG_SOLVE_MAT
-#undef HESSENBERG_TO_DENSE
-#undef HESSENBERG_TO_SPARSE
-#undef HESSENBERG_TO_TRIANG
 #undef HESSENBERG_IS_TRIANG
-#undef HESSENBERG_TO_REAL
-#undef HESSENBERG_TO_CMPLX

@@ -45,7 +45,7 @@ subroutine SQRTM(M, sqrtM)
 
   ! is quasi-triangular V_quasi a triangular V ? aka only real EVals?
   ASSERT(V_quasi%is_triang())
-  call V_quasi%to_triang(V)
+  call matrix_convert(V_quasi, V)
 
   ! Compute square root U of upper triangular V, a column at a time.
   ASSERT(V%upper)

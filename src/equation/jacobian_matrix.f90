@@ -1,6 +1,5 @@
 module jacobian_matrix_m
-
-  use matrix_m,    only: add, sparse_real, block_real, spbuild_real, sparse_ptr_real
+  use matrix_m,    only: matrix_add, sparse_real, block_real, spbuild_real, sparse_ptr_real
   use vselector_m, only: vselector
 
   implicit none
@@ -173,7 +172,7 @@ contains
 
       ! add matrices
       do k = 1, size(jaco)
-        call add(jaco(k)%p%s(i,j)%p, this%s(i,j)%p)
+        call matrix_add(jaco(k)%p%s(i,j)%p, this%s(i,j)%p)
       end do
     end do; end do
   end subroutine
@@ -223,9 +222,8 @@ contains
       ! loop over jaco1%ncols = jaco2%nrows
       do k = 1, jaco1%v2%ntab
         call jaco1%s(i,k)%p%mul_sparse(jaco2%s(k,j)%p, tmp)
-        call add(tmp, this%s(i,j)%p)
+        call matrix_add(tmp, this%s(i,j)%p)
       end do
     end do; end do
   end subroutine
-
 end module

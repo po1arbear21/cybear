@@ -1,6 +1,7 @@
 module test_matrix_m
-  use test_case_m
+  use example_matrices_m
   use matrix_m
+  use test_case_m
   implicit none
 
   private
