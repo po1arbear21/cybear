@@ -1,41 +1,43 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
+#define PASTE(X)              X
+#define PASTE2(X)             PASTE(X)_
+#define CONCATHELP(X, Y)      PASTE2(X)Y
+#define CONCAT(X, Y)          CONCATHELP(X,Y)
 
-#define BAND_TYPE            CONCAT(band,T)
-#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
-#define BLOCK_TYPE           CONCAT(block,T)
-#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
-#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
+#define BAND_TYPE             CONCAT(band,T)
+#define BAND_PTR_TYPE         CONCAT(band_ptr,T)
+#define BLOCK_TYPE            CONCAT(block,T)
+#define BLOCK_PTR_TYPE        CONCAT(block_ptr,T)
+#define DENSE_TYPE            CONCAT(dense,T)
+#define DENSE_PTR_TYPE        CONCAT(dense_ptr,T)
+#define HESSENBERG_TYPE       CONCAT(hessenberg,T)
+#define HESSENBERG_PTR_TYPE   CONCAT(hessenberg_ptr,T)
+#define MATRIX_TYPE           CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE       CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE           CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE       CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE          CONCAT(spbuild,T)
+#define TRIANG_TYPE           CONCAT(triang,T)
+#define TRIANG_PTR_TYPE       CONCAT(triang_ptr,T)
 
-#define SPARSE_TO_BAND       CONCAT(sparse_to_band,T)
+#define SPARSE_TO_BAND        CONCAT(sparse_to_band,T)
 
-#define BAND_TO_DENSE        CONCAT(band_to_dense,T)
-#define BLOCK_TO_DENSE       CONCAT(block_to_dense,T)
-#define DENSE_TO_DENSE       CONCAT(dense_to_dense,T)
-#define HESSENBERG_TO_DENSE  CONCAT(hessenberg_to_dense,T)
-#define SPARSE_TO_DENSE      CONCAT(sparse_to_dense,T)
-#define TRIANG_TO_DENSE      CONCAT(triang_to_dense,T)
+#define BAND_TO_DENSE         CONCAT(band_to_dense,T)
+#define BLOCK_TO_DENSE        CONCAT(block_to_dense,T)
+#define DENSE_TO_DENSE        CONCAT(dense_to_dense,T)
+#define HESSENBERG_TO_DENSE   CONCAT(hessenberg_to_dense,T)
+#define SPARSE_TO_DENSE       CONCAT(sparse_to_dense,T)
+#define TRIANG_TO_DENSE       CONCAT(triang_to_dense,T)
 
-#define HESSENBERG_TO_TRIANG CONCAT(hessenberg_to_triang,T)
+#define BLOCK_TO_SPARSE       CONCAT(block_to_sparse,T)
 
-#define BAND_TO_SPARSE       CONCAT(band_to_sparse,T)
-#define BLOCK_TO_SPARSE      CONCAT(block_to_sparse,T)
-#define DENSE_TO_SPARSE      CONCAT(dense_to_sparse,T)
-#define HESSENBERG_TO_SPARSE CONCAT(hessenberg_to_sparse,T)
-#define SPARSE_TO_SPARSE     CONCAT(sparse_to_sparse,T)
-#define TRIANG_TO_SPARSE     CONCAT(triang_to_sparse,T)
+#define BAND_TO_SPBUILD       CONCAT(band_to_spbuild,T)
+#define BLOCK_TO_SPBUILD      CONCAT(block_to_spbuild,T)
+#define DENSE_TO_SPBUILD      CONCAT(dense_to_spbuild,T)
+#define HESSENBERG_TO_SPBUILD CONCAT(hessenberg_to_spbuild,T)
+#define SPARSE_TO_SPBUILD     CONCAT(sparse_to_spbuild,T)
+#define TRIANG_TO_SPBUILD     CONCAT(triang_to_spbuild,T)
+
+#define HESSENBERG_TO_TRIANG  CONCAT(hessenberg_to_triang,T)
 
 module subroutine SPARSE_TO_BAND(s, b, i0, j0)
   !! Insert sparse matrix into a band matrix.
@@ -303,8 +305,27 @@ module subroutine HESSENBERG_TO_TRIANG(h, t)
   end do
 end subroutine
 
-module subroutine BAND_TO_SPARSE(b, sb, i0, j0, struct, drop_zeros)
-  !! Insert band matrix into a sparse matrix.
+module subroutine BLOCK_TO_SPARSE(b, s, struct, drop_zeros)
+  !! Create sparse matrix from block matrix.
+  type(BLOCK_TYPE),  intent(in)  :: b
+    !! Block matrix (unchanged)
+  type(SPARSE_TYPE), intent(out) :: s
+    !! Output: Sparse matrix
+  logical, optional, intent(in)  :: struct(:,:)
+    !! Optional: use sparsity structure (true means an element exists; false means it does not)
+  logical, optional, intent(in)  :: drop_zeros
+    !! Optional: determine sparsity structure by checking for zero entries
+
+  type(SPBUILD_TYPE) :: sb
+
+  call s%init(b%i1(b%nbrows), ncols=b%j1(b%nbcols))
+  call sb%init(s)
+  call BLOCK_TO_SPBUILD(b, sb, struct=struct, drop_zeros=drop_zeros)
+  call sb%save()
+end subroutine
+
+module subroutine BAND_TO_SPBUILD(b, sb, i0, j0, struct, drop_zeros)
+  !! Insert band matrix into a sparse builder.
   type(BAND_TYPE),    intent(in)    :: b
     !! Band matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
@@ -350,8 +371,8 @@ module subroutine BAND_TO_SPARSE(b, sb, i0, j0, struct, drop_zeros)
   end do
 end subroutine
 
-module subroutine BLOCK_TO_SPARSE(b, sb, i0, j0, struct, drop_zeros)
-  !! Insert block matrix into a sparse matrix.
+module subroutine BLOCK_TO_SPBUILD(b, sb, i0, j0, struct, drop_zeros)
+  !! Insert block matrix into a sparse builder.
   type(BLOCK_TYPE),   intent(in)    :: b
     !! Block matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
@@ -438,8 +459,8 @@ module subroutine BLOCK_TO_SPARSE(b, sb, i0, j0, struct, drop_zeros)
   end associate
 end subroutine
 
-module subroutine DENSE_TO_SPARSE(d, sb, i0, j0, struct, drop_zeros)
-  !! Insert dense matrix into a sparse matrix.
+module subroutine DENSE_TO_SPBUILD(d, sb, i0, j0, struct, drop_zeros)
+  !! Insert dense matrix into a sparse builder.
   type(DENSE_TYPE),   intent(in)    :: d
     !! Dense matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
@@ -489,8 +510,8 @@ module subroutine DENSE_TO_SPARSE(d, sb, i0, j0, struct, drop_zeros)
   end do
 end subroutine
 
-module subroutine HESSENBERG_TO_SPARSE(h, sb, i0, j0, struct, drop_zeros)
-  !! Insert hessenberg matrix into a sparse matrix.
+module subroutine HESSENBERG_TO_SPBUILD(h, sb, i0, j0, struct, drop_zeros)
+  !! Insert hessenberg matrix into a sparse builder.
   type(HESSENBERG_TYPE), intent(in)    :: h
     !! Hessenberg matrix (unchanged)
   type(SPBUILD_TYPE),    intent(inout) :: sb
@@ -552,8 +573,8 @@ module subroutine HESSENBERG_TO_SPARSE(h, sb, i0, j0, struct, drop_zeros)
   end if
 end subroutine
 
-module subroutine SPARSE_TO_SPARSE(s, sb, i0, j0, struct, drop_zeros)
-  !! Insert sparse matrix into another sparse matrix.
+module subroutine SPARSE_TO_SPBUILD(s, sb, i0, j0, struct, drop_zeros)
+  !! Insert sparse matrix into another sparse builder.
   type(SPARSE_TYPE),  intent(in)    :: s
     !! First sparse matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
@@ -599,8 +620,8 @@ module subroutine SPARSE_TO_SPARSE(s, sb, i0, j0, struct, drop_zeros)
   end do
 end subroutine
 
-module subroutine TRIANG_TO_SPARSE(t, sb, i0, j0, struct, drop_zeros)
-  !! Insert triangular matrix into a sparse matrix.
+module subroutine TRIANG_TO_SPBUILD(t, sb, i0, j0, struct, drop_zeros)
+  !! Insert triangular matrix into a sparse builder.
   type(TRIANG_TYPE),  intent(in)    :: t
     !! Band matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
@@ -840,11 +861,13 @@ end subroutine
 #undef SPARSE_TO_DENSE
 #undef TRIANG_TO_DENSE
 
-#undef HESSENBERG_TO_TRIANG
-
-#undef BAND_TO_SPARSE
 #undef BLOCK_TO_SPARSE
-#undef DENSE_TO_SPARSE
-#undef HESSENBERG_TO_SPARSE
-#undef SPARSE_TO_SPARSE
-#undef TRIANG_TO_SPARSE
+
+#undef BAND_TO_SPBUILD
+#undef BLOCK_TO_SPBUILD
+#undef DENSE_TO_SPBUILD
+#undef HESSENBERG_TO_SPBUILD
+#undef SPARSE_TO_SPBUILD
+#undef TRIANG_TO_SPBUILD
+
+#undef HESSENBERG_TO_TRIANG
