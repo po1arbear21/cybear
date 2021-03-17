@@ -302,7 +302,14 @@ contains
     logical,                    intent(out) :: status
       !! is j-th dependency used?
 
-    call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j, idx2, status)
+    if (j == 1) then
+      ! couple to self
+      idx2 = idx1
+      status = .true.
+    else
+      ! grid neighbours do not contain self => subtract 1 from j
+      call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j-1, idx2, status)
+    end if
   end subroutine
 
 end module

@@ -1,11 +1,10 @@
 # grid
-## edge
-get edge length
-  procedure: get_len(idx)
-  idx: edge index
+
+## triang_grid
+fix get_neighb (exclude self coupling)
 
 ## tensor grid
-get_neighb
+test get_neighb
 
 ## test grid
 uncomment test region (line 426??)

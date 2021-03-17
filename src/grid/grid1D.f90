@@ -52,19 +52,19 @@ contains
       !! output: upper bound for each index. size: (idx_dim=1)
 
     ASSERT(this%idx_allowed(idx_type, idx_dir))
-    ASSERT(size(idx_bnd) == this%idx_dim)
+    ASSERT(size(idx_bnd) == 1)
 
     IGNORE(idx_dir)
 
     select case (idx_type)
       case (IDX_VERTEX)
-        idx_bnd = size(this%x)
+        idx_bnd(1) = size(this%x)
       case (IDX_EDGE)
-        idx_bnd = size(this%x) - 1
+        idx_bnd(1) = size(this%x) - 1
       case (IDX_FACE)
-        idx_bnd = size(this%x)
+        idx_bnd(1) = size(this%x)
       case (IDX_CELL)
-        idx_bnd = size(this%x) - 1
+        idx_bnd(1) = size(this%x) - 1
     end select
   end subroutine
 
@@ -194,11 +194,11 @@ contains
       !! return maximal number of nearest neighbours
 
     !   V E F C
-    ! V 3 2 1 2
-    ! E 2 3 2 1
-    ! F 1 2 3 2
-    ! C 2 1 2 3
-    integer, parameter :: n(4,4) = reshape([3, 2, 1, 2, 2, 3, 2, 1, 1, 2, 3, 2, 2, 1, 2, 3], [4, 4])
+    ! V 2 2 1 2
+    ! E 2 2 2 1
+    ! F 1 2 2 2
+    ! C 2 1 2 2
+    integer, parameter :: n(4,4) = reshape([2, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 2], [4, 4])
 
     ASSERT(this%idx_allowed(idx1_type, idx1_dir))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
@@ -232,60 +232,49 @@ contains
     logical,       intent(out) :: status
       !! does j-th neighbor exist?
 
-    integer :: max_neighb
+    integer :: max_neighb, idx_bnd(1), shift
 
     ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
-    ASSERT(size(idx2) == size(idx1))
+    ASSERT(size(idx2) == 1)
 
-    max_neighb = this%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir)
+    idx2  = 0
+    shift = 0
 
-    select case (max_neighb)
-      case (1)
-        idx2   = idx1
-        status = (j == 1)
+    if (idx1_type == idx2_type) then
+      ! idx1 is not a neighbour of itself => either subtract or add 1
+      if (idx1(1) == 1) shift = 1
+      if (j + shift == 1) then
+        idx2(1) = idx1(1) - 1
+      else if (j + shift == 2) then
+        idx2(1) = idx1(1) + 1
+      end if
+    else if (((idx1_type == IDX_VERTEX) .and. (idx2_type == IDX_FACE  )) .or. &
+      &      ((idx1_type == IDX_EDGE  ) .and. (idx2_type == IDX_CELL  )) .or. &
+      &      ((idx1_type == IDX_FACE  ) .and. (idx2_type == IDX_VERTEX)) .or. &
+      &      ((idx1_type == IDX_CELL  ) .and. (idx2_type == IDX_EDGE  ))) then
+      ! vertices == faces and edges == cells
+      if (j == 1) then
+        idx2(1) = idx1(1)
+      end if
+    else if ((idx1_type == IDX_VERTEX) .or. (idx1_type == IDX_FACE)) then
+      if (idx1(1) == 1) shift = 1
+      if (j + shift == 1) then
+        idx2(1) = idx1(1) - 1
+      else if (j + shift == 2) then
+        idx2(1) = idx1(1)
+      end if
+    else ! if ((idx1_type == IDX_EDGE) .or. (idx1_type == IDX_CELL)) then
+      if (j == 1) then
+        idx2(1) = idx1(1)
+      else if (j == 2) then
+        idx2(1) = idx1(1) + 1
+      end if
+    end if
 
-      case (2)
-        if ((idx1_type == IDX_VERTEX) .or. (idx1_type == IDX_FACE)) then
-          if            ((idx1(1) > 1) .and. (j == 1)) then                                   ! return left of vertex/face
-            idx2   = idx1 - 1
-            status = .true.
-          else if (     ((idx1(1) == 1) .and. (j == 1)                              ) &
-            &      .or. ((idx1(1) >  1) .and. (idx1(1) < size(this%x)) .and. (j == 2)) ) then ! return right of vertex/face
-            idx2   = idx1
-            status = .true.
-          else
-            status = .false.
-          end if
-
-        else
-          if      (j == 1) then
-            idx2   = idx1
-            status = .true.
-          else if (j == 2) then
-            idx2   = idx1 + 1
-            status = .true.
-          else
-            status = .false.
-          end if
-        end if
-
-      case (3)
-        if            ((idx1(1) > 1) .and. (j == 1)) then                                   ! return left of idx1
-          idx2   = idx1 - 1
-          status = .true.
-        else if (     ((idx1(1) == 1) .and. (j == 1)) &
-          &      .or. ((idx1(1) >  1) .and. (j == 2)) ) then                                ! return idx1
-          idx2   = idx1
-          status = .true.
-        else if (     ((idx1(1) == 1) .and. (j == 2)                               ) &
-          &      .or. ((idx1(1) >  1) .and. (idx1(1) < size(this%x)) .and. (j == 3)) ) then ! return right of idx1
-          idx2   = idx1 + 1
-          status = .true.
-        else
-          status = .false.
-        end if
-    end select
+    ! make sure idx2 is valid
+    call this%get_idx_bnd(idx2_type, idx2_dir, idx_bnd)
+    status = ((idx2(1) >= 1) .and. (idx2(1) <= idx_bnd(1)))
   end subroutine
 
 end module

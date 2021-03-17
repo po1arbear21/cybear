@@ -154,7 +154,7 @@ module grid_m
     end function
 
     subroutine grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
-      !! get j-th neighbour.
+      !! get j-th neighbour (does not include idx1!).
       !!
       !! j: we count neighbors from 1,2,...,N.
       !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
