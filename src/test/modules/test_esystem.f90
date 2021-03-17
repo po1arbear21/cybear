@@ -5,17 +5,15 @@ module test_esystem_m
   use error_m
   use test_case_m
 
-  use equation_m,       only: equation
-  use esystem_m,        only: esystem
-  use jacobian_m,       only: jacobian
-  use grid_data_m,      only: grid_data1_real
-  use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
-  use grid_table_m,     only: grid_table
-  use grid1D_m,         only: grid1D
-  use res_equation_m,   only: res_equation
-  use stencil_m,        only: dirichlet_stencil
-  use variable_m,       only: variable
-  use vselector_m,      only: vselector
+  use equation_m,     only: equation
+  use esystem_m,      only: esystem
+  use jacobian_m,     only: jacobian
+  use grid_m,         only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data1_real, grid_table
+  use grid1D_m,       only: grid1D
+  use res_equation_m, only: res_equation
+  use stencil_m,      only: dirichlet_stencil
+  use variable_m,     only: variable
+  use vselector_m,    only: vselector
 
   implicit none
 

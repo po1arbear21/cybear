@@ -232,7 +232,7 @@ contains
     logical,       intent(out) :: status
       !! does j-th neighbor exist?
 
-    integer :: max_neighb, idx_bnd(1), shift
+    integer :: idx_bnd(1), shift
 
     ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))

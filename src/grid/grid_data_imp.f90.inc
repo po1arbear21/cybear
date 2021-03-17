@@ -62,7 +62,7 @@ subroutine ALLOCATE_GRID_DATA(gdata, dim)
   end select
 end subroutine
 
-subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir)
+subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
   !! initialize and allocate grid data
   class(GRID_DATA_TYPE), intent(out) :: this
   class(grid),           intent(in)  :: g
@@ -70,8 +70,10 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir)
     !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
   integer,               intent(in)  :: idx_dir
     !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+  TT, optional,          intent(in)  :: d0
+    !! initial value
 
-  TT :: d0
+  TT :: d0_
 
   ! get index bounds
   allocate (this%idx_bnd(g%idx_dim))
@@ -81,41 +83,45 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir)
   this%n = product(this%idx_bnd)
 
   ! get initial value
+  if (present(d0)) then
+    d0_ = d0
+  else
 #ifdef TLOG
-  d0 = .false.
+    d0_ = .false.
 #else
-  d0 = 0
+    d0_ = 0
 #endif
+  end if
 
   ! allocate data array
   select type (this)
     type is (GRID_DATA1_TYPE)
-      allocate (this%data(this%idx_bnd(1)), source = d0)
+      allocate (this%data(this%idx_bnd(1)), source = d0_)
     type is (GRID_DATA2_TYPE)
       allocate (this%data(this%idx_bnd(1), &
-        &                 this%idx_bnd(2)), source = d0)
+        &                 this%idx_bnd(2)), source = d0_)
     type is (GRID_DATA3_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
-        &                 this%idx_bnd(3)), source = d0)
+        &                 this%idx_bnd(3)), source = d0_)
     type is (GRID_DATA4_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
         &                 this%idx_bnd(3), &
-        &                 this%idx_bnd(4)), source = d0)
+        &                 this%idx_bnd(4)), source = d0_)
     type is (GRID_DATA5_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
         &                 this%idx_bnd(3), &
         &                 this%idx_bnd(4), &
-        &                 this%idx_bnd(5)), source = d0)
+        &                 this%idx_bnd(5)), source = d0_)
     type is (GRID_DATA6_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
         &                 this%idx_bnd(3), &
         &                 this%idx_bnd(4), &
         &                 this%idx_bnd(5), &
-        &                 this%idx_bnd(6)), source = d0)
+        &                 this%idx_bnd(6)), source = d0_)
     type is (GRID_DATA7_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
@@ -123,7 +129,7 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir)
         &                 this%idx_bnd(4), &
         &                 this%idx_bnd(5), &
         &                 this%idx_bnd(6), &
-        &                 this%idx_bnd(7)), source = d0)
+        &                 this%idx_bnd(7)), source = d0_)
     type is (GRID_DATA8_TYPE)
       allocate (this%data(this%idx_bnd(1), &
         &                 this%idx_bnd(2), &
@@ -132,7 +138,7 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir)
         &                 this%idx_bnd(5), &
         &                 this%idx_bnd(6), &
         &                 this%idx_bnd(7), &
-        &                 this%idx_bnd(8)), source = d0)
+        &                 this%idx_bnd(8)), source = d0_)
   end select
 end subroutine
 

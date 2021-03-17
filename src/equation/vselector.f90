@@ -3,10 +3,8 @@
 module vselector_m
 
   use error_m
-  use grid_m,       only: grid
-  use grid_table_m, only: grid_table, grid_table_ptr
-  use grid_data_m,  only: grid_data_int, allocate_grid_data
-  use variable_m,   only: variable, variable_ptr
+  use grid_m,     only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
+  use variable_m, only: variable, variable_ptr
 
   implicit none
 
@@ -167,25 +165,29 @@ contains
 
   subroutine vselector_init_nvar_tab(this, v, tab, name)
     !! initialize variable selector given multiple variables and one table.
-    class(vselector),         intent(out) :: this
-    type(variable_ptr),       intent(in)  :: v(:)
+    class(vselector),                   intent(out) :: this
+    type(variable_ptr),                 intent(in)  :: v(:)
       !! variable pointers
-    type(grid_table), target, intent(in)  :: tab
-      !! grid table
-    character(*),             intent(in)  :: name
+    character(*),                       intent(in)  :: name
       !! selector name
+    type(grid_table), optional, target, intent(in)  :: tab
+      !! grid table
 
-    call this%init(v, [tab%get_ptr()], name)
+    if (present(tab)) then
+      call this%init(v, [tab%get_ptr()], name)
+    else
+      call this%init(v, [v(1)%p%g%tab_all(v(1)%p%idx_type,v(1)%p%idx_dir)%get_ptr()], name)
+    end if
   end subroutine
 
   subroutine vselector_init_var_tab(this, v, tab, name)
     !! initialize variable selector given one variable and one table.
-    class(vselector),         intent(out) :: this
-    class(variable),          intent(in)  :: v
+    class(vselector),                   intent(out) :: this
+    class(variable),                    intent(in)  :: v
       !! variable
-    type(grid_table), target, intent(in)  :: tab
+    type(grid_table), optional, target, intent(in)  :: tab
       !! grid table
-    character(*), optional,   intent(in)  :: name
+    character(*),     optional,         intent(in)  :: name
       !! selector name
       !! default: variable%name
 
@@ -198,7 +200,11 @@ contains
       allocate (name_, source = v%name)
     end if
 
-    call this%init([v%get_ptr()], [tab%get_ptr()], name_)
+    if (present(tab)) then
+      call this%init([v%get_ptr()], [tab%get_ptr()], name_)
+    else
+      call this%init([v%get_ptr()], [v%g%tab_all(v%idx_type,v%idx_dir)%get_ptr()], name_)
+    end if
   end subroutine
 
   subroutine vselector_reset(this)

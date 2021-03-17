@@ -3,8 +3,9 @@
 module tensor_grid_m
 
   use error_m
-  use grid_m, only: grid, grid_ptr, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
-  use grid_data_m
+  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr, grid_data_int, &
+    &                 grid_data1_int, grid_data2_int, grid_data3_int, grid_data4_int, &
+    &                 grid_data5_int, grid_data6_int, grid_data7_int, grid_data8_int
   use vector_m, only: vector_int
 
   implicit none

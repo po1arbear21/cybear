@@ -1,50 +1,8 @@
-module grid_table_m
-
-  use grid_m,      only: grid
-  use grid_data_m, only: grid_data_int, grid_data_log, allocate_grid_data
-
-  implicit none
-
-  private
-  public grid_table, grid_table_ptr
-
-  type grid_table
-    !! table to select points from grid
-
-    character(:), allocatable :: name
-      !! grid table name
-
-    class(grid), pointer :: g => null()
-      !! pointer to grid
-
-    integer             :: idx_type
-      !! index type
-    integer             :: idx_dir
-      !! index direction for edges and faces
-    class(grid_data_log), allocatable :: flags
-      !! include/exclude point (product idx_bnd)
-
-    integer                           :: n
-      !! number of entries
-    integer,              allocatable :: flat2idx(:,:)
-      !! flat index to grid indices (idx_dim x n)
-    class(grid_data_int), allocatable :: idx2flat
-      !! grid indices to flat index
-  contains
-    procedure :: init       => grid_table_init
-    procedure :: init_final => grid_table_init_final
-    procedure :: get_idx    => grid_table_get_idx
-    procedure :: get_flat   => grid_table_get_flat
-    procedure :: get_ptr    => grid_table_get_ptr
-  end type
-
-  type grid_table_ptr
-    type(grid_table), pointer :: p => null()
-  end type
+submodule (grid_m) grid_table_m
 
 contains
 
-  subroutine grid_table_init(this, name, g, idx_type, idx_dir)
+  subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
     !! initialize grid table
     class(grid_table),   intent(out) :: this
     character(*),        intent(in)  :: name
@@ -54,6 +12,8 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,             intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    logical, optional,   intent(in)  :: initial_flags
+      !! initialize flags to this value (default: false)
 
     ! set members
     this%name     =  name
@@ -63,7 +23,7 @@ contains
 
     ! initialize flags data
     call allocate_grid_data(this%flags, g%idx_dim)
-    call this%flags%init(g, idx_type, idx_dir)
+    call this%flags%init(g, idx_type, idx_dir, d0 = initial_flags)
   end subroutine
 
   subroutine grid_table_init_final(this)
@@ -132,4 +92,4 @@ contains
     ptr%p => this
   end function
 
-end module
+end submodule

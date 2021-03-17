@@ -2,13 +2,13 @@
 
 module res_equation_m
 
-  use equation_m,   only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
+  use equation_m,  only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
   use error_m
-  use grid_table_m, only: grid_table, grid_table_ptr
-  use jacobian_m,   only: jacobian, jacobian_ptr
-  use stencil_m,    only: stencil_ptr
-  use variable_m,   only: variable, variable_ptr
-  use vselector_m,  only: vselector
+  use grid_m,      only: grid_table, grid_table_ptr
+  use jacobian_m,  only: jacobian, jacobian_ptr
+  use stencil_m,   only: stencil_ptr
+  use variable_m,  only: variable, variable_ptr
+  use vselector_m, only: vselector
 
   implicit none
 
@@ -118,15 +118,19 @@ contains
 
   subroutine res_equation_init_f_var(this, mvar, tab, name)
     !! set main variable and initialize residual data
-    class(res_equation),     intent(inout) :: this
-    class(variable), target, intent(in)    :: mvar
+    class(res_equation),        intent(inout) :: this
+    class(variable),  target,   intent(in)    :: mvar
       !! main variable
-    type(grid_table),        intent(in)    :: tab
-      !! grid table
-    character(*), optional,  intent(in)    :: name
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table (default: mvar%g%tab_all(idx_type,idx_dir))
+    character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
 
-    call this%init_f(mvar, [tab%get_ptr()], name=name)
+    if (present(tab)) then
+      call this%init_f(mvar, [tab%get_ptr()], name=name)
+    else
+      call this%init_f(mvar, [mvar%g%tab_all(mvar%idx_type,mvar%idx_dir)%get_ptr()], name=name)
+    end if
   end subroutine
 
   subroutine res_equation_destruct(this)

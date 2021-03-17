@@ -2,12 +2,12 @@
 
 module equation_m
   use error_m
-  use grid_table_m, only: grid_table, grid_table_ptr
-  use jacobian_m,   only: jacobian, jacobian_ptr
-  use stencil_m,    only: stencil_ptr
-  use variable_m,   only: variable
-  use vector_m,     only: vector_int
-  use vselector_m,  only: vselector, vselector_ptr, vector_vselector_ptr
+  use grid_m,      only: grid_table, grid_table_ptr
+  use jacobian_m,  only: jacobian, jacobian_ptr
+  use stencil_m,   only: stencil_ptr
+  use variable_m,  only: variable
+  use vector_m,    only: vector_int
+  use vselector_m, only: vselector, vselector_ptr, vector_vselector_ptr
 
   implicit none
 
@@ -208,17 +208,21 @@ contains
 
   function equation_provide_variable(this, var, tab, name) result(iprov)
     !! provide variable for single grid table, creates var selector internally
-    class(equation),        intent(inout) :: this
-    class(variable),        intent(in)    :: var
+    class(equation),            intent(inout) :: this
+    class(variable),            intent(in)    :: var
       !! new provided variable
-    type(grid_table),       intent(in)    :: tab
-      !! grid table pointers
-    character(*), optional, intent(in)    :: name
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+    character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
-    integer                               :: iprov
+    integer                                   :: iprov
       !! return provided index
 
-    iprov = this%provide(var, [tab%get_ptr()], name=name)
+    if (present(tab)) then
+      iprov = this%provide(var, [tab%get_ptr()], name=name)
+    else
+      iprov = this%provide(var, [var%g%tab_all(var%idx_type,var%idx_dir)%get_ptr()], name=name)
+    end if
   end function
 
   function equation_depend_vselector(this, vsel) result(idep)
@@ -277,17 +281,21 @@ contains
 
   function equation_depend_variable(this, var, tab, name) result(idep)
     !! add new dependency variable for single grid table, creates var selector internally
-    class(equation),        intent(inout) :: this
-    class(variable),        intent(in)    :: var
+    class(equation),            intent(inout) :: this
+    class(variable),            intent(in)    :: var
       !! new dependency variable
-    type(grid_table),       intent(in)    :: tab
+    type(grid_table), optional, intent(in)    :: tab
       !! grid table pointers
-    character(*), optional, intent(in)    :: name
+    character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
-    integer                               :: idep
+    integer                                   :: idep
       !! return dependency index
 
-    idep = this%depend(var, [tab%get_ptr()], name=name)
+    if (present(tab)) then
+      idep = this%depend(var, [tab%get_ptr()], name=name)
+    else
+      idep = this%depend(var, [var%g%tab_all(var%idx_type,var%idx_dir)%get_ptr()], name=name)
+    end if
   end function
 
   subroutine equation_realloc_jaco(this, cprov, cdep)

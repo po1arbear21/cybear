@@ -34,9 +34,7 @@
 
 #define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
 
-interface allocate_grid_data
-  module procedure :: ALLOCATE_GRID_DATA
-end interface
+public GRID_DATA_TYPE, GRID_DATA1_TYPE, GRID_DATA2_TYPE, GRID_DATA3_TYPE, GRID_DATA4_TYPE, GRID_DATA5_TYPE, GRID_DATA6_TYPE, GRID_DATA7_TYPE, GRID_DATA8_TYPE
 
 type, abstract :: GRID_DATA_TYPE
   !! grid based array with bounds check
@@ -111,6 +109,102 @@ type, extends(GRID_DATA_TYPE) :: GRID_DATA8_TYPE
   TT, allocatable :: data(:,:,:,:,:,:,:,:)
     !! 8D data
 end type
+
+interface allocate_grid_data
+  module subroutine ALLOCATE_GRID_DATA(gdata, dim)
+    class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata
+    integer,                            intent(in)  :: dim
+  end subroutine
+end interface
+
+interface
+  module subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
+    class(GRID_DATA_TYPE), intent(out) :: this
+    class(grid),           intent(in)  :: g
+    integer,               intent(in)  :: idx_type
+    integer,               intent(in)  :: idx_dir
+    TT, optional,          intent(in)  :: d0
+  end subroutine
+
+  module subroutine GRID_DATA_DESTRUCT(this)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+  end subroutine
+
+  module function GRID_DATA_GET_PTR1(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA1_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR2(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA2_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR3(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA3_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR4(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA4_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR5(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA5_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR6(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA6_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR7(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA7_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_PTR8(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA8_TYPE), pointer            :: p
+  end function
+
+  module function GRID_DATA_GET_POINT(this, idx) result(d)
+    class(GRID_DATA_TYPE), intent(in) :: this
+    integer,               intent(in) :: idx(:)
+    TT                                :: d
+  end function
+
+  module function GRID_DATA_GET_ALL(this) result(d)
+    class(GRID_DATA_TYPE), intent(in) :: this
+    TT                                :: d(this%n)
+  end function
+
+  module subroutine GRID_DATA_SET_POINT(this, idx, d)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+    integer,               intent(in)    :: idx(:)
+    TT,                    intent(in)    :: d
+  end subroutine
+
+  module subroutine GRID_DATA_SET_ALL(this, d)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+    TT,                    intent(in)    :: d(:)
+  end subroutine
+
+#ifndef TLOG
+  module subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+    integer,               intent(in)    :: idx(:)
+    TT,                    intent(in)    :: d
+  end subroutine
+#endif
+
+  module subroutine GRID_DATA_UPDATE_ALL(this, d)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+    TT,                    intent(in)    :: d(:)
+  end subroutine
+end interface
 
 #undef T
 #undef TT

@@ -3,7 +3,7 @@
 module test_grid_table_m
   use test_case_m
   use grid1D_m, only: grid1D
-  use grid_table_m, only: grid_table
+  use grid_m, only: grid_table
   use math_m, only: logspace
   use grid_m, only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use util_m, only: int2str
