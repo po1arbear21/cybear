@@ -2,7 +2,7 @@
 
 module sum_grid_m
   use error_m, only: assert_failed, program_error
-  use grid_m,  only: grid, grid_ptr, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
 
   implicit none
 
@@ -11,7 +11,7 @@ module sum_grid_m
 
   type, extends(grid) :: sum_grid
     !! Combination of multiple sub-grids by direct sum
-    type(grid_ptr), allocatable :: g(:)
+    class(grid), pointer :: g(:)
       !! sub-grids
   contains
     procedure :: init           => sum_grid_init
@@ -31,23 +31,15 @@ module sum_grid_m
 contains
   subroutine sum_grid_init(this, g)
     !! initialize sum grid
-    class(sum_grid), intent(out) :: this
-    type(grid_ptr),  intent(in)  :: g(:)
+    class(sum_grid),     intent(out) :: this
+    class(grid), target, intent(in)  :: g(:)
       !! sub-grids
 
-    integer :: i
-
-    ! check that all sub-grids have same dim, idx_dim, face_dim, cell_dim
-    if (any([(g(1)%p%dim      /= g(i)%p%dim,      i = 1, size(g))])) call program_error('sum_grid needs sub-grids of same dim'     )
-    if (any([(g(1)%p%idx_dim  /= g(i)%p%idx_dim,  i = 1, size(g))])) call program_error('sum_grid needs sub-grids of same idx_dim' )
-    if (any([(g(1)%p%face_dim /= g(i)%p%face_dim, i = 1, size(g))])) call program_error('sum_grid needs sub-grids of same face_dim')
-    if (any([(g(1)%p%cell_dim /= g(i)%p%cell_dim, i = 1, size(g))])) call program_error('sum_grid needs sub-grids of same cell_dim')
-
     ! init base
-    call this%grid_init(g(1)%p%dim, g(1)%p%idx_dim, g(1)%p%face_dim, g(1)%p%cell_dim)
+    call this%grid_init(g(1)%dim, g(1)%idx_dim, g(1)%face_dim, g(1)%cell_dim)
 
     ! save sub-grid pointers
-    this%g = g
+    this%g => g
   end subroutine
 
   subroutine sum_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
@@ -67,7 +59,7 @@ contains
 
     idx_bnd = 0
     do i = 1, size(this%g)
-      call this%g(i)%p%get_idx_bnd(idx_type, idx_dir, idx_bnd)
+      call this%g(i)%get_idx_bnd(idx_type, idx_dir, idx_bnd)
     end do
   end subroutine
 
@@ -84,7 +76,7 @@ contains
     ASSERT(size(p) == this%dim)
 
     call this%to_subgrid(IDX_VERTEX, 0, idx, i, idx_sub)
-    call this%g(i)%p%get_vertex(idx_sub, p)
+    call this%g(i)%get_vertex(idx_sub, p)
   end subroutine
 
   subroutine sum_grid_get_edge(this, idx, idx_dir, p)
@@ -102,7 +94,7 @@ contains
     ASSERT(all(shape(p) == [this%dim, 2]))
 
     call this%to_subgrid(IDX_EDGE, idx_dir, idx, i, idx_sub)
-    call this%g(i)%p%get_edge(idx_sub, idx_dir, p)
+    call this%g(i)%get_edge(idx_sub, idx_dir, p)
   end subroutine
 
   subroutine sum_grid_get_face(this, idx, idx_dir, p)
@@ -120,7 +112,7 @@ contains
     ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
     call this%to_subgrid(IDX_FACE, idx_dir, idx, i, idx_sub)
-    call this%g(i)%p%get_face(idx_sub, idx_dir, p)
+    call this%g(i)%get_face(idx_sub, idx_dir, p)
   end subroutine
 
   subroutine sum_grid_get_cell(this, idx, p)
@@ -136,7 +128,7 @@ contains
     ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
 
     call this%to_subgrid(IDX_CELL, 0, idx, i, idx_sub)
-    call this%g(i)%p%get_cell(idx_sub, p)
+    call this%g(i)%get_cell(idx_sub, p)
   end subroutine
 
   function sum_grid_get_len(this, idx, idx_dir) result(len)
@@ -152,7 +144,7 @@ contains
     integer :: i, idx_sub(this%idx_dim)
 
     call this%to_subgrid(IDX_EDGE, idx_dir, idx, i, idx_sub)
-    len = this%g(i)%p%get_len(idx_sub, idx_dir)
+    len = this%g(i)%get_len(idx_sub, idx_dir)
   end function
 
   function sum_grid_get_surf(this, idx, idx_dir) result(surf)
@@ -168,7 +160,7 @@ contains
     integer :: i, idx_sub(this%idx_dim)
 
     call this%to_subgrid(IDX_FACE, idx_dir, idx, i, idx_sub)
-    surf = this%g(i)%p%get_surf(idx_sub, idx_dir)
+    surf = this%g(i)%get_surf(idx_sub, idx_dir)
   end function
 
   function sum_grid_get_vol(this, idx) result(vol)
@@ -182,7 +174,7 @@ contains
     integer :: i, idx_sub(this%idx_dim)
 
     call this%to_subgrid(IDX_CELL, 0, idx, i, idx_sub)
-    vol = this%g(i)%p%get_vol(idx_sub)
+    vol = this%g(i)%get_vol(idx_sub)
   end function
 
   function sum_grid_get_max_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir) result(max_neighb)
@@ -204,7 +196,7 @@ contains
     ASSERT(this%idx_allowed(idx1_type, idx1_dir))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
 
-    max_neighb = maxval([(this%g(i)%p%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir), i = 1, size(this%g))])
+    max_neighb = maxval([(this%g(i)%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir), i = 1, size(this%g))])
   end function
 
   subroutine sum_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
@@ -239,7 +231,7 @@ contains
 
     call this%to_subgrid(idx1_type, idx1_dir, idx1, i, idx1_sub)
 
-    call this%g(i)%p%get_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir, idx1_sub, j, idx2_sub, status)
+    call this%g(i)%get_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir, idx1_sub, j, idx2_sub, status)
     if (status) idx2 = this%to_sumgrid(idx2_type, idx2_dir, i, idx2_sub)
   end subroutine
 
@@ -264,7 +256,7 @@ contains
 
     idx_sub = idx_sum
     do i = 1, size(this%g)
-      call this%g(i)%p%get_idx_bnd(idx_type, idx_dir, idx_bnd)
+      call this%g(i)%get_idx_bnd(idx_type, idx_dir, idx_bnd)
       if (idx_sub(1) <= idx_bnd(1)) exit
       idx_sub = idx_sub - idx_bnd
     end do
@@ -286,11 +278,11 @@ contains
 
     integer :: j, idx_bnd(this%idx_dim)
 
-    ASSERT(this%g(i)%p%idx_allowed(idx_type, idx_dir, idx=idx_sub))
+    ASSERT(this%g(i)%idx_allowed(idx_type, idx_dir, idx=idx_sub))
 
     idx_sum = idx_sub
     do j = 1, i-1
-      call this%g(j)%p%get_idx_bnd(idx_type, idx_dir, idx_bnd)
+      call this%g(j)%get_idx_bnd(idx_type, idx_dir, idx_bnd)
       idx_sum = idx_sub + idx_bnd
     end do
   end function
