@@ -42,23 +42,27 @@ contains
       call this%idx2flat%init(this%g, this%idx_type, this%idx_dir)
 
       ! collect indices for which flag is set
-      idx = 1
-      i   = 0
-      do while (idx(idx_dim) <= idx_bnd(idx_dim))
-        if (this%flags%get(idx)) then
-          i = i + 1
-          this%flat2idx(:,i) = idx
-          call this%idx2flat%set(idx, i)
-        end if
+      if (idx_dim == 0) then
+        call this%idx2flat%set(idx, 1)
+      else
+        idx = 1
+        i   = 0
+        do while (idx(idx_dim) <= idx_bnd(idx_dim))
+          if (this%flags%get(idx)) then
+            i = i + 1
+            this%flat2idx(:,i) = idx
+            call this%idx2flat%set(idx, i)
+          end if
 
-        ! go to next index
-        idx(1) = idx(1) + 1
-        do j = 1, idx_dim-1
-          if (idx(j) <= idx_bnd(j)) exit
-          idx(j  ) = 1
-          idx(j+1) = idx(j+1) + 1
+          ! go to next index
+          idx(1) = idx(1) + 1
+          do j = 1, idx_dim-1
+            if (idx(j) <= idx_bnd(j)) exit
+            idx(j  ) = 1
+            idx(j+1) = idx(j+1) + 1
+          end do
         end do
-      end do
+      end if
     end associate
   end subroutine
 

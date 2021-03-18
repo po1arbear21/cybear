@@ -3,7 +3,7 @@
 module tensor_grid_m
 
   use error_m
-  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr, grid_data_int, &
+  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr, grid_data_int, &
     &                 grid_data1_int, grid_data2_int, grid_data3_int, grid_data4_int, &
     &                 grid_data5_int, grid_data6_int, grid_data7_int, grid_data8_int
   use vector_m, only: vector_int
@@ -68,7 +68,7 @@ contains
       j0 = j1 + 1
       j1 = j1 + g(i)%p%idx_dim
       do j = j0, j1
-        face_dim(j) = g(i)%p%face_dim(j)
+        face_dim(j) = g(i)%p%face_dim(j-j0+1)
         do k = 1, size(g)
           if (k == i) cycle
           face_dim(j) = face_dim(j) * g(k)%p%cell_dim
@@ -91,6 +91,8 @@ contains
     ! init neighbour data
     call this%init_neighb()
 
+    ! init tables
+    call this%init_tab_all()
   end subroutine
 
   subroutine tensor_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
@@ -105,8 +107,7 @@ contains
 
     integer :: i, j0, j1, rdir
 
-    ASSERT((((idx_type == IDX_VERTEX) .or. (idx_type == IDX_CELL)) .and. (idx_dir == 0)) \
-      .or. (((idx_type == IDX_EDGE) .or. (idx_type == IDX_FACE)) .and. ((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))))
+    ASSERT(this%idx_allowed(idx_type, idx_dir))
     ASSERT(size(idx_bnd) == this%idx_dim)
 
     j1 = 0
@@ -141,8 +142,8 @@ contains
 
     integer :: i, i0, i1, j0, j1
 
-    ASSERT(size(idx) == this%idx_dim)
-    ASSERT(size(p  ) == this%dim    )
+    ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
+    ASSERT(size(p) == this%dim)
 
     i1 = 0
     j1 = 0
@@ -167,9 +168,8 @@ contains
 
     integer :: i, i0, i1, j0, j1, rdir
 
-    ASSERT(size(idx) == this%idx_dim)
-    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
-    ASSERT(size(p  ) == this%dim    )
+    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    ASSERT(all(shape(p) == [this%dim, 2]))
 
     i1 = 0
     j1 = 0
@@ -205,10 +205,8 @@ contains
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1, rdir
     real    :: tmp(this%dim,this%face_dim(idx_dir))
 
-    ASSERT(size(idx) == this%idx_dim)
-    ASSERT((idx_dir >= 1) .and. (idx_dir <= this%idx_dim))
-    ASSERT(size(p,1) == this%dim)
-    ASSERT(size(p,2) == this%face_dim(idx_dir))
+    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
     ! tensor product point counter
     c = 1
@@ -260,9 +258,8 @@ contains
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1
     real    :: tmp(this%dim,this%cell_dim)
 
-    ASSERT(size(idx) == this%idx_dim)
-    ASSERT(size(p,1) == this%dim)
-    ASSERT(size(p,2) == this%cell_dim)
+    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
 
     ! tensor product point counter
     c = 1
@@ -319,7 +316,7 @@ contains
 
       ! get edge length
       if ((rdir >= 1) .and. (rdir <= this%g(i)%p%idx_dim)) then
-        len = this%g(i)%p%get_len(idx, rdir)
+        len = this%g(i)%p%get_len(idx(j0:j1), rdir)
         return
       end if
     end do
@@ -392,15 +389,18 @@ contains
     integer                        :: max_neighb
       !! return maximal number of nearest neighbours
 
+    ASSERT(this%idx_allowed(idx1_type, idx1_dir))
+    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+
     max_neighb = this%max_neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)
   end function
 
   subroutine tensor_grid_get_neighb(this, idx1_type, idx1_dir, idx2_type, idx2_dir, idx1, j, idx2, status)
-      !! get j-th neighbour.
-      !!
-      !! j: we count neighbors from 1,2,...,N.
-      !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
-      !! status: indicates if j-th neighbor exists
+    !! get j-th neighbour.
+    !!
+    !! j: we count neighbors from 1,2,...,N.
+    !! N: depends on idx1 (e.g. boundary nodes might have fewer neighbors).
+    !! status: indicates if j-th neighbor exists
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx1_type
       !! first index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
@@ -420,6 +420,10 @@ contains
       !! does j-th neighbor exist?
 
     integer :: i0, i1, i
+
+    ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
+    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+    ASSERT(size(idx2) == this%idx_dim)
 
     ! lookup neighbour index
     i0 = this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%get(idx1)
@@ -442,7 +446,7 @@ contains
     !! init neighbour data
     class(tensor_grid), intent(inout) :: this
 
-    integer, parameter :: ADDOP = 1, MULOP = 2, SELOP = 3
+    integer, parameter :: ADDOP = 1, MULOP = 2, SELOP = 3, MULSELOP = 4
     integer, parameter :: OP_TABLE(4,4) = reshape([ADDOP, SELOP, MULOP, MULOP, &
       &                                            SELOP, ADDOP, MULOP, MULOP, &
       &                                            MULOP, MULOP, ADDOP, SELOP, &
@@ -497,6 +501,7 @@ contains
 
             ! get operation (how to combine neighbours from sub-grids)
             op = OP_TABLE(idx1_type, idx2_type)
+            if ((idx1_type == idx2_type) .and. (idx1_dir /= idx2_dir)) op = MULSELOP
 
             ! loop over all grid indices
             call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
@@ -537,26 +542,32 @@ contains
 
                   ! selection operation: done, remaining sub-grids will not be selected and can be skipped
                   if (op == SELOP) exit
-                else ! MULOP: tensor product of neighbours from all sub-grids
+                else ! MULOP, MULSELOP: tensor product of neighbours from all sub-grids
                   do k = j0, j1
                     call idx2_mul(i,k)%reset()
                   end do
-                  do j = 1, max_neighb
-                    call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
-                    if (.not. status) exit
-
-                    ! save neighbours temporarily
+                  if ((op == MULSELOP) .and. (.not. select1 .and. .not. select2)) then
                     do k = j0, j1
-                      call idx2_mul(i,k)%push(idx2(k))
+                      call idx2_mul(i,k)%push(idx1(k))
                     end do
-                  end do
+                  else
+                    do j = 1, max_neighb
+                      call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
+                      if (.not. status) exit
+
+                      ! save neighbours temporarily
+                      do k = j0, j1
+                        call idx2_mul(i,k)%push(idx2(k))
+                      end do
+                    end do
+                  end if
 
                   ! number of neighbours for i-th sub-grid
                   idx2_mul_n(i) = idx2_mul(i,j0)%n
                 end if
               end do
 
-              if (op == MULOP) then
+              if ((op == MULOP) .or. (op == MULSELOP)) then
                 ! perform tensor product
                 imul = 1 ! select first combination
                 do while (imul(size(this%g)) <= idx2_mul_n(size(this%g)))
@@ -579,7 +590,7 @@ contains
                   ! select next combination
                   imul(1) = imul(1) + 1
                   do i = 1, size(this%g) - 1
-                    if (imul(1) <= idx2_mul_n(i)) exit
+                    if (imul(i) <= idx2_mul_n(i)) exit
                     imul(i  ) = 1
                     imul(i+1) = imul(i+1) + 1
                   end do

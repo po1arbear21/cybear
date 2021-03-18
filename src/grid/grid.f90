@@ -7,7 +7,7 @@ module grid_m
   implicit none
 
   private
-  public IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  public IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   public grid, grid_ptr
   public allocate_grid_data
   public grid_table, grid_table_ptr
@@ -37,8 +37,9 @@ module grid_m
       !! select all grid indices (idx_type, idx_dir)
   contains
     procedure                                :: grid_init
-    procedure                                :: get_ptr     => grid_get_ptr
-    procedure                                :: idx_allowed => grid_idx_allowed
+    procedure                                :: init_tab_all => grid_init_tab_all
+    procedure                                :: get_ptr      => grid_get_ptr
+    procedure                                :: idx_allowed  => grid_idx_allowed
     procedure(grid_get_idx_bnd),    deferred :: get_idx_bnd
     procedure(grid_get_vertex),     deferred :: get_vertex
     procedure(grid_get_edge),       deferred :: get_edge
@@ -273,23 +274,21 @@ module grid_m
   end interface
 
 contains
+
   subroutine grid_init(this, dim, idx_dim, face_dim, cell_dim)
     !! initialize grid
-    class(grid), intent(out) :: this
-    integer,     intent(in)  :: dim
+    class(grid),       intent(out) :: this
+    integer,           intent(in)  :: dim
       !! grid dimension = number of coordinates per point
-    integer,     intent(in)  :: idx_dim
+    integer,           intent(in)  :: idx_dim
       !! index dimension = number of indices per point
-    integer,     intent(in)  :: face_dim(:)
+    integer,           intent(in)  :: face_dim(:)
       !! number of points per face depending on direction (idx_dim)
-    integer,     intent(in)  :: cell_dim
+    integer,           intent(in)  :: cell_dim
       !! number of points per cell
 
-    integer       :: idx_type, idx_dir, idir0(4), idir1(4)
-    character(32) :: name
-
-    ASSERT(          dim  >  0      )
-    ASSERT(      idx_dim  >  0      )
+    ASSERT(          dim  >= 0      )
+    ASSERT(      idx_dim  >= 0      )
     ASSERT(size(face_dim) == idx_dim)
     ASSERT(all( face_dim  >= 0)     )
     ASSERT(     cell_dim  >= 0      )
@@ -298,11 +297,19 @@ contains
     this%idx_dim  =  idx_dim
     this%face_dim = face_dim
     this%cell_dim = cell_dim
+  end subroutine
+
+  subroutine grid_init_tab_all(this)
+    !! initialize this%tab_all
+    class(grid), intent(inout) :: this
+
+    integer       :: idx_type, idx_dir, idir0(4), idir1(4)
+    character(32) :: name
 
     ! initialize tables
-    allocate (this%tab_all(4,0:idx_dim))
+    allocate (this%tab_all(4,0:this%idx_dim))
     idir0 = [0,       1,       1, 0]
-    idir1 = [0, idx_dim, idx_dim, 0]
+    idir1 = [0, this%idx_dim, this%idx_dim, 0]
     do idx_type = 1, 4
       do idx_dir = idir0(idx_type), idir1(idx_type)
         if (idx_dir > 0) then
@@ -355,4 +362,5 @@ contains
       allowed = allowed .and. all(idx <= idx_bnd)
     end if
   end function
+
 end module

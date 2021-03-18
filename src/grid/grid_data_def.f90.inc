@@ -6,6 +6,7 @@
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
 #define GRID_DATA_TYPE         CONCAT(grid_data,T)
+#define GRID_DATA0_TYPE        CONCAT(grid_data0,T)
 #define GRID_DATA1_TYPE        CONCAT(grid_data1,T)
 #define GRID_DATA2_TYPE        CONCAT(grid_data2,T)
 #define GRID_DATA3_TYPE        CONCAT(grid_data3,T)
@@ -17,6 +18,7 @@
 
 #define GRID_DATA_INIT         CONCAT3(grid_data,T,init)
 #define GRID_DATA_DESTRUCT     CONCAT3(grid_data,T,destruct)
+#define GRID_DATA_GET_PTR0     CONCAT3(grid_data,T,get_ptr0)
 #define GRID_DATA_GET_PTR1     CONCAT3(grid_data,T,get_ptr1)
 #define GRID_DATA_GET_PTR2     CONCAT3(grid_data,T,get_ptr2)
 #define GRID_DATA_GET_PTR3     CONCAT3(grid_data,T,get_ptr3)
@@ -34,7 +36,7 @@
 
 #define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
 
-public GRID_DATA_TYPE, GRID_DATA1_TYPE, GRID_DATA2_TYPE, GRID_DATA3_TYPE, GRID_DATA4_TYPE, GRID_DATA5_TYPE, GRID_DATA6_TYPE, GRID_DATA7_TYPE, GRID_DATA8_TYPE
+public GRID_DATA_TYPE, GRID_DATA0_TYPE, GRID_DATA1_TYPE, GRID_DATA2_TYPE, GRID_DATA3_TYPE, GRID_DATA4_TYPE, GRID_DATA5_TYPE, GRID_DATA6_TYPE, GRID_DATA7_TYPE, GRID_DATA8_TYPE
 
 type, abstract :: GRID_DATA_TYPE
   !! grid based array with bounds check
@@ -46,6 +48,7 @@ contains
   procedure :: init     => GRID_DATA_INIT
   procedure :: destruct => GRID_DATA_DESTRUCT
 
+  procedure :: get_ptr0 => GRID_DATA_GET_PTR0
   procedure :: get_ptr1 => GRID_DATA_GET_PTR1
   procedure :: get_ptr2 => GRID_DATA_GET_PTR2
   procedure :: get_ptr3 => GRID_DATA_GET_PTR3
@@ -68,6 +71,11 @@ contains
   procedure :: GRID_DATA_UPDATE_ALL
   generic   :: update => GRID_DATA_UPDATE_POINT, GRID_DATA_UPDATE_ALL
 #endif
+end type
+
+type, extends(GRID_DATA_TYPE) :: GRID_DATA0_TYPE
+  TT :: data
+    !! 0D data
 end type
 
 type, extends(GRID_DATA_TYPE) :: GRID_DATA1_TYPE
@@ -129,6 +137,11 @@ interface
   module subroutine GRID_DATA_DESTRUCT(this)
     class(GRID_DATA_TYPE), intent(inout) :: this
   end subroutine
+
+  module function GRID_DATA_GET_PTR0(this) result(p)
+    class(GRID_DATA_TYPE), target, intent(in) :: this
+    type(GRID_DATA0_TYPE), pointer            :: p
+  end function
 
   module function GRID_DATA_GET_PTR1(this) result(p)
     class(GRID_DATA_TYPE), target, intent(in) :: this
@@ -218,6 +231,7 @@ end interface
 #undef CONCAT3
 
 #undef GRID_DATA_TYPE
+#undef GRID_DATA0_TYPE
 #undef GRID_DATA1_TYPE
 #undef GRID_DATA2_TYPE
 #undef GRID_DATA3_TYPE
@@ -229,6 +243,7 @@ end interface
 
 #undef GRID_DATA_INIT
 #undef GRID_DATA_DESTRUCT
+#undef GRID_DATA_GET_PTR0
 #undef GRID_DATA_GET_PTR1
 #undef GRID_DATA_GET_PTR2
 #undef GRID_DATA_GET_PTR3

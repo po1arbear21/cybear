@@ -40,6 +40,9 @@ contains
 
     ! save sub-grid pointers
     this%g => g
+
+    ! init tables
+    call this%init_tab_all()
   end subroutine
 
   subroutine sum_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)

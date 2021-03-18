@@ -6,6 +6,7 @@
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
 #define GRID_DATA_TYPE         CONCAT(grid_data,T)
+#define GRID_DATA0_TYPE        CONCAT(grid_data0,T)
 #define GRID_DATA1_TYPE        CONCAT(grid_data1,T)
 #define GRID_DATA2_TYPE        CONCAT(grid_data2,T)
 #define GRID_DATA3_TYPE        CONCAT(grid_data3,T)
@@ -17,6 +18,7 @@
 
 #define GRID_DATA_INIT         CONCAT3(grid_data,T,init)
 #define GRID_DATA_DESTRUCT     CONCAT3(grid_data,T,destruct)
+#define GRID_DATA_GET_PTR0     CONCAT3(grid_data,T,get_ptr0)
 #define GRID_DATA_GET_PTR1     CONCAT3(grid_data,T,get_ptr1)
 #define GRID_DATA_GET_PTR2     CONCAT3(grid_data,T,get_ptr2)
 #define GRID_DATA_GET_PTR3     CONCAT3(grid_data,T,get_ptr3)
@@ -41,6 +43,8 @@ subroutine ALLOCATE_GRID_DATA(gdata, dim)
     !! grid data dimension
 
   select case (dim)
+    case (0)
+      allocate (GRID_DATA0_TYPE :: gdata)
     case (1)
       allocate (GRID_DATA1_TYPE :: gdata)
     case (2)
@@ -58,7 +62,7 @@ subroutine ALLOCATE_GRID_DATA(gdata, dim)
     case (8)
       allocate (GRID_DATA8_TYPE :: gdata)
     case default
-      call program_error("grid data dimension must be in range 1:8")
+      call program_error("grid data dimension must be in range 0:8")
   end select
 end subroutine
 
@@ -80,7 +84,7 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
   call g%get_idx_bnd(idx_type, idx_dir, this%idx_bnd)
 
   ! set total number of values
-  this%n = product(this%idx_bnd)
+  this%n = product(this%idx_bnd) ! = 1 for idx_dim == 0
 
   ! get initial value
   if (present(d0)) then
@@ -95,6 +99,8 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
 
   ! allocate data array
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      this%data = d0_
     type is (GRID_DATA1_TYPE)
       allocate (this%data(this%idx_bnd(1)), source = d0_)
     type is (GRID_DATA2_TYPE)
@@ -166,6 +172,18 @@ subroutine GRID_DATA_DESTRUCT(this)
       if (allocated(this%data)) deallocate (this%data)
   end select
 end subroutine
+
+function GRID_DATA_GET_PTR0(this) result(p)
+  class(GRID_DATA_TYPE), target, intent(in) :: this
+  type(GRID_DATA0_TYPE), pointer            :: p
+
+  select type (this)
+    type is (GRID_DATA0_TYPE)
+      p => this
+    class default
+      p => null()
+  end select
+end function
 
 function GRID_DATA_GET_PTR1(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
@@ -283,6 +301,8 @@ function GRID_DATA_GET_POINT(this, idx) result(d)
 
   ! get data
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      d = this%data
     type is (GRID_DATA1_TYPE)
       d = this%data(idx(1))
     type is (GRID_DATA2_TYPE)
@@ -309,6 +329,8 @@ function GRID_DATA_GET_ALL(this) result(d)
     !! return all data
 
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      d = this%data
     type is (GRID_DATA1_TYPE)
       d = this%data
     type is (GRID_DATA2_TYPE)
@@ -341,6 +363,8 @@ subroutine GRID_DATA_SET_POINT(this, idx, d)
 
   ! set data
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      this%data = d
     type is (GRID_DATA1_TYPE)
       this%data(idx(1)) = d
     type is (GRID_DATA2_TYPE)
@@ -370,6 +394,8 @@ subroutine GRID_DATA_SET_ALL(this, d)
 
   ! set data
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      this%data = d(1)
     type is (GRID_DATA1_TYPE)
       this%data = d
     type is (GRID_DATA2_TYPE)
@@ -403,6 +429,8 @@ subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
 
   ! set data
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      this%data = this%data + d
     type is (GRID_DATA1_TYPE)
       this%data(idx(1)) = &
         & this%data(idx(1)) + d
@@ -440,6 +468,8 @@ subroutine GRID_DATA_UPDATE_ALL(this, d)
 
   ! set data
   select type (this)
+    type is (GRID_DATA0_TYPE)
+      this%data = this%data + d(1)
     type is (GRID_DATA1_TYPE)
       this%data = this%data + d
     type is (GRID_DATA2_TYPE)
@@ -472,6 +502,7 @@ end subroutine
 #undef CONCAT3
 
 #undef GRID_DATA_TYPE
+#undef GRID_DATA0_TYPE
 #undef GRID_DATA1_TYPE
 #undef GRID_DATA2_TYPE
 #undef GRID_DATA3_TYPE
@@ -483,6 +514,7 @@ end subroutine
 
 #undef GRID_DATA_INIT
 #undef GRID_DATA_DESTRUCT
+#undef GRID_DATA_GET_PTR0
 #undef GRID_DATA_GET_PTR1
 #undef GRID_DATA_GET_PTR2
 #undef GRID_DATA_GET_PTR3

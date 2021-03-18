@@ -39,6 +39,9 @@ contains
 
     ! save grid points
     this%x = x
+
+    ! init tables
+    call this%init_tab_all()
   end subroutine
 
   subroutine grid1D_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
@@ -111,7 +114,7 @@ contains
       !! output: face's coordinates. size: (dim=1, face_dim(idx_dir)=1)
 
     ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%face_dim]))
+    ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
     p(1,1) = this%x(idx(1))
   end subroutine
@@ -236,7 +239,7 @@ contains
 
     ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
-    ASSERT(size(idx2) == 1)
+    ASSERT(size(idx2) == this%idx_dim)
 
     idx2  = 0
     shift = 0

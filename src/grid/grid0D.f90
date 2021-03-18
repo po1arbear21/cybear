@@ -32,8 +32,13 @@ contains
     !! initialize 0D pseudo grid
     class(grid0D), intent(out) :: this
 
+    integer :: face_dim(0)
+
     ! init base
-    call this%grid_init(1, 1, [0], 0)
+    call this%grid_init(0, 0, face_dim, 0)
+
+    ! init tables
+    call this%init_tab_all()
   end subroutine
 
   subroutine grid0D_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
@@ -46,15 +51,13 @@ contains
     integer,       intent(out) :: idx_bnd(:)
       !! output upper bound for each index (1)
 
-    ASSERT(idx_type      == IDX_VERTEX)
-    ASSERT(idx_dir       == 0         )
-    ASSERT(size(idx_bnd) == 1         )
+    ASSERT(idx_dir       == 0)
+    ASSERT(size(idx_bnd) == 0)
 
     IGNORE(this    )
     IGNORE(idx_type)
     IGNORE(idx_dir )
-
-    idx_bnd(1) = 1
+    IGNORE(idx_bnd )
   end subroutine
 
   subroutine grid0D_get_vertex(this, idx, p)
@@ -65,14 +68,12 @@ contains
     real,          intent(out) :: p(:)
       !! output vertex coordinates (dim)
 
-    ASSERT(size(idx) == 1)
-    ASSERT(idx(1)    == 1)
-    ASSERT(size(p  ) == 1)
+    ASSERT(size(idx) == 0)
+    ASSERT(size(  p) == 0)
 
     IGNORE(this)
     IGNORE(idx )
-
-    p(1) = 0
+    IGNORE(p   )
   end subroutine
 
   subroutine grid0D_get_edge(this, idx, idx_dir, p)
@@ -85,12 +86,13 @@ contains
     real,          intent(out) :: p(:,:)
       !! output edge coordinates (dim x 2)
 
+    ASSERT(size(idx) == 0)
+    ASSERT(size(p,1) == 0)
+
     IGNORE(this   )
     IGNORE(idx    )
     IGNORE(idx_dir)
     IGNORE(p      )
-
-    call program_error("0D Grid does not have edges")
   end subroutine
 
   subroutine grid0D_get_face(this, idx, idx_dir, p)
@@ -103,12 +105,13 @@ contains
     real,          intent(out) :: p(:,:)
       !! output face coordinates (dim x face_dim(idx_dir))
 
+    ASSERT(size(idx) == 0)
+    ASSERT(size(p,1) == 0)
+
     IGNORE(this   )
     IGNORE(idx    )
     IGNORE(idx_dir)
     IGNORE(p      )
-
-    call program_error("0D Grid does not have faces")
   end subroutine
 
   subroutine grid0D_get_cell(this, idx, p)
@@ -119,11 +122,12 @@ contains
     real,          intent(out) :: p(:,:)
       !! output cell coordinates (dim x cell_dim)
 
+    ASSERT(size(idx) == 0)
+    ASSERT(size(p,1) == 0)
+
     IGNORE(this)
     IGNORE(idx )
     IGNORE(p   )
-
-    call program_error("0D Grid does not have cells")
   end subroutine
 
   function grid0D_get_len(this, idx, idx_dir) result(len)
@@ -136,11 +140,12 @@ contains
     real                      :: len
       !! return edge length
 
+    ASSERT(size(idx) == 0)
+    ASSERT(idx_dir   == 0)
+
     IGNORE(this)
     IGNORE(idx)
     IGNORE(idx_dir)
-
-    call program_error("0D Grid does not have edges")
 
     len = 0
   end function
@@ -155,11 +160,12 @@ contains
     real                      :: surf
       !! return size of face
 
+    ASSERT(size(idx) == 0)
+    ASSERT(idx_dir   == 0)
+
     IGNORE(this)
     IGNORE(idx)
     IGNORE(idx_dir)
-
-    call program_error("0D Grid does not have faces")
 
     surf = 0
   end function
@@ -172,10 +178,10 @@ contains
     real                      :: vol
       !! return cell volume
 
+    ASSERT(size(idx) == 0)
+
     IGNORE(this)
     IGNORE(idx )
-
-    call program_error("0D Grid does not have cells")
 
     vol = 0
   end function
@@ -193,6 +199,9 @@ contains
       !! neighbour index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer                   :: max_neighb
       !! return maximal number of nearest neighbours
+
+    ASSERT(idx1_dir == 0)
+    ASSERT(idx2_dir == 0)
 
     IGNORE(this     )
     IGNORE(idx1_type)
@@ -223,15 +232,20 @@ contains
     logical,       intent(out) :: status
       !! does j-th neighb exist?
 
+    ASSERT(idx1_dir   == 0)
+    ASSERT(idx2_dir   == 0)
+    ASSERT(size(idx1) == 0)
+    ASSERT(size(idx2) == 0)
+
     IGNORE(this     )
     IGNORE(idx1_type)
     IGNORE(idx1_dir )
     IGNORE(idx2_type)
     IGNORE(idx2_dir )
     IGNORE(idx1     )
+    IGNORE(j        )
 
-    idx2   = 0
-    status = (j == 0)
+    status = .false.
   end subroutine
 
 end module

@@ -190,6 +190,9 @@ contains
       this%max_neighb(IDX_FACE,:) = this%max_neighb(IDX_EDGE,:)
     end block
 
+    ! init tables
+    call this%init_tab_all()
+
   contains
     logical function edge_exists(edge, iv0)
       type(vector_int), intent(in) :: edge

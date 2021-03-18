@@ -3,31 +3,66 @@
 module test_grid_m
   use test_case_m,   only: test_case
   use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
   use math_m,        only: logspace
   use qsort_m,       only: qsort
   use triang_grid_m, only: triang_grid
+  use tensor_grid_m, only: tensor_grid
   use util_m,        only: int2str
 
   ! no tests implemented but used s.t. modules get compiled at all
   use sum_grid_m
-  use tensor_grid_m
 
   implicit none
 
   private
   public test_grid
+
 contains
+
   subroutine test_grid()
     type(test_case) :: tc
 
     call tc%init("grid")
 
+    call test_grid0D()
     call test_grid1D()
     call test_triang_grid()
+    call test_tensor_grid()
 
     call tc%finish()
+
   contains
+
+    subroutine test_grid0D()
+      type(grid0D) :: g
+      integer      :: bnd(0), idx1(0), idx2(0)
+      logical      :: status
+      real         :: p(0)
+
+      call g%init()
+
+      ! testing attributes
+      call tc%assert_eq(0,      g%dim,       "grid0D: dim")
+      call tc%assert_eq(0,      g%idx_dim,   "grid0D: idx_dim")
+      call tc%assert_eq(0, size(g%face_dim), "grid0D: face_dim")
+      call tc%assert_eq(0,      g%cell_dim,  "grid0D: cell_dim")
+
+      ! get_idx_bnd
+      call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
+
+      ! get_vertex
+      call g%get_vertex(idx1, p)
+
+      ! get_max_neighb
+      call tc%assert_eq(0, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "grid0D: get_max_neighb")
+
+      ! get_neighb
+      call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, 1, idx2, status)
+      call tc%assert(.not. status, "grid0D: get_neighb")
+    end subroutine
+
     subroutine test_grid1D()
       integer, parameter :: nx=101
       type(grid1D)       :: g
@@ -38,14 +73,14 @@ contains
 
       call g%init(x)
 
-      ! testing attributes
+      ! check attributes
       call tc%assert_eq( 1,  g%dim,      "grid1D: dim")
       call tc%assert_eq( 1,  g%idx_dim,  "grid1D: idx_dim")
       call tc%assert_eq([1], g%face_dim, "grid1D: face_dim")
       call tc%assert_eq( 2,  g%cell_dim, "grid1D: cell_dim")
       call tc%assert_eq( x,  g%x, 0.0,   "grid1D: x")
 
-      ! testing get_idx_bnd
+      ! get_idx_bnd
       block
         integer :: bnd(1)
 
@@ -127,6 +162,19 @@ contains
         end do
       end block
 
+      ! get_surf
+      block
+        integer, parameter :: i_arr(4) = [1, 5, 43, nx]
+        integer            :: i, i0
+        real               :: surf
+
+        do i = 1, size(i_arr)
+          i0  = i_arr(i)
+          surf = g%get_surf([i0], 1)
+          call tc%assert_eq(1.0, surf, 0.0, "grid1D: get_surf "//int2str(i0))
+        end do
+      end block
+
       ! get_vol
       block
         integer, parameter :: i_arr(4) = [1, 5, 43, nx-1]
@@ -145,11 +193,17 @@ contains
       call tc%assert_eq(2, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "grid1D: get_max_neighb V E")
       call tc%assert_eq(1, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "grid1D: get_max_neighb V F")
       call tc%assert_eq(2, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "grid1D: get_max_neighb V C")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "grid1D: get_max_neighb E V")
       call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "grid1D: get_max_neighb E E")
       call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "grid1D: get_max_neighb E F")
       call tc%assert_eq(1, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "grid1D: get_max_neighb E C")
+      call tc%assert_eq(1, g%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "grid1D: get_max_neighb F V")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "grid1D: get_max_neighb F E")
       call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "grid1D: get_max_neighb F F")
       call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "grid1D: get_max_neighb F C")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "grid1D: get_max_neighb C V")
+      call tc%assert_eq(1, g%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   1), "grid1D: get_max_neighb C E")
+      call tc%assert_eq(2, g%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "grid1D: get_max_neighb C F")
       call tc%assert_eq(2, g%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "grid1D: get_max_neighb C C")
 
       ! get_neighb
@@ -567,6 +621,199 @@ contains
         ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C C nidx2 "//int2str(idx1(1)))
         ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C C  idx2 "//int2str(idx1(1)))
       end block
+    end subroutine
+
+    subroutine test_tensor_grid()
+      integer, parameter :: nx=31, ny=21, nz=11
+      real, allocatable  :: x(:), y(:), z(:)
+      type(grid1D)       :: gx, gy, gz
+      type(tensor_grid)  :: tg
+
+      ! initialize 1D grids
+      allocate (x(nx), y(ny), z(nz))  ! remove gfortran warning
+      x = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
+      y = logspace(2.0,  5.0, ny)
+      z = logspace(3.0, 20.0, nz)
+      call gx%init(x)
+      call gy%init(y)
+      call gz%init(z)
+
+      ! initialize tensor grid
+      call tg%init([gx%get_ptr(), gy%get_ptr(), gz%get_ptr()])
+
+      ! check attributes
+      call tc%assert_eq(      3, tg%dim,      "tensor_grid: dim")
+      call tc%assert_eq(      3, tg%idx_dim,  "tensor_grid: idx_dim")
+      call tc%assert_eq([4,4,4], tg%face_dim, "tensor_grid: face_dim")
+      call tc%assert_eq(      8, tg%cell_dim, "tensor_grid: cell_dim")
+
+      ! get_idx_bnd
+      block
+        integer :: bnd(3)
+
+        call tg%get_idx_bnd(IDX_VERTEX, 0, bnd)
+        call tc%assert_eq([nx, ny, nz], bnd, "tensor_grid: idx_bnd: IDX_VERTEX")
+
+        call tg%get_idx_bnd(IDX_EDGE, 1, bnd)
+        call tc%assert_eq([nx-1, ny, nz], bnd, "tensor_grid: idx_bnd: IDX_EDGE X")
+        call tg%get_idx_bnd(IDX_EDGE, 2, bnd)
+        call tc%assert_eq([nx, ny-1, nz], bnd, "tensor_grid: idx_bnd: IDX_EDGE Y")
+        call tg%get_idx_bnd(IDX_EDGE, 3, bnd)
+        call tc%assert_eq([nx, ny, nz-1], bnd, "tensor_grid: idx_bnd: IDX_EDGE Z")
+
+        call tg%get_idx_bnd(IDX_FACE, 1, bnd)
+        call tc%assert_eq([nx, ny-1, nz-1], bnd, "tensor_grid: idx_bnd: IDX_FACE X")
+        call tg%get_idx_bnd(IDX_FACE, 2, bnd)
+        call tc%assert_eq([nx-1, ny, nz-1], bnd, "tensor_grid: idx_bnd: IDX_FACE Y")
+        call tg%get_idx_bnd(IDX_FACE, 3, bnd)
+        call tc%assert_eq([nx-1, ny-1, nz], bnd, "tensor_grid: idx_bnd: IDX_FACE Z")
+
+        call tg%get_idx_bnd(IDX_CELL, 0, bnd)
+        call tc%assert_eq([nx-1, ny-1, nz-1], bnd, "tensor_grid: idx_bnd: IDX_CELL")
+      end block
+
+      ! get_vertex
+      block
+        integer, parameter :: ix(4) = [1,  5, 7, nx]
+        integer, parameter :: iy(4) = [1, ny, 2, ny]
+        integer, parameter :: iz(4) = [1,  1, 2, nz]
+        integer            :: i, idx(3)
+        real               :: p(3)
+
+        do i = 1, size(ix)
+          idx = [ix(i), iy(i), iz(i)]
+          call tg%get_vertex(idx, p)
+          call tc%assert_eq([x(ix(i)), y(iy(i)), z(iz(i))], p, 0.0, "tensor_grid: get_vertex "//int2str(i))
+        end do
+      end block
+
+      ! get_edge, get_len
+      block
+        integer, parameter :: ix(4) = [1,    5, 7, nx  ]
+        integer, parameter :: iy(4) = [1, ny-1, 2, ny-1]
+        integer, parameter :: iz(4) = [1,    1, 2, nz  ]
+        integer            :: i, idx(3)
+        real               :: p(3,2), len
+
+        do i = 1, size(ix)
+          idx = [ix(i), iy(i), iz(i)]
+          call tg%get_edge(idx, 2, p) ! get y edge
+          call tc%assert_eq([x(ix(i)), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, "tensor_grid: get_edge "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)), y(iy(i)+1), z(iz(i))], p(:,2), 0.0, "tensor_grid: get_edge "//int2str(i)//" B")
+          len = tg%get_len(idx, 2)
+          call tc%assert_eq(y(iy(i)+1)-y(iy(i)), len, 5e-16, "tensor_grid: get_len "//int2str(i))
+        end do
+      end block
+
+      ! get_face, get_surf
+      block
+        integer, parameter :: ix(4) = [1,    5, 7, nx-1]
+        integer, parameter :: iy(4) = [1, ny-1, 2, ny-1]
+        integer, parameter :: iz(4) = [1,    1, 2, nz  ]
+        integer            :: i, idx(3)
+        real               :: p(3,4), surf
+
+        do i = 1, size(ix)
+          idx = [ix(i), iy(i), iz(i)]
+          call tg%get_face(idx, 3, p) ! get z face
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, "tensor_grid: get_face "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i))], p(:,2), 0.0, "tensor_grid: get_face "//int2str(i)//" B")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i))], p(:,3), 0.0, "tensor_grid: get_face "//int2str(i)//" C")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i))], p(:,4), 0.0, "tensor_grid: get_face "//int2str(i)//" D")
+          surf = tg%get_surf(idx, 3)
+          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i))), surf, 5e-16, "tensor_grid: get_surf "//int2str(i))
+        end do
+      end block
+
+      ! get cell, get_vol
+      block
+        integer, parameter :: ix(4) = [1,    5, 7, nx-1]
+        integer, parameter :: iy(4) = [1, ny-1, 2, ny-1]
+        integer, parameter :: iz(4) = [1,    1, 2, nz-1]
+        integer            :: i, idx(3)
+        real               :: p(3,8), vol
+
+        do i = 1, size(ix)
+          idx = [ix(i), iy(i), iz(i)]
+          call tg%get_cell(idx, p)
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)  )], p(:,1), 0.0, "tensor_grid: get_cell "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)  )], p(:,2), 0.0, "tensor_grid: get_cell "//int2str(i)//" B")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)  )], p(:,3), 0.0, "tensor_grid: get_cell "//int2str(i)//" C")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)  )], p(:,4), 0.0, "tensor_grid: get_cell "//int2str(i)//" D")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)+1)], p(:,5), 0.0, "tensor_grid: get_cell "//int2str(i)//" E")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)+1)], p(:,6), 0.0, "tensor_grid: get_cell "//int2str(i)//" F")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)+1)], p(:,7), 0.0, "tensor_grid: get_cell "//int2str(i)//" G")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)+1)], p(:,8), 0.0, "tensor_grid: get_cell "//int2str(i)//" H")
+          vol = tg%get_vol(idx)
+          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i)))*(z(iz(i)+1)-z(iz(i))), vol, 5e-16, "tensor_grid: get_vol "//int2str(i))
+        end do
+      end block
+
+      ! get_max_neighb
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "tensor_grid: get_max_neighb V V")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "tensor_grid: get_max_neighb V EX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   2), "tensor_grid: get_max_neighb V EY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   3), "tensor_grid: get_max_neighb V EZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "tensor_grid: get_max_neighb V FX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   2), "tensor_grid: get_max_neighb V FY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   3), "tensor_grid: get_max_neighb V FZ")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "tensor_grid: get_max_neighb V C")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "tensor_grid: get_max_neighb EX V")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   2, IDX_VERTEX, 0), "tensor_grid: get_max_neighb EY V")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   3, IDX_VERTEX, 0), "tensor_grid: get_max_neighb EZ V")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "tensor_grid: get_max_neighb EX EX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   2), "tensor_grid: get_max_neighb EX EY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   3), "tensor_grid: get_max_neighb EX EZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   2, IDX_EDGE,   1), "tensor_grid: get_max_neighb EY EX")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_EDGE,   2, IDX_EDGE,   2), "tensor_grid: get_max_neighb EY EY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   2, IDX_EDGE,   3), "tensor_grid: get_max_neighb EY EZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   3, IDX_EDGE,   1), "tensor_grid: get_max_neighb EZ EX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   3, IDX_EDGE,   2), "tensor_grid: get_max_neighb EZ EY")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_EDGE,   3, IDX_EDGE,   3), "tensor_grid: get_max_neighb EZ EZ")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "tensor_grid: get_max_neighb EX FX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   2), "tensor_grid: get_max_neighb EX FY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   3), "tensor_grid: get_max_neighb EX FZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   2, IDX_FACE,   1), "tensor_grid: get_max_neighb EY FX")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_EDGE,   2, IDX_FACE,   2), "tensor_grid: get_max_neighb EY FY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   2, IDX_FACE,   3), "tensor_grid: get_max_neighb EY FZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   3, IDX_FACE,   1), "tensor_grid: get_max_neighb EZ FX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_EDGE,   3, IDX_FACE,   2), "tensor_grid: get_max_neighb EZ FY")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_EDGE,   3, IDX_FACE,   3), "tensor_grid: get_max_neighb EZ FZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "tensor_grid: get_max_neighb EX C")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   2, IDX_CELL,   0), "tensor_grid: get_max_neighb EY C")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_EDGE,   3, IDX_CELL,   0), "tensor_grid: get_max_neighb EZ C")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "tensor_grid: get_max_neighb FX V")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   2, IDX_VERTEX, 0), "tensor_grid: get_max_neighb FY V")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   3, IDX_VERTEX, 0), "tensor_grid: get_max_neighb FZ V")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "tensor_grid: get_max_neighb FX EX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   2), "tensor_grid: get_max_neighb FX EY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   3), "tensor_grid: get_max_neighb FX EZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   2, IDX_EDGE,   1), "tensor_grid: get_max_neighb FY EX")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_FACE,   2, IDX_EDGE,   2), "tensor_grid: get_max_neighb FY EY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   2, IDX_EDGE,   3), "tensor_grid: get_max_neighb FY EZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   3, IDX_EDGE,   1), "tensor_grid: get_max_neighb FZ EX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   3, IDX_EDGE,   2), "tensor_grid: get_max_neighb FZ EY")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_FACE,   3, IDX_EDGE,   3), "tensor_grid: get_max_neighb FZ EZ")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "tensor_grid: get_max_neighb FX FX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   1, IDX_FACE,   2), "tensor_grid: get_max_neighb FX FY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   1, IDX_FACE,   3), "tensor_grid: get_max_neighb FX FZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   2, IDX_FACE,   1), "tensor_grid: get_max_neighb FY FX")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_FACE,   2, IDX_FACE,   2), "tensor_grid: get_max_neighb FY FY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   2, IDX_FACE,   3), "tensor_grid: get_max_neighb FY FZ")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   3, IDX_FACE,   1), "tensor_grid: get_max_neighb FZ FX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_FACE,   3, IDX_FACE,   2), "tensor_grid: get_max_neighb FZ FY")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_FACE,   3, IDX_FACE,   3), "tensor_grid: get_max_neighb FZ FZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "tensor_grid: get_max_neighb FX C")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   2, IDX_CELL,   0), "tensor_grid: get_max_neighb FY C")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_FACE,   3, IDX_CELL,   0), "tensor_grid: get_max_neighb FZ C")
+      call tc%assert_eq(8, tg%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "tensor_grid: get_max_neighb C V")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   1), "tensor_grid: get_max_neighb C EX")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   2), "tensor_grid: get_max_neighb C EY")
+      call tc%assert_eq(4, tg%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   3), "tensor_grid: get_max_neighb C EZ")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "tensor_grid: get_max_neighb C FX")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "tensor_grid: get_max_neighb C FY")
+      call tc%assert_eq(2, tg%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "tensor_grid: get_max_neighb C FZ")
+      call tc%assert_eq(6, tg%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "tensor_grid: get_max_neighb C C")
     end subroutine
 
   end subroutine
