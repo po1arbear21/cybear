@@ -4,6 +4,7 @@ program test
   use test_deque_m
   use test_dual_m
   use test_expm_m
+  use test_feast_m
   use test_gmres_m
   use test_high_precision_m
   use test_input_m
@@ -38,6 +39,7 @@ program test
   call test_deque()
   call test_dual()
   call test_expm()
+  call test_feast()
   call test_gmres()
   call test_high_precision()
   call test_input()
