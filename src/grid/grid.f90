@@ -277,14 +277,14 @@ contains
 
   subroutine grid_init(this, dim, idx_dim, face_dim, cell_dim)
     !! initialize grid
-    class(grid),       intent(out) :: this
-    integer,           intent(in)  :: dim
+    class(grid), intent(out) :: this
+    integer,     intent(in)  :: dim
       !! grid dimension = number of coordinates per point
-    integer,           intent(in)  :: idx_dim
+    integer,     intent(in)  :: idx_dim
       !! index dimension = number of indices per point
-    integer,           intent(in)  :: face_dim(:)
+    integer,     intent(in)  :: face_dim(:)
       !! number of points per face depending on direction (idx_dim)
-    integer,           intent(in)  :: cell_dim
+    integer,     intent(in)  :: cell_dim
       !! number of points per cell
 
     ASSERT(          dim  >= 0      )
