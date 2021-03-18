@@ -249,17 +249,34 @@ contains
     end do
   end subroutine
 
-  subroutine equation_test(this)
+  subroutine equation_test(this, rx, ax, rtol, atol)
     !! test jacobians with finite differences
     class(equation), intent(inout) :: this
-
-    real, parameter :: rx = 1e-4, ax = 1e-8, rtol = 1e-3, atol = 1e-6
+    real, optional,  intent(in)    :: rx
+      !! relative x perturbation (default: 1e-4)
+    real, optional,  intent(in)    :: ax
+      !! absolute x perturbation (default: 1e-8)
+    real, optional,  intent(in)    :: rtol
+      !! relative tolerance (default: 1e-3)
+    real, optional,  intent(in)    :: atol
+      !! absolute tolerance (default: 1e-6)
 
     integer                       :: i, j, k, l
     logical                       :: nan, nan1, nan2
+    real                          :: rx_, ax_, rtol_, atol_
     real                          :: dx1, dydx, dydx1, dydx2
     real,             allocatable :: x0(:), xm(:), xp(:), dx(:)
     type(array_real), allocatable :: y0(:), ym(:), yp(:), dy(:)
+
+    ! optional arguments
+    rx_ = 1e-4
+    if (present(rx)) rx_ = rx
+    ax_ = 1e-8
+    if (present(ax)) ax_ = ax
+    rtol_ = 1e-3
+    if (present(rtol)) rtol_ = rtol
+    atol_ = 1e-6
+    if (present(atol)) atol_ = atol
 
     ! evaluate equation and set jacobians in matrix form
     call this%eval()
@@ -286,7 +303,8 @@ contains
         ! test all derivatives
         do k = 1, size(x0)
           ! get delta x
-          dx1 = abs(x0(k)) * rx
+          dx1 = abs(x0(k)) * rx_
+          if (dx1 == 0) dx1 = ax_
 
           ! set xp, xm, dx
           xm(k) = x0(k) - dx1
@@ -342,7 +360,7 @@ contains
                   if (nan2) call program_error("Central finite difference is NaN")
                 end if
 
-                if (abs(dydx - dydx2) > max(max(2 * abs(dydx2 - dydx1), atol), rtol * abs(dydx2))) then
+                if (abs(dydx - dydx2) > max(max(2 * abs(dydx2 - dydx1), atol_), rtol_ * abs(dydx2))) then
                   print *
                   print *
                   print "(A)", achar(27)//"[1;35mPossible Error detected:"//achar(27)//"[0m"

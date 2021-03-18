@@ -1,4 +1,5 @@
 module error_m
+  use color_m
 #ifdef __INTEL_COMPILER
   use ifcore
 #endif
@@ -67,7 +68,7 @@ contains
       if (present(line)) em%line = line
       call emsg%push(em)
     else
-      print "(A)", achar(27)//"[1;35m"//msg//achar(27)//"[0m"
+      print "(A)", COL_MAGENTA//msg//COL_DEFAULT
 
       if (present(code)) then
         print "(A,I0)", "error code: ", code
@@ -112,7 +113,7 @@ contains
 
     print *
     print "(A)", expr
-    print "(A)", "Assertion failed!"
+    print "(A)", COL_MAGENTA//"Assertion failed!"//COL_DEFAULT
     print "(3A,I0)", "file: ", file, "; line: ", line
     print *
 

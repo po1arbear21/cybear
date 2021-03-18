@@ -18,10 +18,6 @@ uncomment test region (line 426??)
 - include in res_equation
   - jaco_f_precon
 
-## test
-- optional dependencies
-  - relative step width
-
 # simple_eq
 ## vsel <-> var + tab
 - `call dum_eq%init(var, tab, name)`
