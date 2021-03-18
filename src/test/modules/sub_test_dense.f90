@@ -6,7 +6,7 @@ contains
 
   module subroutine test_dense()
     type(test_case) :: tc
-    print "(A)", "test_dense"
+
     call tc%init("dense")
 
     ! mul_vec

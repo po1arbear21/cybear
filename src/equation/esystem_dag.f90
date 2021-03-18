@@ -465,7 +465,7 @@ contains
     type(dag),       target, intent(inout) :: d
       !! DAG
 
-    integer :: i
+    integer :: i, iprov_f
 
     ! set members
     this%id        =  id
@@ -473,16 +473,22 @@ contains
     this%evaluated =  .false.
 
     ! main var, residuals
+    iprov_f = -1
     select type (e)
       class is (res_equation)
         this%main => d%add_node(e%mvar, this, 0, NDSTATUS_MAIN)
         this%res  => d%add_node(e%f,    this, 0, NDSTATUS_RES)
+        iprov_f = e%iprov_f
     end select
 
     ! provided (dependent var selectors are automatically added by dag_node_init)
     allocate (this%prov(e%vprov%n))
     do i = 1, e%vprov%n
-      this%prov(i)%p => d%add_node(e%vprov%d(i)%p, this, i, NDSTATUS_PROV)
+      if (i == iprov_f) then
+        this%prov(i)%p => this%res
+      else
+        this%prov(i)%p => d%add_node(e%vprov%d(i)%p, this, i, NDSTATUS_PROV)
+      end if
     end do
   end subroutine
 

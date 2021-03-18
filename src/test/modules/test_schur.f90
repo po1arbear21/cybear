@@ -11,7 +11,6 @@ contains
     type(dense_real)      :: Q
     type(hessenberg_real) :: U
 
-    print "(A)", "test_schur"
     call tc%init("schur")
 
     !

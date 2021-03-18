@@ -9,7 +9,6 @@ contains
     type(test_case) :: tc
     real, parameter :: tol = 1e-14
 
-    print "(A)", "test_dual"
     call tc%init("dual")
 
     ! test addition

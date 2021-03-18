@@ -10,7 +10,6 @@ contains
     type(test_case)  :: tc
     type(input_file) :: f
 
-    print "(A)", "test_input"
     call tc%init("input")
 
     ! init input file

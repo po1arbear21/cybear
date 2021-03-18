@@ -20,7 +20,6 @@ contains
     type(grid1D), target :: g
     type(grid_table)     :: g_cell
 
-    print "(A)", "test_grid_table"
     call tc%init("grid_table")
 
     ! init grid table by grid

@@ -18,7 +18,6 @@ contains
     type(dense_real) :: H, Q
     type(single_matop_real) :: matop_A
 
-    print "(A)", "test_arnoldi"
     call tc%init("arnoldi")
 
     ! A = diag(..)

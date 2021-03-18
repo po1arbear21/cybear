@@ -1,13 +1,16 @@
 #include "../util/macro.f90.inc"
 
 module equation_m
+
+  use array_m,         only: array_real
   use error_m
-  use grid_m,      only: grid_table, grid_table_ptr
-  use jacobian_m,  only: jacobian, jacobian_ptr
-  use stencil_m,   only: stencil_ptr
-  use variable_m,  only: variable
-  use vector_m,    only: vector_int
-  use vselector_m, only: vselector, vselector_ptr, vector_vselector_ptr
+  use grid_m,          only: grid_table, grid_table_ptr
+  use ieee_arithmetic, only: ieee_is_nan
+  use jacobian_m,      only: jacobian, jacobian_ptr
+  use stencil_m,       only: stencil_ptr
+  use variable_m,      only: variable, variable_ptr
+  use vector_m,        only: vector_int
+  use vselector_m,     only: vselector, vselector_ptr, vector_vselector_ptr
 
   implicit none
 
@@ -40,25 +43,37 @@ module equation_m
       !! indicates whether init_final was called
   contains
     procedure :: equation_init
+    procedure :: get_ptr       => equation_get_ptr
     procedure :: destruct      => equation_destruct
     procedure :: reset         => equation_reset
+    generic   :: provide       => equation_provide_vsel,      &
+      &                           equation_provide_nvar_ntab, &
+      &                           equation_provide_var_ntab,  &
+      &                           equation_provide_nvar_tab,  &
+      &                           equation_provide_var_tab
+    generic   :: depend        => equation_depend_vsel,      &
+      &                           equation_depend_nvar_ntab, &
+      &                           equation_depend_var_ntab,  &
+      &                           equation_depend_nvar_tab,  &
+      &                           equation_depend_var_tab
     procedure :: realloc_jaco  => equation_realloc_jaco
     procedure :: init_jaco     => equation_init_jaco
     procedure :: init_final    => equation_init_final
     procedure :: set_jaco_matr => equation_set_jaco_matr
     procedure :: test          => equation_test
 
-    procedure, private :: provide_vselector     => equation_provide_vselector
-    procedure, private :: provide_variable_ntab => equation_provide_variable_ntab
-    procedure, private :: provide_variable      => equation_provide_variable
-    generic            :: provide => provide_vselector, provide_variable_ntab, provide_variable
-
-    procedure, private :: depend_vselector     => equation_depend_vselector
-    procedure, private :: depend_variable_ntab => equation_depend_variable_ntab
-    procedure, private :: depend_variable      => equation_depend_variable
-    generic            :: depend => depend_vselector, depend_variable_ntab, depend_variable
-
     procedure(equation_eval), deferred :: eval
+
+    procedure, private :: equation_provide_vsel
+    procedure, private :: equation_provide_nvar_ntab
+    procedure, private :: equation_provide_var_ntab
+    procedure, private :: equation_provide_nvar_tab
+    procedure, private :: equation_provide_var_tab
+    procedure, private :: equation_depend_vsel
+    procedure, private :: equation_depend_nvar_ntab
+    procedure, private :: equation_depend_var_ntab
+    procedure, private :: equation_depend_nvar_tab
+    procedure, private :: equation_depend_var_tab
   end type
 
   abstract interface
@@ -107,6 +122,14 @@ contains
     this%finished_init = .false.
   end subroutine
 
+  function equation_get_ptr(this) result(ptr)
+    !! return pointer to this equation
+    class(equation), target, intent(in) :: this
+    type(equation_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
+
   subroutine equation_destruct(this)
     !! destruct equation
     class(equation), intent(inout) :: this
@@ -154,149 +177,6 @@ contains
       call this%jaco(i,j)%p%reset(const = .false.)
     end do; end do
   end subroutine
-
-  function equation_provide_vselector(this, vsel) result(iprov)
-    !! provide var selector
-    class(equation),         intent(inout) :: this
-    type(vselector), target, intent(in)    :: vsel
-      !! new provided var selector
-    integer                                :: iprov
-      !! return provided index
-
-    ! reallocate jaco if necessary
-    if (this%vprov%n >= size(this%vprov%d)) then
-      call this%realloc_jaco((this%vprov%n + 1) * 2, size(this%vdep%d))
-    end if
-
-    ! add var selector to provided variables
-    call this%vprov%push(vsel%get_ptr())
-
-    ! return index
-    iprov = this%vprov%n
-  end function
-
-  function equation_provide_variable_ntab(this, var, tab, name) result(iprov)
-    !! provide variable for multiple grid tables, creates var selector internally
-    class(equation),        intent(inout) :: this
-    class(variable),        intent(in)    :: var
-      !! new provided variable
-    type(grid_table_ptr),   intent(in)    :: tab(:)
-      !! grid table pointers
-    character(*), optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
-    integer                               :: iprov
-      !! return provided index
-
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    if (present(name)) then
-      allocate (name_, source = name)
-    else
-      allocate (name_, source = var%name)
-    end if
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(var, tab, name=name_)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
-    iprov = this%provide(vsel)
-  end function
-
-  function equation_provide_variable(this, var, tab, name) result(iprov)
-    !! provide variable for single grid table, creates var selector internally
-    class(equation),            intent(inout) :: this
-    class(variable),            intent(in)    :: var
-      !! new provided variable
-    type(grid_table), optional, intent(in)    :: tab
-      !! grid table
-    character(*),     optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
-    integer                                   :: iprov
-      !! return provided index
-
-    if (present(tab)) then
-      iprov = this%provide(var, [tab%get_ptr()], name=name)
-    else
-      iprov = this%provide(var, [var%g%tab_all(var%idx_type,var%idx_dir)%get_ptr()], name=name)
-    end if
-  end function
-
-  function equation_depend_vselector(this, vsel) result(idep)
-    !! depend on var selector
-    class(equation),          intent(inout) :: this
-    class(vselector), target, intent(in)    :: vsel
-      !! new dependency var selector
-    integer                                 :: idep
-      !! return dependency index
-
-    type(vselector_ptr) :: vptr
-
-    ! reallocate g if necessary
-    if (this%vdep%n >= size(this%vdep%d)) then
-      call this%realloc_jaco(size(this%vprov%d), (this%vdep%n + 1) * 2)
-    end if
-
-    ! add var selector to dependent variables
-    vptr%p => vsel
-    call this%vdep%push(vptr)
-
-    ! return dependency index
-    idep = this%vdep%n
-  end function
-
-  function equation_depend_variable_ntab(this, var, tab, name) result(idep)
-    !! add new dependency variable, creates var selector internally
-    class(equation),        intent(inout) :: this
-    class(variable),        intent(in)    :: var
-      !! new dependency variable
-    type(grid_table_ptr),   intent(in)    :: tab(:)
-      !! grid table pointers
-    character(*), optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
-    integer                               :: idep
-      !! return dependency index
-
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    if (present(name)) then
-      allocate (name_, source = name)
-    else
-      allocate (name_, source = var%name)
-    end if
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(var, tab, name=name_)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependency vselector
-    idep = this%depend(vsel)
-  end function
-
-  function equation_depend_variable(this, var, tab, name) result(idep)
-    !! add new dependency variable for single grid table, creates var selector internally
-    class(equation),            intent(inout) :: this
-    class(variable),            intent(in)    :: var
-      !! new dependency variable
-    type(grid_table), optional, intent(in)    :: tab
-      !! grid table pointers
-    character(*),     optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
-    integer                                   :: idep
-      !! return dependency index
-
-    if (present(tab)) then
-      idep = this%depend(var, [tab%get_ptr()], name=name)
-    else
-      idep = this%depend(var, [var%g%tab_all(var%idx_type,var%idx_dir)%get_ptr()], name=name)
-    end if
-  end function
 
   subroutine equation_realloc_jaco(this, cprov, cdep)
     !! reallocate this%jaco, if initial capacity was not big enough
@@ -373,6 +253,352 @@ contains
     !! test jacobians with finite differences
     class(equation), intent(inout) :: this
 
-    ! FIXME
+    real, parameter :: rx = 1e-4, ax = 1e-8, rtol = 1e-3, atol = 1e-6
+
+    integer                       :: i, j, k, l
+    logical                       :: nan, nan1, nan2
+    real                          :: dx1, dydx, dydx1, dydx2
+    real,             allocatable :: x0(:), xm(:), xp(:), dx(:)
+    type(array_real), allocatable :: y0(:), ym(:), yp(:), dy(:)
+
+    ! evaluate equation and set jacobians in matrix form
+    call this%eval()
+    call this%set_jaco_matr()
+
+    ! get provided variables
+    allocate (y0(this%vprov%n), ym(this%vprov%n), yp(this%vprov%n), dy(this%vprov%n))
+    do i = 1, this%vprov%n
+      allocate (y0(i)%d(this%vprov%d(i)%p%n), ym(i)%d(this%vprov%d(i)%p%n), yp(i)%d(this%vprov%d(i)%p%n), dy(i)%d(this%vprov%d(i)%p%n))
+      y0(i)%d = this%vprov%d(i)%p%get()
+    end do
+
+    do j = 1, this%vdep%n
+      associate (dep => this%vdep%d(j)%p)
+        ! allocate memory for dependencies
+        allocate (x0(dep%n), dx(dep%n), xm(dep%n), xp(dep%n))
+
+        ! get original x values
+        x0 = dep%get()
+        xm = x0
+        xp = x0
+        dx = 0
+
+        ! test all derivatives
+        do k = 1, size(x0)
+          ! get delta x
+          dx1 = abs(x0(k)) * rx
+
+          ! set xp, xm, dx
+          xm(k) = x0(k) - dx1
+          xp(k) = x0(k) + dx1
+          dx(k) = dx1
+
+          ! get ym
+          call dep%set(xm)
+          call this%eval()
+          do i = 1, this%vprov%n
+            ym(i)%d = this%vprov%d(i)%p%get()
+          end do
+
+          ! get yp
+          call dep%set(xp)
+          call this%eval()
+          do i = 1, this%vprov%n
+            yp(i)%d = this%vprov%d(i)%p%get()
+          end do
+
+          ! check derivatives by finite differences
+          do i = 1, this%vprov%n
+            ! get dy = jaco * dx
+            call this%jaco(i,j)%p%matr%mul_vec(dx, dy(i)%d)
+
+            associate (prov => this%vprov%d(i)%p)
+              do l = 1, prov%n
+                ! check if both derivatives are zero
+                if ((yp(i)%d(l) == y0(i)%d(l)) .and. (dy(i)%d(l) == 0)) cycle
+
+                ! entry from matrix
+                dydx = dy(i)%d(l) / dx1
+
+                ! finite differences (forward and centered)
+                dydx1 = (yp(i)%d(l) - y0(i)%d(l)) / dx1
+                dydx2 = (yp(i)%d(l) - ym(i)%d(l)) / (2 * dx1)
+
+                ! check for nan
+                nan  = ieee_is_nan(dydx)
+                nan1 = ieee_is_nan(dydx1)
+                nan2 = ieee_is_nan(dydx2)
+                if (nan .or. nan1 .or. nan2) then
+                  print *
+                  print *
+                  print "(A)", "provided:"
+                  call prov%print()
+                  print *
+                  print "(A)", "dependency:"
+                  call dep%print()
+
+                  if (nan ) call program_error("Matrix entry is NaN")
+                  if (nan1) call program_error("Forward finite difference is NaN")
+                  if (nan2) call program_error("Central finite difference is NaN")
+                end if
+
+                if (abs(dydx - dydx2) > max(max(2 * abs(dydx2 - dydx1), atol), rtol * abs(dydx2))) then
+                  print *
+                  print *
+                  print "(A)", achar(27)//"[1;35mPossible Error detected:"//achar(27)//"[0m"
+                  print "(A)", "provided:"
+                  call prov%print()
+                  print *
+                  print "(A)", "dependency:"
+                  call dep%print()
+                  print *
+                  print "(A,I0,A,I0)", "k = ", k, "; l = ", l
+                  print "(A,ES24.16,A,ES24.16)", "xm = ", xm(k), "; ym = ", ym(i)%d(l)
+                  print "(A,ES24.16,A,ES24.16)", "x0 = ", x0(k), "; y0 = ", y0(i)%d(l)
+                  print "(A,ES24.16,A,ES24.16)", "xp = ", xp(k), "; yp = ", yp(i)%d(l)
+                  print "(A,ES24.16)", "dydx  = ", dydx
+                  print "(A,ES24.16)", "dydx1 = ", dydx1
+                  print "(A,ES24.16)", "dydx2 = ", dydx2
+                end if
+              end do
+            end associate
+          end do
+
+          ! reset xp, xm, dx
+          xp(k) = x0(k)
+          xm(k) = x0(k)
+          dx(k) = 0
+        end do
+
+        ! restore x
+        call dep%set(x0)
+
+        ! free memory
+        deallocate (x0, xm, xp, dx)
+      end associate
+    end do
   end subroutine
+
+  function equation_provide_vsel(this, vsel) result(iprov)
+    !! provide var selector
+    class(equation),         intent(inout) :: this
+    type(vselector), target, intent(in)    :: vsel
+      !! new provided var selector
+    integer                                :: iprov
+      !! return provided index
+
+    ! reallocate jaco if necessary
+    if (this%vprov%n >= size(this%vprov%d)) then
+      call this%realloc_jaco((this%vprov%n + 1) * 2, size(this%vdep%d))
+    end if
+
+    ! add var selector to provided variables
+    call this%vprov%push(vsel%get_ptr())
+
+    ! return index
+    iprov = this%vprov%n
+  end function
+
+  function equation_provide_nvar_ntab(this, v, tab, name) result(iprov)
+    !! provide variables for multiple grid tables, creates var selector internally
+    class(equation),      intent(inout) :: this
+    type(variable_ptr),   intent(in)    :: v(:)
+      !! variable pointers
+    type(grid_table_ptr), intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*),         intent(in)    :: name
+      !! selector name
+    integer                             :: iprov
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab, name)
+    call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
+
+  function equation_provide_var_ntab(this, v, tab, name) result(iprov)
+    !! provide variable for multiple grid tables, creates var selector internally
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: v
+      !! new provided variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                               :: iprov
+      !! return provided index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab, name=name)
+    call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
+
+  function equation_provide_nvar_tab(this, v, name, tab) result(iprov)
+    !! provide variables for multiple grid tables, creates var selector internally
+    class(equation),            intent(out) :: this
+    type(variable_ptr),         intent(in)  :: v(:)
+      !! variable pointers
+    character(*),               intent(in)  :: name
+      !! selector name
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+    integer                                 :: iprov
+      !! return provided index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, name, tab=tab)
+    call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
+
+  function equation_provide_var_tab(this, v, tab, name) result(iprov)
+    !! provide variable for single grid table, creates var selector internally
+    class(equation),            intent(inout) :: this
+    class(variable),            intent(in)    :: v
+      !! new provided variable
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+    character(*),     optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                                   :: iprov
+      !! return provided index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab=tab, name=name)
+    call this%vprov_alc%push(this%vprov%n)
+
+    ! add provided vselector
+    iprov = this%provide(vsel)
+  end function
+
+  function equation_depend_vsel(this, vsel) result(idep)
+    !! depend on var selector
+    class(equation),          intent(inout) :: this
+    class(vselector), target, intent(in)    :: vsel
+      !! new dependency var selector
+    integer                                 :: idep
+      !! return dependency index
+
+    ! reallocate g if necessary
+    if (this%vdep%n >= size(this%vdep%d)) then
+      call this%realloc_jaco(size(this%vprov%d), (this%vdep%n + 1) * 2)
+    end if
+
+    ! add var selector to dependent variables
+    call this%vdep%push(vsel%get_ptr())
+
+    ! return dependency index
+    idep = this%vdep%n
+  end function
+
+  function equation_depend_nvar_ntab(this, v, tab, name) result(idep)
+    !! depend on variables for multiple grid tables, creates var selector internally
+    class(equation),      intent(inout) :: this
+    type(variable_ptr),   intent(in)    :: v(:)
+      !! variable pointers
+    type(grid_table_ptr), intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*),         intent(in)    :: name
+      !! selector name
+    integer                             :: idep
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab, name)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependent vselector
+    idep = this%depend(vsel)
+  end function
+
+  function equation_depend_var_ntab(this, v, tab, name) result(idep)
+    !! depend on variable for multiple grid tables, creates var selector internally
+    class(equation),        intent(inout) :: this
+    class(variable),        intent(in)    :: v
+      !! new dependent variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                               :: idep
+      !! return dependency index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab, name=name)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependent vselector
+    idep = this%depend(vsel)
+  end function
+
+  function equation_depend_nvar_tab(this, v, name, tab) result(idep)
+    !! depend on variables for multiple grid tables, creates var selector internally
+    class(equation),            intent(out) :: this
+    type(variable_ptr),         intent(in)  :: v(:)
+      !! variable pointers
+    character(*),               intent(in)  :: name
+      !! selector name
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+    integer                                 :: idep
+      !! return dependency index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, name, tab=tab)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependent vselector
+    idep = this%depend(vsel)
+  end function
+
+  function equation_depend_var_tab(this, v, tab, name) result(idep)
+    !! depend variable for single grid table, creates var selector internally
+    class(equation),            intent(inout) :: this
+    class(variable),            intent(in)    :: v
+      !! new dependent variable
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+    character(*),     optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+    integer                                   :: idep
+      !! return dependency index
+
+    type(vselector), pointer :: vsel
+
+    ! create vselector from variable and keep track of memory
+    allocate (vsel)
+    call vsel%init(v, tab=tab, name=name)
+    call this%vdep_alc%push(this%vdep%n)
+
+    ! add dependent vselector
+    idep = this%depend(vsel)
+  end function
+
 end module

@@ -21,7 +21,6 @@ contains
   subroutine test_grid()
     type(test_case) :: tc
 
-    print "(A)", "test_grid"
     call tc%init("grid")
 
     call test_grid1D()

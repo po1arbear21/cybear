@@ -65,6 +65,9 @@ contains
     this%num_tests    = 0
     this%passed_tests = 0
     this%last_passed  = .true.
+
+    print *
+    print "(A)", achar(27)//"[1;36m"//name//": Begin testing..."//achar(27)//"[0m"
   end subroutine
 
   subroutine finish(this)
@@ -73,10 +76,19 @@ contains
     class(test_case), intent(in) :: this
       !! Test case
 
-    print "(A,I0,A,I0,A)", "  "//trim(this%name)//": ", this%passed_tests, "/", this%num_tests, " tests passed!"
-    print *
+    integer :: color
 
-    if (this%passed_tests /= this%num_tests) call program_error("Test case "//trim(this%name)//" failed!")
+    if (this%passed_tests == this%num_tests) then
+      color = 32
+    else if (this%passed_tests == 0) then
+      color = 31
+    else
+      color = 33
+    end if
+
+    print "(A,I0,A,I0,A,I0,A)", achar(27)//"[1;", color, "m"//trim(this%name)//": ", this%passed_tests, "/", this%num_tests, " tests passed!"//achar(27)//"[0m"
+
+    if (this%passed_tests /= this%num_tests) call program_error(trim(this%name)//": Fail!")
   end subroutine
 
   subroutine assert_1(this, value, msg)
@@ -738,7 +750,7 @@ contains
       this%passed_tests = this%passed_tests + 1
     else
       this%last_passed  = .false.
-      print "(A)", "Test failed in "//trim(this%name)
+      print "(A)", achar(27)//"[1;35m"//trim(this%name)//": Failed test"//achar(27)//"[0m"
       print "(A)", "  "//trim(msg)
       if (present(msg2)) print "(A)", "    "//trim(msg2)
       if (present(ipar)) then

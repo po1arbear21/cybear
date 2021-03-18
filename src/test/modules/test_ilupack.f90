@@ -12,7 +12,6 @@ contains
   subroutine test_ilupack()
     type(test_case) :: tc
 
-    print "(A)", "test_ilupack"
     call tc%init("ilupack")
 
     ! test ilupack_real

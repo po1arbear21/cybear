@@ -105,7 +105,6 @@ contains
 
     integer :: i
 
-    print "(A)", "test_esystem"
     call tc%init("esystem")
 
     ! init grid
@@ -130,14 +129,17 @@ contains
 
     ! equation1
     call eq1%init(y, x)
+    call eq1%test()
     call es%add_equation(eq1)
 
     ! res eq
     call req1%init(x, y)
+    call req1%test()
     call es%add_equation(req1)
 
     ! res eq
     call req2%init(z, x, y)
+    call req2%test()
     call es%add_equation(req2)
 
     ! finish equation system

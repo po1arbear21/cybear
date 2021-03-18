@@ -12,7 +12,6 @@ contains
   subroutine test_plotmtv()
     type(test_case) :: tc
 
-    print "(A)", "test_plotmtv"
     call tc%init("plotmtv")
 
     ! test1: simple 2D write (no options altered)

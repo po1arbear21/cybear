@@ -14,7 +14,6 @@ contains
   subroutine test_matop()
     type(test_case) :: tc
 
-    print "(A)", "test_matop"
     call tc%init("matop")
 
     ! test: single_matop_real

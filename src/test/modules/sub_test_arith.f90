@@ -5,7 +5,6 @@ contains
 
   module subroutine test_arith()
     type(test_case) :: tc
-    print "(A)", "test_arith"
     call tc%init("arith")
 
     ! fixme test interface `add` here. currently it is included in matrix tests: sub_test_dense, etc.

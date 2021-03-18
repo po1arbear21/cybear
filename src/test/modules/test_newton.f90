@@ -11,7 +11,6 @@ contains
   subroutine test_newton()
     type(test_case) :: tc
 
-    print "(A)", "test_newton"
     call tc%init("newton")
 
     block

@@ -8,7 +8,6 @@ contains
     type(test_case)   :: tc
     type(triang_real) :: d_lower, d_upper
 
-    print "(A)", "test_triang"
     call tc%init("triang")
 
     call d_upper%init(3, .true.)

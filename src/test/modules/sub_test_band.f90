@@ -8,7 +8,6 @@ contains
     type(band_real) :: tri, band, penta, diag
     type(test_case) :: tc
 
-    print "(A)", "test_band"
     call tc%init("band")
 
     ! init examples of band matrices + factorize

@@ -25,26 +25,33 @@ module res_equation_m
 
     type(variable_ptr), allocatable :: fvar(:)
       !! residual data. size: mvar%nval (mvar supplied at init).
-    type(vselector)                 :: f
-      !! residual var selector
+    integer                         :: iprov_f
+      !! residual var selector provided index
+    type(vselector),    pointer     :: f => null()
+      !! residual var selector (f => vprov%d(iprov_f)%p)
 
     type(jacobian_ptr), allocatable :: jaco_f(:)
       !! derivatives of f wrt vdep. size: this%vdep%d
     type(jacobian_ptr), allocatable :: jaco_ft(:)
       !! derivatives of f wrt d/dt(vdep), must be const. size: this%vdep%d
 
-
   contains
+    procedure :: get_res_ptr   => res_equation_get_res_ptr
+    generic   :: init_f        => res_equation_init_f_vsel, &
+      &                           res_equation_init_f_nvar_ntab, &
+      &                           res_equation_init_f_var_ntab, &
+      &                           res_equation_init_f_nvar_tab, &
+      &                           res_equation_init_f_var_tab
     procedure :: destruct      => res_equation_destruct
-    procedure :: reset         => res_equation_reset
     procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
 
     procedure, private :: res_equation_init_f_vsel
+    procedure, private :: res_equation_init_f_nvar_ntab
     procedure, private :: res_equation_init_f_var_ntab
-    procedure, private :: res_equation_init_f_var
-    generic            :: init_f => res_equation_init_f_vsel, res_equation_init_f_var_ntab, res_equation_init_f_var
+    procedure, private :: res_equation_init_f_nvar_tab
+    procedure, private :: res_equation_init_f_var_tab
   end type
 
   type res_equation_ptr
@@ -61,77 +68,13 @@ contains
 #define TT type(res_equation_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine res_equation_init_f_vsel(this, mvar)
-    !! set main variable and initialize residual data
-    class(res_equation),      intent(inout) :: this
-    class(vselector), target, intent(in)    :: mvar
-      !! main variable
+  function res_equation_get_res_ptr(this) result(ptr)
+    !! return pointer to this residual equation
+    class(res_equation), target, intent(in) :: this
+    type(res_equation_ptr)                  :: ptr
 
-    integer :: ival
-
-    ! save mvar
-    this%mvar => mvar
-
-    ! allocate residual data
-    allocate (this%fvar(mvar%nval))
-    do ival = 1, mvar%nval
-      allocate (this%fvar(ival)%p, source = mvar%v(ival)%p)
-      this%fvar(ival)%p%name = this%fvar(ival)%p%name//"_res"
-    end do
-
-    ! init residual var selector based on mvar
-    call this%f%init(this%fvar, mvar%tab, mvar%name//"_res")
-
-    ! allocate f jacobians
-    allocate (this%jaco_f( size(this%vdep%d)))
-    allocate (this%jaco_ft(size(this%vdep%d)))
-  end subroutine
-
-  subroutine res_equation_init_f_var_ntab(this, mvar, tab, name)
-    !! set main variable and initialize residual data
-    class(res_equation),     intent(inout) :: this
-    class(variable), target, intent(in)    :: mvar
-      !! main variable
-    type(grid_table_ptr),    intent(in)    :: tab(:)
-      !! grid table pointers
-    character(*), optional,  intent(in)    :: name
-      !! name of new var selector (default: var%name)
-
-    character(:), allocatable :: name_
-    type(vselector), pointer  :: vsel
-
-    ! optional argument
-    if (present(name)) then
-      allocate (name_, source = name)
-    else
-      allocate (name_, source = mvar%name)
-    end if
-
-    ! create vselector from variable and keep track of memory
-    allocate (vsel)
-    call vsel%init(mvar, tab, name=name_)
-    this%mvar_alc = .true.
-
-    ! init by vselector
-    call this%init_f(vsel)
-  end subroutine
-
-  subroutine res_equation_init_f_var(this, mvar, tab, name)
-    !! set main variable and initialize residual data
-    class(res_equation),        intent(inout) :: this
-    class(variable),  target,   intent(in)    :: mvar
-      !! main variable
-    type(grid_table), optional, intent(in)    :: tab
-      !! grid table (default: mvar%g%tab_all(idx_type,idx_dir))
-    character(*),     optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
-
-    if (present(tab)) then
-      call this%init_f(mvar, [tab%get_ptr()], name=name)
-    else
-      call this%init_f(mvar, [mvar%g%tab_all(mvar%idx_type,mvar%idx_dir)%get_ptr()], name=name)
-    end if
-  end subroutine
+    ptr%p => this
+  end function
 
   subroutine res_equation_destruct(this)
     !! destruct residual equation
@@ -149,13 +92,6 @@ contains
       if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
     end do
     deallocate (this%fvar)
-    do i = 1, size(this%jaco_f)
-      if (associated(this%jaco_f(i)%p)) then
-        call this%jaco_f(i)%p%destruct()
-        deallocate (this%jaco_f(i)%p)
-      end if
-    end do
-    deallocate (this%jaco_f)
     do i = 1, size(this%jaco_ft)
       if (associated(this%jaco_ft(i)%p)) then
         call this%jaco_ft(i)%p%destruct()
@@ -166,25 +102,6 @@ contains
 
     ! destruct base
     call equation_destruct(this)
-  end subroutine
-
-  subroutine res_equation_reset(this)
-    !! reset provided vars, f and non-const jacobians
-    class(res_equation), intent(inout) :: this
-
-    integer :: i
-
-    ! reset vprov and this%jaco
-    call equation_reset(this)
-
-    ! reset f
-    call this%f%reset()
-
-    ! reset non-const parts of jaco_f
-    do i = 1, size(this%jaco_f)
-      if (.not. associated(this%jaco_f(i)%p)) cycle
-      call this%jaco_f(i)%p%reset(const = .false.)
-    end do
   end subroutine
 
   subroutine res_equation_realloc_jaco(this, cprov, cdep)
@@ -233,18 +150,18 @@ contains
 
     dtime_ = .false.
     if (present(dtime)) dtime_ = dtime
-    const_ = dtime_
-    if (present(const)) const_ = const
 
     associate (vdep => this%vdep%d(idep)%p)
       if (dtime_) then
+        const_ = .true.
+        if (present(const)) const_ = const
         ASSERT(const_)
+
         allocate (this%jaco_ft(idep)%p)
-        call this%jaco_ft(idep)%p%init(this%f, vdep, st, const = const_, zero = zero, valmsk = valmsk)
+        call this%jaco_ft(idep)%p%init(this%f, vdep, st, const=const_, zero=zero, valmsk=valmsk)
         jaco => this%jaco_ft(idep)%p
       else
-        allocate (this%jaco_f(idep)%p)
-        call this%jaco_f(idep)%p%init(this%f, vdep, st, const = const_, zero = zero, valmsk = valmsk)
+        this%jaco_f(idep)%p => this%init_jaco(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
         jaco => this%jaco_f(idep)%p
       end if
     end associate
@@ -263,11 +180,121 @@ contains
     ! base
     call equation_set_jaco_matr(this, const = const, nonconst = nonconst)
 
-    ! jaco_f and jaco_ft
+    ! jaco_ft
     do i = 1, this%vdep%n
-      if (associated(this%jaco_f( i)%p)) call this%jaco_f( i)%p%set_matr(const = const, nonconst = nonconst)
       if (associated(this%jaco_ft(i)%p)) call this%jaco_ft(i)%p%set_matr(const = const, nonconst = nonconst)
     end do
+  end subroutine
+
+  subroutine res_equation_init_f_vsel(this, mvar)
+    !! set main variable and initialize residual data
+    class(res_equation),      intent(inout) :: this
+    class(vselector), target, intent(in)    :: mvar
+      !! main variable
+
+    integer :: ival
+
+    ! allocate residual variables
+    allocate (this%fvar(mvar%nval))
+    do ival = 1, mvar%nval
+      allocate (this%fvar(ival)%p, source = mvar%v(ival)%p)
+      this%fvar(ival)%p%name = mvar%v(ival)%p%name//"_res"
+    end do
+
+    ! provide residual
+    this%iprov_f = this%provide(this%fvar, mvar%tab, mvar%name//"_res")
+
+    ! save pointers to mvar and f
+    this%mvar => mvar
+    this%f    => this%vprov%d(this%iprov_f)%p
+
+    ! allocate f jacobians
+    allocate (this%jaco_f( size(this%vdep%d)))
+    allocate (this%jaco_ft(size(this%vdep%d)))
+  end subroutine
+
+  subroutine res_equation_init_f_nvar_ntab(this, mvar, tab, name)
+    !! set main variable and initialize residual data
+    class(res_equation),  intent(inout) :: this
+    type(variable_ptr),   intent(in)    :: mvar(:)
+      !! main variable pointers
+    type(grid_table_ptr), intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*),         intent(in)    :: name
+      !! selector name
+
+    type(vselector), pointer :: vsel
+
+    ! create main var selector and keep track of memory
+    allocate (vsel)
+    call vsel%init(mvar, tab, name)
+    this%mvar_alc = .true.
+
+    ! init by var selector
+    call this%init_f(vsel)
+  end subroutine
+
+  subroutine res_equation_init_f_var_ntab(this, mvar, tab, name)
+    !! set main variable and initialize residual data
+    class(res_equation),    intent(inout) :: this
+    class(variable),        intent(in)    :: mvar
+      !! main variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! name of new var selector
+
+    type(vselector), pointer  :: vsel
+
+    ! create main var selector and keep track of memory
+    allocate (vsel)
+    call vsel%init(mvar, tab, name=name)
+    this%mvar_alc = .true.
+
+    ! init by vselector
+    call this%init_f(vsel)
+  end subroutine
+
+  subroutine res_equation_init_f_nvar_tab(this, mvar, name, tab)
+    !! set main variable and initialize residual data
+    class(res_equation),        intent(inout) :: this
+    type(variable_ptr),         intent(in)    :: mvar(:)
+      !! main variable pointers
+    character(*),               intent(in)    :: name
+      !! selector name
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+
+    type(vselector), pointer :: vsel
+
+    ! create main var selector and keep track of memory
+    allocate (vsel)
+    call vsel%init(mvar, name, tab=tab)
+    this%mvar_alc = .true.
+
+    ! init by var selector
+    call this%init_f(vsel)
+  end subroutine
+
+  subroutine res_equation_init_f_var_tab(this, mvar, tab, name)
+    !! set main variable and initialize residual data
+    class(res_equation),        intent(inout) :: this
+    class(variable),            intent(in)    :: mvar
+      !! main variable
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table pointers
+    character(*),     optional, intent(in)    :: name
+      !! name of new var selector
+
+    type(vselector), pointer  :: vsel
+
+    ! create main var selector and keep track of memory
+    allocate (vsel)
+    call vsel%init(mvar, tab=tab, name=name)
+    this%mvar_alc = .true.
+
+    ! init by vselector
+    call this%init_f(vsel)
   end subroutine
 
 end module

@@ -163,14 +163,14 @@ contains
     call this%init([v%get_ptr()], tab, name_)
   end subroutine
 
-  subroutine vselector_init_nvar_tab(this, v, tab, name)
+  subroutine vselector_init_nvar_tab(this, v, name, tab)
     !! initialize variable selector given multiple variables and one table.
-    class(vselector),                   intent(out) :: this
-    type(variable_ptr),                 intent(in)  :: v(:)
+    class(vselector),           intent(out) :: this
+    type(variable_ptr),         intent(in)  :: v(:)
       !! variable pointers
-    character(*),                       intent(in)  :: name
+    character(*),               intent(in)  :: name
       !! selector name
-    type(grid_table), optional, target, intent(in)  :: tab
+    type(grid_table), optional, intent(in)  :: tab
       !! grid table
 
     if (present(tab)) then
@@ -182,12 +182,12 @@ contains
 
   subroutine vselector_init_var_tab(this, v, tab, name)
     !! initialize variable selector given one variable and one table.
-    class(vselector),                   intent(out) :: this
-    class(variable),                    intent(in)  :: v
+    class(vselector),           intent(out) :: this
+    class(variable),            intent(in)  :: v
       !! variable
-    type(grid_table), optional, target, intent(in)  :: tab
+    type(grid_table), optional, intent(in)  :: tab
       !! grid table
-    character(*),     optional,         intent(in)  :: name
+    character(*),     optional, intent(in)  :: name
       !! selector name
       !! default: variable%name
 

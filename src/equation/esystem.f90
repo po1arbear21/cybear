@@ -87,7 +87,9 @@ module esystem_m
 
     procedure :: print => esystem_print
   end type
+
 contains
+
   subroutine esystem_init(this, name)
     !! initialize equation system
     class(esystem), intent(out) :: this

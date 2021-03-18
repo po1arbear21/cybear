@@ -11,7 +11,6 @@ contains
   subroutine test_util
     type(test_case) :: tc
 
-    print "(A)", "test_util"
     call tc%init("util")
 
     ! int2str

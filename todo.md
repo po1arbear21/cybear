@@ -19,11 +19,8 @@ uncomment test region (line 426??)
   - jaco_f_precon
 
 ## test
-- test
-  - test_jacobian (finite differences; overwrite in res_equation)
-  - optional
-  - loop dependencies
-    - relative step width
+- optional dependencies
+  - relative step width
 
 # simple_eq
 ## vsel <-> var + tab
@@ -41,3 +38,9 @@ uncomment test region (line 426??)
 ## AC+HB+eig
 ## transient
 - transient routines: bwE, bdf2, fwE?
+
+## dag
+- rewrite from scratch
+- rename dag to depgraph; dag_node => node; dag_equ => equ
+- use integer indices instead of pointers
+- use hash of vselector for searching when building dependency graph

@@ -10,7 +10,6 @@ contains
   subroutine test_mumps
     type(test_case) :: tc
 
-    print "(A)", "test_mumps"
     call tc%init("mumps")
 
     ! test real mumps

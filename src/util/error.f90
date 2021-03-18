@@ -67,7 +67,7 @@ contains
       if (present(line)) em%line = line
       call emsg%push(em)
     else
-      print "(A)", msg
+      print "(A)", achar(27)//"[1;35m"//msg//achar(27)//"[0m"
 
       if (present(code)) then
         print "(A,I0)", "error code: ", code

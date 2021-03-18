@@ -8,7 +8,6 @@ contains
   subroutine test_high_precision()
     type(test_case) :: tc
 
-    print "(A)", "test_high_precision"
     call tc%init("high_precision")
 
     ! hp addition

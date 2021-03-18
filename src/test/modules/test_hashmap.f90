@@ -9,7 +9,6 @@ contains
   subroutine test_hashmap()
     type(test_case) :: tc
 
-    print "(A)", "test_hashmap"
     call tc%init("hashmap")
 
     block
