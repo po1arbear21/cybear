@@ -3,6 +3,7 @@
 module equation_m
 
   use array_m,         only: array_real
+  use color_m
   use error_m
   use grid_m,          only: grid_table, grid_table_ptr
   use ieee_arithmetic, only: ieee_is_nan
@@ -363,20 +364,20 @@ contains
                 if (abs(dydx - dydx2) > max(max(2 * abs(dydx2 - dydx1), atol_), rtol_ * abs(dydx2))) then
                   print *
                   print *
-                  print "(A)", achar(27)//"[1;35mPossible Error detected:"//achar(27)//"[0m"
+                  print "(A)", COL_MAGENTA//"Possible Error detected:"//COL_DEFAULT
                   print "(A)", "provided:"
                   call prov%print()
                   print *
                   print "(A)", "dependency:"
                   call dep%print()
                   print *
-                  print "(A,I0,A,I0)", "k = ", k, "; l = ", l
-                  print "(A,ES24.16,A,ES24.16)", "xm = ", xm(k), "; ym = ", ym(i)%d(l)
-                  print "(A,ES24.16,A,ES24.16)", "x0 = ", x0(k), "; y0 = ", y0(i)%d(l)
-                  print "(A,ES24.16,A,ES24.16)", "xp = ", xp(k), "; yp = ", yp(i)%d(l)
-                  print "(A,ES24.16)", "dydx  = ", dydx
-                  print "(A,ES24.16)", "dydx1 = ", dydx1
-                  print "(A,ES24.16)", "dydx2 = ", dydx2
+                  print "(A,I0,A,I0)",           "k     = ", k,     ";  l = ", l
+                  print "(A,ES24.16,A,ES24.16)", "xm    = ", xm(k), "; ym = ", ym(i)%d(l)
+                  print "(A,ES24.16,A,ES24.16)", "x0    = ", x0(k), "; y0 = ", y0(i)%d(l)
+                  print "(A,ES24.16,A,ES24.16)", "xp    = ", xp(k), "; yp = ", yp(i)%d(l)
+                  print "(A,ES24.16)",           "dydx  = ", dydx
+                  print "(A,ES24.16)",           "dydx1 = ", dydx1
+                  print "(A,ES24.16)",           "dydx2 = ", dydx2
                 end if
               end do
             end associate
