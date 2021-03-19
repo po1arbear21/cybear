@@ -8,7 +8,7 @@ module feast_m
   interface
     subroutine feastinit(fpm)
       integer, dimension(*) :: fpm
-    end subroutine feastinit
+    end subroutine
 
     subroutine zfeast_grci(ijob, N, Ze, work, workc, zAq, zBq, fpm, epsout, loop, Emid, r, M0, lambda, Q, mode, res, info)
       import real64
@@ -35,6 +35,30 @@ module feast_m
 
 contains
 
+  subroutine feast_matrix_r(mat, opt, eval, evec)
+    class(matrix_real),             intent(in)  :: mat
+    type(feast_options),            intent(in)  :: opt
+    complex, allocatable            intent(out) :: eval(:)
+    complex, allocatable, optional, intent(out) :: evec(:,:)
+
+    type(matop_real) :: matvec, sol
+
+    matvec = mat%matvec
+    sol = mat%solve
+
+    call feast_matop_r(matvec, matsol, opt, eval, evec=evec)
+  end subroutine
+
+  subroutine feast_matop_r(matvec, matsol, opt, eval, evec)
+    class(matop_real), intent(in) :: matvec
+    class(matop_real), intent(in) :: matsol
+    type(feast_opt),                intent(in)  :: opt
+    complex, allocatable            intent(out) :: eval(:)
+    complex, allocatable, optional, intent(out) :: evec(:,:)
+
+
+  end subroutine
+
   subroutine feast_solve()
     integer :: fpm(64)
     integer :: info
@@ -48,6 +72,7 @@ contains
   subroutine check_info(info)
     integer, intent(in) :: info
 
+    ! hashmap
     character(*), parameter :: ERROR_20X(200:202) = [ &
       "Problem with Emin, Emax or Emid, r",           &
       "Problem with size of subspace M0  ",           &
