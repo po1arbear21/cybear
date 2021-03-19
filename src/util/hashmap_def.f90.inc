@@ -5,28 +5,35 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
-#define VECTOR_TYPE          CONCAT(vector,T)
-#define HASHMAP_TYPE         CONCAT(hashmap,T)
-#define HASHMAP_INIT         CONCAT3(hashmap,T,init)
-#define HASHMAP_RESIZE       CONCAT3(hashmap,T,resize)
-#define HASHMAP_GET_INDEX    CONCAT3(hashmap,T,get_index)
-#define HASHMAP_GET          CONCAT3(hashmap,T,get)
-#define HASHMAP_INSERT       CONCAT3(hashmap,T,insert)
+#define VECTOR_KEY       CONCAT(vector,TKEY)
+#define VECTOR_VALUE     CONCAT(vector,TVALUE)
+#define HASHMAP_TYPE     CONCAT3(hashmap,TKEY,TVALUE)
+#define HASHMAP_INIT     CONCAT(HASHMAP_TYPE,init)
+#define HASHMAP_DESTRUCT CONCAT(HASHMAP_TYPE,destruct)
+#define HASHMAP_RESET    CONCAT(HASHMAP_TYPE,reset)
+#define HASHMAP_RESERVE  CONCAT(HASHMAP_TYPE,reserve)
+#define HASHMAP_LOOKUP   CONCAT(HASHMAP_TYPE,lookup)
+#define HASHMAP_GET      CONCAT(HASHMAP_TYPE,get)
+#define HASHMAP_SET      CONCAT(HASHMAP_TYPE,set)
 
 type HASHMAP_TYPE
-  type(vector_int)     :: keys
-  type(VECTOR_TYPE)    :: values
+  type(VECTOR_KEY)     :: keys
+  type(VECTOR_VALUE)   :: values
   integer, allocatable :: table(:)
 contains
-  procedure :: init      => HASHMAP_INIT
-  procedure :: resize    => HASHMAP_RESIZE
-  procedure :: get_index => HASHMAP_GET_INDEX
-  procedure :: get       => HASHMAP_GET
-  procedure :: insert    => HASHMAP_INSERT
+  procedure :: init     => HASHMAP_INIT
+  procedure :: destruct => HASHMAP_DESTRUCT
+  procedure :: reset    => HASHMAP_RESET
+  procedure :: reserve  => HASHMAP_RESERVE
+  procedure :: lookup   => HASHMAP_LOOKUP
+  procedure :: get      => HASHMAP_GET
+  procedure :: set      => HASHMAP_SET
 end type
 
-#undef T
-#undef TT
+#undef TKEY
+#undef TTKEY
+#undef TVALUE
+#undef TTVALUE
 
 #undef PASTE
 #undef PASTE2
@@ -35,10 +42,13 @@ end type
 #undef CONCATHELP3
 #undef CONCAT3
 
-#undef VECTOR_TYPE
+#undef VECTOR_KEY
+#undef VECTOR_VALUE
 #undef HASHMAP_TYPE
 #undef HASHMAP_INIT
-#undef HASHMAP_RESIZE
-#undef HASHMAP_GET_INDEX
+#undef HASHMAP_DESTRUCT
+#undef HASHMAP_RESET
+#undef HASHMAP_RESERVE
+#undef HASHMAP_LOOKUP
 #undef HASHMAP_GET
-#undef HASHMAP_INSERT
+#undef HASHMAP_SET

@@ -6,15 +6,12 @@
 
 #ifdef DEBUG
 #ifdef __GFORTRAN__
-#define ASSERT(expr) if (.not. (expr)) call assert_failed("&\
-expr", __FILE__, __LINE__)
+#define ASSERT(expr) if (.not. (expr)) call assert_failed("expr", __FILE__, __LINE__)
 #else
 #define ASSERT(expr) if (.not. (expr)) call assert_failed(#expr, __FILE__, __LINE__)
 #endif
 #else
 #define ASSERT(expr)
 #endif
-
-#define ERROR(expr, code) call program_error(#expr, code = #code, file = __FILE__, line = __LINE__)
 
 #endif

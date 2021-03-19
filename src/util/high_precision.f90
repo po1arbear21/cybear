@@ -4,15 +4,16 @@ module high_precision_m
   !!   "High precision evaluation of nonlinear functions" by Rump
   use error_m
   use ieee_arithmetic
+
   implicit none
 
   private
-  public :: hp_real
-  public :: hp_to_real, real_to_hp
-  public :: operator(+), operator(-), operator(*), operator(/)
-  public :: sqrt, exp, expm1
-  public :: hp_sum, hp_dot
-  public :: TwoSum, TwoProduct
+  public hp_real
+  public hp_to_real, real_to_hp
+  public operator(+), operator(-), operator(*), operator(/)
+  public sqrt, exp, expm1
+  public hp_sum, hp_dot
+  public TwoSum, TwoProduct
 
   type hp_real
     !! represents high precision value x + y

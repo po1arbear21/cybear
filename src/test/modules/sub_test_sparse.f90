@@ -1,4 +1,4 @@
-submodule(test_matrix_m) test_sparse_m
+submodule (test_matrix_m) test_sparse_m
 
   use ieee_arithmetic
   use math_m,         only: PI

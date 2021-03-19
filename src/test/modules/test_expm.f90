@@ -1,12 +1,16 @@
 module test_expm_m
-  use matrix_m
   use expm_m
+  use matrix_m
   use test_case_m
+
   implicit none
+
+  private
+  public test_expm
 
 contains
 
-  subroutine test_expm
+  subroutine test_expm()
     real, allocatable :: d0(:,:), expmA_exp(:,:)
     type(test_case)   :: tc
     type(dense_real)  :: A, expmA

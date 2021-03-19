@@ -2,6 +2,12 @@ module ode_m
   use error_m
   implicit none
 
+  private
+  public ode_fun
+  public ode_options
+  public ode_result
+  public ode_solve
+
   type ode_options
     !! options for ode solver
     real, allocatable :: atol(:)

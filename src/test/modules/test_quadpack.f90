@@ -6,6 +6,9 @@ module test_quadpack_m
   use quadpack_m
   implicit none
 
+  private
+  public test_quadpack
+
 contains
 
   subroutine test_quadpack()

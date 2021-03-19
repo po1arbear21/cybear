@@ -4,6 +4,9 @@ module test_schur_m
   use test_case_m
   implicit none
 
+  private
+  public test_schur
+
 contains
   subroutine test_schur
     type(test_case)       :: tc

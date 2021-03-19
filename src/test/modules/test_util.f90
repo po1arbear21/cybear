@@ -6,12 +6,14 @@ module test_util_m
 
   implicit none
 
+  private
+  public test_util
+
 contains
 
-  subroutine test_util
+  subroutine test_util()
     type(test_case) :: tc
 
-    print "(A)", "test_util"
     call tc%init("util")
 
     ! int2str

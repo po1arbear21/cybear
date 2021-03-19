@@ -1,5 +1,4 @@
-submodule(test_matrix_m) test_triang_m
-  use matrix_m
+submodule (test_matrix_m) test_triang_m
   implicit none
 
 contains

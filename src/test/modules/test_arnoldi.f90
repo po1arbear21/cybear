@@ -3,14 +3,17 @@ module test_arnoldi_m
   use matop_m
   use matrix_m
   use test_case_m
+
   implicit none
 
-  type(test_case) :: tc
+  private
+  public test_arnoldi
 
 contains
 
-  subroutine test_arnoldi
+  subroutine test_arnoldi()
     ! type(arnoldi_int) :: vec
+    type(test_case) :: tc
     real, allocatable :: d0(:,:), b(:), Q_exp(:,:), H_exp(:,:)
     integer :: brkd
 
@@ -49,7 +52,7 @@ contains
     call tc%assert_eq(H%d, H_exp, 1e-13, "mat H")
     call tc%assert_eq(Q%d, Q_exp, 1e-13, "mat Q")
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module

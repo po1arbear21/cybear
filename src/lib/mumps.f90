@@ -7,10 +7,10 @@ module mumps_m
   implicit none
 
   private
-  public :: create_mumps_handle_r, create_mumps_handle_c
-  public :: destruct_mumps_handle_r, destruct_mumps_handle_c
-  public :: mumps_factorize
-  public :: mumps_solve
+  public create_mumps_handle_r, create_mumps_handle_c
+  public destruct_mumps_handle_r, destruct_mumps_handle_c
+  public mumps_factorize
+  public mumps_solve
 
   include 'dmumps_struc.h'
   include 'zmumps_struc.h'

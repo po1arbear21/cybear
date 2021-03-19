@@ -2,7 +2,12 @@ module newton_m
   use error_m
   use ieee_arithmetic
   use matrix_m
+
   implicit none
+
+  private
+  public newton1D, newton1D_opt
+  public newton,   newton_opt
 
   type newton1D_opt
     !! options for 1D newton iteration
