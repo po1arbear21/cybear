@@ -1,7 +1,14 @@
+#include "../../util/macro.f90.inc"
 module test_newton_m
-  use test_case_m
+  use error_m
+  use matrix_m
   use newton_m
+  use test_case_m
+
   implicit none
+
+  private
+  public test_newton
 
 contains
 

@@ -1,5 +1,4 @@
 submodule (test_matrix_m) test_band_m
-  use matrix_m
   implicit none
 
 contains

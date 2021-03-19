@@ -8,6 +8,9 @@ module test_radau5_m
 
   implicit none
 
+  private
+  public test_radau5
+
 contains
 
   subroutine test_radau5()

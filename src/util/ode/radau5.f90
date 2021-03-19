@@ -3,10 +3,11 @@
 module radau5_m
   use lapack95
   use ode_m
+
   implicit none
 
   private
-  public :: ode_options, ode_result, radau5
+  public ode_options, ode_result, radau5
 
   ! radau5 IIa parameters
   real, parameter, private :: C(3) = [ &

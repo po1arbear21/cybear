@@ -1,13 +1,15 @@
 module hashmap_m
-  use util_m, only: hash
   use array_m
-  use vector_m
+  use string_m, only: string
+  use util_m,   only: hash
+  use vector_m, only: vector_int, vector_str
 
   implicit none
 
   private
   public int2, int3, int4
   public hashmap_int_int, hashmap_int2_int, hashmap_int3_int, hashmap_int4_int
+  public hashmap_int_str
 
   type int2
     integer :: i(2)
@@ -65,6 +67,12 @@ module hashmap_m
 #define TTVALUE integer
 #include "hashmap_def.f90.inc"
 
+#define TKEY int
+#define TTKEY integer
+#define TVALUE string
+#define TTVALUE type(string)
+#include "hashmap_def.f90.inc"
+
 contains
 
 #define T int2
@@ -102,6 +110,12 @@ contains
 #define TVALUE int
 #define TTVALUE integer
 #include "hashmap_imp.f90.inc"
+
+#define TKEY int
+#define TTKEY integer
+#define TVALUE string
+#define TTVALUE type(string)
+#include "hashmap_map.f90.inc"
 
   function hash_int2(i2) result(h)
     type(int2), intent(in) :: i2

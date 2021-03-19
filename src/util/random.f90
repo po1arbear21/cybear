@@ -3,7 +3,7 @@ module random_m
   implicit none
 
   private
-  public :: random
+  public random
 
   type, bind(c) :: pcg64_state
     integer(kind=c_int64_t) :: state(2)

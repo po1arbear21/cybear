@@ -2,6 +2,13 @@ module vector_m
   use string_m
   implicit none
 
+  private
+  public vector_int
+  public vector_log
+  public vector_string
+  public vector_real
+  public vector_cmplx
+
 #define T int
 #define TT integer
 #include "vector_def.f90.inc"

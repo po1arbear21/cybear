@@ -1,11 +1,14 @@
 module test_plotmtv_m
 
-  use plotmtv_m
-  use test_case_m
-  use string_m
   use filesystem_m
+  use plotmtv_m
+  use string_m
+  use test_case_m
 
   implicit none
+
+  private
+  public test_plotmtv
 
 contains
 

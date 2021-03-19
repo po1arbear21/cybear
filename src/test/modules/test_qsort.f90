@@ -4,6 +4,9 @@ module test_qsort_m
   use string_m
   implicit none
 
+  private
+  public test_qsort
+
 contains
 
   subroutine test_qsort()

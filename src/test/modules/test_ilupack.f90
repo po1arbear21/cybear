@@ -7,6 +7,9 @@ module test_ilupack_m
 
   implicit none
 
+  private
+  public test_ilupack
+
 contains
 
   subroutine test_ilupack()

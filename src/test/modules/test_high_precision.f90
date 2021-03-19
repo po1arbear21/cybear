@@ -3,6 +3,9 @@ module test_high_precision_m
   use high_precision_m
   implicit none
 
+  private
+  public test_high_precision
+
 contains
 
   subroutine test_high_precision()

@@ -6,9 +6,11 @@ module util_m
   implicit none
 
   private
+  public cstrlen, c2fstring, f2cstring
   public hash
   public int2str
   public load_array
+  public select_int
 
   interface hash
     module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array
