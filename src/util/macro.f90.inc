@@ -14,6 +14,4 @@
 #define ASSERT(expr)
 #endif
 
-#define ERROR(expr, code) call program_error(#expr, code = #code, file = __FILE__, line = __LINE__)
-
 #endif

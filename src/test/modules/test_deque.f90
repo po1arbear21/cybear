@@ -3,6 +3,9 @@ module test_deque_m
   use deque_m
   implicit none
 
+  private
+  public test_deque
+
 contains
 
   subroutine test_deque()

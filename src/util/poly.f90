@@ -4,6 +4,11 @@ module poly_m
   use math_m
   implicit none
 
+  private
+  public poly1D
+  public poly2D
+  public poly3D
+
   type poly1D
     !! 1D interpolation polynomial (in Newton base)
 

@@ -4,6 +4,8 @@ module normalization_m
   use error_m
   use map_m
   use math_m
+  use string_m
+
   implicit none
 
   private

@@ -1,6 +1,14 @@
 module map_m
+  use string_m
   use vector_m
+
   implicit none
+
+  private
+  public map_string_int,    mapnode_string_int
+  public map_string_string, mapnode_string_string
+  public map_string_real,   mapnode_string_real
+  public map_string_cmplx,  mapnode_string_cmplx
 
 #define T string
 #define TT type(string)

@@ -1,8 +1,12 @@
 module test_hashmap_m
-  use test_case_m
   use array_m
   use hashmap_m
+  use test_case_m
+
   implicit none
+
+  private
+  public test_hashmap
 
 contains
 
@@ -12,9 +16,9 @@ contains
     call tc%init("hashmap")
 
     block
-      type(hashmap_int_int) :: hmap
       integer               :: i, value
       logical               :: status
+      type(hashmap_int_int) :: hmap
 
       ! init
       call hmap%init(c = 32)

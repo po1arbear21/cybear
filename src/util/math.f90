@@ -6,17 +6,17 @@ module math_m
   implicit none
 
   private
-  public :: PI
-  public :: cross_product, cross_product_2d
-  public :: heaviside
-  public :: isinf
-  public :: ber, dberdx
-  public :: phi1, dphi1dx, phi2, dphi2dx
-  public :: expm1, log1p
-  public :: linspace, logspace
-  public :: eye_int, eye_real
-  public :: norm_inf
-  public :: check_lin_dep
+  public PI
+  public cross_product, cross_product_2d
+  public heaviside
+  public isinf
+  public ber, dberdx
+  public phi1, dphi1dx, phi2, dphi2dx
+  public expm1, log1p
+  public linspace, logspace
+  public eye_int, eye_real
+  public norm_inf
+  public check_lin_dep
 
   real, parameter :: PI = 3.141592653589793238462643
 

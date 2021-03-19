@@ -22,16 +22,8 @@ uint32_t c_hash_int32_array(const uint32_t *a, size_t n) {
   uint32_t h;
   size_t i;
 
-  if (n == 0) return 0;
-
-  h = c_hash_int32(a[0]);
-  for (i = 1; i < n; ++i) {
-    // rotate left by 17 bits (prime close to 16)
-    h = ((h << 17) | (h >> 15));
-
-    // combine using xor
-    h = h ^ c_hash_int32(a[i]);
-  }
+  h = 0;
+  for (i = 0; i < n; ++i) h = c_hash_int32(h ^ a[i]);
 
   return h;
 }
@@ -55,16 +47,8 @@ uint64_t c_hash_int64_array(const uint64_t *a, size_t n) {
   uint64_t h;
   size_t i;
 
-  if (n == 0) return 0;
-
-  h = c_hash_int64(a[0]);
-  for (i = 1; i < n; ++i) {
-    // rotate left by 31 bits (prime close to 32)
-    h = ((h << 31) | (h >> 33));
-
-    // combine using xor
-    h = h ^ c_hash_int64(a[i]);
-  }
+  h = 0;
+  for (i = 0; i < n; ++i) h = c_hash_int64(h ^ a[i]);
 
   return h;
 }

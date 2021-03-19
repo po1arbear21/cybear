@@ -4,6 +4,9 @@ module test_sqrtm_m
   use test_case_m
   implicit none
 
+  private
+  public test_sqrtm
+
 contains
 
   subroutine test_sqrtm

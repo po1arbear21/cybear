@@ -2,9 +2,9 @@ module dual_m
   implicit none
 
   private
-  public :: dual_1, dual_2, dual_3, dual_4, dual_5, dual_6, dual_7, dual_8
-  public :: operator(+), operator(-), operator(*), operator(/), operator(**), operator(.dot.)
-  public :: abs, sqrt, exp, log, sin, cos, tan
+  public dual_1, dual_2, dual_3, dual_4, dual_5, dual_6, dual_7, dual_8
+  public operator(+), operator(-), operator(*), operator(/), operator(**), operator(.dot.)
+  public abs, sqrt, exp, log, sin, cos, tan
 
 #define N 1
 #include "dual_def.f90.inc"

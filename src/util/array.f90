@@ -1,6 +1,10 @@
 module array_m
   use string_m
+
   implicit none
+
+  private
+  ! public (see array_def.f90.inc)
 
 #define T int
 #define TT integer
