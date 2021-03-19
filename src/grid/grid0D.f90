@@ -244,6 +244,7 @@ contains
     IGNORE(idx2_dir )
     IGNORE(idx1     )
     IGNORE(j        )
+    IGNORE(idx2     )
 
     status = .false.
   end subroutine

@@ -116,6 +116,8 @@ contains
     ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
     ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
+    IGNORE(idx_dir)
+
     p(1,1) = this%x(idx(1))
   end subroutine
 
@@ -207,6 +209,8 @@ contains
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
 
     IGNORE(this)
+    IGNORE(idx1_dir)
+    IGNORE(idx2_dir)
 
     max_neighb = n(idx1_type,idx2_type)
   end function
@@ -240,6 +244,9 @@ contains
     ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     ASSERT(this%idx_allowed(idx2_type, idx2_dir))
     ASSERT(size(idx2) == this%idx_dim)
+
+    IGNORE(idx1_dir)
+    IGNORE(idx2_dir)
 
     idx2  = 0
     shift = 0

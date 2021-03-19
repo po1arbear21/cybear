@@ -25,7 +25,7 @@ module tensor_grid_m
     class(grid_data_int), allocatable :: neighb_i1(:,:,:,:)
       !! neighbour end indices (idx1_type, idx1_dir, idx2_type, idx2_dir)
     integer,              allocatable :: neighb(:,:)
-      !! neighbour data (idx2, i)
+      !! neighbour data (delta_idx, i)
   contains
     procedure :: init           => tensor_grid_init
     procedure :: get_idx_bnd    => tensor_grid_get_idx_bnd
@@ -438,7 +438,7 @@ contains
     end if
 
     ! extract j-th neighbour indices from precomputed table
-    idx2   = this%neighb(:,i)
+    idx2   = idx1 + this%neighb(:,i)
     status = .true.
   end subroutine
 
@@ -452,11 +452,12 @@ contains
       &                                            MULOP, MULOP, ADDOP, SELOP, &
       &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
 
-    integer          :: idx1_type, idx2_type, idx1_dir, idx2_dir, idir0(4), idir1(4), op, rtype1, rtype2, rdir1, rdir2
-    integer          :: i, j, k, j0, j1, idx1(this%idx_dim), idx2(this%idx_dim), bnd(this%idx_dim), max_neighb, i0, i1
-    integer          :: idx2_mul_n(size(this%g)), imul(size(this%g))
-    logical          :: select1, select2, status
-    type(vector_int) :: idx2_vec(this%idx_dim), idx2_mul(size(this%g),this%idx_dim)
+    integer :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch, idir0(4), idir1(4)
+    integer :: idx1(this%idx_dim), idx2(this%idx_dim), idx1_type, idx2_type, idx1_dir, idx2_dir, rtype1, rtype2, rdir1, rdir2
+    logical :: select1, select2, status
+
+    type(vector_int) :: neighb(this%idx_dim), neighb_tmp(this%idx_dim), neighb_mul(size(this%g),this%idx_dim)
+    integer          :: neighb_mul_n(size(this%g)), imul(size(this%g))
 
     ! allocate memory
     allocate (this%max_neighb(4,0:this%idx_dim,4,0:this%idx_dim), source = 0)
@@ -481,15 +482,19 @@ contains
         call program_error("idx_dim must be in range 1:8")
     end select
     do i = 1, this%idx_dim
-      call idx2_vec(i)%init(0, c = 1024)
+      call neighb(i)%init(0, c = 1024)
+      call neighb_tmp(i)%init(0, c = 16)
       do j = 1, size(this%g)
-        call idx2_mul(j,i)%init(0, c = 16)
+        call neighb_mul(j,i)%init(0, c = 16)
       end do
     end do
 
     ! direction bounds
     idir0 = [0,            1,            1, 0]
     idir1 = [0, this%idx_dim, this%idx_dim, 0]
+
+    ! search hint
+    isearch = -1
 
     ! init neighbours
     do idx2_type = 1, 4
@@ -507,8 +512,10 @@ contains
             call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
             idx1 = 1
             do while (idx1(this%idx_dim) <= bnd(this%idx_dim))
-              ! start idx2 table index
-              i0 = idx2_vec(1)%n + 1
+              ! clear temporary neighbour table
+              do i = 1, this%idx_dim
+                call neighb_tmp(i)%reset()
+              end do
 
               ! loop over sub-grids
               j1 = 0
@@ -534,9 +541,9 @@ contains
                     call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
                     if (.not. status) exit
 
-                    ! add neighbours to global vector
+                    ! add neighbour to temporary table
                     do k = 1, this%idx_dim
-                      call idx2_vec(k)%push(idx2(k))
+                      call neighb_tmp(k)%push(idx2(k)-idx1(k))
                     end do
                   end do
 
@@ -544,11 +551,11 @@ contains
                   if (op == SELOP) exit
                 else ! MULOP, MULSELOP: tensor product of neighbours from all sub-grids
                   do k = j0, j1
-                    call idx2_mul(i,k)%reset()
+                    call neighb_mul(i,k)%reset()
                   end do
                   if ((op == MULSELOP) .and. (.not. select1 .and. .not. select2)) then
                     do k = j0, j1
-                      call idx2_mul(i,k)%push(idx1(k))
+                      call neighb_mul(i,k)%push(idx1(k))
                     end do
                   else
                     do j = 1, max_neighb
@@ -557,20 +564,20 @@ contains
 
                       ! save neighbours temporarily
                       do k = j0, j1
-                        call idx2_mul(i,k)%push(idx2(k))
+                        call neighb_mul(i,k)%push(idx2(k))
                       end do
                     end do
                   end if
 
                   ! number of neighbours for i-th sub-grid
-                  idx2_mul_n(i) = idx2_mul(i,j0)%n
+                  neighb_mul_n(i) = neighb_mul(i,j0)%n
                 end if
               end do
 
               if ((op == MULOP) .or. (op == MULSELOP)) then
                 ! perform tensor product
                 imul = 1 ! select first combination
-                do while (imul(size(this%g)) <= idx2_mul_n(size(this%g)))
+                do while (imul(size(this%g)) <= neighb_mul_n(size(this%g)))
                   ! set idx2 by combining indices from sub-grids
                   j1 = 0
                   do i = 1, size(this%g)
@@ -578,29 +585,46 @@ contains
                     j1 = j1 + this%g(i)%p%idx_dim
                     do k = j0, j1
                       ! select indices of imul(i)-th neighbour from i-th grid
-                      idx2(k) = idx2_mul(i,k)%d(imul(i))
+                      idx2(k) = neighb_mul(i,k)%d(imul(i))
                     end do
                   end do
 
-                  ! save idx2
+                  ! add neighbour to temporary table
                   do k = 1, this%idx_dim
-                    call idx2_vec(k)%push(idx2(k))
+                    call neighb_tmp(k)%push(idx2(k)-idx1(k))
                   end do
 
                   ! select next combination
                   imul(1) = imul(1) + 1
                   do i = 1, size(this%g) - 1
-                    if (imul(i) <= idx2_mul_n(i)) exit
+                    if (imul(i) <= neighb_mul_n(i)) exit
                     imul(i  ) = 1
                     imul(i+1) = imul(i+1) + 1
                   end do
                 end do
               end if
 
-              ! end idx2 table index
-              i1 = idx2_vec(1)%n
+              ! find neighb_tmp chunk in neighb; start search with previous position
+              status = .false.
+              if (isearch >= 0) status = check_chunk(isearch)
+              if (.not. status) then
+                do isearch = 0, neighb(1)%n - neighb_tmp(1)%n
+                  status = check_chunk(isearch)
+                  if (status) exit
+                end do
+              end if
 
-              ! save start + end idx2 table indices
+              ! save new neighbour data
+              if (.not. status) then
+                i0 = neighb(1)%n + 1
+                i1 = neighb(1)%n + neighb_tmp(1)%n
+                do i = 1, this%idx_dim
+                  call neighb(i)%push(neighb_tmp(i)%d(1:neighb_tmp(i)%n))
+                end do
+                isearch = -1
+              end if
+
+              ! save start/end indices of chunk
               call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i0)
               call this%neighb_i1(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i1)
 
@@ -622,10 +646,10 @@ contains
       end do
     end do
 
-    ! convert and save idx2_vec
-    allocate (this%neighb(this%idx_dim,idx2_vec(1)%n))
+    ! convert and save neighb
+    allocate (this%neighb(this%idx_dim,neighb(1)%n))
     do i = 1, this%idx_dim
-      this%neighb(i,1:idx2_vec(i)%n) = idx2_vec(i)%d(1:idx2_vec(i)%n)
+      this%neighb(i,1:neighb(i)%n) = neighb(i)%d(1:neighb(i)%n)
     end do
 
   contains
@@ -658,6 +682,24 @@ contains
         select = .true.
       end if
     end subroutine
+
+    function check_chunk(isearch) result(status)
+      integer, intent(in) :: isearch
+        !! check if neighb_tmp is compatible with neighb at this position (zero based)
+      logical             :: status
+
+      status = .false.
+
+      i0 = isearch + 1
+      i1 = isearch + neighb_tmp(1)%n
+      do i = i0, i1
+        do j = 1, this%idx_dim
+          if (neighb(j)%d(i) /= neighb_tmp(j)%d(i-isearch)) return
+        end do
+      end do
+
+      status = .true.
+    end function
 
   end subroutine
 
