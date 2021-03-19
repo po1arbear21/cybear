@@ -4,7 +4,7 @@
 fix get_neighb (exclude self coupling)
 
 ## tensor grid
-test get_neighb
+- parallelize init_neighb
 
 ## test grid
 uncomment test region (line 426??)
@@ -40,3 +40,6 @@ uncomment test region (line 426??)
 - rename dag to depgraph; dag_node => node; dag_equ => equ
 - use integer indices instead of pointers
 - use hash of vselector for searching when building dependency graph
+
+# hash
+- array: xor before hashing instead of after?
