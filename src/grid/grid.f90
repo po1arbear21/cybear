@@ -10,6 +10,7 @@ module grid_m
   public IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   public grid, grid_ptr
   public allocate_grid_data
+  ! public (see grid_data_def.f90.inc)
   public grid_table, grid_table_ptr
 
   ! grid index types
