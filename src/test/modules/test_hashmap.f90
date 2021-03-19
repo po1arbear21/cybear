@@ -1,0 +1,129 @@
+module test_hashmap_m
+  use test_case_m
+  use array_m
+  use hashmap_m
+  implicit none
+
+contains
+
+  subroutine test_hashmap()
+    type(test_case) :: tc
+
+    call tc%init("hashmap")
+
+    block
+      type(hashmap_int_int) :: hmap
+      integer               :: i, value
+      logical               :: status
+
+      ! init
+      call hmap%init(c = 32)
+      call tc%assert(allocated(hmap%keys%d  ), "hashmap_int_int init: allocated(hmap%keys%d)")
+      call tc%assert(allocated(hmap%values%d), "hashmap_int_int init: allocated(hmap%values%d)")
+      call tc%assert(allocated(hmap%table   ), "hashmap_int_int init: allocated(hmap%table)")
+      call tc%assert_eq(32, size(hmap%keys%d)  , "hashmap_int_int init: keys capacity")
+      call tc%assert_eq(32, size(hmap%values%d), "hashmap_int_int init: values capacity")
+
+      ! set/get
+      call hmap%init(c = 32)
+      call hmap%set(32354, 411)
+      call hmap%set(-47882, 923)
+      call hmap%set(12234, 158)
+      call hmap%set(12234, 159)
+      call hmap%get(32354, value)
+      call tc%assert_eq(411, value, "hashmap_int_int set/get 1")
+      call hmap%get(-47882, value)
+      call tc%assert_eq(923, value, "hashmap_int_int set/get 2")
+      call hmap%get(12234, value)
+      call tc%assert_eq(159, value, "hashmap_int_int set/get 3")
+      call hmap%get(12235, value, status)
+      call tc%assert(.not. status, "hashmap_int_int set/get 4")
+
+      ! set/get many elements
+      do i = 1, 1024
+        call hmap%set(i, 2*i)
+      end do
+      do i = 1, 1024
+        call hmap%get(i, value)
+        call tc%assert_eq(2*i, value, "hashmap_int_int set/get many")
+      end do
+
+      ! reset
+      call hmap%reset()
+      call tc%assert_eq(0, hmap%keys%n, "hashmap_int_int reset: keys%n == 0")
+      call tc%assert_eq(0, hmap%values%n, "hashmap_int_int reset: values%n == 0")
+      call tc%assert(all(hmap%table == -1), "hashmap_int_int reset: all(table == -1)")
+
+      ! destruct
+      call hmap%destruct()
+      call tc%assert(.not. allocated(hmap%keys%d  ), "hashmap_int_int destruct: deallocated(hmap%keys%d)")
+      call tc%assert(.not. allocated(hmap%values%d), "hashmap_int_int destruct: deallocated(hmap%values%d)")
+      call tc%assert(.not. allocated(hmap%table   ), "hashmap_int_int destruct: deallocated(hmap%table)")
+    end block
+
+    block
+      type(hashmap_int2_int) :: hmap
+      type(int2)             :: key
+      integer                :: value
+      logical                :: status
+
+      ! set/get
+      call hmap%init(c = 32)
+      key%i = [4124, 142111]
+      call hmap%set(key, 12345)
+      key%i = [5629, 666]
+      call hmap%set(key, 4444)
+      key%i = [4124, 143111]
+      call hmap%set(key, 54321)
+      key%i = [5629, 666]
+      call hmap%set(key, 3333)
+
+      key%i = [4124, 142111]
+      call hmap%get(key, value)
+      call tc%assert_eq(12345, value, "hashmap_int2_int set/get 1")
+      key%i = [4124, 143111]
+      call hmap%get(key, value)
+      call tc%assert_eq(54321, value, "hashmap_int2_int set/get 2")
+      key%i = [5629, 666]
+      call hmap%get(key, value)
+      call tc%assert_eq(3333, value, "hashmap_int2_int set/get 3")
+      key%i = [123, 456]
+      call hmap%get(key, value, status)
+      call tc%assert(.not. status, "hashmap_int2_int set/get 4")
+    end block
+
+    block
+      type(hashmap_int3_int) :: hmap
+      type(int3)             :: key
+      integer                :: value
+      logical                :: status
+
+      ! set/get
+      call hmap%init(c = 32)
+      key%i = [4124, 142111, 4444]
+      call hmap%set(key, 12345)
+      key%i = [5629, 666, 1234]
+      call hmap%set(key, 4444)
+      key%i = [4124, 143111, 4444]
+      call hmap%set(key, 54321)
+      key%i = [5629, 666, 1234]
+      call hmap%set(key, 3333)
+
+      key%i = [4124, 142111, 4444]
+      call hmap%get(key, value)
+      call tc%assert_eq(12345, value, "hashmap_int3_int set/get 1")
+      key%i = [4124, 143111, 4444]
+      call hmap%get(key, value)
+      call tc%assert_eq(54321, value, "hashmap_int3_int set/get 2")
+      key%i = [5629, 666, 1234]
+      call hmap%get(key, value)
+      call tc%assert_eq(3333, value, "hashmap_int3_int set/get 3")
+      key%i = [123, 456, 9876]
+      call hmap%get(key, value, status)
+      call tc%assert(.not. status, "hashmap_int3_int set/get 4")
+    end block
+
+    call tc%finish()
+  end subroutine
+
+end module
