@@ -1,5 +1,4 @@
 module test_hashmap_m
-  use array_m
   use hashmap_m
   use test_case_m
 

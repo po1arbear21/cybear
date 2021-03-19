@@ -9,6 +9,13 @@ module hashmap_m
 
   implicit none
 
+  private
+  public hashmap_cmplx
+  public hashmap_int
+  public hashmap_log
+  public hashmap_real
+  public hashmap_string
+
 #define T int
 #define TT integer
 #include "hashmap_def.f90.inc"
