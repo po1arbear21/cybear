@@ -445,20 +445,23 @@ contains
 
   subroutine esystem_solve(this)
     !! solves equations system by newton-raphson method.
-    class(esystem), intent(inout) :: this
+    class(esystem),             intent(inout) :: this
+    type(newton_opt), optional, intent(in)    :: opt
 
     real                      :: p(0)
-    real, allocatable         :: x0(:), x(:)
-    type(newton_opt)          :: opt
+    real, allocatable         :: x(:)
+    type(newton_opt)          :: opt_
     type(sparse_real), target :: df
 
-    allocate (x0(this%n), x(this%n))
+    if (present(opt)) then
+      opt_ = opt
+    else
+      call opt_%init(this%n)
+    end if
 
-    ! load initial esystem variables' values
-    x0 = this%get_x()
+    allocate (x(this%n))
 
-    call opt%init(this%n, log=.true.)
-    call newton(fun, p, opt, x0, x)
+    call newton(fun, p, opt_, this%get_x(), x)
 
     ! save newton's result in esystem's variables
     call this%set_x(x)

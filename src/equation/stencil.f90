@@ -212,9 +212,11 @@ contains
     end if
     if (present(perm)) then
       ASSERT(size(perm) == g2_%idx_dim)
-      ASSERT(minval(perm) >= -1)
-      ASSERT(maxval(perm) <= g1%idx_dim)
-      ASSERT(.not. any(perm == 0))
+      if (g2_%idx_dim > 0) then
+        ASSERT(minval(perm) >= -1)
+        ASSERT(maxval(perm) <= g1%idx_dim)
+        ASSERT(.not. any(perm == 0))
+      end if
       this%perm = perm
     end if
 
@@ -302,13 +304,20 @@ contains
     logical,                    intent(out) :: status
       !! is j-th dependency used?
 
-    if (j == 1) then
+    integer :: shift
+
+    ASSERT(j > 0)
+
+    shift = 0
+    if ((this%idx1_type == this%idx2_type) .and. (this%idx1_dir == this%idx2_dir)) shift = 1
+
+    if (j-shift == 0) then
       ! couple to self
       idx2 = idx1
       status = .true.
     else
       ! grid neighbours do not contain self => subtract 1 from j
-      call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j-1, idx2, status)
+      call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j-shift, idx2, status)
     end if
   end subroutine
 

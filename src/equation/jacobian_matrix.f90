@@ -86,7 +86,7 @@ contains
     do itab1 = 1, v1%ntab; do itab2 = 1, v2%ntab
       call this%get(itab1, itab2, this%s(itab1,itab2)%p)
       call this%s( itab1,itab2)%p%init(v1%nvals(itab1), v2%nvals(itab2))
-      call this%sb(itab1,itab2)%init(this%s(itab1,itab2)%p)
+      call this%sb(itab1,itab2)%init(this%s(itab1,itab2)%p, assume_unique=.true.)
     end do; end do
   end subroutine
 
