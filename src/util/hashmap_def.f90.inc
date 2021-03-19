@@ -5,29 +5,41 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
-#define VECTOR_KEY       CONCAT(vector,TKEY)
-#define VECTOR_VALUE     CONCAT(vector,TVALUE)
-#define HASHMAP_TYPE     CONCAT3(hashmap,TKEY,TVALUE)
-#define HASHMAP_INIT     CONCAT(HASHMAP_TYPE,init)
-#define HASHMAP_DESTRUCT CONCAT(HASHMAP_TYPE,destruct)
-#define HASHMAP_RESET    CONCAT(HASHMAP_TYPE,reset)
-#define HASHMAP_RESERVE  CONCAT(HASHMAP_TYPE,reserve)
-#define HASHMAP_LOOKUP   CONCAT(HASHMAP_TYPE,lookup)
-#define HASHMAP_GET      CONCAT(HASHMAP_TYPE,get)
-#define HASHMAP_SET      CONCAT(HASHMAP_TYPE,set)
+#define VECTOR_VALUE      CONCAT(vector,T)
+#define HASHMAP_TYPE      CONCAT(hashmap,T)
+#define HASHMAP_INIT      CONCAT3(hashmap,T,init)
+#define HASHMAP_DESTRUCT  CONCAT3(hashmap,T,destruct)
+#define HASHMAP_RESET     CONCAT3(hashmap,T,reset)
+#define HASHMAP_RESERVE   CONCAT3(hashmap,T,reserve)
+#define HASHMAP_LOOKUP    CONCAT3(hashmap,T,lookup)
+#define HASHMAP_GET_KEY_1 CONCAT3(hashmap,T,get_key_1)
+#define HASHMAP_GET_KEY_N CONCAT3(hashmap,T,get_key_n)
+#define HASHMAP_SET_KEY_1 CONCAT3(hashmap,T,set_key_1)
+#define HASHMAP_SET_KEY_N CONCAT3(hashmap,T,set_key_n)
 
 type HASHMAP_TYPE
-  type(VECTOR_KEY)     :: keys
+  !! hashmap using integer (array) keys
+  type(vector_int)     :: keys
+    !! key data
+  integer              :: keysize
+    !! how many entries in keys%d yield a key
   type(VECTOR_VALUE)   :: values
+    !! value data
   integer, allocatable :: table(:)
+    !! lookup table (used internally)
 contains
   procedure :: init     => HASHMAP_INIT
   procedure :: destruct => HASHMAP_DESTRUCT
   procedure :: reset    => HASHMAP_RESET
   procedure :: reserve  => HASHMAP_RESERVE
-  procedure :: lookup   => HASHMAP_LOOKUP
-  procedure :: get      => HASHMAP_GET
-  procedure :: set      => HASHMAP_SET
+  generic   :: get      => HASHMAP_GET_KEY_1, HASHMAP_GET_KEY_N
+  generic   :: set      => HASHMAP_SET_KEY_1, HASHMAP_SET_KEY_N
+
+  procedure, private :: lookup => HASHMAP_LOOKUP
+  procedure, private :: HASHMAP_GET_KEY_1
+  procedure, private :: HASHMAP_GET_KEY_N
+  procedure, private :: HASHMAP_SET_KEY_1
+  procedure, private :: HASHMAP_SET_KEY_N
 end type
 
 #undef TKEY
@@ -42,7 +54,6 @@ end type
 #undef CONCATHELP3
 #undef CONCAT3
 
-#undef VECTOR_KEY
 #undef VECTOR_VALUE
 #undef HASHMAP_TYPE
 #undef HASHMAP_INIT
@@ -50,5 +61,7 @@ end type
 #undef HASHMAP_RESET
 #undef HASHMAP_RESERVE
 #undef HASHMAP_LOOKUP
-#undef HASHMAP_GET
-#undef HASHMAP_SET
+#undef HASHMAP_GET_KEY_1
+#undef HASHMAP_GET_KEY_N
+#undef HASHMAP_SET_KEY_1
+#undef HASHMAP_SET_KEY_N

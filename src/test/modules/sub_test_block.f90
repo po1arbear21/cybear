@@ -1,7 +1,6 @@
-submodule(test_matrix_m) test_block_m
+submodule (test_matrix_m) test_block_m
   !! TODO fixme
   !!    test if a block of a block matrix could be another block matrix (instead of the usual dense or so)
-  use matrix_m
   implicit none
 
 contains

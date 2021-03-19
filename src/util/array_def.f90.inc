@@ -20,6 +20,9 @@
 #define PTR6_TYPE       CONCAT(ptr6,T)
 #define PTR7_TYPE       CONCAT(ptr7,T)
 
+public ARRAY_TYPE, ARRAY2_TYPE, ARRAY3_TYPE, ARRAY4_TYPE, ARRAY5_TYPE, ARRAY6_TYPE, ARRAY7_TYPE
+public PTR_TYPE,   PTR2_TYPE,   PTR3_TYPE,   PTR4_TYPE,   PTR5_TYPE,   PTR6_TYPE,   PTR7_TYPE
+
 type ARRAY_TYPE
   TT, allocatable :: d(:)
 end type

@@ -1,12 +1,18 @@
 module test_input_m
   use input_m
+  use iso_fortran_env, only: int32, int64
+  use normalization_m
+  use string_m
   use test_case_m
 
   implicit none
 
+  private
+  public test_input
+
 contains
 
-  subroutine test_input
+  subroutine test_input()
     type(test_case)  :: tc
     type(input_file) :: f
 

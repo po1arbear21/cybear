@@ -3,9 +3,12 @@ module test_math_m
   use math_m
   implicit none
 
+  private
+  public test_math
+
 contains
 
-  subroutine test_math
+  subroutine test_math()
     type(test_case) :: tc
 
     call tc%init("math")

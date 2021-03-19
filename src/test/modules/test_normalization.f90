@@ -8,7 +8,7 @@ module test_normalization_m
   implicit none
 
   private
-  public :: test_normalization
+  public test_normalization
 
 contains
 

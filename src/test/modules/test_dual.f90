@@ -3,6 +3,9 @@ module test_dual_m
   use dual_m
   implicit none
 
+  private
+  public test_dual
+
 contains
 
   subroutine test_dual()

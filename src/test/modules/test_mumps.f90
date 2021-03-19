@@ -5,9 +5,12 @@ module test_mumps_m
   use test_case_m
   implicit none
 
+  private
+  public test_mumps
+
 contains
 
-  subroutine test_mumps
+  subroutine test_mumps()
     type(test_case) :: tc
 
     call tc%init("mumps")

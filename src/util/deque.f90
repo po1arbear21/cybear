@@ -1,6 +1,14 @@
 module deque_m
   use string_m
+
   implicit none
+
+  private
+  public deque_int
+  public deque_log
+  public deque_string
+  public deque_real
+  public deque_cmplx
 
 #define T int
 #define TT integer

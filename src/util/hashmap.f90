@@ -1,7 +1,12 @@
+#include "macro.f90.inc"
+
 module hashmap_m
-  use util_m, only : hash
-  use array_m
-  use vector_m
+
+  use error_m
+  use string_m, only: string
+  use util_m,   only: hash
+  use vector_m, only: vector_int, vector_log, vector_string, vector_real, vector_cmplx
+
   implicit none
 
   private
@@ -64,6 +69,22 @@ module hashmap_m
 #define TTVALUE integer
 #include "hashmap_def.f90.inc"
 
+#define T log
+#define TT logical
+#include "hashmap_def.f90.inc"
+
+#define T string
+#define TT type(string)
+#include "hashmap_def.f90.inc"
+
+#define T real
+#define TT real
+#include "hashmap_def.f90.inc"
+
+#define T cmplx
+#define TT complex
+#include "hashmap_def.f90.inc"
+
 contains
 
 #define T int2
@@ -102,6 +123,7 @@ contains
 #define TTVALUE integer
 #include "hashmap_imp.f90.inc"
 
+<<<<<<< HEAD
   function hash_int2(i2) result(h)
     type(int2), intent(in) :: i2
     integer                :: h
@@ -154,5 +176,22 @@ contains
 
     equal = all(k1%i == k2%i)
   end function
+=======
+#define T log
+#define TT logical
+#include "hashmap_imp.f90.inc"
+
+#define T string
+#define TT type(string)
+#include "hashmap_imp.f90.inc"
+
+#define T real
+#define TT real
+#include "hashmap_imp.f90.inc"
+
+#define T cmplx
+#define TT complex
+#include "hashmap_imp.f90.inc"
+>>>>>>> master
 
 end module

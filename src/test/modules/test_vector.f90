@@ -3,6 +3,9 @@ module test_vector_m
   use vector_m
   implicit none
 
+  private
+  public test_vector
+
 contains
 
   subroutine test_vector()

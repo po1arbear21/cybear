@@ -5,7 +5,12 @@ module input_m
   use iso_fortran_env, only: int32, int64
   use normalization_m
   use vector_m
+  use string_m
+
   implicit none
+
+  private
+  public input_file
 
   ! maximum line length
   integer, parameter :: MAX_LINE_LEN = 4096

@@ -3,6 +3,9 @@ module test_random_m
   use random_m
   implicit none
 
+  private
+  public test_random
+
 contains
 
   subroutine test_random()
