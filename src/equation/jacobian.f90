@@ -2,7 +2,7 @@
 
 module jacobian_m
   use error_m
-  use hashmap_m,         only: int3, hashmap_int3_int
+  use hashmap_m,         only: hashmap_int
   use jacobian_matrix_m, only: jacobian_matrix
   use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil
   use vselector_m,       only: vselector
@@ -14,9 +14,9 @@ module jacobian_m
 
   type static_data
     !! derivative data for static stencils
-    real, allocatable      :: d(:,:,:,:)
+    real, allocatable :: d(:,:,:,:)
       !! derivatives (v1%nval x v2%nval x st%nmax x tab1%n)
-    type(hashmap_int3_int) :: hmap
+    type(hashmap_int) :: hmap
       !! (i1, itab2, i2) -> j (= 3rd index in d)
   contains
     procedure :: init     => static_data_init
@@ -69,7 +69,9 @@ module jacobian_m
   type jacobian_ptr
     type(jacobian), pointer :: p => null()
   end type
+
 contains
+
   subroutine static_data_init(this, v1, v2, itab1, st)
     class(static_data),    intent(out) :: this
     type(vselector),       intent(in)  :: v1
@@ -81,14 +83,13 @@ contains
     class(static_stencil), intent(in)  :: st
       !! stencil
 
-    integer    :: i1, itab2, i2, j, idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
-    type(int3) :: key
-    logical    :: status
+    integer :: i1, itab2, i2, j, idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
+    logical :: status
 
     allocate (this%d(v1%nval, v2%nval, st%nmax, v1%tab(itab1)%p%n), source = 0.0)
 
     ! init hashmap
-    call this%hmap%init(c = v1%tab(itab1)%p%n * st%nmax)
+    call this%hmap%init(keysize = 3, c = v1%tab(itab1)%p%n * st%nmax)
     do i1 = 1, v1%tab(itab1)%p%n
       ! get result grid indices
       idx1 = v1%tab(itab1)%p%get_idx(i1)
@@ -104,8 +105,7 @@ contains
         i2    = v2%tab(itab2)%p%get_flat(idx2)
 
         ! save stencil dependency index (j) in hashmap
-        key%i = [i1, itab2, i2]
-        call this%hmap%set(key, j)
+        call this%hmap%set([i1, itab2, i2], j)
       end do
     end do
   end subroutine
@@ -396,9 +396,8 @@ contains
     logical, optional, intent(in)    :: add
       !! addition flag (default: false)
 
-    integer    :: itab2, i2, j, row, row0, col, col0, ival1, ival2
-    type(int3) :: key
-    logical    :: add_
+    integer :: itab2, i2, j, row, row0, col, col0, ival1, ival2
+    logical :: add_
 
     ASSERT(size(d, dim=1) == this%matr%v1%nval)
     ASSERT(size(d, dim=2) == this%matr%v2%nval)
@@ -414,8 +413,7 @@ contains
     select type (st => this%st(itab1)%p)
       class is (static_stencil)
         ! get stencil dependency index
-        key%i = [i1, itab2, i2]
-        call this%sd(itab1)%hmap%get(key, j)
+        call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
 
         ! edit derivatives
         if (add_) then
@@ -464,9 +462,8 @@ contains
     logical, optional, intent(in)    :: add
       !! addition flag (default: false)
 
-    integer    :: itab2, i2, j, row, col
-    type(int3) :: key
-    logical    :: add_
+    integer :: itab2, i2, j, row, col
+    logical :: add_
 
     ! optional addition flag
     add_ = .false.
@@ -479,8 +476,7 @@ contains
     select type (st => this%st(itab1)%p)
       class is (static_stencil)
         ! get stencil dependency index
-        key%i = [i1, itab2, i2]
-        call this%sd(itab1)%hmap%get(key, j)
+        call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
 
         ! edit derivatives
         if (add_) then

@@ -443,7 +443,7 @@ contains
     end if
   end function
 
-  subroutine esystem_solve(this)
+  subroutine esystem_solve(this, opt)
     !! solves equations system by newton-raphson method.
     class(esystem),             intent(inout) :: this
     type(newton_opt), optional, intent(in)    :: opt
