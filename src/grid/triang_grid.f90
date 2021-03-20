@@ -161,8 +161,8 @@ contains
     block
       integer :: n, ntmp, iv_, ie
 
-      this%max_neighb(IDX_VERTEX,IDX_VERTEX) = maxval(this%vert2edge_n(2:nvert+1) - this%vert2edge_n(1:nvert)) +1
-      this%max_neighb(IDX_VERTEX,IDX_EDGE  ) = this%max_neighb(IDX_VERTEX,IDX_VERTEX) -1
+      this%max_neighb(IDX_VERTEX,IDX_VERTEX) = maxval(this%vert2edge_n(2:nvert+1) - this%vert2edge_n(1:nvert))
+      this%max_neighb(IDX_VERTEX,IDX_EDGE  ) = this%max_neighb(IDX_VERTEX,IDX_VERTEX)
       this%max_neighb(IDX_VERTEX,IDX_CELL  ) = maxval(this%vert2cell_n(2:nvert+1) - this%vert2cell_n(1:nvert))
 
       this%max_neighb(IDX_EDGE,IDX_VERTEX) = 2 ! = sum(this%face_dim)
@@ -180,7 +180,7 @@ contains
           iv   = this%edge2vert(iv_,ie)
           ntmp = ntmp + this%vert2edge_n(iv+1)-this%vert2edge_n(iv)
         end do
-        n = max(n, ntmp-1)
+        n = max(n, ntmp-2)
       end do
       this%max_neighb(IDX_EDGE,IDX_EDGE) = n
 
@@ -441,6 +441,7 @@ contains
             if (j <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)) then  ! j must be smaller/equal than number of edges
               ie_  = this%vert2edge_n(iv1) + j-1
               idx2 = this%vert2edge_i(ie_)
+              status = .true.
             end if
           end block
 
@@ -448,9 +449,10 @@ contains
           block
             integer :: ic_
 
-            if (j <= this%vert2edge_n(iv1+1) - this%vert2edge_n(iv1)) then  ! j must be smaller/equal than number of cells
+            if (j <= this%vert2cell_n(iv1+1) - this%vert2cell_n(iv1)) then  ! j must be smaller/equal than number of cells
               ic_  = this%vert2cell_n(iv1) + j-1
               idx2 = this%vert2cell_i(ic_)
+              status = .true.
             end if
           end block
         end if            ! idx2_type
@@ -463,7 +465,8 @@ contains
         ie1 = idx1(1)
 
         if (idx2_type == IDX_VERTEX) then
-          if (j < 3) idx2 = this%edge2vert(j,ie1)
+          idx2   = this%edge2vert(j,ie1)
+          status = .true.
 
         else if ((idx2_type == IDX_EDGE) .or. (idx2_type == IDX_FACE)) then
           block

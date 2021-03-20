@@ -1,12 +1,3 @@
-# grid
-
-## triang_grid
-fix get_neighb (exclude self coupling)
-
-## test grid
-uncomment test region (line 426??)
-  aka uncrapify
-
 # equation
 ## precon
 - add 2nd jacobian "jaco_precon"
