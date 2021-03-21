@@ -2,6 +2,7 @@
 
 module tensor_grid_m
 
+  use array_m,  only: array2_int
   use error_m
   use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr, grid_data_int, &
     &                 grid_data1_int, grid_data2_int, grid_data3_int, grid_data4_int, &
@@ -24,8 +25,8 @@ module tensor_grid_m
       !! neighbour start indices (idx1_type, idx1_dir, idx2_type, idx2_dir)
     class(grid_data_int), allocatable :: neighb_i1(:,:,:,:)
       !! neighbour end indices (idx1_type, idx1_dir, idx2_type, idx2_dir)
-    integer,              allocatable :: neighb(:,:)
-      !! neighbour data (delta_idx, i)
+    type(array2_int),     allocatable :: neighb(:,:,:,:)
+      !! neighbour data (delta_idx, i) x (idx1_type, idx1_dir, idx2_type, idx2_dir)
   contains
     procedure :: init           => tensor_grid_init
     procedure :: get_idx_bnd    => tensor_grid_get_idx_bnd
@@ -39,7 +40,8 @@ module tensor_grid_m
     procedure :: get_max_neighb => tensor_grid_get_max_neighb
     procedure :: get_neighb     => tensor_grid_get_neighb
 
-    procedure, private :: init_neighb => tensor_grid_init_neighb
+    procedure, private :: init_neighb      => tensor_grid_init_neighb
+    procedure, private :: init_neighb_loop => tensor_grid_init_neighb_loop
   end type
 
 contains
@@ -438,7 +440,7 @@ contains
     end if
 
     ! extract j-th neighbour indices from precomputed table
-    idx2   = idx1 + this%neighb(:,i)
+    idx2   = idx1 + this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(:,i)
     status = .true.
   end subroutine
 
@@ -446,18 +448,8 @@ contains
     !! init neighbour data
     class(tensor_grid), intent(inout) :: this
 
-    integer, parameter :: ADDOP = 1, MULOP = 2, SELOP = 3, MULSELOP = 4
-    integer, parameter :: OP_TABLE(4,4) = reshape([ADDOP, SELOP, MULOP, MULOP, &
-      &                                            SELOP, ADDOP, MULOP, MULOP, &
-      &                                            MULOP, MULOP, ADDOP, SELOP, &
-      &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
-
-    integer :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch, idir0(4), idir1(4)
-    integer :: idx1(this%idx_dim), idx2(this%idx_dim), idx1_type, idx2_type, idx1_dir, idx2_dir, rtype1, rtype2, rdir1, rdir2
-    logical :: select1, select2, status
-
+    integer          :: i, j, idx1_type, idx2_type, idx1_dir, idx2_dir, idir0(4), idir1(4), todo(4,4*4*(this%idx_dim+1)*(this%idx_dim+1)), n
     type(vector_int) :: neighb(this%idx_dim), neighb_tmp(this%idx_dim), neighb_mul(size(this%g),this%idx_dim)
-    integer          :: neighb_mul_n(size(this%g)), imul(size(this%g))
 
     ! allocate memory
     allocate (this%max_neighb(4,0:this%idx_dim,4,0:this%idx_dim), source = 0)
@@ -481,6 +473,34 @@ contains
       case default
         call program_error("idx_dim must be in range 1:8")
     end select
+    allocate (this%neighb(4,0:this%idx_dim,4,0:this%idx_dim))
+
+    ! direction bounds
+    idir0 = [0,            1,            1, 0]
+    idir1 = [0, this%idx_dim, this%idx_dim, 0]
+
+    ! use todo list (better granularity for openmp)
+    n = 0
+    do idx2_type = 1, 4
+      do idx1_type = 1, 4
+        do idx2_dir = idir0(idx2_type), idir1(idx2_type)
+          do idx1_dir = idir0(idx1_type), idir1(idx1_type)
+            n = n + 1
+            todo(1,n) = idx1_type
+            todo(2,n) = idx1_dir
+            todo(3,n) = idx2_type
+            todo(4,n) = idx2_dir
+          end do
+        end do
+      end do
+    end do
+
+    ! init neighbours
+    !$omp parallel default(none) &
+    !$omp private(i, j, idx1_type, idx2_type, idx1_dir, idx2_dir, neighb, neighb_tmp, neighb_mul) &
+    !$omp shared(this, idir0, idir1, todo, n)
+
+    ! allocate thread local memory
     do i = 1, this%idx_dim
       call neighb(i)%init(0, c = 1024)
       call neighb_tmp(i)%init(0, c = 16)
@@ -489,167 +509,204 @@ contains
       end do
     end do
 
-    ! direction bounds
-    idir0 = [0,            1,            1, 0]
-    idir1 = [0, this%idx_dim, this%idx_dim, 0]
+    !$omp do schedule(dynamic)
+    do i = 1, n
+      idx1_type = todo(1,i)
+      idx1_dir  = todo(2,i)
+      idx2_type = todo(3,i)
+      idx2_dir  = todo(4,i)
+      call this%init_neighb_loop(neighb, neighb_tmp, neighb_mul, idx1_type, idx1_dir, idx2_type, idx2_dir)
+    end do
+    !$omp end do
+
+    ! free thread local memory
+    do i = 1, this%idx_dim
+      call neighb(i)%destruct()
+      call neighb_tmp(i)%destruct()
+      do j = 1, size(this%g)
+        call neighb_mul(j,i)%destruct()
+      end do
+    end do
+
+    !$omp end parallel
+  end subroutine
+
+  subroutine tensor_grid_init_neighb_loop(this, neighb, neighb_tmp, neighb_mul, idx1_type, idx1_dir, idx2_type, idx2_dir)
+    !! init neighbour data for one combination of idx1_type, idx1_dir, idx2_type idx2_dir
+    class(tensor_grid), intent(inout) :: this
+    type(vector_int),   intent(inout) :: neighb(:)
+    type(vector_int),   intent(inout) :: neighb_tmp(:)
+    type(vector_int),   intent(inout) :: neighb_mul(:,:)
+    integer,            intent(in)    :: idx1_type
+    integer,            intent(in)    :: idx2_type
+    integer,            intent(in)    :: idx1_dir
+    integer,            intent(in)    :: idx2_dir
+
+    integer, parameter :: ADDOP = 1, MULOP = 2, SELOP = 3, MULSELOP = 4
+    integer, parameter :: OP_TABLE(4,4) = reshape([ADDOP, SELOP, MULOP, MULOP, &
+      &                                            SELOP, ADDOP, MULOP, MULOP, &
+      &                                            MULOP, MULOP, ADDOP, SELOP, &
+      &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
+
+    integer :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch
+    integer :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
+    integer :: neighb_mul_n(size(this%g)), imul(size(this%g))
+    logical :: select1, select2, status
+
+    ! reset neighbour data vector
+    do i = 1, this%idx_dim
+      call neighb(i)%reset()
+    end do
 
     ! search hint
     isearch = -1
 
-    ! init neighbours
-    do idx2_type = 1, 4
-      do idx2_dir = idir0(idx2_type), idir1(idx2_type)
-        do idx1_type = 1, 4
-          do idx1_dir = idir0(idx1_type), idir1(idx1_type)
-            call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%init(this, idx1_type, idx1_dir)
-            call this%neighb_i1(idx1_type,idx1_dir,idx2_type,idx2_dir)%init(this, idx1_type, idx1_dir)
+    ! allocate memory
+    call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%init(this, idx1_type, idx1_dir)
+    call this%neighb_i1(idx1_type,idx1_dir,idx2_type,idx2_dir)%init(this, idx1_type, idx1_dir)
 
-            ! get operation (how to combine neighbours from sub-grids)
-            op = OP_TABLE(idx1_type, idx2_type)
-            if ((idx1_type == idx2_type) .and. (idx1_dir /= idx2_dir)) op = MULSELOP
+    ! get operation (how to combine neighbours from sub-grids)
+    op = OP_TABLE(idx1_type, idx2_type)
+    if ((idx1_type == idx2_type) .and. (idx1_dir /= idx2_dir)) op = MULSELOP
 
-            ! loop over all grid indices
-            call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
-            idx1 = 1
-            do while (idx1(this%idx_dim) <= bnd(this%idx_dim))
-              ! clear temporary neighbour table
-              do i = 1, this%idx_dim
-                call neighb_tmp(i)%reset()
-              end do
+    ! loop over all grid indices
+    call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
+    idx1 = 1
+    do while (idx1(this%idx_dim) <= bnd(this%idx_dim))
+      ! clear temporary neighbour table
+      do i = 1, this%idx_dim
+        call neighb_tmp(i)%reset()
+      end do
 
-              ! loop over sub-grids
-              j1 = 0
-              do i = 1, size(this%g)
-                j0 = j1 + 1
-                j1 = j1 + this%g(i)%p%idx_dim
+      ! loop over sub-grids
+      j1 = 0
+      do i = 1, size(this%g)
+        j0 = j1 + 1
+        j1 = j1 + this%g(i)%p%idx_dim
 
-                ! set relative types, directions and selection flags for result and dependency (uses i and j0 implicitly)
-                call set_relative(idx1_type, idx1_dir, rtype1, rdir1, select1)
-                call set_relative(idx2_type, idx2_dir, rtype2, rdir2, select2)
+        ! set relative types, directions and selection flags for result and dependency (uses i and j0 implicitly)
+        call set_relative(idx1_type, idx1_dir, rtype1, rdir1, select1)
+        call set_relative(idx2_type, idx2_dir, rtype2, rdir2, select2)
 
-                ! selection operation: select neighbours only from valid sub-grid
-                if ((op == SELOP) .and. .not. (select1 .and. select2)) cycle
+        ! selection operation: select neighbours only from valid sub-grid
+        if ((op == SELOP) .and. .not. (select1 .and. select2)) cycle
 
-                ! maximum number of neighbours for this sub-grid
-                max_neighb = this%g(i)%p%get_max_neighb(rtype1, rdir1, rtype2, rdir2)
+        ! maximum number of neighbours for this sub-grid
+        max_neighb = this%g(i)%p%get_max_neighb(rtype1, rdir1, rtype2, rdir2)
 
-                ! perform operation
-                if ((op == ADDOP) .or. (op == SELOP)) then ! add neighbours from sub-grids
-                  ! loop over neighbours for this sub-grid
-                  idx2 = idx1
-                  do j = 1, max_neighb
-                    call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
-                    if (.not. status) exit
+        ! perform operation
+        if ((op == ADDOP) .or. (op == SELOP)) then ! add neighbours from sub-grids
+          ! loop over neighbours for this sub-grid
+          idx2 = idx1
+          do j = 1, max_neighb
+            call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
+            if (.not. status) exit
 
-                    ! add neighbour to temporary table
-                    do k = 1, this%idx_dim
-                      call neighb_tmp(k)%push(idx2(k)-idx1(k))
-                    end do
-                  end do
-
-                  ! selection operation: done, remaining sub-grids will not be selected and can be skipped
-                  if (op == SELOP) exit
-                else ! MULOP, MULSELOP: tensor product of neighbours from all sub-grids
-                  do k = j0, j1
-                    call neighb_mul(i,k)%reset()
-                  end do
-                  if ((op == MULSELOP) .and. (.not. select1 .and. .not. select2)) then
-                    do k = j0, j1
-                      call neighb_mul(i,k)%push(idx1(k))
-                    end do
-                  else
-                    do j = 1, max_neighb
-                      call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
-                      if (.not. status) exit
-
-                      ! save neighbours temporarily
-                      do k = j0, j1
-                        call neighb_mul(i,k)%push(idx2(k))
-                      end do
-                    end do
-                  end if
-
-                  ! number of neighbours for i-th sub-grid
-                  neighb_mul_n(i) = neighb_mul(i,j0)%n
-                end if
-              end do
-
-              if ((op == MULOP) .or. (op == MULSELOP)) then
-                ! perform tensor product
-                imul = 1 ! select first combination
-                do while (imul(size(this%g)) <= neighb_mul_n(size(this%g)))
-                  ! set idx2 by combining indices from sub-grids
-                  j1 = 0
-                  do i = 1, size(this%g)
-                    j0 = j1 + 1
-                    j1 = j1 + this%g(i)%p%idx_dim
-                    do k = j0, j1
-                      ! select indices of imul(i)-th neighbour from i-th grid
-                      idx2(k) = neighb_mul(i,k)%d(imul(i))
-                    end do
-                  end do
-
-                  ! add neighbour to temporary table
-                  do k = 1, this%idx_dim
-                    call neighb_tmp(k)%push(idx2(k)-idx1(k))
-                  end do
-
-                  ! select next combination
-                  imul(1) = imul(1) + 1
-                  do i = 1, size(this%g) - 1
-                    if (imul(i) <= neighb_mul_n(i)) exit
-                    imul(i  ) = 1
-                    imul(i+1) = imul(i+1) + 1
-                  end do
-                end do
-              end if
-
-              ! find neighb_tmp chunk in neighb; start search with previous position
-              status = .false.
-              if (isearch >= 0) status = check_chunk(isearch)
-              if (.not. status) then
-                do isearch = 0, neighb(1)%n - neighb_tmp(1)%n
-                  status = check_chunk(isearch)
-                  if (status) exit
-                end do
-              end if
-
-              ! save new neighbour data
-              if (.not. status) then
-                i0 = neighb(1)%n + 1
-                i1 = neighb(1)%n + neighb_tmp(1)%n
-                do i = 1, this%idx_dim
-                  call neighb(i)%push(neighb_tmp(i)%d(1:neighb_tmp(i)%n))
-                end do
-                isearch = -1
-              end if
-
-              ! save start/end indices of chunk
-              call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i0)
-              call this%neighb_i1(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i1)
-
-              ! update this%max_neighb
-              associate (n => this%max_neighb(idx1_type,idx1_dir,idx2_type,idx2_dir))
-                if (i1 - i0 + 1 > n) n = i1 - i0 + 1
-              end associate
-
-              ! next idx1
-              idx1(1) = idx1(1) + 1
-              do i = 1, this%idx_dim - 1
-                if (idx1(i) <= bnd(i)) exit
-                idx1(i  ) = 1
-                idx1(i+1) = idx1(i+1) + 1
-              end do
+            ! add neighbour to temporary table
+            do k = 1, this%idx_dim
+              call neighb_tmp(k)%push(idx2(k)-idx1(k))
             end do
           end do
+
+          ! selection operation: done, remaining sub-grids will not be selected and can be skipped
+          if (op == SELOP) exit
+        else ! MULOP, MULSELOP: tensor product of neighbours from all sub-grids
+          do k = j0, j1
+            call neighb_mul(i,k)%reset()
+          end do
+          if ((op == MULSELOP) .and. (.not. select1 .and. .not. select2)) then
+            do k = j0, j1
+              call neighb_mul(i,k)%push(idx1(k))
+            end do
+          else
+            do j = 1, max_neighb
+              call this%g(i)%p%get_neighb(rtype1, rdir1, rtype2, rdir2, idx1(j0:j1), j, idx2(j0:j1), status)
+              if (.not. status) exit
+
+              ! save neighbours temporarily
+              do k = j0, j1
+                call neighb_mul(i,k)%push(idx2(k))
+              end do
+            end do
+          end if
+
+          ! number of neighbours for i-th sub-grid
+          neighb_mul_n(i) = neighb_mul(i,j0)%n
+        end if
+      end do
+
+      if ((op == MULOP) .or. (op == MULSELOP)) then
+        ! perform tensor product
+        imul = 1 ! select first combination
+        do while (imul(size(this%g)) <= neighb_mul_n(size(this%g)))
+          ! set idx2 by combining indices from sub-grids
+          j1 = 0
+          do i = 1, size(this%g)
+            j0 = j1 + 1
+            j1 = j1 + this%g(i)%p%idx_dim
+            do k = j0, j1
+              ! select indices of imul(i)-th neighbour from i-th grid
+              idx2(k) = neighb_mul(i,k)%d(imul(i))
+            end do
+          end do
+
+          ! add neighbour to temporary table
+          do k = 1, this%idx_dim
+            call neighb_tmp(k)%push(idx2(k)-idx1(k))
+          end do
+
+          ! select next combination
+          imul(1) = imul(1) + 1
+          do i = 1, size(this%g) - 1
+            if (imul(i) <= neighb_mul_n(i)) exit
+            imul(i  ) = 1
+            imul(i+1) = imul(i+1) + 1
+          end do
         end do
+      end if
+
+      ! find neighb_tmp chunk in neighb; start search with previous position
+      status = .false.
+      if (isearch >= 0) status = check_chunk(isearch)
+      if (.not. status) then
+        do isearch = 0, neighb(1)%n - neighb_tmp(1)%n
+          status = check_chunk(isearch)
+          if (status) exit
+        end do
+      end if
+
+      ! save new neighbour data
+      if (.not. status) then
+        isearch = neighb(1)%n
+        i0      = isearch + 1
+        i1      = isearch + neighb_tmp(1)%n
+        do i = 1, this%idx_dim
+          call neighb(i)%push(neighb_tmp(i)%d(1:neighb_tmp(i)%n))
+        end do
+      end if
+
+      ! save start/end indices of chunk
+      call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i0)
+      call this%neighb_i1(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i1)
+
+      ! update this%max_neighb
+      associate (n => this%max_neighb(idx1_type,idx1_dir,idx2_type,idx2_dir))
+        if (i1 - i0 + 1 > n) n = i1 - i0 + 1
+      end associate
+
+      ! next idx1
+      idx1(1) = idx1(1) + 1
+      do i = 1, this%idx_dim - 1
+        if (idx1(i) <= bnd(i)) exit
+        idx1(i  ) = 1
+        idx1(i+1) = idx1(i+1) + 1
       end do
     end do
 
-    ! convert and save neighb
-    allocate (this%neighb(this%idx_dim,neighb(1)%n))
+    ! save neighb
+    allocate (this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(this%idx_dim,neighb(1)%n))
     do i = 1, this%idx_dim
-      this%neighb(i,1:neighb(i)%n) = neighb(i)%d(1:neighb(i)%n)
+      this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(i,1:neighb(i)%n) = neighb(i)%d(1:neighb(i)%n)
     end do
 
   contains
