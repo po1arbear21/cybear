@@ -1,15 +1,16 @@
 #include "../../util/macro.f90.inc"
 
 module test_grid_m
-  use test_case_m,   only: test_case
   use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
   use math_m,        only: logspace
   use qsort_m,       only: qsort
-  use triang_grid_m, only: triang_grid
+  use test_case_m,   only: test_case
   use tensor_grid_m, only: tensor_grid
+  use triang_grid_m, only: triang_grid
   use util_m,        only: int2str
+  use vector_m,      only: vector_int
 
   ! no tests implemented but used s.t. modules get compiled at all
   use sum_grid_m
@@ -463,167 +464,339 @@ contains
       end block
 
       ! get_max_neighb
-      call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "triang_grid: get_max_neighb V V")
-      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "triang_grid: get_max_neighb V E")
-      call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "triang_grid: get_max_neighb V F")
-      call tc%assert_eq(4, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "triang_grid: get_max_neighb V C")
+      block
+        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "triang_grid: get_max_neighb V V")
+        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "triang_grid: get_max_neighb V E")
+        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "triang_grid: get_max_neighb V F")
+        call tc%assert_eq(4, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "triang_grid: get_max_neighb V C")
 
-      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb E V")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb E E")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb E F")
-      call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb E C")
+        call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb E V")
+        call tc%assert_eq(7, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb E E")
+        call tc%assert_eq(7, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb E F")
+        call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb E C")
 
-      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb F V")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb F E")
-      call tc%assert_eq(8, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb F F")
-      call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb F C")
+        call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb F V")
+        call tc%assert_eq(7, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb F E")
+        call tc%assert_eq(7, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb F F")
+        call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb F C")
 
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb C V")
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   1), "triang_grid: get_max_neighb C E")
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "triang_grid: get_max_neighb C F")
-      call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "triang_grid: get_max_neighb C C")
+        call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb C V")
+        call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_EDGE,   1), "triang_grid: get_max_neighb C E")
+        call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_FACE,   1), "triang_grid: get_max_neighb C F")
+        call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_CELL,   0), "triang_grid: get_max_neighb C C")
+      end block
 
       ! get_neighb
       block
-        ! integer              :: idx1(1), nidx2
-        ! integer, allocatable :: idx2(:,:), exp_idx2(:,:)
+        integer              :: idx1(1), nidx2, idx2(1), j
+        integer, allocatable :: idx2_arr(:,:), exp_idx2(:,:)
+        logical :: status
+        type(vector_int)     :: idx2_vec
 
-        ! ! V V
-        ! allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)))
+        call idx2_vec%init(0, c=10)
+        allocate (exp_idx2(0,0))
 
-        ! idx1     = [1]
-        ! exp_idx2 = reshape([2, 4, 5, 6], [1, 4])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V V  idx2 "//int2str(idx1(1)))
+        ! V V
+        idx1     = [1]
+        exp_idx2 = reshape([2, 4, 5, 6], [1, 4])
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [5]
-        ! exp_idx2 = reshape([1, 2, 3, 4], [1, 4])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V V  idx2 "//int2str(idx1(1)))
+        idx1     = [5]
+        exp_idx2 = reshape([1, 2, 3, 4], [1, 4])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [7]
-        ! exp_idx2 = reshape([2, 6], [1, 2])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V V  idx2 "//int2str(idx1(1)))
+        idx1     = [7]
+        exp_idx2 = reshape([2, 6], [1, 2])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V V, idx1: "//int2str(idx1(1)))
 
-        ! ! V E
-        ! deallocate (idx2)
-        ! allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE, 1)))
+        ! V E
+        idx1  = [1]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(4, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
 
-        ! idx1 = [1]
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call tc%assert_eq(4, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
+        idx1  = [2]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(5, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
 
-        ! idx1 = [3]
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
+        idx1  = [3]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
 
-        ! idx1 = [2]
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call tc%assert_eq(5, nidx2, "triang_grid: get_neighb V E nidx2 "//int2str(idx1(1)))
+        ! V C
+        idx1     = [1]
+        exp_idx2 = reshape([1, 4, 5], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V C, idx1: "//int2str(idx1(1)))
 
-        ! ! V C
-        ! deallocate (idx2)
-        ! allocate (idx2(1,g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL, 0)))
+        idx1     = [4]
+        exp_idx2 = reshape([1, 3], [1, 2])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V C, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [1]
-        ! exp_idx2 = reshape([1, 4, 5], [1, 3])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V C  idx2 "//int2str(idx1(1)))
+        idx1     = [5]
+        exp_idx2 = reshape([1, 2, 3, 5], [1, 4])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V C, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [4]
-        ! exp_idx2 = reshape([1, 3], [1, 2])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V C  idx2 "//int2str(idx1(1)))
+        ! edge to XXX tests
+        block
+          integer :: ie(nvert,nvert), ie_tmp(1), iv1, iv2, k, iv2_tmp(1)
 
-        ! idx1     = [5]
-        ! exp_idx2 = reshape([1, 2, 3, 5], [1, 4])
-        ! call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb V C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb V C  idx2 "//int2str(idx1(1)))
+          ie = -1
+          ! determine edge indices
+          do iv1 = 1, nvert
+            do iv2 = 1, nvert
+              NEIGHB: do j = 1, 100
+                call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, [iv1], j, ie_tmp, status)
+                if (.not. status) exit
+                do k = 1, 2
+                  call g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, ie_tmp, k, iv2_tmp, status)
+                  if (iv2_tmp(1) == iv2) then
+                    ie(iv1,iv2) = ie_tmp(1)
+                    exit NEIGHB
+                  end if
+                end do
+              end do NEIGHB
+            end do
+          end do
 
-        ! ! C V
-        ! deallocate (idx2)
-        ! allocate (idx2(1,g%get_max_neighb(IDX_CELL, 0, IDX_VERTEX, 0)))
+          ! E V
+          idx1     = [ie(1,2)]
+          exp_idx2 = reshape([1, 2], [1, 2])
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call qsort(idx2_arr(1,:))
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [1]
-        ! exp_idx2 = reshape([1, 4, 5], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C V  idx2 "//int2str(idx1(1)))
+          idx1     = [ie(6,7)]
+          exp_idx2 = reshape([6, 7], [1, 2])
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call qsort(idx2_arr(1,:))
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [4]
-        ! exp_idx2 = reshape([1, 2, 6], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C V  idx2 "//int2str(idx1(1)))
+          ! E E
+          idx1     = [ie(1,2)]
+          exp_idx2 = reshape([ie(1,6), ie(1,5), ie(1,4), ie(2,7), ie(2,6), ie(2,5), ie(2,3)], [1, 7])
+          call qsort(exp_idx2(1,:))
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_EDGE, 1, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call qsort(idx2_arr(1,:))
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E E, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [5]
-        ! exp_idx2 = reshape([1, 5, 2], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, idx2, nidx2)
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C V nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C V  idx2 "//int2str(idx1(1)))
+          idx1     = [ie(6,7)]
+          exp_idx2 = reshape([ie(6,1), ie(6,2), ie(7,2)], [1, 3])
+          call qsort(exp_idx2(1,:))
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_EDGE, 1, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call qsort(idx2_arr(1,:))
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E E, idx1: "//int2str(idx1(1)))
 
-        ! ! C E
-        ! deallocate (idx2)
-        ! allocate (idx2(1,g%get_max_neighb(IDX_CELL, 0, IDX_EDGE, 1)))
+          ! E V
+          idx1     = [ie(1,2)]
+          exp_idx2 = reshape([4, 5], [1, 2])
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_CELL, 0, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call qsort(idx2_arr(1,:))
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E C, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [1]
-        ! exp_idx2 = reshape([1, 7, 9], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
+          idx1     = [ie(6,7)]
+          exp_idx2 = reshape([6], [1, 1])
+          call idx2_vec%reset()
+          do j = 1, 100
+            call g%get_neighb(IDX_EDGE, 1, IDX_CELL, 0, idx1, j, idx2, status)
+            if (.not. status) exit
+            call idx2_vec%push(idx2(1))
+          end do
+          idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+          call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E C, idx1: "//int2str(idx1(1)))
+        end block
 
-        ! idx1     = [5]
-        ! exp_idx2 = reshape([2, 3, 9], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
+        ! C V
+        idx1     = [1]
+        exp_idx2 = reshape([1, 4, 5], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [6]
-        ! exp_idx2 = reshape([4, 5, 12], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C E nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C E  idx2 "//int2str(idx1(1)))
+        idx1     = [4]
+        exp_idx2 = reshape([1, 2, 6], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
 
-        ! ! C C
-        ! deallocate (idx2)
-        ! allocate (idx2(1,g%get_max_neighb(IDX_CELL, 0, IDX_CELL, 0)))
+        idx1     = [5]
+        exp_idx2 = reshape([1, 2, 5], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
 
-        ! idx1     = [1]
-        ! exp_idx2 = reshape([3, 5], [1, 2])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C C  idx2 "//int2str(idx1(1)))
+        ! C E
+        idx1  = [1]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V C, nidx2: "//int2str(idx1(1)))
 
-        ! idx1     = [5]
-        ! exp_idx2 = reshape([1, 2, 4], [1, 3])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C C  idx2 "//int2str(idx1(1)))
+        idx1  = [5]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V C, nidx2: "//int2str(idx1(1)))
 
-        ! idx1     = [6]
-        ! exp_idx2 = reshape([4], [1, 1])
-        ! call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, idx2, nidx2)
-        ! call qsort(idx2(1,:nidx2))
-        ! call tc%assert_eq(size(exp_idx2, dim=2), nidx2,  "triang_grid: get_neighb C C nidx2 "//int2str(idx1(1)))
-        ! call tc%assert_eq(exp_idx2(1,:), idx2(1,:nidx2), "triang_grid: get_neighb C C  idx2 "//int2str(idx1(1)))
+        idx1  = [6]
+        nidx2 = 0
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_EDGE, 1, idx1, j, idx2, status)
+          if (.not. status) exit
+          nidx2 = nidx2+1
+        end do
+        call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V C, nidx2: "//int2str(idx1(1)))
+
+        ! C C
+        idx1     = [1]
+        exp_idx2 = reshape([3, 5], [1, 2])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C C, idx1: "//int2str(idx1(1)))
+
+        idx1     = [5]
+        exp_idx2 = reshape([1, 2, 4], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C C, idx1: "//int2str(idx1(1)))
+
+        idx1     = [6]
+        exp_idx2 = reshape([4], [1, 1])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C C, idx1: "//int2str(idx1(1)))
       end block
     end subroutine
 
