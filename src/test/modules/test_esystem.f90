@@ -111,9 +111,9 @@ contains
     call g%init(real([0, 1, 2, 4]))
 
     ! init vars
-    call x%init(IDX_VERTEX)
-    call y%init(IDX_VERTEX)
-    call z%init(IDX_VERTEX)
+    call x%init("x", IDX_VERTEX)
+    call y%init("y", IDX_VERTEX)
+    call z%init("z", IDX_VERTEX)
 
     x%d%data = g%x+1
     y%d%data = 0.1*(g%x+1)
@@ -157,15 +157,16 @@ contains
     call tc%finish()
   end subroutine
 
-  subroutine var_init(this, idx_type)
-    class(var), intent(out) :: this
-    integer,    intent(in)  :: idx_type
+  subroutine var_init(this, name, idx_type)
+    class(var),   intent(out) :: this
+    character(*), intent(in)  :: name
+    integer,      intent(in)  :: idx_type
 
     select case (idx_type)
       case (IDX_VERTEX)
-        call this%variable_init('var_vert', 'V', g, idx_type, 0)
+        call this%variable_init(name//'_vert', 'V', g, idx_type, 0)
       case (IDX_CELL)
-        call this%variable_init('var_cell', 'V', g, idx_type, 0)
+        call this%variable_init(name//'_cell', 'V', g, idx_type, 0)
       case default
         call program_error('idx_type not defined for 1d var')
     end select
