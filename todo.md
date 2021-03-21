@@ -6,13 +6,6 @@
 - include in res_equation
   - jaco_f_precon
 
-# simple_eq
-## vsel <-> var + tab
-- `call dum_eq%init(var, tab, name)`
-  - creates vselector internally
-  - generic routine
-  - name optional
-
 # variable
 ## output
 - csv

@@ -448,7 +448,7 @@ contains
     type(grid_table_ptr),   intent(in)    :: tab(:)
       !! grid table pointers
     character(*), optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
+      !! name of new var selector (default: v%name)
     integer                               :: iprov
       !! return provided index
 
@@ -494,7 +494,7 @@ contains
     type(grid_table), optional, intent(in)    :: tab
       !! grid table
     character(*),     optional, intent(in)    :: name
-      !! name of new var selector (default: var%name)
+      !! name of new var selector (default: v%name)
     integer                                   :: iprov
       !! return provided index
 

@@ -3,8 +3,10 @@
 module simple_equations_m
 
   use equation_m,  only: equation
+  use grid_m,      only: grid_table, grid_table_ptr
   use jacobian_m,  only: jacobian
   use stencil_m,   only: stencil_ptr, dirichlet_stencil
+  use variable_m,  only: variable, variable_ptr
   use vselector_m, only: vselector, vselector_ptr
 
   implicit none
@@ -16,7 +18,17 @@ module simple_equations_m
   type, extends(equation) :: dummy_equation
     !! dummy equation which provides values but does not change anything
   contains
-    procedure :: init => dummy_equation_init
+    generic :: init => dummy_equation_init_vsel, &
+      &                dummy_equation_init_nvar_ntab, &
+      &                dummy_equation_init_var_ntab, &
+      &                dummy_equation_init_nvar_tab, &
+      &                dummy_equation_init_var_tab
+    procedure, private :: dummy_equation_init_vsel, &
+      &                   dummy_equation_init_nvar_ntab, &
+      &                   dummy_equation_init_var_ntab, &
+      &                   dummy_equation_init_nvar_tab, &
+      &                   dummy_equation_init_var_tab
+
     procedure :: eval => dummy_equation_eval
   end type
 
@@ -55,10 +67,10 @@ contains
 #define TT type(selector_equation_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine dummy_equation_init(this, v)
+  subroutine dummy_equation_init_vsel(this, v)
     !! initialize dummy equation
-    class(dummy_equation),    intent(out) :: this
-    class(vselector), target, intent(in)  :: v
+    class(dummy_equation), intent(out) :: this
+    class(vselector),      intent(in)  :: v
       !! dummy variable
 
     integer :: iprov
@@ -68,6 +80,102 @@ contains
 
     ! add provided var
     iprov = this%provide(v)
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine dummy_equation_init_nvar_ntab(this, v, tab, name)
+    !! initialize dummy equation
+    class(dummy_equation), intent(out) :: this
+    type(variable_ptr),    intent(in)  :: v(:)
+      !! variable pointers
+    type(grid_table_ptr),  intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*),          intent(in)  :: name
+      !! selector name
+
+    integer :: iprov
+
+    ! init base
+    call this%equation_init("Provide"//name)
+
+    ! add provided var
+    iprov = this%provide(v, tab, name)
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine dummy_equation_init_var_ntab(this, v, tab, name)
+    !! initialize dummy equation
+    class(dummy_equation),  intent(out) :: this
+    class(variable),        intent(in)  :: v
+      !! provided variable
+    type(grid_table_ptr),   intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)  :: name
+      !! name of new var selector (default: v%name)
+
+    integer :: iprov
+
+    ! init base
+    if (present(name)) then
+      call this%equation_init("Provide"//name)
+    else
+      call this%equation_init("Provide"//v%name)
+    end if
+
+    ! add provided var
+    iprov = this%provide(v, tab, name=name)
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine dummy_equation_init_nvar_tab(this, v, name, tab)
+    !! initialize dummy equation
+    class(dummy_equation),      intent(out) :: this
+    type(variable_ptr),         intent(in)  :: v(:)
+      !! variable pointers
+    character(*),               intent(in)  :: name
+      !! selector name
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+
+    integer :: iprov
+
+    ! init base
+    call this%equation_init("Provide"//name)
+
+    ! add provided var
+    iprov = this%provide(v, name, tab=tab)
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine dummy_equation_init_var_tab(this, v, tab, name)
+    !! initialize dummy equation
+    class(dummy_equation),      intent(out) :: this
+    class(variable),            intent(in)  :: v
+      !! new provided variable
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+    character(*),     optional, intent(in)  :: name
+      !! name of new var selector (default: var%name)
+
+    integer :: iprov
+
+    ! init base
+    if (present(name)) then
+      call this%equation_init("Provide"//name)
+    else
+      call this%equation_init("Provide"//v%name)
+    end if
+
+    ! add provided var
+    iprov = this%provide(v, tab=tab, name=name)
 
     ! finish initialization
     call this%init_final()
