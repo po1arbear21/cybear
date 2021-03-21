@@ -3,8 +3,10 @@
 module vselector_m
 
   use error_m
-  use grid_m,     only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
-  use variable_m, only: variable, variable_ptr
+  use grid_m,          only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
+  use iso_fortran_env, only: int64, int32
+  use util_m,          only: hash
+  use variable_m,      only: variable, variable_ptr
 
   implicit none
 
@@ -53,6 +55,7 @@ module vselector_m
 
     procedure :: reset   => vselector_reset
     procedure :: compare => vselector_compare
+    procedure :: hash    => vselector_hash
     procedure :: get_ptr => vselector_get_ptr
 
     procedure :: vselector_get_single
@@ -249,6 +252,37 @@ contains
     end do
 
     c = .true.
+  end function
+
+  function vselector_hash(this) result(h)
+    !! hash variable selector (name is not included)
+    class(vselector), intent(in) :: this
+    integer                      :: h
+      !! return hash value
+
+    integer             :: i
+    integer(kind=int64) :: a(3+size(this%v)+size(this%tab)), h64
+
+    ! convert to integer array (convert pointers to integers using loc function)
+    a(1) = loc(this%g)
+    a(2) = this%idx_type
+    a(3) = this%idx_dir
+    do i = 1, size(this%v)
+      a(3+i) = loc(this%v(i)%p)
+    end do
+    do i = 1, size(this%tab)
+      a(3+size(this%v)+i) = loc(this%tab(i)%p)
+    end do
+
+    ! return hash of array
+    h64 = hash(a)
+
+#ifdef INTSIZE64
+    h = h64
+#endif
+#ifdef INTSIZE32
+    h = ieor(int(h64, kind = int32), int(ishft(h64, -32), kind = int32))
+#endif
   end function
 
   function vselector_get_single(this, idx) result(x)

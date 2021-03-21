@@ -4,11 +4,12 @@ module esystem_m
   use array_m,            only: array_int
   use error_m
   use equation_m,         only: equation
-  use esystem_dag_m,      only: dag, vector_dag_node_ptr, NDSTATUS_DEP
+  use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
+  use vector_m,           only: vector_int
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
 
   implicit none
@@ -22,8 +23,8 @@ module esystem_m
     character(:), allocatable :: name
       !! system name
 
-    type(dag) :: d
-      !! directed acyclic graph
+    type(depgraph) :: g
+      !! dependency graph
 
     type(vector_dummy_equation_ptr)    :: edum
       !! dummy equations
@@ -97,8 +98,8 @@ contains
 
     this%name = name
 
-    ! init dag
-    call this%d%init()
+    ! init dependency graph
+    call this%g%init()
 
     ! init vectors
     call this%edum%init(   0, 8)
@@ -114,8 +115,8 @@ contains
 
     integer :: i
 
-    ! destruct dag
-    call this%d%destruct()
+    ! destruct dependency graph
+    call this%g%destruct()
 
     ! destruct dummy and selection equations
     do i = 1, this%edum%n
@@ -161,8 +162,8 @@ contains
     ! make sure initialization of equation is finished
     if (.not. e%finished_init) call program_error("init_final was not called for "//e%name)
 
-    ! add equation to dag
-    call this%d%add_equ(e)
+    ! add equation to dependency graph
+    call this%g%add_equ(e)
   end subroutine
 
   subroutine esystem_try_fix(this)
@@ -173,18 +174,18 @@ contains
     logical                     :: status
     type(vselector_ptr)         :: vp
     type(vector_vselector_ptr)  :: prov
-    type(vector_dag_node_ptr)   :: fix_list
+    type(vector_int)            :: fix_list
     type(selector_equation_ptr) :: ep
 
     ! get list of provided vars, init fix list (unprovided)
     call prov%init(0, 32)
     call fix_list%init(0, 32)
-    do i = 1, this%d%nodes%n
-      associate (np => this%d%nodes%d(i))
-        if (np%p%status == NDSTATUS_DEP) then
-          call fix_list%push(np)
+    do i = 1, this%g%nodes%n
+      associate (n => this%g%nodes%d(i))
+        if (n%status == STATUS_DEP) then
+          call fix_list%push(i)
         else
-          vp%p => np%p%v
+          vp%p => n%v
           call prov%push(vp)
         end if
       end associate
@@ -192,7 +193,7 @@ contains
 
     ! fix nodes
     do i = 1, fix_list%n
-      associate (n => fix_list%d(i)%p)
+      associate (n => this%g%nodes%d(fix_list%d(i)))
         ! new selector equation
         allocate (ep%p)
         call ep%p%init(n%v, prov%d(1:prov%n), status)
@@ -222,7 +223,7 @@ contains
     !! finish initialization
     class(esystem), intent(inout) :: this
 
-    integer :: i, j, k, mvari, resi, itab1, itab2, ibl1, ibl2
+    integer :: i, j, k, imvar, ires, itab1, itab2, ibl1, ibl2
     logical :: fail
 
     if (this%finished_init) call program_error("init_final called multiple times")
@@ -233,9 +234,9 @@ contains
 
     ! check if all vars are provided/main vars
     fail = .false.
-    do i = 1, this%d%nodes%n
-      associate (n => this%d%nodes%d(i)%p)
-        if (n%status == NDSTATUS_DEP) then
+    do i = 1, this%g%nodes%n
+      associate (n => this%g%nodes%d(i))
+        if (n%status == STATUS_DEP) then
           fail = .true.
           print "(A)", "Not provided:"
           call n%v%print()
@@ -245,28 +246,28 @@ contains
     end do
     if (fail) call program_error("missing one or more variable selectors")
 
-    ! analyze dag
-    call this%d%analyze()
+    ! analyze dependency graph
+    call this%g%analyze()
 
     ! count blocks
     this%nbl = 0
-    do i = 1, this%d%mvari%n
-      mvari = this%d%mvari%d(i)
-      associate (v => this%d%nodes%d(mvari)%p%v)
+    do i = 1, this%g%imvar%n
+      imvar = this%g%imvar%d(i)
+      associate (v => this%g%nodes%d(imvar)%v)
         this%nbl = this%nbl + v%ntab
       end associate
     end do
 
     ! set block indices
-    allocate (this%res2block(this%d%mvari%n))
+    allocate (this%res2block(this%g%imvar%n))
     allocate (this%block2res(this%nbl,2), source = 0)
     allocate (this%i0(this%nbl), source = 0)
     allocate (this%i1(this%nbl), source = 0)
     ibl1 = 0
     k    = 0
-    do i = 1, this%d%mvari%n
-      mvari = this%d%mvari%d(i)
-      associate (v => this%d%nodes%d(mvari)%p%v)
+    do i = 1, this%g%imvar%n
+      imvar = this%g%imvar%d(i)
+      associate (v => this%g%nodes%d(imvar)%v)
         allocate (this%res2block(i)%d(v%ntab), source = 0)
 
         ! mvar is split into v%ntab blocks
@@ -298,12 +299,12 @@ contains
     allocate (this%dfconst(this%nbl,this%nbl))
 
     ! set jacobians (loop over residuals and main variables)
-    do i = 1, this%d%resi%n
-      resi = this%d%resi%d(i)
-      do j = 1, this%d%mvari%n
-        mvari = this%d%mvari%d(j)
-        associate (fn => this%d%equs%d(resi)%p%res, &
-          &        vn => this%d%nodes%d(mvari)%p)
+    do i = 1, this%g%ires%n
+      ires = this%g%ires%d(i)
+      do j = 1, this%g%imvar%n
+        imvar = this%g%imvar%d(j)
+        associate (fn => this%g%nodes%d(this%g%equs%d(ires)%ires), &
+          &        vn => this%g%nodes%d(imvar))
           ! loop over blocks from both main variables
           do itab1 = 1, fn%v%ntab
             do itab2 = 1, vn%v%ntab
@@ -350,28 +351,28 @@ contains
     if (.not. this%finished_init) call program_error("init_final was not called")
 
     ! loop over evaluation list
-    do i = 1, this%d%ev%n
-      ! get DAG equation
-      associate (dag_e => this%d%equs%d(this%d%ev%d(i))%p)
+    do i = 1, this%g%ieval%n
+      ! get dependency graph equation
+      associate (e => this%g%equs%d(this%g%ieval%d(i)))
         ! evaluate equation
-        call dag_e%e%eval()
-        call dag_e%e%set_jaco_matr(const = .false., nonconst = .true.)
+        call e%e%eval()
+        call e%e%set_jaco_matr(const = .false., nonconst = .true.)
 
         ! perform non-const jacobian chain operations for provided vars
-        do j = 1, size(dag_e%prov)
-          call dag_e%prov(j)%p%eval()
+        do j = 1, size(e%iprov)
+          call this%g%nodes%d(e%iprov(j))%eval()
         end do
 
         ! perform non-const jacobian chain operations for residuals
-        if (associated(dag_e%res)) then
-          call dag_e%res%eval()
+        if (e%ires > 0) then
+          call this%g%nodes%d(e%ires)%eval()
         end if
       end associate
     end do
 
     ! set residuals flat array
-    do i = 1, this%d%resi%n
-      associate (fn => this%d%equs%d(this%d%resi%d(i))%p%res)
+    do i = 1, this%g%ires%n
+      associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires))
         ! get block indices
         ibl1 = this%res2block(i)%d(1)
         ibl2 = this%res2block(i)%d(fn%v%ntab)
@@ -397,7 +398,7 @@ contains
     class(vselector), pointer  :: mv
       !! return pointer to main var
 
-    mv => this%d%nodes%d(this%d%mvari%d(i))%p%v
+    mv => this%g%nodes%d(this%g%imvar%d(i))%v
   end function
 
   function esystem_get_res_equ(this, i) result(re)
@@ -408,7 +409,7 @@ contains
     class(res_equation), pointer :: re
       !! return pointer to residual equation
 
-    select type (e => this%d%equs%d(this%d%resi%d(i))%p%e)
+    select type (e => this%g%equs%d(this%g%ires%d(i))%e)
       class is (res_equation)
         re => e
       class default
@@ -428,9 +429,9 @@ contains
     logical :: found
 
     found = .false.
-    do j = 1, this%d%mvari%n
-      associate (nd => this%d%nodes%d(this%d%mvari%d(j))%p)
-        if (nd%v%name == name) then
+    do j = 1, this%g%imvar%n
+      associate (n => this%g%nodes%d(this%g%imvar%d(j)))
+        if (n%v%name == name) then
           if (found) call program_error("multiple main variables with name "//name//" found")
           found = .true.
           i = j
@@ -516,16 +517,16 @@ contains
     real                       :: x(this%i1(ibl)-this%i0(ibl)+1)
       !! return values in flat array
 
-    integer :: itab, mvari
+    integer :: itab, imvar
 
     ! get values
-    mvari = this%d%mvari%d(this%block2res(ibl,1))
-    associate (nd => this%d%nodes%d(mvari)%p)
+    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    associate (n => this%g%nodes%d(imvar))
       ! get table index
       itab = this%block2res(ibl,2)
 
       ! return values
-      x = nd%v%get(itab)
+      x = n%v%get(itab)
     end associate
   end function
 
@@ -551,16 +552,16 @@ contains
     real,           intent(in)    :: x(:)
       !! set values from flat array
 
-    integer :: itab, mvari
+    integer :: itab, imvar
 
     ! set values
-    mvari = this%d%mvari%d(this%block2res(ibl,1))
-    associate (nd => this%d%nodes%d(mvari)%p)
+    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    associate (n => this%g%nodes%d(imvar))
       ! get table index
       itab = this%block2res(ibl,2)
 
       ! set values
-      call nd%v%set(itab, x)
+      call n%v%set(itab, x)
     end associate
   end subroutine
 
@@ -586,16 +587,16 @@ contains
     real,           intent(in)    :: dx(:)
       !! delta values in flat array
 
-    integer :: itab, mvari
+    integer :: itab, imvar
 
     ! update values
-    mvari = this%d%mvari%d(this%block2res(ibl,1))
-    associate (nd => this%d%nodes%d(mvari)%p)
+    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    associate (n => this%g%nodes%d(imvar))
       ! get table index
       itab = this%block2res(ibl,2)
 
       ! update values
-      call nd%v%update(itab, dx)
+      call n%v%update(itab, dx)
     end associate
   end subroutine
 
@@ -671,8 +672,8 @@ contains
     integer :: i, j, ibl
 
     ibl = 0
-    do i = 1, this%d%mvari%n
-      associate (v => this%d%nodes%d(this%d%mvari%d(i))%p%v)
+    do i = 1, this%g%imvar%n
+      associate (v => this%g%nodes%d(this%g%imvar%d(i))%v)
         call v%print()
         do j = 1, v%ntab
           ibl = ibl + 1

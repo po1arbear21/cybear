@@ -96,7 +96,6 @@ contains
 
     integer :: itab1, itab2
 
-    nullify (this%v1, this%v2)
     if (allocated(this%const )) deallocate (this%const )
     if (allocated(this%zero  )) deallocate (this%zero  )
     if (allocated(this%valmsk)) deallocate (this%valmsk)
