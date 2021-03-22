@@ -40,30 +40,29 @@ module jacobian_m
     procedure :: set_matr => jacobian_set_matr
     generic   :: set      => jacobian_set_itab_nval, &
       &                      jacobian_set_itab_ival, &
-      &                      jacobian_set_itab, &
-      &                      jacobian_set_nval, &
-      &                      jacobian_set_ival, &
+      &                      jacobian_set_itab,      &
+      &                      jacobian_set_nval,      &
+      &                      jacobian_set_ival,      &
       &                      jacobian_set
     generic   :: add      => jacobian_add_itab_nval, &
       &                      jacobian_add_itab_ival, &
-      &                      jacobian_add_itab, &
-      &                      jacobian_add_nval, &
-      &                      jacobian_add_ival, &
+      &                      jacobian_add_itab,      &
+      &                      jacobian_add_nval,      &
+      &                      jacobian_add_ival,      &
       &                      jacobian_add
 
-    procedure, private :: jacobian_set_itab_nval
-    procedure, private :: jacobian_set_itab_ival
-    procedure, private :: jacobian_set_itab
-    procedure, private :: jacobian_set_nval
-    procedure, private :: jacobian_set_ival
-    procedure, private :: jacobian_set
-
-    procedure, private :: jacobian_add_itab_nval
-    procedure, private :: jacobian_add_itab_ival
-    procedure, private :: jacobian_add_itab
-    procedure, private :: jacobian_add_nval
-    procedure, private :: jacobian_add_ival
-    procedure, private :: jacobian_add
+    procedure, private :: jacobian_set_itab_nval, &
+      &                   jacobian_set_itab_ival, &
+      &                   jacobian_set_itab,      &
+      &                   jacobian_set_nval,      &
+      &                   jacobian_set_ival,      &
+      &                   jacobian_set
+    procedure, private :: jacobian_add_itab_nval, &
+      &                   jacobian_add_itab_ival, &
+      &                   jacobian_add_itab,      &
+      &                   jacobian_add_nval,      &
+      &                   jacobian_add_ival,      &
+      &                   jacobian_add
   end type
 
   type jacobian_ptr

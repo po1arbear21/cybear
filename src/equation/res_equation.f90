@@ -34,24 +34,23 @@ module res_equation_m
       !! derivatives of f wrt vdep. size: this%vdep%d
     type(jacobian_ptr), allocatable :: jaco_ft(:)
       !! derivatives of f wrt d/dt(vdep), must be const. size: this%vdep%d
-
   contains
     procedure :: get_res_ptr   => res_equation_get_res_ptr
-    generic   :: init_f        => res_equation_init_f_vsel, &
+    generic   :: init_f        => res_equation_init_f_vsel,      &
       &                           res_equation_init_f_nvar_ntab, &
-      &                           res_equation_init_f_var_ntab, &
-      &                           res_equation_init_f_nvar_tab, &
+      &                           res_equation_init_f_var_ntab,  &
+      &                           res_equation_init_f_nvar_tab,  &
       &                           res_equation_init_f_var_tab
     procedure :: destruct      => res_equation_destruct
     procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
 
-    procedure, private :: res_equation_init_f_vsel
-    procedure, private :: res_equation_init_f_nvar_ntab
-    procedure, private :: res_equation_init_f_var_ntab
-    procedure, private :: res_equation_init_f_nvar_tab
-    procedure, private :: res_equation_init_f_var_tab
+    procedure, private :: res_equation_init_f_vsel,      &
+      &                   res_equation_init_f_nvar_ntab, &
+      &                   res_equation_init_f_var_ntab,  &
+      &                   res_equation_init_f_nvar_tab,  &
+      &                   res_equation_init_f_var_tab
   end type
 
   type res_equation_ptr

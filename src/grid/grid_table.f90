@@ -66,6 +66,14 @@ contains
     end associate
   end subroutine
 
+  function grid_table_get_ptr(this) result(ptr)
+    !! returns pointer type to this grid_table
+    class(grid_table), target, intent(in) :: this
+    type(grid_table_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
+
   function grid_table_get_idx(this, i) result(idx)
     !! convert flat index to grid indices
     class(grid_table), intent(in)  :: this
@@ -86,14 +94,6 @@ contains
       !! return flat index (0 if grid point is not part of table)
 
     i = this%idx2flat%get(idx)
-  end function
-
-  function grid_table_get_ptr(this) result(ptr)
-    !! returns pointer type to this grid_table
-    class(grid_table), target, intent(in) :: this
-    type(grid_table_ptr)                  :: ptr
-
-    ptr%p => this
   end function
 
 end submodule

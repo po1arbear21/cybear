@@ -29,14 +29,11 @@ module variable_m
   contains
     procedure :: variable_init
     procedure :: get_ptr => variable_get_ptr
+    generic   :: get     => variable_get_point, variable_get_all
+    generic   :: set     => variable_set_point, variable_set_all
 
-    procedure, private :: variable_get_point
-    procedure, private :: variable_get_all
-    generic            :: get => variable_get_point, variable_get_all
-
-    procedure, private :: variable_set_point
-    procedure, private :: variable_set_all
-    generic            :: set => variable_set_point, variable_set_all
+    procedure, private :: variable_get_point, variable_get_all
+    procedure, private :: variable_set_point, variable_set_all
   end type
 
   type variable_ptr

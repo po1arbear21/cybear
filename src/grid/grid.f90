@@ -233,9 +233,9 @@ module grid_m
   contains
     procedure :: init       => grid_table_init
     procedure :: init_final => grid_table_init_final
+    procedure :: get_ptr    => grid_table_get_ptr
     procedure :: get_idx    => grid_table_get_idx
     procedure :: get_flat   => grid_table_get_flat
-    procedure :: get_ptr    => grid_table_get_ptr
   end type
 
   type grid_table_ptr

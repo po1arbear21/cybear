@@ -586,7 +586,7 @@ contains
     !! writes grid to plotmtv file "<fname>.plt" and a separate csv files "<fname>_vert.csv", "<fname>_icell.csv".
     class(triang_grid), intent(in) :: this
     character(*),       intent(in) :: fname
-      !! output folder, e.g. "output/tmp/triang"
+      !! output base file name, e.g. "output/tmp/triang"
 
     ! write plotmtv file
     block

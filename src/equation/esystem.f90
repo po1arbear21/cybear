@@ -5,10 +5,12 @@ module esystem_m
   use error_m
   use equation_m,         only: equation
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
+  use grid_m,             only: grid_table, grid_table_ptr
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
+  use variable_m,         only: variable, variable_ptr
   use vector_m,           only: vector_int
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
 
@@ -38,7 +40,7 @@ module esystem_m
     type(array_int), allocatable :: res2block(:)
       !! (res equation index, main var table index) -> block index;  (ntab) x (size(requs))
     integer,         allocatable :: block2res(:,:)
-      !! block index -> (res equation index, main var table index); (nbl x 2)
+      !! block index -> (res equation index, main var table index); (2, nbl)
     integer,         allocatable :: i0(:)
       !! start rows for flat residuals (= cols of main vars)
     integer,         allocatable :: i1(:)
@@ -56,37 +58,35 @@ module esystem_m
   contains
     procedure :: init            => esystem_init
     procedure :: destruct        => esystem_destruct
-    procedure :: provide         => esystem_provide
     procedure :: add_equation    => esystem_add_equation
-    procedure :: try_fix         => esystem_try_fix
+    generic   :: provide         => esystem_provide_vsel,      &
+      &                             esystem_provide_nvar_ntab, &
+      &                             esystem_provide_var_ntab,  &
+      &                             esystem_provide_nvar_tab,  &
+      &                             esystem_provide_var_tab
     procedure :: init_final      => esystem_init_final
     procedure :: eval            => esystem_eval
     procedure :: get_main_var    => esystem_get_main_var
     procedure :: get_res_equ     => esystem_get_res_equ
     procedure :: search_main_var => esystem_search_main_var
     procedure :: solve           => esystem_solve
+    generic   :: get_x           => esystem_get_x,    esystem_get_x_block
+    generic   :: set_x           => esystem_set_x,    esystem_set_x_block
+    generic   :: update_x        => esystem_update_x, esystem_update_x_block
+    generic   :: get_df          => esystem_get_df,   esystem_get_df_cmplx
+    generic   :: get_dft         => esystem_get_dft,  esystem_get_dft_cmplx
+    procedure :: print           => esystem_print
 
-    procedure :: esystem_get_x
-    procedure :: esystem_get_x_block
-    generic   :: get_x => esystem_get_x, esystem_get_x_block
-
-    procedure :: esystem_set_x
-    procedure :: esystem_set_x_block
-    generic   :: set_x => esystem_set_x, esystem_set_x_block
-
-    procedure :: esystem_update_x
-    procedure :: esystem_update_x_block
-    generic   :: update_x => esystem_update_x, esystem_update_x_block
-
-    procedure :: esystem_get_df
-    procedure :: esystem_get_df_cmplx
-    generic   :: get_df => esystem_get_df, esystem_get_df_cmplx
-
-    procedure :: esystem_get_dft
-    procedure :: esystem_get_dft_cmplx
-    generic   :: get_dft => esystem_get_dft, esystem_get_dft_cmplx
-
-    procedure :: print => esystem_print
+    procedure, private :: esystem_provide_vsel,      &
+      &                   esystem_provide_nvar_ntab, &
+      &                   esystem_provide_var_ntab,  &
+      &                   esystem_provide_nvar_tab,  &
+      &                   esystem_provide_var_tab
+    procedure, private :: esystem_set_x,    esystem_set_x_block
+    procedure, private :: esystem_update_x, esystem_update_x_block
+    procedure, private :: esystem_get_df,   esystem_get_df_cmplx
+    procedure, private :: esystem_get_dft,  esystem_get_dft_cmplx
+    procedure, private :: esystem_get_x,    esystem_get_x_block
   end type
 
 contains
@@ -139,7 +139,7 @@ contains
     call this%dft%destruct()
   end subroutine
 
-  subroutine esystem_provide(this, v)
+  subroutine esystem_provide_vsel(this, v)
     !! provide vselector (create dummy equation)
     class(esystem),          intent(inout) :: this
     type(vselector), target, intent(in)    :: v
@@ -148,6 +148,82 @@ contains
 
     allocate (ep%p)
     call ep%p%init(v)
+    call this%edum%push(ep)
+
+    call this%add_equation(ep%p)
+  end subroutine
+
+  subroutine esystem_provide_nvar_ntab(this, v, tab, name)
+    !! initialize dummy equation
+    class(esystem),       intent(inout) :: this
+    type(variable_ptr),   intent(in)    :: v(:)
+      !! variable pointers
+    type(grid_table_ptr), intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*),         intent(in)    :: name
+      !! selector name
+
+    type(dummy_equation_ptr) :: ep
+
+    allocate (ep%p)
+    call ep%p%init(v, tab, name)
+    call this%edum%push(ep)
+
+    call this%add_equation(ep%p)
+  end subroutine
+
+  subroutine esystem_provide_var_ntab(this, v, tab, name)
+    !! initialize dummy equation
+    class(esystem),         intent(inout) :: this
+    class(variable),        intent(in)    :: v
+      !! provided variable
+    type(grid_table_ptr),   intent(in)    :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)    :: name
+      !! name of new var selector (default: v%name)
+
+    type(dummy_equation_ptr) :: ep
+
+    allocate (ep%p)
+    call ep%p%init(v, tab, name=name)
+    call this%edum%push(ep)
+
+    call this%add_equation(ep%p)
+  end subroutine
+
+  subroutine esystem_provide_nvar_tab(this, v, name, tab)
+    !! initialize dummy equation
+    class(esystem),             intent(inout) :: this
+    type(variable_ptr),         intent(in)    :: v(:)
+      !! variable pointers
+    character(*),               intent(in)    :: name
+      !! selector name
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+
+    type(dummy_equation_ptr) :: ep
+
+    allocate (ep%p)
+    call ep%p%init(v, name, tab=tab)
+    call this%edum%push(ep)
+
+    call this%add_equation(ep%p)
+  end subroutine
+
+  subroutine esystem_provide_var_tab(this, v, tab, name)
+    !! initialize dummy equation
+    class(esystem),             intent(inout) :: this
+    class(variable),            intent(in)    :: v
+      !! new provided variable
+    type(grid_table), optional, intent(in)    :: tab
+      !! grid table
+    character(*),     optional, intent(in)    :: name
+      !! name of new var selector (default: var%name)
+
+    type(dummy_equation_ptr) :: ep
+
+    allocate (ep%p)
+    call ep%p%init(v, tab=tab, name=name)
     call this%edum%push(ep)
 
     call this%add_equation(ep%p)
@@ -166,176 +242,184 @@ contains
     call this%g%add_equ(e)
   end subroutine
 
-  subroutine esystem_try_fix(this)
-    !! try to generate missing equations
-    class(esystem), intent(inout) :: this
-
-    integer                     :: i
-    logical                     :: status
-    type(vselector_ptr)         :: vp
-    type(vector_vselector_ptr)  :: prov
-    type(vector_int)            :: fix_list
-    type(selector_equation_ptr) :: ep
-
-    ! get list of provided vars, init fix list (unprovided)
-    call prov%init(0, 32)
-    call fix_list%init(0, 32)
-    do i = 1, this%g%nodes%n
-      associate (n => this%g%nodes%d(i))
-        if (n%status == STATUS_DEP) then
-          call fix_list%push(i)
-        else
-          vp%p => n%v
-          call prov%push(vp)
-        end if
-      end associate
-    end do
-
-    ! fix nodes
-    do i = 1, fix_list%n
-      associate (n => this%g%nodes%d(fix_list%d(i)))
-        ! new selector equation
-        allocate (ep%p)
-        call ep%p%init(n%v, prov%d(1:prov%n), status)
-
-        ! check status
-        if (.not. status) then
-          ! can not be resolved by selector equation
-          deallocate (ep%p)
-
-          print "(A)", "Missing variable selector:"
-          call n%v%print()
-          call program_error("Cannot fix equation system")
-        end if
-
-        ! save equation and add to system
-        call this%eselect%push(ep)
-        call this%add_equation(ep%p)
-
-        ! add var to prov
-        vp%p => n%v
-        call prov%push(vp)
-      end associate
-    end do
-  end subroutine
-
   subroutine esystem_init_final(this)
     !! finish initialization
     class(esystem), intent(inout) :: this
-
-    integer :: i, j, k, imvar, ires, itab1, itab2, ibl1, ibl2
-    logical :: fail
 
     if (this%finished_init) call program_error("init_final called multiple times")
     this%finished_init = .true.
 
     ! try to generate selector equations for missing variable selectors
-    call this%try_fix()
+    call try_fix()
 
-    ! check if all vars are provided/main vars
-    fail = .false.
-    do i = 1, this%g%nodes%n
-      associate (n => this%g%nodes%d(i))
-        if (n%status == STATUS_DEP) then
-          fail = .true.
-          print "(A)", "Not provided:"
-          call n%v%print()
-          print *
-        end if
-      end associate
-    end do
-    if (fail) call program_error("missing one or more variable selectors")
+    call check_provided()
 
     ! analyze dependency graph
     call this%g%analyze()
 
-    ! count blocks
-    this%nbl = 0
-    do i = 1, this%g%imvar%n
-      imvar = this%g%imvar%d(i)
-      associate (v => this%g%nodes%d(imvar)%v)
-        this%nbl = this%nbl + v%ntab
-      end associate
-    end do
+    call init_blocks()
+    call init_jacobians()
 
-    ! set block indices
-    allocate (this%res2block(this%g%imvar%n))
-    allocate (this%block2res(this%nbl,2), source = 0)
-    allocate (this%i0(this%nbl), source = 0)
-    allocate (this%i1(this%nbl), source = 0)
-    ibl1 = 0
-    k    = 0
-    do i = 1, this%g%imvar%n
-      imvar = this%g%imvar%d(i)
-      associate (v => this%g%nodes%d(imvar)%v)
-        allocate (this%res2block(i)%d(v%ntab), source = 0)
+  contains
 
-        ! mvar is split into v%ntab blocks
-        do j = 1, v%ntab
-          ibl1 = ibl1 + 1
+    subroutine try_fix()
+      !! try to generate missing equations
 
-          ! set residual equation <-> block translation tables
-          this%res2block(i)%d(j) = ibl1
-          this%block2res(ibl1,1) = i
-          this%block2res(ibl1,2) = j
+      integer                     :: i
+      logical                     :: status
+      type(vselector_ptr)         :: vp
+      type(vector_vselector_ptr)  :: prov
+      type(vector_int)            :: fix_list
+      type(selector_equation_ptr) :: ep
 
-          ! set flat start/end indices for block
-          this%i0(ibl1) = k + 1
-          this%i1(ibl1) = k + v%nvals(j)
-          k             = this%i1(ibl1)
-        end do
-      end associate
-    end do
+      ! get list of provided vars, init fix list (unprovided)
+      call prov%init(0, 32)
+      call fix_list%init(0, 32)
+      do i = 1, this%g%nodes%n
+        associate (n => this%g%nodes%d(i))
+          if (n%status == STATUS_DEP) then
+            call fix_list%push(i)
+          else
+            vp%p => n%v
+            call prov%push(vp)
+          end if
+        end associate
+      end do
 
-    if (this%nbl > 0) then
-      this%n = this%i1(this%nbl)
-    else
+      ! fix nodes
+      do i = 1, fix_list%n
+        associate (n => this%g%nodes%d(fix_list%d(i)))
+          ! new selector equation
+          allocate (ep%p)
+          call ep%p%init(n%v, prov%d(1:prov%n), status)
+
+          ! check status
+          if (.not. status) then
+            ! can not be resolved by selector equation
+            deallocate (ep%p)
+
+            print "(A)", "Missing variable selector:"
+            call n%v%print()
+            call program_error("Cannot fix equation system")
+          end if
+
+          ! save equation and add to system
+          call this%eselect%push(ep)
+          call this%add_equation(ep%p)
+
+          ! add var to prov
+          vp%p => n%v
+          call prov%push(vp)
+        end associate
+      end do
+    end subroutine
+
+    subroutine check_provided()
+      integer :: i
+      logical :: fail
+
+      ! check if all vars are provided/main vars
+      fail = .false.
+      do i = 1, this%g%nodes%n
+        associate (n => this%g%nodes%d(i))
+          if (n%status == STATUS_DEP) then
+            fail = .true.
+            print "(A)", "Not provided:"
+            call n%v%print()
+            print *
+          end if
+        end associate
+      end do
+      if (fail) call program_error("missing one or more variable selectors")
+    end subroutine
+
+    subroutine init_blocks()
+      !! initialize block index tables etc.
+
+      integer :: iimvar, ibl, itab
+
+      ! count blocks
+      this%nbl = 0
+      do iimvar = 1, this%g%imvar%n
+        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%v)
+          this%nbl = this%nbl + v%ntab
+        end associate
+      end do
+
+      ! set block indices
+      allocate (this%res2block(this%g%imvar%n), this%block2res(2,this%nbl), this%i0(this%nbl), this%i1(this%nbl))
+      ibl    = 0
       this%n = 0
-    end if
+      do iimvar = 1, this%g%imvar%n
+        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%v)
+          allocate (this%res2block(iimvar)%d(v%ntab))
 
-    ! allocate jacobians
-    call this%df%init( this%i1 - this%i0 + 1)
-    call this%dft%init(this%i1 - this%i0 + 1)
-    allocate (this%dfconst(this%nbl,this%nbl))
+          ! mvar is split into v%ntab blocks
+          do itab = 1, v%ntab
+            ibl = ibl + 1
 
-    ! set jacobians (loop over residuals and main variables)
-    do i = 1, this%g%ires%n
-      ires = this%g%ires%d(i)
-      do j = 1, this%g%imvar%n
-        imvar = this%g%imvar%d(j)
-        associate (fn => this%g%nodes%d(this%g%equs%d(ires)%ires), &
-          &        vn => this%g%nodes%d(imvar))
-          ! loop over blocks from both main variables
-          do itab1 = 1, fn%v%ntab
-            do itab2 = 1, vn%v%ntab
-              ! get block indices
-              ibl1 = this%res2block(i)%d(itab1)
-              ibl2 = this%res2block(j)%d(itab2)
+            ! set residual equation <-> block translation tables
+            this%res2block(iimvar)%d(itab) = ibl
+            this%block2res(1,ibl)          = iimvar
+            this%block2res(2,ibl)          = itab
 
-              ! matrix size zero ?
-              if ((fn%v%nvals(itab1) <= 0) .or. (vn%v%nvals(itab2) <= 0)) cycle
-
-              ! init df matrix
-              if (associated(fn%total_jaco(j)%p)) then
-                ! set pointer
-                call this%df%set_ptr(ibl1, ibl2, fn%total_jaco(j)%p%b(itab1,itab2)%p)
-                this%dfconst(ibl1,ibl2) = fn%total_jaco(j)%p%const(itab1,itab2)
-              end if
-
-              ! init dft matrix
-              if (associated(fn%total_jaco_t(j)%p)) then
-                if (.not. fn%total_jaco_t(j)%p%const(itab1,itab2)) then
-                  call program_error("time derivative matrix is not constant")
-                end if
-
-                ! set pointer
-                call this%dft%set_ptr(ibl1, ibl2, fn%total_jaco_t(j)%p%b(itab1,itab2)%p)
-              end if
-            end do
+            ! set flat start/end indices for block
+            this%i0(ibl) = this%n + 1
+            this%n       = this%n + v%nvals(itab)
+            this%i1(ibl) = this%n
           end do
         end associate
       end do
-    end do
+    end subroutine
+
+    subroutine init_jacobians()
+      !! initialize jacobians
+
+      integer :: iimvar, jimvar, itab1, itab2, ibl1, ibl2
+
+      ! allocate jacobians
+      call this%df%init( this%i1 - this%i0 + 1)
+      call this%dft%init(this%i1 - this%i0 + 1)
+      allocate (this%dfconst(this%nbl,this%nbl))
+
+      ! set jacobians (loop over residuals and main variables)
+      do iimvar = 1, this%g%ires%n
+        do jimvar = 1, this%g%imvar%n
+          associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(iimvar))%ires), &
+            &        vn => this%g%nodes%d(this%g%imvar%d(jimvar))                     )
+            ! loop over blocks from both main variables
+            do itab1 = 1, fn%v%ntab
+              do itab2 = 1, vn%v%ntab
+                ! get block indices
+                ibl1 = this%res2block(iimvar)%d(itab1)
+                ibl2 = this%res2block(jimvar)%d(itab2)
+
+                ! matrix size zero ?
+                if ((fn%v%nvals(itab1) <= 0) .or. (vn%v%nvals(itab2) <= 0)) cycle
+
+                ! init df matrix
+                if (associated(fn%total_jaco(jimvar)%p)) then
+                  ! set pointer
+                  call this%df%set_ptr(ibl1, ibl2, fn%total_jaco(jimvar)%p%b(itab1,itab2)%p)
+                  this%dfconst(ibl1,ibl2) = fn%total_jaco(jimvar)%p%const(itab1,itab2)
+                end if
+
+                ! init dft matrix
+                if (associated(fn%total_jaco_t(jimvar)%p)) then
+                  if (.not. fn%total_jaco_t(jimvar)%p%const(itab1,itab2)) then
+                    call program_error("time derivative matrix is not constant")
+                  end if
+
+                  ! set pointer
+                  call this%dft%set_ptr(ibl1, ibl2, fn%total_jaco_t(jimvar)%p%b(itab1,itab2)%p)
+                end if
+              end do
+            end do
+          end associate
+        end do
+      end do
+    end subroutine
+
   end subroutine
 
   subroutine esystem_eval(this, f, df)
@@ -520,10 +604,10 @@ contains
     integer :: itab, imvar
 
     ! get values
-    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    imvar = this%g%imvar%d(this%block2res(1,ibl))
     associate (n => this%g%nodes%d(imvar))
       ! get table index
-      itab = this%block2res(ibl,2)
+      itab = this%block2res(2,ibl)
 
       ! return values
       x = n%v%get(itab)
@@ -555,10 +639,10 @@ contains
     integer :: itab, imvar
 
     ! set values
-    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    imvar = this%g%imvar%d(this%block2res(1,ibl))
     associate (n => this%g%nodes%d(imvar))
       ! get table index
-      itab = this%block2res(ibl,2)
+      itab = this%block2res(2,ibl)
 
       ! set values
       call n%v%set(itab, x)
@@ -590,10 +674,10 @@ contains
     integer :: itab, imvar
 
     ! update values
-    imvar = this%g%imvar%d(this%block2res(ibl,1))
+    imvar = this%g%imvar%d(this%block2res(1,ibl))
     associate (n => this%g%nodes%d(imvar))
       ! get table index
-      itab = this%block2res(ibl,2)
+      itab = this%block2res(2,ibl)
 
       ! update values
       call n%v%update(itab, dx)

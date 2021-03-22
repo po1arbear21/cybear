@@ -46,8 +46,6 @@ type, abstract :: GRID_DATA_TYPE
     !! total number of values
 contains
   procedure :: init     => GRID_DATA_INIT
-  procedure :: destruct => GRID_DATA_DESTRUCT
-
   procedure :: get_ptr0 => GRID_DATA_GET_PTR0
   procedure :: get_ptr1 => GRID_DATA_GET_PTR1
   procedure :: get_ptr2 => GRID_DATA_GET_PTR2
@@ -57,19 +55,17 @@ contains
   procedure :: get_ptr6 => GRID_DATA_GET_PTR6
   procedure :: get_ptr7 => GRID_DATA_GET_PTR7
   procedure :: get_ptr8 => GRID_DATA_GET_PTR8
-
-  procedure :: GRID_DATA_GET_POINT
-  procedure :: GRID_DATA_GET_ALL
-  generic   :: get => GRID_DATA_GET_POINT, GRID_DATA_GET_ALL
-
-  procedure :: GRID_DATA_SET_POINT
-  procedure :: GRID_DATA_SET_ALL
-  generic   :: set => GRID_DATA_SET_POINT, GRID_DATA_SET_ALL
-
+  procedure :: destruct => GRID_DATA_DESTRUCT
+  generic   :: get      => GRID_DATA_GET_POINT,    GRID_DATA_GET_ALL
+  generic   :: set      => GRID_DATA_SET_POINT,    GRID_DATA_SET_ALL
 #ifndef TLOG
-  procedure :: GRID_DATA_UPDATE_POINT
-  procedure :: GRID_DATA_UPDATE_ALL
-  generic   :: update => GRID_DATA_UPDATE_POINT, GRID_DATA_UPDATE_ALL
+  generic   :: update   => GRID_DATA_UPDATE_POINT, GRID_DATA_UPDATE_ALL
+#endif
+
+  procedure, private :: GRID_DATA_GET_POINT,    GRID_DATA_GET_ALL
+  procedure, private :: GRID_DATA_SET_POINT,    GRID_DATA_SET_ALL
+#ifndef TLOG
+  procedure, private :: GRID_DATA_UPDATE_POINT, GRID_DATA_UPDATE_ALL
 #endif
 end type
 

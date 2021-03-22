@@ -148,31 +148,6 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
   end select
 end subroutine
 
-subroutine GRID_DATA_DESTRUCT(this)
-  !! destruct grid data
-  class(GRID_DATA_TYPE), intent(inout) :: this
-
-  if (allocated(this%idx_bnd)) deallocate (this%idx_bnd)
-  select type (this)
-    type is (GRID_DATA1_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA2_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA3_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA4_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA5_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA6_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA7_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-    type is (GRID_DATA8_TYPE)
-      if (allocated(this%data)) deallocate (this%data)
-  end select
-end subroutine
-
 function GRID_DATA_GET_PTR0(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA0_TYPE), pointer            :: p
@@ -280,6 +255,31 @@ function GRID_DATA_GET_PTR8(this) result(p)
       p => null()
   end select
 end function
+
+subroutine GRID_DATA_DESTRUCT(this)
+  !! destruct grid data
+  class(GRID_DATA_TYPE), intent(inout) :: this
+
+  if (allocated(this%idx_bnd)) deallocate (this%idx_bnd)
+  select type (this)
+    type is (GRID_DATA1_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA2_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA3_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA4_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA5_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA6_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA7_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+    type is (GRID_DATA8_TYPE)
+      if (allocated(this%data)) deallocate (this%data)
+  end select
+end subroutine
 
 function GRID_DATA_GET_POINT(this, idx) result(d)
   !! get data for single point with bounds check (out of bounds: return default value)

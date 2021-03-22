@@ -44,37 +44,24 @@ module vselector_m
     class(grid_data_int), allocatable :: itab
       !! get table index from grid indices
   contains
-    procedure, private :: vselector_init_nvar_ntab
-    procedure, private :: vselector_init_var_ntab
-    procedure, private :: vselector_init_nvar_tab
-    procedure, private :: vselector_init_var_tab
-    generic            :: init => vselector_init_nvar_ntab, &
-      &                           vselector_init_var_ntab, &
-      &                           vselector_init_nvar_tab, &
-      &                           vselector_init_var_tab
-
+    generic   :: init         => vselector_init_nvar_ntab, &
+      &                          vselector_init_var_ntab,  &
+      &                          vselector_init_nvar_tab,  &
+      &                          vselector_init_var_tab
+    procedure :: get_ptr      => vselector_get_ptr
     procedure :: reset        => vselector_reset
     procedure :: compare      => vselector_compare
     procedure :: hashkey_size => vselector_hashkey_size
     procedure :: hashkey      => vselector_hashkey
-    procedure :: get_ptr      => vselector_get_ptr
+    generic   :: get          => vselector_get_single, vselector_get_block, vselector_get_all
+    generic   :: set          => vselector_set_single, vselector_set_block, vselector_set_all
+    generic   :: update       => vselector_update_single, vselector_update_block, vselector_update_all
+    procedure :: print        => vselector_print
 
-    procedure :: vselector_get_single
-    procedure :: vselector_get_block
-    procedure :: vselector_get_all
-    generic   :: get => vselector_get_single, vselector_get_block, vselector_get_all
-
-    procedure :: vselector_set_single
-    procedure :: vselector_set_block
-    procedure :: vselector_set_all
-    generic   :: set => vselector_set_single, vselector_set_block, vselector_set_all
-
-    procedure :: vselector_update_single
-    procedure :: vselector_update_block
-    procedure :: vselector_update_all
-    generic   :: update => vselector_update_single, vselector_update_block, vselector_update_all
-
-    procedure :: print => vselector_print
+    procedure, private :: vselector_init_nvar_ntab, vselector_init_var_ntab, vselector_init_nvar_tab, vselector_init_var_tab
+    procedure, private :: vselector_get_single, vselector_get_block, vselector_get_all
+    procedure, private :: vselector_set_single, vselector_set_block, vselector_set_all
+    procedure, private :: vselector_update_single, vselector_update_block, vselector_update_all
   end type
 
   type vselector_ptr
@@ -210,6 +197,14 @@ contains
       call this%init([v%get_ptr()], [v%g%tab_all(v%idx_type,v%idx_dir)%get_ptr()], name_)
     end if
   end subroutine
+
+  function vselector_get_ptr(this) result(ptr)
+    !! returns pointer type to this vselector
+    class(vselector), target, intent(in) :: this
+    type(vselector_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
 
   subroutine vselector_reset(this)
     !! reset all data selected to zero
@@ -384,14 +379,6 @@ contains
       call this%v(i)%p%data%set(idx, x(i))
     end do
   end subroutine
-
-  function vselector_get_ptr(this) result(ptr)
-    !! returns pointer type to this vselector
-    class(vselector), target, intent(in) :: this
-    type(vselector_ptr)                  :: ptr
-
-    ptr%p => this
-  end function
 
   subroutine vselector_set_block(this, itab, x)
     !! set data for whole block
