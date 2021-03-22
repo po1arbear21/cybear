@@ -53,10 +53,11 @@ module vselector_m
       &                           vselector_init_nvar_tab, &
       &                           vselector_init_var_tab
 
-    procedure :: reset   => vselector_reset
-    procedure :: compare => vselector_compare
-    procedure :: hash    => vselector_hash
-    procedure :: get_ptr => vselector_get_ptr
+    procedure :: reset        => vselector_reset
+    procedure :: compare      => vselector_compare
+    procedure :: hashkey_size => vselector_hashkey_size
+    procedure :: hashkey      => vselector_hashkey
+    procedure :: get_ptr      => vselector_get_ptr
 
     procedure :: vselector_get_single
     procedure :: vselector_get_block
@@ -254,35 +255,65 @@ contains
     c = .true.
   end function
 
-  function vselector_hash(this) result(h)
-    !! hash variable selector (name is not included)
+  pure function vselector_hashkey_size(this) result(n)
+    !! get key size
     class(vselector), intent(in) :: this
-    integer                      :: h
-      !! return hash value
+    integer                      :: n
 
-    integer             :: i
-    integer(kind=int64) :: a(3+size(this%v)+size(this%tab)), h64
+#ifdef INTSIZE32
+    n = 2 + 2*(1 + size(this%v) + size(this%tab))
+#endif
+#ifdef INTSIZE64
+    n = 3 + size(this%v) + size(this%tab)
+#endif
+  end function
+
+  function vselector_hashkey(this) result(hkey)
+    !! get key for hashmap (name is not included)
+    class(vselector), intent(in) :: this
+    integer                      :: hkey(this%hashkey_size())
+      !! return hashmap key
+
+    integer        :: i, n
+    integer(int64) :: ptr
 
     ! convert to integer array (convert pointers to integers using loc function)
-    a(1) = loc(this%g)
-    a(2) = this%idx_type
-    a(3) = this%idx_dir
+    hkey(1) = this%idx_type
+    hkey(2) = this%idx_dir
+    ptr = loc(this%g)
+#ifdef INTSIZE32
+    hkey(3) = int(ptr, kind = int32)
+    hkey(4) = int(ishft(ptr, -32), kind = int32)
+    n = 4
+#endif
+#ifdef INTSIZE64
+    hkey(3) = ptr
+    n = 3
+#endif
     do i = 1, size(this%v)
-      a(3+i) = loc(this%v(i)%p)
+      ptr = loc(this%v(i)%p)
+#ifdef INTSIZE32
+      hkey(n+1) = int(ptr, kind = int32)
+      hkey(n+2) = int(ishft(ptr, -32), kind = int32)
+      n = n + 2
+#endif
+#ifdef INTSIZE64
+      hkey(n+1) = ptr
+      n = n + 1
+#endif
     end do
     do i = 1, size(this%tab)
-      a(3+size(this%v)+i) = loc(this%tab(i)%p)
-    end do
-
-    ! return hash of array
-    h64 = hash(a)
-
-#ifdef INTSIZE64
-    h = h64
-#endif
+      ptr = loc(this%tab(i)%p)
 #ifdef INTSIZE32
-    h = ieor(int(h64, kind = int32), int(ishft(h64, -32), kind = int32))
+      hkey(n+1) = int(ptr, kind = int32)
+      hkey(n+2) = int(ishft(ptr, -32), kind = int32)
+      n = n + 2
 #endif
+#ifdef INTSIZE64
+      hkey(n+1) = ptr
+      n = n + 1
+#endif
+    end do
   end function
 
   function vselector_get_single(this, idx) result(x)

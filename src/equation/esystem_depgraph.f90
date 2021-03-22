@@ -535,20 +535,17 @@ contains
     integer                           :: inode
       !! return node index
 
-    integer :: h
+    integer :: hkey(v%hashkey_size())
     logical :: hstat
 
-    ! check if vselector already exists
-    h = v%hash()
+    ! get hashmap key
+    hkey = v%hashkey()
 
-    call this%hnodes%get(h, inode, hstat)
+    ! check if vselector already exists
+    call this%hnodes%get(hkey, inode, hstat)
     if (hstat) then
       ! node was found
       associate (m => this%nodes%d(inode))
-        ! FIXME: handle collision (should be extremely rare)
-#ifdef DEBUG
-        if (.not. v%compare(m%v)) call program_error("FIXME: vselector hash collision")
-#endif
         ! do nothing if dependency
         if (status == STATUS_DEP) return
 
@@ -569,7 +566,7 @@ contains
         call this%nodes%push(tmp)
       end block
       inode = this%nodes%n
-      call this%hnodes%set(h, inode)
+      call this%hnodes%set(hkey, inode)
     end if
 
     ! init/update node
