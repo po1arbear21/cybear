@@ -65,20 +65,23 @@ contains
     end block
 
     block
-      type(hashmap_int) :: hmap
-      integer           :: key(2), value
-      logical           :: status
+      type(hashmap_int)    :: hmap
+      integer, allocatable :: key(:)
+      integer              :: value
+      logical              :: status
 
       ! set/get
-      call hmap%init(keysize=2, c=32)
+      call hmap%init(c=32)
       key = [4124, 142111]
       call hmap%set(key, 12345)
-      key = [5629, 666]
+      key = [5629, 666, 123]
       call hmap%set(key, 4444)
       key = [4124, 143111]
       call hmap%set(key, 54321)
       key = [5629, 666]
       call hmap%set(key, 3333)
+      key = [5629, 666, 123]
+      call hmap%set(key, 2222)
 
       key = [4124, 142111]
       call hmap%get(key, value)
@@ -89,9 +92,12 @@ contains
       key = [5629, 666]
       call hmap%get(key, value)
       call tc%assert_eq(3333, value, "hashmap2_int set/get 3")
+      key = [5629, 666, 123]
+      call hmap%get(key, value)
+      call tc%assert_eq(2222, value, "hashmap2_int set/get 4")
       key = [123, 456]
       call hmap%get(key, value, status)
-      call tc%assert(.not. status, "hashmap2_int set/get 4")
+      call tc%assert(.not. status, "hashmap2_int set/get 5")
     end block
 
     call tc%finish()

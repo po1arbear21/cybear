@@ -21,8 +21,8 @@ type HASHMAP_TYPE
   !! hashmap using integer (array) keys
   type(vector_int)     :: keys
     !! key data
-  integer              :: keysize
-    !! how many entries in keys%d yield a key
+  type(vector_int)     :: keys_i0
+    !! key start indices
   type(VECTOR_VALUE)   :: values
     !! value data
   integer, allocatable :: table(:)
