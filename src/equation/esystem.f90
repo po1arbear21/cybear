@@ -38,9 +38,9 @@ module esystem_m
     integer                      :: n
       !! total number of values
     type(array_int), allocatable :: res2block(:)
-      !! (res equation index, main var table index) -> block index;  (ntab) x (size(requs))
+      !! (iimvar, main var table index) -> block index;  (ntab) x (size(requs))
     integer,         allocatable :: block2res(:,:)
-      !! block index -> (res equation index, main var table index); (2, nbl)
+      !! block index -> (iimvar, main var table index); (2, nbl)
     integer,         allocatable :: i0(:)
       !! start rows for flat residuals (= cols of main vars)
     integer,         allocatable :: i1(:)
@@ -474,26 +474,26 @@ contains
     call this%get_df(df)
   end subroutine
 
-  function esystem_get_main_var(this, i) result(mv)
+  function esystem_get_main_var(this, iimvar) result(mv)
     !! get main var selector
     class(esystem), intent(in) :: this
-    integer,        intent(in) :: i
+    integer,        intent(in) :: iimvar
       !! main var index
     class(vselector), pointer  :: mv
       !! return pointer to main var
 
-    mv => this%g%nodes%d(this%g%imvar%d(i))%v
+    mv => this%g%nodes%d(this%g%imvar%d(iimvar))%v
   end function
 
-  function esystem_get_res_equ(this, i) result(re)
+  function esystem_get_res_equ(this, iires) result(re)
     !! get residual equation
     class(esystem),   intent(in) :: this
-    integer,          intent(in) :: i
+    integer,          intent(in) :: iires
       !! residual equation index
     class(res_equation), pointer :: re
       !! return pointer to residual equation
 
-    select type (e => this%g%equs%d(this%g%ires%d(i))%e)
+    select type (e => this%g%equs%d(this%g%ires%d(iires))%e)
       class is (res_equation)
         re => e
       class default
@@ -501,24 +501,24 @@ contains
     end select
   end function
 
-  function esystem_search_main_var(this, name) result(i)
+  function esystem_search_main_var(this, name) result(iimvar)
     !! search for main var selector by name
     class(esystem), intent(in) :: this
     character(*),   intent(in) :: name
       !! main var name
-    integer                    :: i
+    integer                    :: iimvar
       !! return main var index
 
-    integer :: j
+    integer :: jimvar
     logical :: found
 
     found = .false.
-    do j = 1, this%g%imvar%n
-      associate (n => this%g%nodes%d(this%g%imvar%d(j)))
+    do jimvar = 1, this%g%imvar%n
+      associate (n => this%g%nodes%d(this%g%imvar%d(jimvar)))
         if (n%v%name == name) then
           if (found) call program_error("multiple main variables with name "//name//" found")
           found = .true.
-          i = j
+          iimvar = jimvar
         end if
       end associate
     end do

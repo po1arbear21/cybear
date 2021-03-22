@@ -34,7 +34,11 @@
 #define GRID_DATA_UPDATE_POINT CONCAT3(grid_data,T,update_point)
 #define GRID_DATA_UPDATE_ALL   CONCAT3(grid_data,T,update_all)
 
-#define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
+#define ALLOCATE_GRID_DATA0    CONCAT(allocate_grid_data0,T)
+#define ALLOCATE_GRID_DATA1    CONCAT(allocate_grid_data1,T)
+#define ALLOCATE_GRID_DATA2    CONCAT(allocate_grid_data2,T)
+#define ALLOCATE_GRID_DATA3    CONCAT(allocate_grid_data3,T)
+#define ALLOCATE_GRID_DATA4    CONCAT(allocate_grid_data4,T)
 
 public GRID_DATA_TYPE, GRID_DATA0_TYPE, GRID_DATA1_TYPE, GRID_DATA2_TYPE, GRID_DATA3_TYPE, GRID_DATA4_TYPE, GRID_DATA5_TYPE, GRID_DATA6_TYPE, GRID_DATA7_TYPE, GRID_DATA8_TYPE
 
@@ -115,9 +119,33 @@ type, extends(GRID_DATA_TYPE) :: GRID_DATA8_TYPE
 end type
 
 interface allocate_grid_data
-  module subroutine ALLOCATE_GRID_DATA(gdata, dim)
+  module subroutine ALLOCATE_GRID_DATA0(gdata, dim)
     class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata
     integer,                            intent(in)  :: dim
+  end subroutine
+  module subroutine ALLOCATE_GRID_DATA1(gdata, dim, i0, i1)
+    class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:)
+    integer,                            intent(in)  :: dim
+    integer,                            intent(in)  :: i0
+    integer,                            intent(in)  :: i1
+  end subroutine
+  module subroutine ALLOCATE_GRID_DATA2(gdata, dim, i0, i1)
+    class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:)
+    integer,                            intent(in)  :: dim
+    integer,                            intent(in)  :: i0(2)
+    integer,                            intent(in)  :: i1(2)
+  end subroutine
+  module subroutine ALLOCATE_GRID_DATA3(gdata, dim, i0, i1)
+    class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:)
+    integer,                            intent(in)  :: dim
+    integer,                            intent(in)  :: i0(3)
+    integer,                            intent(in)  :: i1(3)
+  end subroutine
+  module subroutine ALLOCATE_GRID_DATA4(gdata, dim, i0, i1)
+    class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:,:)
+    integer,                            intent(in)  :: dim
+    integer,                            intent(in)  :: i0(4)
+    integer,                            intent(in)  :: i1(4)
   end subroutine
 end interface
 

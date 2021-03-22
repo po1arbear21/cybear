@@ -53,14 +53,14 @@ module vselector_m
     procedure :: compare      => vselector_compare
     procedure :: hashkey_size => vselector_hashkey_size
     procedure :: hashkey      => vselector_hashkey
-    generic   :: get          => vselector_get_single, vselector_get_block, vselector_get_all
-    generic   :: set          => vselector_set_single, vselector_set_block, vselector_set_all
+    generic   :: get          => vselector_get_single,    vselector_get_block,    vselector_get_all
+    generic   :: set          => vselector_set_single,    vselector_set_block,    vselector_set_all
     generic   :: update       => vselector_update_single, vselector_update_block, vselector_update_all
     procedure :: print        => vselector_print
 
     procedure, private :: vselector_init_nvar_ntab, vselector_init_var_ntab, vselector_init_nvar_tab, vselector_init_var_tab
-    procedure, private :: vselector_get_single, vselector_get_block, vselector_get_all
-    procedure, private :: vselector_set_single, vselector_set_block, vselector_set_all
+    procedure, private :: vselector_get_single,    vselector_get_block,    vselector_get_all
+    procedure, private :: vselector_set_single,    vselector_set_block,    vselector_set_all
     procedure, private :: vselector_update_single, vselector_update_block, vselector_update_all
   end type
 
@@ -322,7 +322,7 @@ contains
     integer :: i
 
     do i = 1, this%nval
-      x(i) = this%v(i)%p%data%get(idx)
+      x(i) = this%v(i)%p%get(idx)
     end do
   end function
 
@@ -376,7 +376,7 @@ contains
     ASSERT(size(x) == this%nval)
 
     do i = 1, this%nval
-      call this%v(i)%p%data%set(idx, x(i))
+      call this%v(i)%p%set(idx, x(i))
     end do
   end subroutine
 

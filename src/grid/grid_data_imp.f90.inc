@@ -34,9 +34,13 @@
 #define GRID_DATA_UPDATE_POINT CONCAT3(grid_data,T,update_point)
 #define GRID_DATA_UPDATE_ALL   CONCAT3(grid_data,T,update_all)
 
-#define ALLOCATE_GRID_DATA     CONCAT(allocate_grid_data,T)
+#define ALLOCATE_GRID_DATA0    CONCAT(allocate_grid_data0,T)
+#define ALLOCATE_GRID_DATA1    CONCAT(allocate_grid_data1,T)
+#define ALLOCATE_GRID_DATA2    CONCAT(allocate_grid_data2,T)
+#define ALLOCATE_GRID_DATA3    CONCAT(allocate_grid_data3,T)
+#define ALLOCATE_GRID_DATA4    CONCAT(allocate_grid_data4,T)
 
-subroutine ALLOCATE_GRID_DATA(gdata, dim)
+subroutine ALLOCATE_GRID_DATA0(gdata, dim)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata
   integer,                            intent(in)  :: dim
@@ -61,6 +65,142 @@ subroutine ALLOCATE_GRID_DATA(gdata, dim)
       allocate (GRID_DATA7_TYPE :: gdata)
     case (8)
       allocate (GRID_DATA8_TYPE :: gdata)
+    case default
+      call program_error("grid data dimension must be in range 0:8")
+  end select
+end subroutine
+
+subroutine ALLOCATE_GRID_DATA1(gdata, dim, i0, i1)
+  !! allocate grid data
+  class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:)
+  integer,                            intent(in)  :: dim
+    !! grid data dimension
+  integer,                            intent(in)  :: i0
+    !! lower array bound
+  integer,                            intent(in)  :: i1
+    !! upper array bound
+
+  select case (dim)
+    case (0)
+      allocate (GRID_DATA0_TYPE :: gdata(i0:i1))
+    case (1)
+      allocate (GRID_DATA1_TYPE :: gdata(i0:i1))
+    case (2)
+      allocate (GRID_DATA2_TYPE :: gdata(i0:i1))
+    case (3)
+      allocate (GRID_DATA3_TYPE :: gdata(i0:i1))
+    case (4)
+      allocate (GRID_DATA4_TYPE :: gdata(i0:i1))
+    case (5)
+      allocate (GRID_DATA5_TYPE :: gdata(i0:i1))
+    case (6)
+      allocate (GRID_DATA6_TYPE :: gdata(i0:i1))
+    case (7)
+      allocate (GRID_DATA7_TYPE :: gdata(i0:i1))
+    case (8)
+      allocate (GRID_DATA8_TYPE :: gdata(i0:i1))
+    case default
+      call program_error("grid data dimension must be in range 0:8")
+  end select
+end subroutine
+
+subroutine ALLOCATE_GRID_DATA2(gdata, dim, i0, i1)
+  !! allocate grid data
+  class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:)
+  integer,                            intent(in)  :: dim
+    !! grid data dimension
+  integer,                            intent(in)  :: i0(2)
+    !! lower array bounds
+  integer,                            intent(in)  :: i1(2)
+    !! upper array bounds
+
+  select case (dim)
+    case (0)
+      allocate (GRID_DATA0_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (1)
+      allocate (GRID_DATA1_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (2)
+      allocate (GRID_DATA2_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (3)
+      allocate (GRID_DATA3_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (4)
+      allocate (GRID_DATA4_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (5)
+      allocate (GRID_DATA5_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (6)
+      allocate (GRID_DATA6_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (7)
+      allocate (GRID_DATA7_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case (8)
+      allocate (GRID_DATA8_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2)))
+    case default
+      call program_error("grid data dimension must be in range 0:8")
+  end select
+end subroutine
+
+subroutine ALLOCATE_GRID_DATA3(gdata, dim, i0, i1)
+  !! allocate grid data
+  class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:)
+  integer,                            intent(in)  :: dim
+    !! grid data dimension
+  integer,                            intent(in)  :: i0(3)
+    !! lower array bounds
+  integer,                            intent(in)  :: i1(3)
+    !! upper array bounds
+
+  select case (dim)
+    case (0)
+      allocate (GRID_DATA0_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (1)
+      allocate (GRID_DATA1_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (2)
+      allocate (GRID_DATA2_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (3)
+      allocate (GRID_DATA3_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (4)
+      allocate (GRID_DATA4_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (5)
+      allocate (GRID_DATA5_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (6)
+      allocate (GRID_DATA6_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (7)
+      allocate (GRID_DATA7_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case (8)
+      allocate (GRID_DATA8_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3)))
+    case default
+      call program_error("grid data dimension must be in range 0:8")
+  end select
+end subroutine
+
+subroutine ALLOCATE_GRID_DATA4(gdata, dim, i0, i1)
+  !! allocate grid data
+  class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:,:)
+  integer,                            intent(in)  :: dim
+    !! grid data dimension
+  integer,                            intent(in)  :: i0(4)
+    !! lower array bounds
+  integer,                            intent(in)  :: i1(4)
+    !! upper array bounds
+
+  select case (dim)
+    case (0)
+      allocate (GRID_DATA0_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (1)
+      allocate (GRID_DATA1_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (2)
+      allocate (GRID_DATA2_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (3)
+      allocate (GRID_DATA3_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (4)
+      allocate (GRID_DATA4_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (5)
+      allocate (GRID_DATA5_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (6)
+      allocate (GRID_DATA6_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (7)
+      allocate (GRID_DATA7_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
+    case (8)
+      allocate (GRID_DATA8_TYPE :: gdata(i0(1):i1(1),i0(2):i1(2),i0(3):i1(3),i0(4):i1(4)))
     case default
       call program_error("grid data dimension must be in range 0:8")
   end select
@@ -530,4 +670,8 @@ end subroutine
 #undef GRID_DATA_UPDATE_POINT
 #undef GRID_DATA_UPDATE_ALL
 
-#undef ALLOCATE_GRID_DATA
+#undef ALLOCATE_GRID_DATA0
+#undef ALLOCATE_GRID_DATA1
+#undef ALLOCATE_GRID_DATA2
+#undef ALLOCATE_GRID_DATA3
+#undef ALLOCATE_GRID_DATA4

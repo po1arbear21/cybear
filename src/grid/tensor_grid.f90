@@ -4,9 +4,7 @@ module tensor_grid_m
 
   use array_m,  only: array2_int
   use error_m
-  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr, grid_data_int, &
-    &                 grid_data1_int, grid_data2_int, grid_data3_int, grid_data4_int, &
-    &                 grid_data5_int, grid_data6_int, grid_data7_int, grid_data8_int
+  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr, grid_data_int, allocate_grid_data
   use vector_m, only: vector_int
 
   implicit none
@@ -453,26 +451,8 @@ contains
 
     ! allocate memory
     allocate (this%max_neighb(4,0:this%idx_dim,4,0:this%idx_dim), source = 0)
-    select case (this%idx_dim)
-      case (1)
-        allocate (grid_data1_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (2)
-        allocate (grid_data2_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (3)
-        allocate (grid_data3_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (4)
-        allocate (grid_data4_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (5)
-        allocate (grid_data5_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (6)
-        allocate (grid_data6_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (7)
-        allocate (grid_data7_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case (8)
-        allocate (grid_data8_int :: this%neighb_i0(4,0:this%idx_dim,4,0:this%idx_dim), this%neighb_i1(4,0:this%idx_dim,4,0:this%idx_dim))
-      case default
-        call program_error("idx_dim must be in range 1:8")
-    end select
+    call allocate_grid_data(this%neighb_i0, this%idx_dim, [1,0,1,0], [4,this%idx_dim,4,this%idx_dim])
+    call allocate_grid_data(this%neighb_i1, this%idx_dim, [1,0,1,0], [4,this%idx_dim,4,this%idx_dim])
     allocate (this%neighb(4,0:this%idx_dim,4,0:this%idx_dim))
 
     ! direction bounds
