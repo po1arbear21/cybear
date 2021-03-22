@@ -17,26 +17,24 @@
 #define HASHMAP_SET_KEY_1 CONCAT3(hashmap,T,set_key_1)
 #define HASHMAP_SET_KEY_N CONCAT3(hashmap,T,set_key_n)
 
-subroutine HASHMAP_INIT(this, keysize, c)
+subroutine HASHMAP_INIT(this, c)
   !! initialize hashmap
   class(HASHMAP_TYPE), intent(out) :: this
-  integer, optional,   intent(in)  :: keysize
-    !! number of integers each key consists of (default: keysize = 1)
   integer, optional,   intent(in)  :: c
     !! initial capacity (default: c = 16)
 
   integer :: c_
 
   ! optional args
-  this%keysize = 1
-  if (present(keysize)) this%keysize = keysize
   c_ = 16
   if (present(c)) c_ = c
   c_ = max(c_, 1)
 
   ! init vectors
-  call this%keys%init(0, c = this%keysize * c_)
-  call this%values%init(0, c = c_)
+  call this%keys%init(   0, c = c_)
+  call this%keys_i0%init(0, c = c_+1)
+  call this%keys_i0%push(1)
+  call this%values%init( 0, c = c_)
 
   ! reserve
   call this%reserve(c_)
@@ -66,31 +64,31 @@ subroutine HASHMAP_RESERVE(this, c)
   integer,             intent(in)    :: c
     !! new capacity
 
-  integer              :: i, i0, i1
-  integer, allocatable :: keys(:)
+  integer              :: i
+  integer, allocatable :: keys(:), keys_i0(:)
   TT,      allocatable :: values(:)
 
   if (allocated(this%table)) then
     ! only reallocate if new capacity is actually larger than old
     if (4*c > size(this%table)) then
       ! copy old keys and values
-      allocate (  keys(this%keys%n  ), source = this%keys%d(  1:this%keys%n  ))
-      allocate (values(this%values%n), source = this%values%d(1:this%values%n))
+      allocate (keys(   this%keys%n   ), source = this%keys%d(   1:this%keys%n   ))
+      allocate (keys_i0(this%keys_i0%n), source = this%keys_i0%d(1:this%keys_i0%n))
+      allocate (values( this%values%n ), source = this%values%d( 1:this%values%n ))
 
       ! reinit vectors
-      call this%keys%init(  n = 0, c = this%keysize * c)
-      call this%values%init(n = 0, c = c)
+      call this%keys%init(   n = 0, c = this%keys%n * c / this%values%n)
+      call this%keys_i0%init(n = 0, c = c+1)
+      call this%keys_i0%push(1)
+      call this%values%init( n = 0, c = c)
 
       ! reallocate table
       deallocate (this%table)
       allocate (this%table(4*c), source = -1)
 
       ! reinsert values
-      i1 = 0
       do i = 1, size(values)
-        i0 = i1 + 1
-        i1 = i1 + this%keysize
-        call this%set(keys(i0:i1), values(i))
+        call this%set(keys(keys_i0(i):keys_i0(i+1)-1), values(i))
       end do
     end if
   else
@@ -107,9 +105,9 @@ function HASHMAP_LOOKUP(this, key) result(i)
   integer                         :: i
     !! return index
 
-  integer :: j, j0, j1, h, failsafe
+  integer :: j, i0, i1, h, failsafe
 
-  ASSERT(size(key) == this%keysize)
+  ASSERT(size(key) > 0)
 
   failsafe = 0
 
@@ -117,13 +115,19 @@ function HASHMAP_LOOKUP(this, key) result(i)
   do while (failsafe <= size(this%table))
     i = modulo(h, size(this%table)) + 1
     j = this%table(i)
+
+    ! found empty spot?
     if (j == -1) exit
-    j1 = this%table(i) * this%keysize
-    j0 = j1 - this%keysize + 1
-    if (all(key == this%keys%d(j0:j1))) exit
+
+    ! compare keys (size and content)
+    i0 = this%keys_i0%d(j)
+    i1 = this%keys_i0%d(j+1)-1
+    if (size(key) == (i1 - i0 + 1)) then
+      if (all(key == this%keys%d(i0:i1))) exit
+    end if
 
     ! collision
-    h = hash(h + 1)
+    h        = hash(h + 1)
     failsafe = failsafe + 1
   end do
 
@@ -137,8 +141,6 @@ subroutine HASHMAP_GET_KEY_1(this, key, value, status)
   integer,             intent(in)  :: key
   TT,                  intent(out) :: value
   logical, optional,   intent(out) :: status
-
-  ASSERT(this%keysize == 1)
 
   call HASHMAP_GET_KEY_N(this, [key], value, status=status)
 end subroutine
@@ -171,8 +173,6 @@ subroutine HASHMAP_SET_KEY_1(this, key, value, status)
   TT,                  intent(in)    :: value
   logical, optional,   intent(out)   :: status
 
-  ASSERT(this%keysize == 1)
-
   call HASHMAP_SET_KEY_N(this, [key], value, status=status)
 end subroutine
 
@@ -194,6 +194,7 @@ subroutine HASHMAP_SET_KEY_N(this, key, value, status)
   if (j <= 0) then
     ! new key
     call this%keys%push(key)
+    call this%keys_i0%push(this%keys%n + 1)
     call this%values%push(value)
     this%table(i) = this%values%n
 
