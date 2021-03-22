@@ -89,7 +89,7 @@ contains
     allocate (this%d(v1%nval, v2%nval, st%nmax, v1%tab(itab1)%p%n), source = 0.0)
 
     ! init hashmap
-    call this%hmap%init(keysize = 3, c = v1%tab(itab1)%p%n * st%nmax)
+    call this%hmap%init(c = v1%tab(itab1)%p%n * st%nmax)
     do i1 = 1, v1%tab(itab1)%p%n
       ! get result grid indices
       idx1 = v1%tab(itab1)%p%get_idx(i1)
