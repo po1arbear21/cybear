@@ -424,10 +424,10 @@ contains
 
   subroutine esystem_eval(this, f, df)
     !! evaluate equations, get residuals and jacobians
-    class(esystem),    intent(inout) :: this ! equation system
-    real,              intent(out)   :: f(:)
+    class(esystem),              intent(inout) :: this ! equation system
+    real,              optional, intent(out)   :: f(:)
       !! output residuals
-    type(sparse_real), intent(out)   :: df
+    type(sparse_real), optional, intent(out)   :: df
       !! output jacobian
 
     integer :: i, j, k0, k1, ibl1, ibl2
@@ -455,23 +455,27 @@ contains
     end do
 
     ! set residuals flat array
-    do i = 1, this%g%ires%n
-      associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires))
-        ! get block indices
-        ibl1 = this%res2block(i)%d(1)
-        ibl2 = this%res2block(i)%d(fn%v%ntab)
+    if (present(f)) then
+      do i = 1, this%g%ires%n
+        associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires))
+          ! get block indices
+          ibl1 = this%res2block(i)%d(1)
+          ibl2 = this%res2block(i)%d(fn%v%ntab)
 
-        ! get flat indices
-        k0 = this%i0(ibl1)
-        k1 = this%i1(ibl2)
+          ! get flat indices
+          k0 = this%i0(ibl1)
+          k1 = this%i1(ibl2)
 
-        ! set residuals
-        f(k0:k1) = fn%v%get()
-      end associate
-    end do
+          ! set residuals
+          f(k0:k1) = fn%v%get()
+        end associate
+      end do
+    end if
 
     ! output jacobian
-    call this%get_df(df)
+    if (present(df)) then
+      call this%get_df(df)
+    end if
   end subroutine
 
   function esystem_get_main_var(this, iimvar) result(mv)
