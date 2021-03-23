@@ -11,7 +11,12 @@
 - csv
 - plt
 
-# esystem
-## AC+HB+eig
+# analysis
+## stationary
+
+## HB
+
+## eig
+
 ## transient
 - transient routines: bwE, bdf2, fwE?

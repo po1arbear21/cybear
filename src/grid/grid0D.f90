@@ -9,6 +9,7 @@ module grid0D_m
 
   private
   public grid0D
+  public get_dummy_grid
 
   type, extends(grid) :: grid0D
     !! 0D pseudo grid (consists of single vertex at x=0), can be used for global scalar variables
@@ -26,7 +27,18 @@ module grid0D_m
     procedure :: get_neighb     => grid0D_get_neighb
   end type
 
+  type(grid0D), target :: dum_grid
+
 contains
+
+  function get_dummy_grid() result(ptr)
+    !! return pointer to module global grid0D.
+    !! used in variable(grid=optional).
+    type(grid0D), pointer :: ptr
+
+    if (.not. allocated(dum_grid%face_dim)) call dum_grid%init()
+    ptr => dum_grid
+  end function
 
   subroutine grid0D_init(this)
     !! initialize 0D pseudo grid
@@ -51,7 +63,7 @@ contains
     integer,       intent(out) :: idx_bnd(:)
       !! output upper bound for each index (1)
 
-    ASSERT(idx_dir       == 0)
+    ASSERT(this%idx_allowed(idx_type, idx_dir))
     ASSERT(size(idx_bnd) == 0)
 
     IGNORE(this    )

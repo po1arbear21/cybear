@@ -1,6 +1,10 @@
+#include "../util/macro.f90.inc"
+
 module variable_m
 
-  use grid_m, only: grid, grid_data_real, allocate_grid_data
+  use error_m,  only: assert_failed
+  use grid_m,   only: allocate_grid_data, grid, grid_data_real, IDX_VERTEX
+  use grid0D_m, only: get_dummy_grid
 
   implicit none
 
@@ -44,27 +48,40 @@ contains
 
   subroutine variable_init(this, name, unit, g, idx_type, idx_dir)
     !! initialize base variable
-    class(variable),     intent(out) :: this
-    character(*),        intent(in)  :: name
+    class(variable),               intent(out) :: this
+    character(*),                  intent(in)  :: name
       !! variable name
-    character(*),        intent(in)  :: unit
+    character(*),                  intent(in)  :: unit
       !! physical unit token
-    class(grid), target, intent(in)  :: g
+    class(grid), target, optional, intent(in)  :: g
       !! grid this variable is defined on
-    integer,             intent(in)  :: idx_type
+      !! default: type(grid0D) dummy_grid
+    integer,             optional, intent(in)  :: idx_type
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
-    integer,             intent(in)  :: idx_dir
+    integer,             optional, intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    this%name     =  name
-    this%unit     =  unit
-    this%g        => g
-    this%idx_type =  idx_type
-    this%idx_dir  =  idx_dir
+    this%name = name
+    this%unit = unit
+
+    ! optional arguments
+    if (present(g)) then
+      ASSERT(present(idx_type))
+      ASSERT(present(idx_dir))
+      this%g        => g
+      this%idx_type =  idx_type
+      this%idx_dir  =  idx_dir
+    else
+      ASSERT(.not. present(idx_type))
+      ASSERT(.not. present(idx_dir))
+      this%g        => get_dummy_grid()
+      this%idx_type =  IDX_VERTEX
+      this%idx_dir  =  0
+    end if
 
     ! allocate data
-    call allocate_grid_data(this%data, g%idx_dim)
-    call this%data%init(g, idx_type, idx_dir)
+    call allocate_grid_data(this%data, this%g%idx_dim)
+    call this%data%init(this%g, this%idx_type, this%idx_dir)
   end subroutine
 
   function variable_get_ptr(this) result(ptr)
