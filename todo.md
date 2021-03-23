@@ -20,3 +20,10 @@
 
 ## transient
 - transient routines: bwE, bdf2, fwE?
+
+## Gummel
+- init by following arguments
+  - esystems: nonlinear PE, transport model (one for each carrier type)
+  - equation: dens2imref
+    - array, one for each carrier type
+    - call eval to get imref
