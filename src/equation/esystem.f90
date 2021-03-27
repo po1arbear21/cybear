@@ -199,7 +199,7 @@ contains
     character(*),               intent(in)    :: name
       !! selector name
     type(grid_table), optional, intent(in)    :: tab
-      !! grid table
+      !! grid table (default: variables' whole grids via v%g%tab_all)
 
     type(dummy_equation_ptr) :: ep
 
@@ -216,7 +216,7 @@ contains
     class(variable),            intent(in)    :: v
       !! new provided variable
     type(grid_table), optional, intent(in)    :: tab
-      !! grid table
+      !! grid table (default: variable's whole grid via v%g%tab_all)
     character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
 
