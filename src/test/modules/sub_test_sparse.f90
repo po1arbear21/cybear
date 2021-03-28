@@ -10,7 +10,6 @@ contains
   module subroutine test_sparse()
     type(test_case) :: tc
 
-    print "(A)", "test_sparse"
     call tc%init("sparse")
 
     ! sparse builder: check if sparse builder created correct sparse matrix

@@ -11,7 +11,6 @@ contains
   subroutine test_math()
     type(test_case) :: tc
 
-    print "(A)", "test_math"
     call tc%init("math")
 
     ! cross product

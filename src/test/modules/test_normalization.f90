@@ -16,7 +16,6 @@ contains
     type(test_case) :: tc
     real, parameter :: T_K = 300.0
 
-    print "(A)", "test_normalization"
     call tc%init("normalization")
 
     call init_normconst(T_K)

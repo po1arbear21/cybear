@@ -15,7 +15,6 @@ contains
     ! integer            :: i, seed(2), funit
     ! real               :: x(N)
 
-    print "(A)", "test_random"
     call tc%init("random")
 
     ! seed = [512323423456, 178234119012]

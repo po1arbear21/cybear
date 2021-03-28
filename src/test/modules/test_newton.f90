@@ -15,7 +15,6 @@ contains
   subroutine test_newton()
     type(test_case) :: tc
 
-    print "(A)", "test_newton"
     call tc%init("newton")
 
     block
@@ -32,7 +31,6 @@ contains
 
       call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -10*abs(xe), xmax = 10*abs(xe), log = .true., msg = "poly1D: ")
       call newton1D(poly1D, p, opt, -1.0, x, dxdp = dxdp, ipar = ipar)
-      print *
 
       call tc%assert_eq(   xe,    x, opt%atol, "newton1D: x" )
       call tc%assert_eq(dxedp, dxdp, opt%atol, "newton1D: dxdp")
@@ -44,7 +42,6 @@ contains
 
       call opt%init(2, atol = 1e-16 * [1.0, 1.0], rtol = 1e-14 * [1.0, 1.0], log = .true., msg = "poly2D: ")
       call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
-      print *
 
       ! expected values
       xe(1) = 1.0

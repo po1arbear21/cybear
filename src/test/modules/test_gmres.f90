@@ -15,7 +15,6 @@ contains
   subroutine test_gmres()
     type(test_case) :: tc
 
-    print "(A)", "test_gmres"
     call tc%init("gmres")
 
     call test_gmres_real(tc)

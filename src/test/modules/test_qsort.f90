@@ -12,7 +12,6 @@ contains
   subroutine test_qsort()
     type(test_case) :: tc
 
-    print "(A)", "test_qsort"
     call tc%init("qsort")
 
     ! base case: 2 elements

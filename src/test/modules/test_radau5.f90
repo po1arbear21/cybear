@@ -16,7 +16,6 @@ contains
   subroutine test_radau5()
     type(test_case) :: tc
 
-    print "(A)", "test_radau5"
     call tc%init("radau5")
 
     ! exponential

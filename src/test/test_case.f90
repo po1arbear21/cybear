@@ -1,4 +1,5 @@
 module test_case_m
+  use color_m
   use error_m
   use string_m
   implicit none
@@ -65,6 +66,9 @@ contains
     this%num_tests    = 0
     this%passed_tests = 0
     this%last_passed  = .true.
+
+    print *
+    print "(A)", COL_WHITE//name//": "//COL_DEFAULT//"Begin testing..."
   end subroutine
 
   subroutine finish(this)
@@ -73,10 +77,22 @@ contains
     class(test_case), intent(in) :: this
       !! Test case
 
-    print "(A,I0,A,I0,A)", "  "//trim(this%name)//": ", this%passed_tests, "/", this%num_tests, " tests passed!"
-    print *
+    character(7) :: color
 
-    if (this%passed_tests /= this%num_tests) call program_error("Test case "//trim(this%name)//" failed!")
+    if (this%passed_tests == this%num_tests) then
+      color = COL_GREEN
+    else if (this%passed_tests == 0) then
+      color = COL_RED
+    else
+      color = COL_YELLOW
+    end if
+
+    print "(A,I0,A,I0,A)", COL_WHITE//this%name//": "//color, this%passed_tests, "/", this%num_tests, " tests passed!"//COL_DEFAULT
+
+    if (this%passed_tests /= this%num_tests) then
+      print *
+      call program_error("At least one test failed!")
+    end if
   end subroutine
 
   subroutine assert_1(this, value, msg)
@@ -738,7 +754,7 @@ contains
       this%passed_tests = this%passed_tests + 1
     else
       this%last_passed  = .false.
-      print "(A)", "Test failed in "//trim(this%name)
+      print "(A)", COL_WHITE//trim(this%name)//": "//COL_MAGENTA//"Failed test"//COL_DEFAULT
       print "(A)", "  "//trim(msg)
       if (present(msg2)) print "(A)", "    "//trim(msg2)
       if (present(ipar)) then

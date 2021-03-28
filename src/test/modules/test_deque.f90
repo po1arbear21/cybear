@@ -12,7 +12,6 @@ contains
     type(test_case) :: tc
     type(deque_int) :: deq
 
-    print "(A)", "test_deque"
     call tc%init("deque")
 
     ! test1: init

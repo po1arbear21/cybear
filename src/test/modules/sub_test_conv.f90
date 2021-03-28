@@ -7,7 +7,7 @@ contains
 
   module subroutine test_conv()
     type(test_case) :: tc
-    print "(A)", "test_conv"
+
     call tc%init("conv")
 
     call test_to_band(tc)

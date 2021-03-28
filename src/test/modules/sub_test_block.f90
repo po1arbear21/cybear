@@ -12,7 +12,6 @@ contains
     real, allocatable        :: d0(:,:)
     type(block_real), target :: M
 
-    print "(A)", "test_block"
     call tc%init("block")
 
     ! test init routine
