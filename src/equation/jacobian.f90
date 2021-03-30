@@ -380,7 +380,6 @@ contains
     end associate
   end subroutine
 
-
   subroutine jacobian_set_itab_nval(this, itab1, i1, idx2, d, add)
     !! set/update derivatives (select result grid_table, non-scalar variables)
     class(jacobian),   intent(inout) :: this

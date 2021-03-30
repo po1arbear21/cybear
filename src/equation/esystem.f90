@@ -3,13 +3,13 @@
 module esystem_m
   use array_m,            only: array_int
   use error_m
-  use equation_m,         only: equation
+  use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use grid_m,             only: grid_table, grid_table_ptr
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
-  use simple_equations_m, only: vector_dummy_equation_ptr, dummy_equation_ptr, selector_equation_ptr, vector_selector_equation_ptr
+  use simple_equations_m, only: dummy_equation, selector_equation, input_equation
   use variable_m,         only: variable, variable_ptr
   use vector_m,           only: vector_int
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
@@ -28,10 +28,8 @@ module esystem_m
     type(depgraph) :: g
       !! dependency graph
 
-    type(vector_dummy_equation_ptr)    :: edum
-      !! dummy equations
-    type(vector_selector_equation_ptr) :: eselect
-      !! selector equations
+    type(vector_equation_ptr) :: ealloc
+      !! automatically allocated equations
 
     integer                      :: nbl
       !! number of blocks
@@ -101,9 +99,8 @@ contains
     ! init dependency graph
     call this%g%init()
 
-    ! init vectors
-    call this%edum%init(   0, 8)
-    call this%eselect%init(0, 8)
+    ! init allocated equation vector
+    call this%ealloc%init(0, c=8)
 
     ! init_final has not been called yet
     this%finished_init = .false.
@@ -119,20 +116,13 @@ contains
     call this%g%destruct()
 
     ! destruct dummy and selection equations
-    do i = 1, this%edum%n
-      if (associated(this%edum%d(i)%p)) then
-        call this%edum%d(i)%p%destruct()
-        deallocate (this%edum%d(i)%p)
+    do i = 1, this%ealloc%n
+      if (associated(this%ealloc%d(i)%p)) then
+        call this%ealloc%d(i)%p%destruct()
+        deallocate (this%ealloc%d(i)%p)
       end if
     end do
-    call this%edum%destruct()
-    do i = 1, this%eselect%n
-      if (associated(this%eselect%d(i)%p)) then
-        call this%eselect%d(i)%p%destruct()
-        deallocate (this%eselect%d(i)%p)
-      end if
-    end do
-    call this%eselect%destruct()
+    call this%ealloc%destruct()
 
     ! destruct jacobians
     call this%df%destruct()
@@ -144,13 +134,12 @@ contains
     class(esystem),          intent(inout) :: this
     type(vselector), target, intent(in)    :: v
 
-    type(dummy_equation_ptr) :: ep
+    type(dummy_equation), pointer :: e
 
-    allocate (ep%p)
-    call ep%p%init(v)
-    call this%edum%push(ep)
-
-    call this%add_equation(ep%p)
+    allocate (e)
+    call this%ealloc%push(e%get_ptr())
+    call e%init(v)
+    call this%add_equation(e)
   end subroutine
 
   subroutine esystem_provide_nvar_ntab(this, v, tab, name)
@@ -163,13 +152,12 @@ contains
     character(*),         intent(in)    :: name
       !! selector name
 
-    type(dummy_equation_ptr) :: ep
+    type(dummy_equation), pointer :: e
 
-    allocate (ep%p)
-    call ep%p%init(v, tab, name)
-    call this%edum%push(ep)
-
-    call this%add_equation(ep%p)
+    allocate (e)
+    call this%ealloc%push(e%get_ptr())
+    call e%init(v, tab, name)
+    call this%add_equation(e)
   end subroutine
 
   subroutine esystem_provide_var_ntab(this, v, tab, name)
@@ -182,13 +170,12 @@ contains
     character(*), optional, intent(in)    :: name
       !! name of new var selector (default: v%name)
 
-    type(dummy_equation_ptr) :: ep
+    type(dummy_equation), pointer :: e
 
-    allocate (ep%p)
-    call ep%p%init(v, tab, name=name)
-    call this%edum%push(ep)
-
-    call this%add_equation(ep%p)
+    allocate (e)
+    call this%ealloc%push(e%get_ptr())
+    call e%init(v, tab, name=name)
+    call this%add_equation(e)
   end subroutine
 
   subroutine esystem_provide_nvar_tab(this, v, name, tab)
@@ -201,13 +188,12 @@ contains
     type(grid_table), optional, intent(in)    :: tab
       !! grid table
 
-    type(dummy_equation_ptr) :: ep
+    type(dummy_equation), pointer :: e
 
-    allocate (ep%p)
-    call ep%p%init(v, name, tab=tab)
-    call this%edum%push(ep)
-
-    call this%add_equation(ep%p)
+    allocate (e)
+    call this%ealloc%push(e%get_ptr())
+    call e%init(v, name, tab=tab)
+    call this%add_equation(e)
   end subroutine
 
   subroutine esystem_provide_var_tab(this, v, tab, name)
@@ -220,13 +206,12 @@ contains
     character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
 
-    type(dummy_equation_ptr) :: ep
+    type(dummy_equation), pointer :: e
 
-    allocate (ep%p)
-    call ep%p%init(v, tab=tab, name=name)
-    call this%edum%push(ep)
-
-    call this%add_equation(ep%p)
+    allocate (e)
+    call this%ealloc%push(e%get_ptr())
+    call e%init(v, tab=tab, name=name)
+    call this%add_equation(e)
   end subroutine
 
   subroutine esystem_add_equation(this, e)
@@ -265,12 +250,12 @@ contains
     subroutine try_fix()
       !! try to generate missing equations
 
-      integer                     :: i
-      logical                     :: status
-      type(vselector_ptr)         :: vp
-      type(vector_vselector_ptr)  :: prov
-      type(vector_int)            :: fix_list
-      type(selector_equation_ptr) :: ep
+      integer                          :: i
+      logical                          :: status
+      type(vselector_ptr)              :: vp
+      type(vector_vselector_ptr)       :: prov
+      type(vector_int)                 :: fix_list
+      type(selector_equation), pointer :: e
 
       ! get list of provided vars, init fix list (unprovided)
       call prov%init(0, 32)
@@ -290,13 +275,13 @@ contains
       do i = 1, fix_list%n
         associate (n => this%g%nodes%d(fix_list%d(i)))
           ! new selector equation
-          allocate (ep%p)
-          call ep%p%init(n%v, prov%d(1:prov%n), status)
+          allocate (e)
+          call e%init(n%v, prov%d(1:prov%n), status)
 
           ! check status
           if (.not. status) then
             ! can not be resolved by selector equation
-            deallocate (ep%p)
+            deallocate (e)
 
             print "(A)", "Missing variable selector:"
             call n%v%print()
@@ -304,8 +289,8 @@ contains
           end if
 
           ! save equation and add to system
-          call this%eselect%push(ep)
-          call this%add_equation(ep%p)
+          call this%ealloc%push(e%get_ptr())
+          call this%add_equation(e)
 
           ! add var to prov
           vp%p => n%v

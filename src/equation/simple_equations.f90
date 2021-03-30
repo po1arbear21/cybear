@@ -2,34 +2,34 @@
 
 module simple_equations_m
 
-  use equation_m,  only: equation
-  use grid_m,      only: grid_table, grid_table_ptr
-  use jacobian_m,  only: jacobian
-  use stencil_m,   only: stencil_ptr, dirichlet_stencil
-  use variable_m,  only: variable, variable_ptr
-  use vselector_m, only: vselector, vselector_ptr
+  use equation_m,     only: equation
+  use grid_m,         only: grid_table, grid_table_ptr
+  use jacobian_m,     only: jacobian
+  use res_equation_m, only: res_equation
+  use stencil_m,      only: stencil_ptr, dirichlet_stencil
+  use variable_m,     only: variable, variable_ptr
+  use vselector_m,    only: vselector, vselector_ptr
 
   implicit none
 
   private
-  public    dummy_equation,    dummy_equation_ptr, vector_dummy_equation_ptr
-  public selector_equation, selector_equation_ptr, vector_selector_equation_ptr
+  public dummy_equation, selector_equation, input_equation
 
   type, extends(equation) :: dummy_equation
     !! dummy equation which provides values but does not change anything
   contains
-    generic :: init => dummy_equation_init_vsel, &
-      &                dummy_equation_init_nvar_ntab, &
-      &                dummy_equation_init_var_ntab, &
-      &                dummy_equation_init_nvar_tab, &
-      &                dummy_equation_init_var_tab
-    procedure, private :: dummy_equation_init_vsel, &
-      &                   dummy_equation_init_nvar_ntab, &
-      &                   dummy_equation_init_var_ntab, &
-      &                   dummy_equation_init_nvar_tab, &
-      &                   dummy_equation_init_var_tab
-
+    generic   :: init => dummy_equation_init_vsel,      &
+      &                  dummy_equation_init_nvar_ntab, &
+      &                  dummy_equation_init_var_ntab,  &
+      &                  dummy_equation_init_nvar_tab,  &
+      &                  dummy_equation_init_var_tab
     procedure :: eval => dummy_equation_eval
+
+    procedure, private :: dummy_equation_init_vsel,      &
+      &                   dummy_equation_init_nvar_ntab, &
+      &                   dummy_equation_init_var_ntab,  &
+      &                   dummy_equation_init_nvar_tab,  &
+      &                   dummy_equation_init_var_tab
   end type
 
   type, extends(equation) :: selector_equation
@@ -41,31 +41,31 @@ module simple_equations_m
     procedure :: eval => selector_equation_eval
   end type
 
-  type dummy_equation_ptr
-    type(dummy_equation), pointer :: p => null()
+  type, extends(res_equation) :: input_equation
+    !! provide value as input parameter
+
+    real, allocatable :: appl(:)
+      !! applied values
+
+    type(dirichlet_stencil)  :: st
+  contains
+    generic   :: init  => input_equation_init_vsel,      &
+      &                   input_equation_init_nvar_ntab, &
+      &                   input_equation_init_var_ntab,  &
+      &                   input_equation_init_nvar_tab,  &
+      &                   input_equation_init_var_tab
+    procedure :: apply => input_equation_apply
+    procedure :: eval  => input_equation_eval
+
+    procedure, private :: input_equation_init_vsel,      &
+      &                   input_equation_init_nvar_ntab, &
+      &                   input_equation_init_var_ntab,  &
+      &                   input_equation_init_nvar_tab,  &
+      &                   input_equation_init_var_tab,   &
+      &                   input_equation_init_body
   end type
-
-  type selector_equation_ptr
-    type(selector_equation), pointer :: p => null()
-  end type
-
-#define T dummy_equation_ptr
-#define TT type(dummy_equation_ptr)
-#include "../util/vector_def.f90.inc"
-
-#define T selector_equation_ptr
-#define TT type(selector_equation_ptr)
-#include "../util/vector_def.f90.inc"
 
 contains
-
-#define T dummy_equation_ptr
-#define TT type(dummy_equation_ptr)
-#include "../util/vector_imp.f90.inc"
-
-#define T selector_equation_ptr
-#define TT type(selector_equation_ptr)
-#include "../util/vector_imp.f90.inc"
 
   subroutine dummy_equation_init_vsel(this, v)
     !! initialize dummy equation
@@ -283,6 +283,175 @@ contains
 
     ! do nothing
     IGNORE(this)
+  end subroutine
+
+  subroutine input_equation_init_vsel(this, v)
+    !! initialize input equation (f = v - appl == 0)
+    class(input_equation),    intent(out) :: this
+    class(vselector), target, intent(in)  :: v
+      !! input parameter variable
+
+    ! init base
+    call this%equation_init("Input"//v%name)
+
+    ! init residual data
+    call this%init_f(v)
+
+    ! init rest
+    call this%input_equation_init_body()
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_init_nvar_ntab(this, v, tab, name)
+    !! initialize input equation
+    class(input_equation), intent(out) :: this
+    type(variable_ptr),    intent(in)  :: v(:)
+      !! variable pointers
+    type(grid_table_ptr),  intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*),          intent(in)  :: name
+      !! selector name
+
+    ! init base
+    call this%equation_init("Input"//name)
+
+    ! init residual data
+    call this%init_f(v, tab, name)
+
+    ! init rest
+    call this%input_equation_init_body()
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_init_var_ntab(this, v, tab, name)
+    !! initialize input equation
+    class(input_equation),  intent(out) :: this
+    class(variable),        intent(in)  :: v
+      !! provided variable
+    type(grid_table_ptr),   intent(in)  :: tab(:)
+      !! grid table pointers
+    character(*), optional, intent(in)  :: name
+      !! name of new var selector (default: v%name)
+
+    ! init base
+    call this%equation_init("Input"//v%name)
+
+    ! init residual data
+    call this%init_f(v, tab, name=name)
+
+    ! init rest
+    call this%input_equation_init_body()
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_init_nvar_tab(this, v, name, tab)
+    !! initialize input equation
+    class(input_equation),      intent(out) :: this
+    type(variable_ptr),         intent(in)  :: v(:)
+      !! variable pointers
+    character(*),               intent(in)  :: name
+      !! selector name
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+
+    ! init base
+    call this%equation_init("Input"//name)
+
+    ! init residual data
+    call this%init_f(v, name, tab=tab)
+
+    ! init rest
+    call this%input_equation_init_body()
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_init_var_tab(this, v, tab, name)
+    !! initialize input equation
+    class(input_equation),      intent(out) :: this
+    class(variable),            intent(in)  :: v
+      !! new provided variable
+    type(grid_table), optional, intent(in)  :: tab
+      !! grid table
+    character(*),     optional, intent(in)  :: name
+      !! name of new var selector (default: var%name)
+
+    ! init base
+    call this%equation_init("Input"//v%name)
+
+    ! init residual data
+    call this%init_f(v, tab=tab, name=name)
+
+    ! init rest
+    call this%input_equation_init_body()
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_init_body(this)
+    !! initialize input equation
+    class(input_equation), target, intent(inout) :: this
+
+    integer                 :: i, idx(this%mvar%g%idx_dim), idep, itab, ival
+    logical                 :: valmsk(this%mvar%nval,this%mvar%nval)
+    type(stencil_ptr)       :: st(this%mvar%ntab)
+    type(jacobian), pointer :: jaco
+
+    ! depend on main variable
+    idep = this%depend(this%mvar)
+
+    ! dirichlet stencil
+    call this%st%init(this%mvar%g)
+    do itab = 1, this%mvar%ntab
+      st(itab)%p => this%st
+    end do
+
+    ! value mask
+    valmsk = .false.
+    do ival = 1, this%mvar%nval
+      valmsk(ival,ival) = .true.
+    end do
+
+    ! init jacobian
+    jaco => this%init_jaco_f(idep, st, const=.true., valmsk=valmsk)
+    do ival = 1, this%mvar%nval
+      do itab = 1, this%mvar%ntab
+        do i = 1, this%mvar%tab(itab)%p%n
+          idx = this%mvar%tab(itab)%p%get_idx(i)
+          call jaco%set(itab, i, idx, ival, ival, 1.0)
+        end do
+      end do
+    end do
+
+    ! allocate input parameters
+    allocate (this%appl(this%mvar%n), source = 0.0)
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine input_equation_apply(this, appl)
+    !! apply input parameters
+    class(input_equation), intent(inout) :: this
+    real,                  intent(in)    :: appl(:)
+
+    ! save input parameters
+    this%appl = appl
+  end subroutine
+
+  subroutine input_equation_eval(this)
+    !! evaluate input equation (f = v - appl == 0)
+    class(input_equation), intent(inout) :: this
+
+    call this%f%set(this%mvar%get() - this%appl)
   end subroutine
 
 end module
