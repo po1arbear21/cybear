@@ -139,8 +139,7 @@ contains
     type(grid_table_ptr),   intent(in)  :: tab(:)
       !! grid table pointers
     character(*), optional, intent(in)  :: name
-      !! selector name
-      !! default: variable%name
+      !! selector name (default: variable%name)
 
     character(:), allocatable :: name_
 
@@ -162,7 +161,7 @@ contains
     character(*),               intent(in)  :: name
       !! selector name
     type(grid_table), optional, intent(in)  :: tab
-      !! grid table
+      !! grid table (default: variables' whole grids via v(1)%g%tab_all)
 
     if (present(tab)) then
       call this%init(v, [tab%get_ptr()], name)
@@ -177,10 +176,9 @@ contains
     class(variable),            intent(in)  :: v
       !! variable
     type(grid_table), optional, intent(in)  :: tab
-      !! grid table
+      !! grid table (default: variable's whole grid via v%g%tab_all)
     character(*),     optional, intent(in)  :: name
-      !! selector name
-      !! default: variable%name
+      !! selector name (default: variable%name)
 
     character(:), allocatable :: name_
 
