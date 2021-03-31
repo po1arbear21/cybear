@@ -29,8 +29,6 @@ module feast_m
       !! #contour points for non-Herm./poly. FEAST (full-contour)
       !! if gauss_integration: values permitted (2 to 40, 48, 64, 80, 96, 112)
       !! else:                 all values permitted (>2)
-    logical :: both_eigenvectors = .false.                                             ! fpm(15)
-      !! compute both (right and left) eigenvectors or only right
     logical :: gauss_integration = .false.                                             ! fpm(16)
       !! Gauss or trapezoidal integration
     complex :: mid               = 0
@@ -39,11 +37,12 @@ module feast_m
       !! radius in horizontal/vertical directions (before rotation is applied)
     real    :: ang               = 0
       !! rotation angle in degree
-    integer :: N                 = -1
+    integer :: N
       !! system size
-    integer :: M0                = -1
+    integer :: M0
       !! overestimate for number of evals in contour
   contains
+    procedure :: init  => feast_option_init
     procedure :: apply => feast_option_apply
     procedure :: get   => feast_option_get
   end type
@@ -104,7 +103,7 @@ module feast_m
         !! input vector x
       complex(real64),   intent(out) :: y(:,:)
         !! output vector y
-      logical, optional, intent(in)    :: ctrans
+      logical, optional, intent(in)  :: ctrans
         !! y <- M^H*x. default: .false.
     end subroutine
   end interface
@@ -136,21 +135,16 @@ contains
     real(real64)                 :: epsout, r
     real(real64),    allocatable :: res(:)
 
-    ASSERT(opt%N  > 0)
-    ASSERT(opt%M0 > 0)
-    if (present(evecL)) then
-      ASSERT(opt%both_eigenvectors)
-    end if
-
     ! set options
     call feastinit(fpm)
     call opt%apply(fpm)
+    fpm(15) = merge(0, 1, present(evecL))
 
     ! initialization
     ijob = -1
     M0   = opt%M0
     allocate (work1(opt%N,M0), work2(opt%N,M0), Aq(M0,M0), Bq(M0,M0), E(M0), res(M0))
-    allocate (X(opt%N,M0 * merge(2, 1, opt%both_eigenvectors)))
+    allocate (X(opt%N,M0 * merge(2, 1, present(evecL))))
 
     ! get parameters
     call opt%get(Emid, r)
@@ -227,6 +221,21 @@ contains
     if (present(evecL)) evecL = X(:,M0+1:M0+M)
   end subroutine
 
+  subroutine feast_option_init(this, N, M0)
+    !! init feast options
+    class(feast_option), intent(out) :: this
+    integer,             intent(in)  :: N
+      !! system size
+    integer,             intent(in)  :: M0
+      !! overestimate for number of evals in contour
+
+    ASSERT(N  >= M0)
+    ASSERT(M0 >   0)
+
+    this%N  = N
+    this%M0 = M0
+  end subroutine
+
   subroutine feast_option_apply(this, fpm)
     !! applies values from options object to feast integer parameter array
     class(feast_option), intent(in)  :: this
@@ -238,7 +247,6 @@ contains
     fpm( 4) = this%max_refinement
     fpm( 6) = merge(0, 1, this%trace_convergence)
     fpm( 8) = this%n_contour
-    fpm(15) = merge(0, 1, this%both_eigenvectors)
     fpm(16) = merge(0, 1, this%gauss_integration)
     fpm(18) = nint(this%rad(2)/this%rad(1)*100)     ! fpm18 = vertical axis / horizontal axis * 100
     fpm(19) = nint(this%ang)                        ! fpm19 = rotation in degree
