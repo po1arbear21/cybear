@@ -267,43 +267,49 @@ contains
     integer                      :: hkey(this%hashkey_size())
       !! return hashmap key
 
-    integer        :: i, n
-    integer(int64) :: ptr
+    integer                    :: i, n
+    integer(int64)             :: iptr
+    class(grid),       pointer :: gptr ! use local pointers to avoid ifort bug
+    class(variable),   pointer :: vptr ! otherwise loc does not return address of target
+    class(grid_table), pointer :: tptr
 
     ! convert to integer array (convert pointers to integers using loc function)
     hkey(1) = this%idx_type
     hkey(2) = this%idx_dir
-    ptr = loc(this%g)
+    gptr => this%g
+    iptr =  loc(gptr)
 #ifdef INTSIZE32
-    hkey(3) = int(ptr, kind = int32)
-    hkey(4) = int(ishft(ptr, -32), kind = int32)
+    hkey(3) = int(iptr, kind = int32)
+    hkey(4) = int(ishft(iptr, -32), kind = int32)
     n = 4
 #endif
 #ifdef INTSIZE64
-    hkey(3) = ptr
+    hkey(3) = iptr
     n = 3
 #endif
     do i = 1, size(this%v)
-      ptr = loc(this%v(i)%p)
+      vptr => this%v(i)%p
+      iptr =  loc(vptr)
 #ifdef INTSIZE32
-      hkey(n+1) = int(ptr, kind = int32)
-      hkey(n+2) = int(ishft(ptr, -32), kind = int32)
+      hkey(n+1) = int(iptr, kind = int32)
+      hkey(n+2) = int(ishft(iptr, -32), kind = int32)
       n = n + 2
 #endif
 #ifdef INTSIZE64
-      hkey(n+1) = ptr
+      hkey(n+1) = iptr
       n = n + 1
 #endif
     end do
     do i = 1, size(this%tab)
-      ptr = loc(this%tab(i)%p)
+      tptr => this%tab(i)%p
+      iptr =  loc(tptr)
 #ifdef INTSIZE32
-      hkey(n+1) = int(ptr, kind = int32)
-      hkey(n+2) = int(ishft(ptr, -32), kind = int32)
+      hkey(n+1) = int(iptr, kind = int32)
+      hkey(n+2) = int(ishft(iptr, -32), kind = int32)
       n = n + 2
 #endif
 #ifdef INTSIZE64
-      hkey(n+1) = ptr
+      hkey(n+1) = iptr
       n = n + 1
 #endif
     end do

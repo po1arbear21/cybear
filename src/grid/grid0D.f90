@@ -104,7 +104,7 @@ contains
     IGNORE(this   )
     IGNORE(idx    )
     IGNORE(idx_dir)
-    IGNORE(p      )
+    p(:,:) = 0.0
   end subroutine
 
   subroutine grid0D_get_face(this, idx, idx_dir, p)

@@ -8,7 +8,7 @@ module test_esystem_m
   use equation_m,     only: equation
   use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian
-  use grid_m,         only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data1_real, grid_table
+  use grid_m,         only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data1_real, grid_table
   use grid1D_m,       only: grid1D
   use res_equation_m, only: res_equation
   use stencil_m,      only: dirichlet_stencil

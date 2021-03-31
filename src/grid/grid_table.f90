@@ -2,7 +2,7 @@ submodule (grid_m) grid_table_m
 
 contains
 
-  subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
+  module subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
     !! initialize grid table
     class(grid_table),   intent(out) :: this
     character(*),        intent(in)  :: name
@@ -26,7 +26,7 @@ contains
     call this%flags%init(g, idx_type, idx_dir, d0 = initial_flags)
   end subroutine
 
-  subroutine grid_table_init_final(this)
+  module subroutine grid_table_init_final(this)
     !! initialize internal tables (call this after flags have been set)
     class(grid_table), intent(inout) :: this
 
@@ -66,7 +66,7 @@ contains
     end associate
   end subroutine
 
-  function grid_table_get_ptr(this) result(ptr)
+  module function grid_table_get_ptr(this) result(ptr)
     !! returns pointer type to this grid_table
     class(grid_table), target, intent(in) :: this
     type(grid_table_ptr)                  :: ptr
@@ -74,7 +74,7 @@ contains
     ptr%p => this
   end function
 
-  function grid_table_get_idx(this, i) result(idx)
+  module function grid_table_get_idx(this, i) result(idx)
     !! convert flat index to grid indices
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: i
@@ -85,7 +85,7 @@ contains
     idx = this%flat2idx(:,i)
   end function
 
-  function grid_table_get_flat(this, idx) result(i)
+  module function grid_table_get_flat(this, idx) result(i)
     !! convert grid indices to flat index
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: idx(:)

@@ -301,7 +301,8 @@ contains
       !! enable processing of non-const blocks (default: true)
 
     integer :: i, j, itab1, itab2, ival1, ival2, row, row0, col, col0
-    logical :: const_, nonconst_, set(this%matr%v1%ntab,this%matr%v2%ntab)
+    integer :: idx1(this%matr%v1%g%idx_dim), idx2(this%matr%v2%g%idx_dim)
+    logical :: const_, nonconst_, set(this%matr%v1%ntab,this%matr%v2%ntab), status
 
     ! optional arguments
     const_ = .true.
@@ -321,55 +322,50 @@ contains
         ! insert data into spbuilders for static stencils
         select type (st => this%st(itab1)%p)
           class is (static_stencil)
-            block
-              integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
-              logical :: status
+            ! reset blocks before saving values
+            do itab2 = 1, v2%ntab
+              if (set(itab1,itab2)) then
+                call this%matr%s( itab1,itab2)%p%reset()
+                call this%matr%sb(itab1,itab2)%reset()
+              end if
+            end do
 
-              ! reset blocks before saving values
-              do itab2 = 1, v2%ntab
-                if (set(itab1,itab2)) then
-                  call this%matr%s( itab1,itab2)%p%reset()
-                  call this%matr%sb(itab1,itab2)%reset()
-                end if
-              end do
+            if (.not. all(this%matr%zero(itab1,:))) then
+              ! loop over points in result table
+              do i = 1, v1%tab(itab1)%p%n
+                ! get result grid indices
+                idx1 = v1%tab(itab1)%p%get_idx(i)
 
-              if (.not. all(this%matr%zero(itab1,:))) then
-                ! loop over points in result table
-                do i = 1, v1%tab(itab1)%p%n
-                  ! get result grid indices
-                  idx1 = v1%tab(itab1)%p%get_idx(i)
+                ! get row base index
+                row0 = (i - 1) * v1%nval
 
-                  ! get row base index
-                  row0 = (i - 1) * v1%nval
+                ! loop over dependency points
+                do j = 1, st%nmax
+                  ! get dependency points
+                  call st%get(idx1, j, idx2, status)
+                  if (.not. status) exit
 
-                  ! loop over dependency points
-                  do j = 1, st%nmax
-                    ! get dependency points
-                    call st%get(idx1, j, idx2, status)
-                    if (.not. status) exit
+                  ! get dependency table index
+                  itab2 = v2%itab%get(idx2)
 
-                    ! get dependency table index
-                    itab2 = v2%itab%get(idx2)
+                  ! do nothing if dependency matrix is not used (const or zero flag prevents it)
+                  if ((.not. set(itab1,itab2)) .or. (this%matr%zero(itab1,itab2))) cycle
 
-                    ! do nothing if dependency matrix is not used (const or zero flag prevents it)
-                    if ((.not. set(itab1,itab2)) .or. (this%matr%zero(itab1,itab2))) cycle
+                  ! get column base index
+                  col0 = (v2%tab(itab2)%p%get_flat(idx2) - 1) * v2%nval
 
-                    ! get column base index
-                    col0 = (v2%tab(itab2)%p%get_flat(idx2) - 1) * v2%nval
-
-                    ! set derivatives
-                    do ival1 = 1, v1%nval
-                      row = row0 + ival1
-                      do ival2 = 1, v2%nval
-                        if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
-                        col = col0 + ival2
-                        call this%matr%sb(itab1,itab2)%set(row, col, this%sd(itab1)%d(ival1,ival2,j,i), search = .false.)
-                      end do
+                  ! set derivatives
+                  do ival1 = 1, v1%nval
+                    row = row0 + ival1
+                    do ival2 = 1, v2%nval
+                      if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
+                      col = col0 + ival2
+                      call this%matr%sb(itab1,itab2)%set(row, col, this%sd(itab1)%d(ival1,ival2,j,i), search = .false.)
                     end do
                   end do
                 end do
-              end if
-            end block
+              end do
+            end if
         end select
 
         ! save data in sparse_matrix
