@@ -157,9 +157,9 @@ contains
     IGNORE(this)
     IGNORE(idx1)
     IGNORE(j)
-    IGNORE(idx2)
 
-    status = .false.
+    idx2(:) = 0
+    status  = .false.
   end subroutine
 
   subroutine dirichlet_stencil_init(this, g1, g2, perm, off1, off2)

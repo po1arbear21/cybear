@@ -40,7 +40,7 @@
 #define ALLOCATE_GRID_DATA3    CONCAT(allocate_grid_data3,T)
 #define ALLOCATE_GRID_DATA4    CONCAT(allocate_grid_data4,T)
 
-subroutine ALLOCATE_GRID_DATA0(gdata, dim)
+module subroutine ALLOCATE_GRID_DATA0(gdata, dim)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata
   integer,                            intent(in)  :: dim
@@ -70,7 +70,7 @@ subroutine ALLOCATE_GRID_DATA0(gdata, dim)
   end select
 end subroutine
 
-subroutine ALLOCATE_GRID_DATA1(gdata, dim, i0, i1)
+module subroutine ALLOCATE_GRID_DATA1(gdata, dim, i0, i1)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:)
   integer,                            intent(in)  :: dim
@@ -104,7 +104,7 @@ subroutine ALLOCATE_GRID_DATA1(gdata, dim, i0, i1)
   end select
 end subroutine
 
-subroutine ALLOCATE_GRID_DATA2(gdata, dim, i0, i1)
+module subroutine ALLOCATE_GRID_DATA2(gdata, dim, i0, i1)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:)
   integer,                            intent(in)  :: dim
@@ -138,7 +138,7 @@ subroutine ALLOCATE_GRID_DATA2(gdata, dim, i0, i1)
   end select
 end subroutine
 
-subroutine ALLOCATE_GRID_DATA3(gdata, dim, i0, i1)
+module subroutine ALLOCATE_GRID_DATA3(gdata, dim, i0, i1)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:)
   integer,                            intent(in)  :: dim
@@ -172,7 +172,7 @@ subroutine ALLOCATE_GRID_DATA3(gdata, dim, i0, i1)
   end select
 end subroutine
 
-subroutine ALLOCATE_GRID_DATA4(gdata, dim, i0, i1)
+module subroutine ALLOCATE_GRID_DATA4(gdata, dim, i0, i1)
   !! allocate grid data
   class(GRID_DATA_TYPE), allocatable, intent(out) :: gdata(:,:,:,:)
   integer,                            intent(in)  :: dim
@@ -206,7 +206,7 @@ subroutine ALLOCATE_GRID_DATA4(gdata, dim, i0, i1)
   end select
 end subroutine
 
-subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
+module subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
   !! initialize and allocate grid data
   class(GRID_DATA_TYPE), intent(out) :: this
   class(grid),           intent(in)  :: g
@@ -288,7 +288,7 @@ subroutine GRID_DATA_INIT(this, g, idx_type, idx_dir, d0)
   end select
 end subroutine
 
-function GRID_DATA_GET_PTR0(this) result(p)
+module function GRID_DATA_GET_PTR0(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA0_TYPE), pointer            :: p
 
@@ -300,7 +300,7 @@ function GRID_DATA_GET_PTR0(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR1(this) result(p)
+module function GRID_DATA_GET_PTR1(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA1_TYPE), pointer            :: p
 
@@ -312,7 +312,7 @@ function GRID_DATA_GET_PTR1(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR2(this) result(p)
+module function GRID_DATA_GET_PTR2(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA2_TYPE), pointer            :: p
 
@@ -324,7 +324,7 @@ function GRID_DATA_GET_PTR2(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR3(this) result(p)
+module function GRID_DATA_GET_PTR3(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA3_TYPE), pointer            :: p
 
@@ -336,7 +336,7 @@ function GRID_DATA_GET_PTR3(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR4(this) result(p)
+module function GRID_DATA_GET_PTR4(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA4_TYPE), pointer            :: p
 
@@ -348,7 +348,7 @@ function GRID_DATA_GET_PTR4(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR5(this) result(p)
+module function GRID_DATA_GET_PTR5(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA5_TYPE), pointer            :: p
 
@@ -360,7 +360,7 @@ function GRID_DATA_GET_PTR5(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR6(this) result(p)
+module function GRID_DATA_GET_PTR6(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA6_TYPE), pointer            :: p
 
@@ -372,7 +372,7 @@ function GRID_DATA_GET_PTR6(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR7(this) result(p)
+module function GRID_DATA_GET_PTR7(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA7_TYPE), pointer            :: p
 
@@ -384,7 +384,7 @@ function GRID_DATA_GET_PTR7(this) result(p)
   end select
 end function
 
-function GRID_DATA_GET_PTR8(this) result(p)
+module function GRID_DATA_GET_PTR8(this) result(p)
   class(GRID_DATA_TYPE), target, intent(in) :: this
   type(GRID_DATA8_TYPE), pointer            :: p
 
@@ -396,7 +396,7 @@ function GRID_DATA_GET_PTR8(this) result(p)
   end select
 end function
 
-subroutine GRID_DATA_DESTRUCT(this)
+module subroutine GRID_DATA_DESTRUCT(this)
   !! destruct grid data
   class(GRID_DATA_TYPE), intent(inout) :: this
 
@@ -421,7 +421,7 @@ subroutine GRID_DATA_DESTRUCT(this)
   end select
 end subroutine
 
-function GRID_DATA_GET_POINT(this, idx) result(d)
+module function GRID_DATA_GET_POINT(this, idx) result(d)
   !! get data for single point with bounds check (out of bounds: return default value)
   class(GRID_DATA_TYPE), intent(in) :: this
   integer,               intent(in) :: idx(:)
@@ -462,7 +462,7 @@ function GRID_DATA_GET_POINT(this, idx) result(d)
   end select
 end function
 
-function GRID_DATA_GET_ALL(this) result(d)
+module function GRID_DATA_GET_ALL(this) result(d)
   !! get data for all points in flat array
   class(GRID_DATA_TYPE), intent(in) :: this
   TT                                :: d(this%n)
@@ -490,7 +490,7 @@ function GRID_DATA_GET_ALL(this) result(d)
   end select
 end function
 
-subroutine GRID_DATA_SET_POINT(this, idx, d)
+module subroutine GRID_DATA_SET_POINT(this, idx, d)
   !! set data for single point with bounds check (do nothing if out of bounds)
   class(GRID_DATA_TYPE), intent(inout) :: this
   integer,               intent(in)    :: idx(:)
@@ -524,7 +524,7 @@ subroutine GRID_DATA_SET_POINT(this, idx, d)
   end select
 end subroutine
 
-subroutine GRID_DATA_SET_ALL(this, d)
+module subroutine GRID_DATA_SET_ALL(this, d)
   !! set data for all points
   class(GRID_DATA_TYPE), intent(inout) :: this
   TT,                    intent(in)    :: d(:)
@@ -556,7 +556,7 @@ subroutine GRID_DATA_SET_ALL(this, d)
 end subroutine
 
 #ifndef TLOG
-subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
+module subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
   !! update data for single point with bounds check (do nothing if out of bounds)
   class(GRID_DATA_TYPE), intent(inout) :: this
   integer,               intent(in)    :: idx(:)
@@ -598,7 +598,7 @@ subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
   end select
 end subroutine
 
-subroutine GRID_DATA_UPDATE_ALL(this, d)
+module subroutine GRID_DATA_UPDATE_ALL(this, d)
   !! update data for all points
   class(GRID_DATA_TYPE), intent(inout) :: this
   TT,                    intent(in)    :: d(:)

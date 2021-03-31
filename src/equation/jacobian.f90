@@ -147,11 +147,11 @@ contains
       ! set zero flags automatically by checking stencils
       zero_ = .true.
       do itab1 = 1, v1%ntab
+        ! do nothing for empty stencil
+        if (.not. associated(st(itab1)%p)) cycle
+
         select type (st_ptr => st(itab1)%p)
           class is (static_stencil)
-            ! do nothing for empty stencil
-            if (.not. associated(st_ptr)) cycle
-
             block
               integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
 
@@ -585,7 +585,6 @@ contains
 
     call this%jacobian_set_itab(itab1, i1, idx2, d, add = add)
   end subroutine
-
 
   subroutine jacobian_add_itab_nval(this, itab1, i1, idx2, d)
     !! update derivatives (select result grid_table, non-scalar variables)

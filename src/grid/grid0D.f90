@@ -69,7 +69,7 @@ contains
     IGNORE(this    )
     IGNORE(idx_type)
     IGNORE(idx_dir )
-    IGNORE(idx_bnd )
+    idx_bnd(:) = 0
   end subroutine
 
   subroutine grid0D_get_vertex(this, idx, p)
@@ -85,7 +85,7 @@ contains
 
     IGNORE(this)
     IGNORE(idx )
-    IGNORE(p   )
+    p(:) = 0.0
   end subroutine
 
   subroutine grid0D_get_edge(this, idx, idx_dir, p)
@@ -123,7 +123,7 @@ contains
     IGNORE(this   )
     IGNORE(idx    )
     IGNORE(idx_dir)
-    IGNORE(p      )
+    p(:,:) = 0.0
   end subroutine
 
   subroutine grid0D_get_cell(this, idx, p)
@@ -139,7 +139,7 @@ contains
 
     IGNORE(this)
     IGNORE(idx )
-    IGNORE(p   )
+    p(:,:) = 0.0
   end subroutine
 
   function grid0D_get_len(this, idx, idx_dir) result(len)
@@ -256,9 +256,9 @@ contains
     IGNORE(idx2_dir )
     IGNORE(idx1     )
     IGNORE(j        )
-    IGNORE(idx2     )
 
-    status = .false.
+    idx2(:) = 0
+    status  = .false.
   end subroutine
 
 end module
