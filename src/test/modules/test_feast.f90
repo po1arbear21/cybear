@@ -10,10 +10,14 @@ module test_feast_m
 contains
 
   subroutine test_feast()
+    type(feast_option) :: opt
     type(test_case) :: tc
 
     print "(A)", "test_feast"
     call tc%init("feast")
+
+
+    ! call feast_solve(opt)
 
     call tc%finish()
   end subroutine
