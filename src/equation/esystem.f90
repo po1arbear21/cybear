@@ -44,6 +44,15 @@ module esystem_m
     integer,         allocatable :: i1(:)
       !! end   rows for flat residuals (= cols of main vars)
 
+    type(vector_int)     :: input_equs
+      !! input equation indices
+    integer, allocatable :: input_i0(:)
+      !! start rows for input variables
+    integer, allocatable :: input_i1(:)
+      !! end   rows for input variables
+    integer              :: ninput
+      !! total number of input values
+
     type(block_real)     :: df
       !! derivatives of f wrt x
     logical, allocatable :: dfconst(:,:)
@@ -63,6 +72,7 @@ module esystem_m
       &                             esystem_provide_nvar_tab,  &
       &                             esystem_provide_var_tab
     procedure :: init_final      => esystem_init_final
+    generic   :: set_input       => esystem_set_input_all, esystem_set_input_single
     procedure :: eval            => esystem_eval
     procedure :: get_main_var    => esystem_get_main_var
     procedure :: get_res_equ     => esystem_get_res_equ
@@ -80,6 +90,7 @@ module esystem_m
       &                   esystem_provide_var_ntab,  &
       &                   esystem_provide_nvar_tab,  &
       &                   esystem_provide_var_tab
+    procedure, private :: esystem_set_input_all, esystem_set_input_single
     procedure, private :: esystem_set_x,    esystem_set_x_block
     procedure, private :: esystem_update_x, esystem_update_x_block
     procedure, private :: esystem_get_df,   esystem_get_df_cmplx
@@ -101,6 +112,9 @@ contains
 
     ! init allocated equation vector
     call this%ealloc%init(0, c=8)
+
+    ! input variable indices
+    call this%input_equs%init(0, c=8)
 
     ! init_final has not been called yet
     this%finished_init = .false.
@@ -129,20 +143,35 @@ contains
     call this%dft%destruct()
   end subroutine
 
-  subroutine esystem_provide_vsel(this, v)
+  subroutine esystem_provide_vsel(this, v, input)
     !! provide vselector (create dummy equation)
     class(esystem),          intent(inout) :: this
     type(vselector), target, intent(in)    :: v
+    logical, optional,       intent(in)    :: input
+      !! input variable (default: false)
 
-    type(dummy_equation), pointer :: e
+    logical                       :: input_
+    type(dummy_equation), pointer :: d
+    type(input_equation), pointer :: i
 
-    allocate (e)
-    call this%ealloc%push(e%get_ptr())
-    call e%init(v)
-    call this%add_equation(e)
+    input_ = .false.
+    if (present(input)) input_ = input
+
+    if (input_) then
+      allocate (i)
+      call this%ealloc%push(i%get_ptr())
+      call i%init(v)
+      call this%add_equation(i)
+      call this%input_equs%push(this%g%equs%n)
+    else
+      allocate (d)
+      call this%ealloc%push(d%get_ptr())
+      call d%init(v)
+      call this%add_equation(d)
+    end if
   end subroutine
 
-  subroutine esystem_provide_nvar_ntab(this, v, tab, name)
+  subroutine esystem_provide_nvar_ntab(this, v, tab, name, input)
     !! initialize dummy equation
     class(esystem),       intent(inout) :: this
     type(variable_ptr),   intent(in)    :: v(:)
@@ -151,16 +180,31 @@ contains
       !! grid table pointers
     character(*),         intent(in)    :: name
       !! selector name
+    logical, optional,    intent(in)    :: input
+      !! input variable (default: false)
 
-    type(dummy_equation), pointer :: e
+    logical                       :: input_
+    type(dummy_equation), pointer :: d
+    type(input_equation), pointer :: i
 
-    allocate (e)
-    call this%ealloc%push(e%get_ptr())
-    call e%init(v, tab, name)
-    call this%add_equation(e)
+    input_ = .false.
+    if (present(input)) input_ = input
+
+    if (input_) then
+      allocate (i)
+      call this%ealloc%push(i%get_ptr())
+      call i%init(v, tab, name)
+      call this%add_equation(i)
+      call this%input_equs%push(this%g%equs%n)
+    else
+      allocate (d)
+      call this%ealloc%push(d%get_ptr())
+      call d%init(v, tab, name)
+      call this%add_equation(d)
+    end if
   end subroutine
 
-  subroutine esystem_provide_var_ntab(this, v, tab, name)
+  subroutine esystem_provide_var_ntab(this, v, tab, name, input)
     !! initialize dummy equation
     class(esystem),         intent(inout) :: this
     class(variable),        intent(in)    :: v
@@ -169,16 +213,31 @@ contains
       !! grid table pointers
     character(*), optional, intent(in)    :: name
       !! name of new var selector (default: v%name)
+    logical,      optional, intent(in)    :: input
+      !! input variable (default: false)
 
-    type(dummy_equation), pointer :: e
+    logical                       :: input_
+    type(dummy_equation), pointer :: d
+    type(input_equation), pointer :: i
 
-    allocate (e)
-    call this%ealloc%push(e%get_ptr())
-    call e%init(v, tab, name=name)
-    call this%add_equation(e)
+    input_ = .false.
+    if (present(input)) input_ = input
+
+    if (input_) then
+      allocate (i)
+      call this%ealloc%push(i%get_ptr())
+      call i%init(v, tab, name=name)
+      call this%add_equation(i)
+      call this%input_equs%push(this%g%equs%n)
+    else
+      allocate (d)
+      call this%ealloc%push(d%get_ptr())
+      call d%init(v, tab, name=name)
+      call this%add_equation(d)
+    end if
   end subroutine
 
-  subroutine esystem_provide_nvar_tab(this, v, name, tab)
+  subroutine esystem_provide_nvar_tab(this, v, name, tab, input)
     !! initialize dummy equation
     class(esystem),             intent(inout) :: this
     type(variable_ptr),         intent(in)    :: v(:)
@@ -186,32 +245,62 @@ contains
     character(*),               intent(in)    :: name
       !! selector name
     type(grid_table), optional, intent(in)    :: tab
-      !! grid table (default: variables' whole grids via v%g%tab_all)
+      !! grid table (default: whole grid via v%g%tab_all)
+    logical,          optional, intent(in)    :: input
+      !! input variable (default: false)
 
-    type(dummy_equation), pointer :: e
+    logical                       :: input_
+    type(dummy_equation), pointer :: d
+    type(input_equation), pointer :: i
 
-    allocate (e)
-    call this%ealloc%push(e%get_ptr())
-    call e%init(v, name, tab=tab)
-    call this%add_equation(e)
+    input_ = .false.
+    if (present(input)) input_ = input
+
+    if (input_) then
+      allocate (i)
+      call this%ealloc%push(i%get_ptr())
+      call i%init(v, name, tab=tab)
+      call this%add_equation(i)
+      call this%input_equs%push(this%g%equs%n)
+    else
+      allocate (d)
+      call this%ealloc%push(d%get_ptr())
+      call d%init(v, name, tab=tab)
+      call this%add_equation(d)
+    end if
   end subroutine
 
-  subroutine esystem_provide_var_tab(this, v, tab, name)
+  subroutine esystem_provide_var_tab(this, v, tab, name, input)
     !! initialize dummy equation
     class(esystem),             intent(inout) :: this
     class(variable),            intent(in)    :: v
       !! new provided variable
     type(grid_table), optional, intent(in)    :: tab
-      !! grid table (default: variable's whole grid via v%g%tab_all)
+      !! grid table (default: whole grid via v%g%tab_all)
     character(*),     optional, intent(in)    :: name
       !! name of new var selector (default: var%name)
+    logical,          optional, intent(in)    :: input
+      !! input variable (default: false)
 
-    type(dummy_equation), pointer :: e
+    logical                       :: input_
+    type(dummy_equation), pointer :: d
+    type(input_equation), pointer :: i
 
-    allocate (e)
-    call this%ealloc%push(e%get_ptr())
-    call e%init(v, tab=tab, name=name)
-    call this%add_equation(e)
+    input_ = .false.
+    if (present(input)) input_ = input
+
+    if (input_) then
+      allocate (i)
+      call this%ealloc%push(i%get_ptr())
+      call i%init(v, tab=tab, name=name)
+      call this%add_equation(i)
+      call this%input_equs%push(this%g%equs%n)
+    else
+      allocate (d)
+      call this%ealloc%push(d%get_ptr())
+      call d%init(v, tab=tab, name=name)
+      call this%add_equation(d)
+    end if
   end subroutine
 
   subroutine esystem_add_equation(this, e)
@@ -244,6 +333,8 @@ contains
 
     call init_blocks()
     call init_jacobians()
+
+    call init_input()
 
   contains
 
@@ -405,6 +496,61 @@ contains
       end do
     end subroutine
 
+    subroutine init_input()
+      !! initialize input indices
+
+      integer :: i, iimvar, ibl0, ibl1
+
+      allocate (this%input_i0(this%input_equs%n), this%input_i1(this%input_equs%n))
+
+      this%ninput = 0
+      do i = 1, this%input_equs%n
+        ! get mvar index
+        iimvar = this%g%nodes%d(this%g%equs%d(this%input_equs%d(i))%imain)%iimvar
+
+        ! get first and last block
+        ibl0 = this%res2block(iimvar)%d(1)
+        ibl1 = this%res2block(iimvar)%d(size(this%res2block(iimvar)%d))
+
+        ! set start and end indices (covering all blocks)
+        this%input_i0(i) = this%i0(ibl0)
+        this%input_i1(i) = this%i1(ibl1)
+
+        ! count total number of input variables
+        this%ninput = this%ninput + this%input_i1(i) - this%input_i0(i) + 1
+      end do
+    end subroutine
+
+  end subroutine
+
+  subroutine esystem_set_input_all(this, x)
+    !! set input values for all input equation
+    class(esystem), intent(inout) :: this
+    real,           intent(in)    :: x(:)
+      !! new values for all input variables
+
+    integer :: i, i0, i1
+
+    i1 = 0
+    do i = 1, this%input_equs%n
+      i0 = i1 + 1
+      i1 = i0 + this%input_i1(i) - this%input_i0(i)
+      call this%esystem_set_input_single(i, x(i0:i1))
+    end do
+  end subroutine
+
+  subroutine esystem_set_input_single(this, i, x)
+    !! set input values for one input equation
+    class(esystem), intent(inout) :: this
+    integer,        intent(in)    :: i
+      !! input variable index
+    real,           intent(in)    :: x(:)
+      !! new values for i-th input variable
+
+    select type (e => this%g%equs%d(this%input_equs%d(i))%e)
+      class is (input_equation)
+        call e%apply(x)
+    end select
   end subroutine
 
   subroutine esystem_eval(this, f, df)

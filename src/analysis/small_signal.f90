@@ -14,9 +14,6 @@ module small_signal_m
     type(esystem), pointer :: sys => null()
       !! pointer to corresponding equation system
 
-    integer, allocatable :: isrc(:)
-      !! flat indices of cosine sources (e.g. contact voltages)
-
     complex, allocatable :: s(:)
       !! complex 'frequency': x = x_0 + Re{x_1 * exp(s*t)}
       !! s = sigma + j omega
@@ -35,22 +32,18 @@ module small_signal_m
 
 contains
 
-  subroutine small_signal_run_analysis(this, sys, isrc, s, calc_dxds)
+  subroutine small_signal_run_analysis(this, sys, s, calc_dxds)
     !! perform small signal analysis
     class(small_signal),   intent(out)   :: this
     type(esystem), target, intent(inout) :: sys
       !! equation system
-    integer,               intent(in)    :: isrc(:)
-      !! flat indices indicating where to place cosine sources
-      !! make sure corresponding row in jacobian is 1 on main diagonal, 0 elsewhere
-      !! sys%dft(isrc,:) must be 0
     complex,               intent(in)    :: s(:)
-      !! assume: x(isrc) = x_0(isrc) + Re{exp(s*t)}
+      !! assume: x = x_0 + Re{exp(s*t)}
     logical, optional,     intent(in)    :: calc_dxds
       !! calculate dxds in addition to x (default: false)
 
     complex, allocatable :: rhs(:,:), x(:,:), tmp(:,:), dxds(:,:)
-    integer              :: i, nsrc, ns
+    integer              :: i, j, k, nsrc, ns
     logical              :: calc_dxds_
     type(sparse_cmplx)   :: df, dft, mat
 
@@ -59,13 +52,12 @@ contains
     if (present(calc_dxds)) calc_dxds_ = calc_dxds
 
     ! dimensions
-    nsrc = size(isrc)
+    nsrc = sys%ninput
     ns   = size(s)
 
     ! set simple members
-    this%sys  => sys
-    this%isrc =  isrc
-    this%s    =  s
+    this%sys => sys
+    this%s   =  s
 
     ! allocate memory
     allocate (this%x(sys%n,nsrc,ns))
@@ -88,8 +80,12 @@ contains
     call sys%get_dft(dft)
 
     ! set right-hand sides
-    do i = 1, nsrc
-      rhs(isrc(i),i) = 1.0
+    k = 0
+    do i = 1, sys%input_equs%n
+      do j = sys%input_i0(i), sys%input_i1(i)
+        k = k + 1
+        rhs(j,k) = 1.0
+      end do
     end do
 
     ! get admittance parameters for all frequencies

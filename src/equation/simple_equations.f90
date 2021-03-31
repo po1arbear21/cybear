@@ -444,6 +444,7 @@ contains
     real,                  intent(in)    :: appl(:)
 
     ! save input parameters
+    call this%mvar%set(appl)
     this%appl = appl
   end subroutine
 
