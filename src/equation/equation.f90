@@ -16,7 +16,7 @@ module equation_m
   implicit none
 
   private
-  public equation, equation_ptr
+  public equation, equation_ptr, vector_equation_ptr
   public equation_realloc_jaco
   public equation_destruct
   public equation_reset
