@@ -299,9 +299,6 @@ contains
 
     ! init rest
     call this%input_equation_init_body()
-
-    ! finish initialization
-    call this%init_final()
   end subroutine
 
   subroutine input_equation_init_nvar_ntab(this, v, tab, name)
@@ -322,9 +319,6 @@ contains
 
     ! init rest
     call this%input_equation_init_body()
-
-    ! finish initialization
-    call this%init_final()
   end subroutine
 
   subroutine input_equation_init_var_ntab(this, v, tab, name)
@@ -345,9 +339,6 @@ contains
 
     ! init rest
     call this%input_equation_init_body()
-
-    ! finish initialization
-    call this%init_final()
   end subroutine
 
   subroutine input_equation_init_nvar_tab(this, v, name, tab)
@@ -368,9 +359,6 @@ contains
 
     ! init rest
     call this%input_equation_init_body()
-
-    ! finish initialization
-    call this%init_final()
   end subroutine
 
   subroutine input_equation_init_var_tab(this, v, tab, name)
@@ -391,9 +379,6 @@ contains
 
     ! init rest
     call this%input_equation_init_body()
-
-    ! finish initialization
-    call this%init_final()
   end subroutine
 
   subroutine input_equation_init_body(this)

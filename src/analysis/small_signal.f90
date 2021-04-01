@@ -59,6 +59,13 @@ contains
     this%sys => sys
     this%s   =  s
 
+    ! evaluate equation system
+    call sys%eval()
+
+    ! get jacobian and jacobian wrt time derivative
+    call sys%get_df(df)
+    call sys%get_dft(dft)
+
     ! allocate memory
     allocate (this%x(sys%n,nsrc,ns))
     if (calc_dxds_) allocate (this%dxds(sys%n,nsrc,ns))
@@ -71,13 +78,6 @@ contains
       allocate ( tmp(df%nrows,nsrc), source = (0.0, 0.0))
       allocate (dxds(df%nrows,nsrc), source = (0.0, 0.0))
     end if
-
-    ! evaluate equation system
-    call sys%eval()
-
-    ! get jacobian and jacobian wrt time derivative
-    call sys%get_df(df)
-    call sys%get_dft(dft)
 
     ! set right-hand sides
     k = 0

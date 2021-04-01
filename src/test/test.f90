@@ -1,4 +1,5 @@
 program test
+  use test_analysis_m
   use test_arnoldi_m
   use test_deque_m
   use test_dual_m
@@ -37,6 +38,7 @@ program test
 
   implicit none
 
+  call test_analysis()
   call test_arnoldi()
   call test_deque()
   call test_dual()
