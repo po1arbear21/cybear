@@ -7,6 +7,15 @@ ifeq ($(INTSIZE),64)
   ARCH := ilp64
 endif
 
+# FEAST
+ifeq ($(USE_FEAST),true)
+  ifndef FEASTROOT
+    $(error FEASTROOT is not set)
+  endif
+  FFLAGS += -D USE_FEAST
+  LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
+endif
+
 # BLAS95 and LAPACK95
 ifeq ($(COMPILER),intel)
   LIBS += $(MKLROOT)/lib/intel64/libmkl_blas95_$(ARCH).a $(MKLROOT)/lib/intel64/libmkl_lapack95_$(ARCH).a
@@ -60,15 +69,6 @@ ifeq ($(USE_EXPOKIT),true)
   endif
   FFLAGS += -D USE_EXPOKIT
   LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
-endif
-
-# FEAST
-ifeq ($(USE_FEAST),true)
-  ifndef FEASTROOT
-    $(error FEASTROOT is not set)
-  endif
-  FFLAGS += -D USE_FEAST
-  LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
 endif
 
 # ILUPACK

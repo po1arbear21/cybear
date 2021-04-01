@@ -7,6 +7,7 @@ module example_matrices_m
   public matrix1
   public matrix2
   public example_matrix3
+  public example_matrix4
 
   interface matrix1
     !! full 9x9 matrix.
@@ -32,6 +33,13 @@ module example_matrices_m
     !!  0     0     1     0
     !!  0     1     0     5
     module procedure :: example_matrix3_sparse_real
+  end interface
+
+  interface example_matrix4
+    !! 600x600 hermitian complex matrix
+    !! 3000 entries -> sparse
+    !! taken from FEAST example folder
+    module procedure :: example_matrix4_sparse_cmplx
   end interface
 
 contains
@@ -221,6 +229,31 @@ contains
     call sbuild%add(4, 4, 5.0)
 
     call sbuild%save()
+  end subroutine
+
+  subroutine example_matrix4_sparse_cmplx(s)
+    !! load example matrix 4 as complex sparse matrix
+    type(sparse_cmplx), intent(out) :: s
+
+    integer             :: iounit, i, n, row, col
+    real                :: re, im
+    type(spbuild_cmplx) :: sb
+
+    open (newunit=iounit, file='example_matrix4.dat', action='read')
+    read (iounit, *)
+    read (iounit, *) n
+
+    call s%init(n)
+    call sb%init(s)
+
+    ! load values and save into spbuild
+    do i = 1, n
+      read (iounit, *) row, col, re, im
+      call sb%add(row, col, cmplx(re, y=im))
+    end do
+
+    close (unit=iounit)
+    call sb%save()
   end subroutine
 
 end module
