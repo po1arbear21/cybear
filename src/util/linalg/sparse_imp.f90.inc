@@ -222,6 +222,10 @@ module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   ! ignore x if matrix is empty
   if (this%is_empty()) return
 
+  ! check sizes
+  ASSERT(size(x) == this%ncols)
+  ASSERT(size(y) == this%nrows)
+
   ! transpose flag
   trans_ = 'N'
   if (present(trans)) trans_ = trans
@@ -309,6 +313,11 @@ module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
 
   ! ignore x if matrix is empty
   if (this%is_empty()) return
+
+  ! check sizes
+  ASSERT(size(x, dim=1) == this%ncols)
+  ASSERT(size(x, dim=2) == size(y, dim=2))
+  ASSERT(size(y, dim=1) == this%nrows)
 
   ! transpose flag
   trans_ = 'N'
@@ -428,7 +437,7 @@ module subroutine SPARSE_FACTORIZE(this)
 end subroutine
 
 module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-  !! Solve Linear equation system this * x = rhs using PARDISO.
+  !! Solve Linear equation system this * x = rhs using the chosen solver.
   !!
   !! Call this%factorize() first!
 
@@ -445,6 +454,10 @@ module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 
   ! matrix must be factorized before solving
   ASSERT(this%factorized)
+
+  ! check sizes
+  ASSERT(size(x)   == this%ncols)
+  ASSERT(size(rhs) == this%nrows)
 
   ! optional arguments
   if (present(trans)) then
@@ -472,7 +485,7 @@ module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 end subroutine
 
 module subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
-  !! Solve Linear equation system this * x = rhs using PARDISO.
+  !! Solve Linear equation system this * x = rhs using the chosen solver.
   !!
   !! Call this%factorize() first.
 
@@ -491,6 +504,11 @@ module subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
 
   ! matrix must be factorized before solving
   ASSERT(this%factorized)
+
+  ! check sizes
+  ASSERT(size(x,   dim=1) == this%ncols)
+  ASSERT(size(x,   dim=2) == size(rhs, dim=2))
+  ASSERT(size(rhs, dim=1) == this%nrows)
 
   ! optional arguments
   if (present(trans)) then
