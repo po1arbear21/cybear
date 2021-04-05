@@ -1,9 +1,9 @@
 module test_gmres_m
 
-  use gmres_m
-  use matop_m,        only: single_matop_real, single_matop_cmplx
-  use matrix_m
-  use test_case_m
+  use gmres_m,     only: gmres, gmres_options
+  use matop_m,     only: single_matop_real, single_matop_cmplx
+  use matrix_m,    only: band_real, band_cmplx
+  use test_case_m, only: test_case
 
   implicit none
 

@@ -17,13 +17,16 @@ module example_matrices_m
 
   interface matrix2
     !! 5x5 matrix
-    !!  11    7    3    0    0
-    !!  16   12    8    4    0
-    !!   0   17   13    9    5
-    !!   0    0   18   14   10
-    !!   0    0    0   19   15
+    !!  [ 11    7    3    0    0
+    !!    16   12    8    4    0
+    !!     0   17   13    9    5
+    !!     0    0   18   14   10
+    !!     0    0    0   19   15 ]
+    !! octave:
+    !!    = diag(3:5, 2) + diag(7:10, 1) + diag(11:15) + diag(16:19, -1)
     module procedure :: matrix2_band_real
     module procedure :: matrix2_dense_real
+    module procedure :: matrix2_sparse_real
   end interface
 
   interface example_matrix3
@@ -32,6 +35,8 @@ module example_matrices_m
     !!  0     4     0     0
     !!  0     0     1     0
     !!  0     1     0     5
+    !! octave:
+    !!    = [1 2 0 0; 0 4 0 0; 0 0 1 0; 0 1 0 5]
     module procedure :: example_matrix3_sparse_real
   end interface
 
@@ -201,6 +206,46 @@ contains
       &  3,  8, 13, 18,  0,     &
       &  0,  4,  9, 14, 19,     &
       &  0,  0,  5, 10, 15      ], [5, 5])))
+  end subroutine
+
+  subroutine matrix2_sparse_real(s, fact_lodiag)
+    type(sparse_real), intent(out) :: s
+    real, optional,    intent(in) :: fact_lodiag
+      !! scaling factor for lower diagonal
+
+    type(spbuild_real) :: sb
+
+    !  [ 11       7       3       0       0
+    !    16*fact   12     8       4       0
+    !     0      17*fact 13       9       5
+    !     0       0      18*fact 14      10
+    !     0       0       0      19*fact 15 ]
+
+    call s%init(5)
+    call sb%init(s)
+
+    call sb%add(1, 1, 11.0)
+    call sb%add(1, 2,  7.0)
+    call sb%add(1, 3,  3.0)
+
+    call sb%add(2, 1, 16.0*fact_lodiag)
+    call sb%add(2, 2, 12.0)
+    call sb%add(2, 3,  8.0)
+    call sb%add(2, 4,  4.0)
+
+    call sb%add(3, 2, 17.0*fact_lodiag)
+    call sb%add(3, 3, 13.0)
+    call sb%add(3, 4,  9.0)
+    call sb%add(3, 5,  5.0)
+
+    call sb%add(4, 3, 18.0*fact_lodiag)
+    call sb%add(4, 4, 14.0)
+    call sb%add(4, 5, 10.0)
+
+    call sb%add(5, 4, 19.0*fact_lodiag)
+    call sb%add(5, 5, 15.0)
+
+    call sb%save()
   end subroutine
 
   subroutine example_matrix3_sparse_real(S)

@@ -1,11 +1,15 @@
 #include "../macro.f90.inc"
 
 module gmres_m
-  use error_m
-  use iso_c_binding, only: c_loc, c_f_pointer
-  use matop_m,       only: matop_real, matop_cmplx, matop_c2r
-  use util_m,        only: int2str
-  use vector_m,      only: vector_real
+
+  use error_m,          only: assert_failed, program_error
+  use iso_c_binding,    only: c_loc, c_f_pointer
+  use iso_fortran_env,  only: real64
+  use matop_m,          only: matop_real, matop_cmplx, matop_c2r
+  use preconditioner_m, only: preconditioner
+  use util_m,           only: int2str
+  use vector_m,         only: vector_real
+
   implicit none
 
   private
@@ -37,23 +41,27 @@ module gmres_m
     !   defined as double precision which is real(kind=16) when using "-fdefault-real-8" compiler flag
 
     subroutine dfgmres(n, x, b, rci_request, ipar, dpar, tmp)
+      import real64
       integer      :: n, rci_request, ipar(*)
-      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      real(real64) :: x(*), b(*), dpar(*), tmp(*)
     end subroutine
 
     subroutine dfgmres_init(n, x, b, rci_request, ipar, dpar, tmp)
+      import real64
       integer      :: n, rci_request, ipar(*)
-      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      real(real64) :: x(*), b(*), dpar(*), tmp(*)
     end subroutine
 
     subroutine dfgmres_check(n, x, b, rci_request, ipar, dpar, tmp)
+      import real64
       integer      :: n, rci_request, ipar(*)
-      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      real(real64) :: x(*), b(*), dpar(*), tmp(*)
     end subroutine
 
     subroutine dfgmres_get(n, x, b, rci_request, ipar, dpar, tmp, itercount)
+      import real64
       integer      :: n, rci_request, itercount, ipar(*)
-      real(kind=8) :: x(*), b(*), tmp(*), dpar(*)
+      real(real64) :: x(*), b(*), dpar(*), tmp(*)
     end subroutine
 
   end interface
@@ -95,9 +103,10 @@ contains
       !! on input:  inital guess x_0
       !! on output: solution x
       !! reason for target: we will create real pointer pointing to its real and imag part.
-    class(matop_cmplx),  intent(in),    target, optional :: precon
+    class(matop_cmplx),  intent(inout),    target, optional :: precon
       !! matrix vector operation: x \mapsto P*x
       !! reason for target: matop_c2r will point to this matop.
+      !! inout: preconditioner will need to be factorized.
     type(gmres_options), intent(in),            optional :: opts
       !! parameters ipar, dpar.
     integer,             intent(out),           optional :: itercount
@@ -129,26 +138,27 @@ contains
     !!
     !! solves Ax=b and optionally, uses a preconditioner P.
 
-    real,                intent(in)            :: b(:)
+    real,                intent(in)              :: b(:)
       !! rhs
-    class(matop_real),   intent(in)            :: mulvec
+    class(matop_real),   intent(in)              :: mulvec
       !! matrix vector operation: x \mapsto A*x
-    real,                intent(inout)         :: x(:)
+    real,                intent(inout)           :: x(:)
       !! on input:  inital guess x_0
       !! on output: solution x
-    type(gmres_options), intent(in),  optional :: opts
+    type(gmres_options), intent(in),    optional :: opts
       !! parameters ipar, dpar.
-    class(matop_real),   intent(in),  optional :: precon
+    class(matop_real),   intent(inout), optional :: precon
       !! matrix vector operation: x \mapsto P*x
-    integer,             intent(out), optional :: itercount
+      !! inout: preconditioner will need to be factorized.
+    integer,             intent(out),   optional :: itercount
       !! iteration count
-    real, allocatable,   intent(out), optional :: residual(:)
+    real, allocatable,   intent(out),   optional :: residual(:)
       !! residuals over iteration
 
-    integer           :: rci_request, itercount_, n, ipar(128), ipar15_default
-    real              :: dpar(128)
-    real, allocatable :: tmp(:)
-    type(vector_real) :: res
+    integer                   :: rci_request, itercount_, n, ipar(128), ipar15_default
+    real                      :: dpar(128)
+    real, allocatable, target :: tmp(:)
+    type(vector_real)         :: res
 
     n = size(x)
     ASSERT(n == size(b))
@@ -173,6 +183,14 @@ contains
     ! turn on/off preconditioning according to optional "precon" argument
     ipar(11) = merge(1, 0, present(precon))
 
+    ! set ipar/dpar wrt preconditioner
+    if (present(precon)) then
+      select type (p => precon)
+        class is (preconditioner)
+          call p%apply(ipar, dpar)
+      end select
+    end if
+
     ! check ipar, dpar
     call dfgmres_check(n, x, b, rci_request, ipar, dpar, tmp)
     if (rci_request /= 0) call program_error('gmres check params failed. rci_request: ' // int2str(rci_request))
@@ -187,8 +205,17 @@ contains
       allocate (tmp(tmp_size(n, ipar(15))), source=0.0)   ! init sets first elements to 0. we do it here manually
     end if
 
+    ! factorize preconditioner, set tmp variable
+    if (present(precon)) then
+      select type (p => precon)
+        class is (preconditioner)
+          call p%factorize(ipar, dpar)
+          p%tmp => tmp
+      end select
+    end if
+
     itercount_ = 0
-    if (present(residual)) call res%init(30)
+    if (present(residual)) call res%init(0, c=30)
 
     ! gmres solution process
     LOOP: do
@@ -242,7 +269,10 @@ contains
 
     ! set output variables
     if (present(itercount)) itercount = itercount_
-    if (present(residual )) residual  = res%to_array()
+    if (present(residual )) then
+      residual = res%to_array()
+      if (res%n > 1) residual = residual(2:)
+    end if
   end subroutine
 
   integer function tmp_size(n, ipar15)
