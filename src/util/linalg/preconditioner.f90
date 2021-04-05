@@ -16,7 +16,7 @@ module preconditioner_m
   public mkl_ilu0
 
   type, extends(matop_real), abstract :: preconditioner
-    real, pointer :: tmp(:) => null()
+    real, allocatable :: tmp(:)
       !! temp array needed for solving
   contains
     procedure(prec_apply    ), deferred :: apply
@@ -178,7 +178,7 @@ contains
       this%A_ptr => A
     end if
 
-    allocate (this%b(this%nrows))
+    allocate (this%b(size(A%a)), this%tmp(A%nrows))
   end subroutine
 
   subroutine mkl_ilu0_apply(this, ipar, dpar)

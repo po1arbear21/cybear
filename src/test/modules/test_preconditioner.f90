@@ -70,6 +70,9 @@ contains
       call tc%assert_eq(x_exp, x, 1e-6, "ilu0: pointer")
     end do
 
+    ! fixme why does this not work?
+    !       goal: lifetime of sparse matrix ends before ilu factorization is computed
+    !             -> one can see that copy argument really works!
     ! test 2: copy exact matrix' values
     ! block
     !   ! compute ilu

@@ -17,14 +17,16 @@ module gmres_m
   public gmres_options
 
   type gmres_options
-    integer :: max_it = 150
+    integer :: max_it    = 150
       !! maximum number of iterations - ipar(5)
 
-    real :: rtol = 1e-12
+    real    :: rtol      = 1e-12
       !! relative residual tolerance - dpar(1)
-    real :: atol = 0.0
+    real    :: atol      = 0.0
       !! absolute residual tolerance - dpar(2)
 
+    logical :: print_msg = .false.
+      !! print messages?
   contains
     procedure :: apply => gmres_options_apply
   end type
@@ -205,13 +207,26 @@ contains
       allocate (tmp(tmp_size(n, ipar(15))), source=0.0)   ! init sets first elements to 0. we do it here manually
     end if
 
-    ! factorize preconditioner, set tmp variable
+    ! factorize preconditioner
     if (present(precon)) then
-      select type (p => precon)
-        class is (preconditioner)
-          call p%factorize(ipar, dpar)
-          p%tmp => tmp
-      end select
+      block
+        integer :: t(2)
+        logical :: print_msg_
+        real    :: cr
+
+        print_msg_ = .false.
+        if (present(opts)) print_msg_ = opts%print_msg
+
+        if (print_msg_) call system_clock(count=t(1), count_rate=cr)
+        select type (p => precon)
+          class is (preconditioner)
+            call p%factorize(ipar, dpar)
+        end select
+        if (print_msg_) then
+          call system_clock(count=t(2))
+          print '(A, ES10.3, A)', " [gmres] precon factorized. time:", (t(2)-t(1))/cr, "s."
+        end if
+      end block
     end if
 
     itercount_ = 0
