@@ -11,7 +11,7 @@ module grid_m
   public grid, grid_ptr
   public allocate_grid_data
   ! public (see grid_data_def.f90.inc)
-  public grid_table, grid_table_ptr
+  public grid_table, grid_table_ptr, vector_grid_table
 
   ! grid index types
   integer, parameter :: IDX_VERTEX = 1
@@ -274,7 +274,15 @@ module grid_m
     end function
   end interface
 
+#define T grid_table
+#define TT type(grid_table)
+#include "../util/vector_def.f90.inc"
+
 contains
+
+#define T grid_table
+#define TT type(grid_table)
+#include "../util/vector_imp.f90.inc"
 
   subroutine grid_init(this, dim, idx_dim, face_dim, cell_dim)
     !! initialize grid
