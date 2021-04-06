@@ -2,13 +2,13 @@
 
 module gmres_m
 
-  use error_m,          only: assert_failed, program_error
-  use iso_c_binding,    only: c_loc, c_f_pointer
-  use iso_fortran_env,  only: real64
-  use matop_m,          only: matop_real, matop_cmplx, matop_c2r
-  use preconditioner_m, only: preconditioner
-  use util_m,           only: int2str
-  use vector_m,         only: vector_real
+  use error_m,         only: assert_failed, program_error
+  use iso_c_binding,   only: c_loc, c_f_pointer
+  use iso_fortran_env, only: real64
+  use matop_m,         only: matop_real, matop_cmplx, matop_c2r
+  use mkl_ilu_m,       only: mkl_ilu
+  use util_m,          only: int2str
+  use vector_m,        only: vector_real
 
   implicit none
 
@@ -188,7 +188,7 @@ contains
     ! set ipar/dpar wrt preconditioner
     if (present(precon)) then
       select type (p => precon)
-        class is (preconditioner)
+        class is (mkl_ilu)
           call p%apply(ipar, dpar)
       end select
     end if
@@ -209,24 +209,26 @@ contains
 
     ! factorize preconditioner
     if (present(precon)) then
-      block
-        integer :: t(2)
-        logical :: print_msg_
-        real    :: cr
+      select type (p => precon)
+        class is (mkl_ilu)
+          block
+            integer :: t(2)
+            logical :: print_msg_
+            real    :: cr
 
-        print_msg_ = .false.
-        if (present(opts)) print_msg_ = opts%print_msg
+            print_msg_ = .false.
+            if (present(opts)) print_msg_ = opts%print_msg
 
-        if (print_msg_) call system_clock(count=t(1), count_rate=cr)
-        select type (p => precon)
-          class is (preconditioner)
+            if (print_msg_) call system_clock(count=t(1), count_rate=cr)
+
             call p%factorize(ipar, dpar)
-        end select
-        if (print_msg_) then
-          call system_clock(count=t(2))
-          print '(A, ES10.3, A)', " [gmres] precon factorized. time:", (t(2)-t(1))/cr, "s."
-        end if
-      end block
+
+            if (print_msg_) then
+              call system_clock(count=t(2))
+              print '(A, ES10.3, A)', " [gmres] precon factorized. time:", (t(2)-t(1))/cr, "s."
+            end if
+          end block
+      end select
     end if
 
     itercount_ = 0

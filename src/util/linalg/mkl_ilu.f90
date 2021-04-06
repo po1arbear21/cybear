@@ -1,6 +1,6 @@
 #include "../macro.f90.inc"
 
-module preconditioner_m
+module mkl_ilu_m
 
   use error_m,         only: assert_failed, program_error
   use iso_fortran_env, only: real64
@@ -12,15 +12,16 @@ module preconditioner_m
   implicit none
 
   private
-  public preconditioner
+  public mkl_ilu
   public mkl_ilu0
+  public mkl_ilut
 
-  type, extends(matop_real), abstract :: preconditioner
+  type, extends(matop_real), abstract :: mkl_ilu
     real, allocatable :: tmp(:)
       !! temp array needed for solving
   contains
-    procedure(prec_apply    ), deferred :: apply
-    procedure(prec_factorize), deferred :: factorize
+    procedure(mkl_ilu_apply    ), deferred :: apply
+    procedure(mkl_ilu_factorize), deferred :: factorize
   end type
 
   type mkl_ilu0_options
@@ -34,12 +35,14 @@ module preconditioner_m
       !! replace diagonal element with this value when below threshold
   end type
 
-  type, extends(preconditioner) :: mkl_ilu0
+  type, extends(mkl_ilu) :: mkl_ilu0
     !! ilu0 preconditioner
     !!
     !! exact matrix:   A = (ia,ja,a)
-    !! preconditioner: B = (ia,ja,b)
+    !! mkl_ilu: B = (ia,ja,b)
     !!      (ia,ja) can be saved via pointer to A or by copying data
+    !!
+    !! ilu0: L/U must have same sparsity structure as A.
 
     type(sparse_real), pointer :: A_ptr => null()
       !! exact matrix A (either pointer or copy)
@@ -60,20 +63,62 @@ module preconditioner_m
     procedure, private :: mkl_ilu0_init
   end type
 
-  ! preconditioner
+  type mkl_ilut_options
+    real    :: tol
+      !! tolerance for threshold criterion
+    integer :: maxfil
+      !! maximum fill-in = half of mkl_ilu bandwidth (max nnz per row: 2*maxfil+1)
+
+    logical :: abort_zero_diag   = .true.                                                   ! ipar 31
+      !! abort when zero diagonal element occurs? or replace 0 value with diag_threshold?
+    real    :: zero_diag_replace = 1e-10                                                    ! dpar 31
+      !! (only used when abort_zero_diag is false)
+      !! replace diagonal element with this value when below threshold
+  end type
+
+  type, extends(mkl_ilu) :: mkl_ilut
+    !! ilut preconditioner
+    !!
+    !! exact matrix:   A = (ia,ja,a)
+    !! mkl_ilu: B = (ib,jb,b)
+    !!
+    !! computes ilu by following criterion (entry ilu_ij accepted if):
+    !!    1) |ilu_ij| > tol * (current marix row norm)
+    !!    2) nnz of L/U row i < maxfil
+
+    type(sparse_real), pointer :: A_ptr => null()
+      !! exact matrix A (either pointer or copy)
+    type(sparse_real)          :: A_copy
+      !! exact matrix A (either pointer or copy)
+    type(sparse_real)          :: B
+      !! ilut matrix B:
+
+    type(mkl_ilut_options) :: opt
+      !! options
+  contains
+    generic   :: init      => mkl_ilut_init
+    procedure :: apply     => mkl_ilut_apply
+    procedure :: factorize => mkl_ilut_factorize
+    procedure :: exec1     => mkl_ilut_exec1
+    procedure :: exec2     => mkl_ilut_exec2
+
+    procedure, private :: mkl_ilut_init
+  end type
+
+  ! mkl_ilu
   abstract interface
-    subroutine prec_apply(this, ipar, dpar)
-      import :: preconditioner
-      class(preconditioner), intent(in)    :: this
-      integer,               intent(inout) :: ipar(128)
-      real,                  intent(inout) :: dpar(128)
+    subroutine mkl_ilu_apply(this, ipar, dpar)
+      import :: mkl_ilu
+      class(mkl_ilu), intent(in)    :: this
+      integer,        intent(inout) :: ipar(128)
+      real,           intent(inout) :: dpar(128)
     end subroutine
 
-    subroutine prec_factorize(this, ipar, dpar)
-      import :: preconditioner
-      class(preconditioner), intent(inout) :: this
-      integer,               intent(in)    :: ipar(128)
-      real,                  intent(in)    :: dpar(128)
+    subroutine mkl_ilu_factorize(this, ipar, dpar)
+      import :: mkl_ilu
+      class(mkl_ilu), intent(inout) :: this
+      integer,        intent(in)    :: ipar(128)
+      real,           intent(in)    :: dpar(128)
     end subroutine
   end interface
 
@@ -138,8 +183,22 @@ module preconditioner_m
     & "system size: n <= 0                                                           ", &
     & "insufficient memory                                                           ", &
     & "small diagonal element: overflow or bad approximation possible                ", &
-    & "zero diagonal encountered                                                     ", &
+    & "zero diagonal encountered but ipar(31)==0                                     ", &
     & "error. at least one diagonal element is omitted from the matrix in CSR3 format"  ]
+
+  character(*), parameter :: MKL_ILUT_ERROR(-107:-101) = [ &
+    & "entry of ja is less than 1 or greater n  ",         &
+    & "system size: n < 0                       ",         &
+    & "maxfil < 0                               ",         &
+    & "insufficient memory                      ",         &
+    & "ia(i+1) <= ia(i)                         ",         &
+    & "zero diagonal encountered but ipar(31)==0",         &
+    & "number of elements in matrix row <= 0    "          ]
+  character(*), parameter :: MKL_ILUT_WARNING(101:104) = [ &
+    & "maxfil >= n. changed to: maxfil = n-1 ",            &
+    & "tol < 0. changed to tol=-tol          ",            &
+    & "tol > dpar(31). instabilities possible",            &
+    & "dpar(31)==0. calculation might fail   "             ]
 
 contains
 
@@ -242,6 +301,130 @@ contains
     !!
     !!    this*y = x   =>   y = this^-1 * x
     class(mkl_ilu0), intent(in)  :: this
+    real, target,    intent(in)  :: x(:,:)
+      !! input matrix
+    real, target,    intent(out) :: y(:,:)
+      !! output matrix
+
+    integer :: i
+
+    ASSERT(size(x, dim=1) == this%nrows)
+    ASSERT(all(shape(x) == shape(y))   )
+
+    do i = 1, size(x, dim=2)
+      call this%exec1(x(:,i), y(:,i))
+    end do
+  end subroutine
+
+  subroutine mkl_ilut_init(this, A, tol, maxfil, copy)
+    !! init ilut preconditioner
+    !!
+    !! exact matrix:   A = (ia,ja,a)
+    !! preconditioner: B = (ia,ja,b)
+    !!
+    !! Options: Either save A by pointer or copy its data.
+    !! Ask yourself if A will still be available when we solve with this preconditioner.
+
+    class(mkl_ilut),           intent(out) :: this
+      !! ilu matrix B
+    type(sparse_real), target, intent(in)  :: A
+      !! exact matrix A
+    real,                      intent(in)  :: tol
+      !! tolerance for threshold criterion
+    integer,                   intent(in)  :: maxfil
+      !! maximum fill-in = half of preconditioner bandwidth (max nnz per row: 2*maxfil+1)
+    logical, optional,         intent(in)  :: copy
+      !! save copy of A (vs only pointer to A). (default: false)
+
+    logical :: copy_
+
+    ! optional arg
+    copy_ = .false.
+    if (present(copy)) copy_ = copy
+
+    ! init base
+    call this%init("", A%nrows)
+
+    ! init data
+    if (copy_) then
+      call this%A_copy%init(A%nrows)
+      this%A_copy%a  = A%a
+      this%A_copy%ia = A%ia
+      this%A_copy%ja = A%ja
+    else
+      this%A_ptr => A
+    end if
+
+    this%opt%tol    = tol
+    this%opt%maxfil = maxfil
+
+    ! init B
+    call this%B%init(A%nrows)
+    allocate (this%B%ia(A%nrows+1))
+    allocate (this%B%ja((2*maxfil+1)*A%nrows-maxfil*(maxfil+1)+1))
+    allocate (this%B%a( (2*maxfil+1)*A%nrows-maxfil*(maxfil+1)+1))
+
+    allocate (this%tmp(A%nrows))
+  end subroutine
+
+  subroutine mkl_ilut_apply(this, ipar, dpar)
+    !! change gmres ipar/dpar according to options
+    class(mkl_ilut), intent(in)    :: this
+    integer,         intent(inout) :: ipar(128)
+      !! integer parameters. see mkl doc
+    real,            intent(inout) :: dpar(128)
+      !! real parameters. see mkl doc
+
+    ipar(31) = merge(0, 1, this%opt%abort_zero_diag)
+    dpar(31) = this%opt%zero_diag_replace
+  end subroutine
+
+  subroutine mkl_ilut_factorize(this, ipar, dpar)
+    !! compute ilut factorization
+    class(mkl_ilut), intent(inout) :: this
+    integer,         intent(in)    :: ipar(128)
+      !! integer parameters. see mkl doc
+    real,            intent(in)    :: dpar(128)
+      !! real parameters. see mkl doc
+
+    integer :: ierr
+
+    if (associated(this%A_ptr)) then
+      call dcsrilut(this%nrows, this%A_ptr%a, this%A_ptr%ia, this%A_ptr%ja, &
+        &                       this%B%a,     this%B%ia,     this%B%ja,     &
+        &           this%opt%tol, this%opt%maxfil, ipar, dpar, ierr         )
+    else
+      call dcsrilut(this%nrows, this%A_copy%a, this%A_copy%ia, this%A_copy%ja, &
+        &                       this%B%a,      this%B%ia,      this%B%ja,     &
+        &           this%opt%tol, this%opt%maxfil, ipar, dpar, ierr         )
+    end if
+
+    if      (ierr < 0) then
+      call program_error(MKL_ILUT_ERROR(ierr))
+    else if (ierr > 0) then
+      print *, '[ilut WARN] '//MKL_ILUT_WARNING(ierr)
+    end if
+  end subroutine
+
+  subroutine mkl_ilut_exec1(this, x, y)
+    !! solve for given vector
+    !!
+    !!    this*y = x   =>   y = this^-1 * x
+    class(mkl_ilut), intent(in)  :: this
+    real, target,    intent(in)  :: x(:)
+      !! input vector
+    real, target,    intent(out) :: y(:)
+      !! output vector
+
+    call mkl_dcsrtrsv('L', 'N', 'U', this%nrows, this%B%a, this%B%ia,  this%B%ja,  x,        this%tmp)
+    call mkl_dcsrtrsv('U', 'N', 'N', this%nrows, this%B%a, this%B%ia,  this%B%ja,  this%tmp, y       )
+  end subroutine
+
+  subroutine mkl_ilut_exec2(this, x, y)
+    !! solve using this preconditioner given multiple rhs
+    !!
+    !!    this*y = x   =>   y = this^-1 * x
+    class(mkl_ilut), intent(in)  :: this
     real, target,    intent(in)  :: x(:,:)
       !! input matrix
     real, target,    intent(out) :: y(:,:)
