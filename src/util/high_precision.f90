@@ -396,8 +396,8 @@ contains
     end if
 
     ! handle p special case
-    if (size(p) == 0) then
-      res = 0.0
+    if (size(p) < 2) then
+      res = sum(p)
       return
     end if
 

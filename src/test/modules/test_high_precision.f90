@@ -1,6 +1,9 @@
 module test_high_precision_m
-  use test_case_m
+
   use high_precision_m
+  use test_case_m, only: test_case
+  use util_m,      only: int2str
+
   implicit none
 
   private
@@ -117,23 +120,28 @@ contains
 
     ! hp_sum
     block
-      real, parameter   :: tol = epsilon(1.0)
-      real              :: res, res_exp
-      real, allocatable :: p(:)
+      integer         :: i, n
+      real, parameter :: tol = epsilon(1.0)
+      real            :: res, p(0)
 
-      ! test0: empty array
-      allocate (p(0))
-      call tc%assert_eq(0.0, hp_sum(p), 0.0, "sum0")
+      ! test 0a: empty array
+      call tc%assert_eq(         0.0,  hp_sum(p),                    0.0, "sum. test 0a: empty array")
 
-      ! test 1
-      p   = [1e100, 1.0, -1e100]
-      res = hp_sum(p)
-      call tc%assert_eq(1.0, res, tol, "sum1")
+      ! test 0b: array length 1
+      call tc%assert_eq(    sqrt(2.0), hp_sum([sqrt(2.0)]),          0.0, "sum: test 0b: array of length 1")
 
-      ! test 2
-      p   = [1e200, 1e100, 1.0, -1e100, -1e200]
-      res = hp_sum(p, K=3)
-      call tc%assert_eq(1.0, res, tol, "sum2")
+      ! test 0c: array lengths 2..10
+      do n = 2, 10
+        call tc%assert_eq(n*sqrt(2.0), hp_sum([(sqrt(2.0), i=1,n)]), tol, "sum: test 0c: array of length n:"//int2str(n))
+      end do
+
+      ! test 1: standard 2-fold addition
+      res = hp_sum([1e100, 1.0, -1e100])
+      call tc%assert_eq(1.0, res, tol, "sum. test 1: 2-fold")
+
+      ! test 2: 3-fold addition
+      res = hp_sum([1e200, 1e100, 1.0, -1e100, -1e200], K=3)
+      call tc%assert_eq(1.0, res, tol, "sum. test 2: 3-fold addition")
     end block
 
     ! hp_dot
