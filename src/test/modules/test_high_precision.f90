@@ -117,22 +117,23 @@ contains
 
     ! hp_sum
     block
+      real, parameter   :: tol = epsilon(1.0)
+      real              :: res, res_exp
       real, allocatable :: p(:)
-      real :: res, res_exp, tol
 
-      tol     = epsilon(1.0)
+      ! test0: empty array
+      allocate (p(0))
+      call tc%assert_eq(0.0, hp_sum(p), 0.0, "sum0")
 
-      p       = [1e100, 1.0, -1e100]
-      res_exp = 1.0
-      res     = hp_sum(p)
+      ! test 1
+      p   = [1e100, 1.0, -1e100]
+      res = hp_sum(p)
+      call tc%assert_eq(1.0, res, tol, "sum1")
 
-      call tc%assert_eq(res_exp, res, tol, "sum1")
-
-      p       = [1e200, 1e100, 1.0, -1e100, -1e200]
-      res_exp = 1.0
-      res     = hp_sum(p, K=3)
-
-      call tc%assert_eq(res_exp, res, tol, "sum2")
+      ! test 2
+      p   = [1e200, 1e100, 1.0, -1e100, -1e200]
+      res = hp_sum(p, K=3)
+      call tc%assert_eq(1.0, res, tol, "sum2")
     end block
 
     ! hp_dot

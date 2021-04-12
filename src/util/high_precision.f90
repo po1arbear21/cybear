@@ -1,8 +1,10 @@
+#include "macro.f90.inc"
+
 module high_precision_m
   !! algorithms taken from:
   !!   "Accurate sum and dot prodcut" by Ogita, Rump and Oishi
   !!   "High precision evaluation of nonlinear functions" by Rump
-  use error_m
+  use error_m,         only: assert_failed, program_error
   use ieee_arithmetic
 
   implicit none
@@ -379,19 +381,29 @@ contains
     real, allocatable :: q(:)
     type(hp_real)     :: h_tmp
 
+    ASSERT(size(p) >= 0)
+
+    ! optional arg
     KK = 2
     if (present(K)) KK = K
 
-    if (KK <  1) then
+    ! handle K special case
+    if      (KK <  1) then
       call program_error('K should be greater than 0')
     else if (KK == 1) then
       res = sum(p)
       return
     end if
 
-    n   = size(p)
-    KK  = min(KK, n)
-    allocate(q(KK-1))
+    ! handle p special case
+    if (size(p) == 0) then
+      res = 0.0
+      return
+    end if
+
+    n  = size(p)
+    KK = min(KK, n)
+    allocate (q(KK-1))
 
     do i = 1, KK-1
       s = p(i)
