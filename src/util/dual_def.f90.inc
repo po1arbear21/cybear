@@ -31,7 +31,9 @@
 #define DUAL_POW_INT         CONCAT(dual_pow_int,N)
 #define REAL_POW_DUAL        CONCAT(real_pow_dual,N)
 #define INT_POW_DUAL         CONCAT(int_pow_dual,N)
-#define DUAL_DOT_PRODUCT     CONCAT(dual_dot_product,N)
+#define DUAL_DOT_DUAL        CONCAT(dual_dot_dual,N)
+#define REAL_DOT_DUAL        CONCAT(real_dot_dual,N)
+#define DUAL_DOT_REAL        CONCAT(dual_dot_real,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
 #define DUAL_EXP             CONCAT(dual_exp,N)
@@ -92,8 +94,10 @@ interface operator(**)
   module procedure :: INT_POW_DUAL
 end interface
 
-interface operator(.dot.)
-  module procedure :: DUAL_DOT_PRODUCT
+interface dot_product
+  module procedure :: DUAL_DOT_DUAL
+  module procedure :: DUAL_DOT_REAL
+  module procedure :: REAL_DOT_DUAL
 end interface
 
 interface abs
@@ -159,7 +163,9 @@ end interface
 #undef DUAL_POW_INT
 #undef REAL_POW_DUAL
 #undef INT_POW_DUAL
-#undef DUAL_DOT_PRODUCT
+#undef DUAL_DOT_DUAL
+#undef REAL_DOT_DUAL
+#undef DUAL_DOT_REAL
 #undef DUAL_ABS
 #undef DUAL_SQRT
 #undef DUAL_EXP

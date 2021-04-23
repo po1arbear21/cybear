@@ -31,7 +31,9 @@
 #define DUAL_POW_INT         CONCAT(dual_pow_int,N)
 #define REAL_POW_DUAL        CONCAT(real_pow_dual,N)
 #define INT_POW_DUAL         CONCAT(int_pow_dual,N)
-#define DUAL_DOT_PRODUCT     CONCAT(dual_dot_product,N)
+#define DUAL_DOT_DUAL        CONCAT(dual_dot_dual,N)
+#define REAL_DOT_DUAL        CONCAT(real_dot_dual,N)
+#define DUAL_DOT_REAL        CONCAT(dual_dot_real,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
 #define DUAL_EXP             CONCAT(dual_exp,N)
@@ -346,19 +348,51 @@ elemental function INT_POW_DUAL(x, y) result(r)
   r = real(x) ** y
 end function
 
-function DUAL_DOT_PRODUCT(x, y) result(r)
-  !! dot product of two vectors
+function DUAL_DOT_DUAL(x, y) result(r)
+  !! dot product of two dual vectors
   type(DUAL_TYPE), intent(in) :: x(:)
   type(DUAL_TYPE), intent(in) :: y(:)
   type(DUAL_TYPE)             :: r
 
   integer :: i
 
+  ASSERT(size(x) == size(y))
+
   r%x  = 0
   r%dx = 0
   do i = 1, size(x)
     r = r + x(i) * y(i)
   end do
+end function
+
+function REAL_DOT_DUAL(x, y) result(r)
+  !! dot product of real+dual vectors
+  real,            intent(in) :: x(:)
+  type(DUAL_TYPE), intent(in) :: y(:)
+  type(DUAL_TYPE)             :: r
+
+  integer         :: i
+  type(DUAL_TYPE) :: xx(size(x))
+
+  do i = 1, size(x)
+    call xx(i)%init(x(i))
+  end do
+  r = dot_product(xx, y)
+end function
+
+function DUAL_DOT_REAL(x, y) result(r)
+  !! dot product of dual+real vectors
+  type(DUAL_TYPE), intent(in) :: x(:)
+  real,            intent(in) :: y(:)
+  type(DUAL_TYPE)             :: r
+
+  integer         :: i
+  type(DUAL_TYPE) :: yy(size(y))
+
+  do i = 1, size(y)
+    call yy(i)%init(y(i))
+  end do
+  r = dot_product(x, yy)
 end function
 
 elemental function DUAL_ABS(x) result(r)
@@ -462,7 +496,9 @@ end function
 #undef DUAL_POW_INT
 #undef REAL_POW_DUAL
 #undef INT_POW_DUAL
-#undef DUAL_DOT_PRODUCT
+#undef DUAL_DOT_DUAL
+#undef REAL_DOT_DUAL
+#undef DUAL_DOT_REAL
 #undef DUAL_ABS
 #undef DUAL_SQRT
 #undef DUAL_EXP

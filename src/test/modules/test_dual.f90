@@ -1,6 +1,8 @@
 module test_dual_m
-  use test_case_m
+
   use dual_m
+  use test_case_m, only: test_case
+
   implicit none
 
   private
@@ -262,37 +264,57 @@ contains
 
     ! test dot_product
     block
-      integer                   :: i
-      integer,      parameter   :: n=5
-      type(dual_5), allocatable :: x(:), y(:)
-      type(dual_5)              :: z, z_exp
+      integer            :: i
+      integer, parameter :: n=5
+      real               :: r(n)
+      type(dual_5)       :: x(n), y(n), z, z_exp
 
-      ! simple test for simple 1-element sum
-      allocate (x(1))
-      call x(1)%init(1.0, i=1)
-
-      z = x .dot. x
-
-      call tc%assert_eq(1.0, z%x,     tol, "dot product (1 element): value"     )
-      call tc%assert_eq(2.0, z%dx(1), tol, "dot product (1 element): derivative")
-      deallocate (x)
-
-      ! more complex test. n-elements
-      allocate (x(n), y(n))
+      ! init
       do i = 1, n
+        r(i) = i*i
         call x(i)%init(  real(i), i)
         call y(i)%init(2*real(i), i)
       end do
 
-      z = x .dot. y
+      ! simple test for simple 1-element sum
+      z = dot_product(x(1:1), x(1:1))
+
+      call tc%assert_eq(1.0, z%x,     tol, "dot product dual*dual (1 element): value"     )
+      call tc%assert_eq(2.0, z%dx(1), tol, "dot product dual*dual (1 element): derivative")
+
+
+      ! dual*dual
+      z = dot_product(x, y)
 
       call z_exp%init(0.0)
       do i = 1, n
         z_exp = z_exp + x(i) * y(i)
       end do
 
-      call tc%assert_eq(z_exp%x,  z%x,  tol, "dot product (n elements): value"     )
-      call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product (n elements): derivative")
+      call tc%assert_eq(z_exp%x,  z%x,  tol, "dot product dual*dual (n elements): value"     )
+      call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product dual*dual (n elements): derivative")
+
+      ! real*dual
+      z = dot_product(r, y)
+
+      call z_exp%init(0.0)
+      do i = 1, n
+        z_exp = z_exp + r(i) * y(i)
+      end do
+
+      call tc%assert_eq(z_exp%x,  z%x,  tol, "dot product real*dual (n elements): value"     )
+      call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product real*dual (n elements): derivative")
+
+      ! dual*real
+      z = dot_product(x, r)
+
+      call z_exp%init(0.0)
+      do i = 1, n
+        z_exp = z_exp + x(i) * r(i)
+      end do
+
+      call tc%assert_eq(z_exp%x,  z%x,  tol, "dot product dual*real (n elements): value"     )
+      call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product dual*real (n elements): derivative")
     end block
 
     call tc%finish
