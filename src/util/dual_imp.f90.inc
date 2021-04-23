@@ -358,8 +358,7 @@ function DUAL_DOT_DUAL(x, y) result(r)
 
   ASSERT(size(x) == size(y))
 
-  r%x  = 0
-  r%dx = 0
+  call r%init(0.0)
   do i = 1, size(x)
     r = r + x(i) * y(i)
   end do
@@ -371,13 +370,14 @@ function REAL_DOT_DUAL(x, y) result(r)
   type(DUAL_TYPE), intent(in) :: y(:)
   type(DUAL_TYPE)             :: r
 
-  integer         :: i
-  type(DUAL_TYPE) :: xx(size(x))
+  integer :: i
 
+  ASSERT(size(x) == size(y))
+
+  call r%init(0.0)
   do i = 1, size(x)
-    call xx(i)%init(x(i))
+    r = r + x(i) * y(i)
   end do
-  r = dot_product(xx, y)
 end function
 
 function DUAL_DOT_REAL(x, y) result(r)
@@ -386,13 +386,7 @@ function DUAL_DOT_REAL(x, y) result(r)
   real,            intent(in) :: y(:)
   type(DUAL_TYPE)             :: r
 
-  integer         :: i
-  type(DUAL_TYPE) :: yy(size(y))
-
-  do i = 1, size(y)
-    call yy(i)%init(y(i))
-  end do
-  r = dot_product(x, yy)
+  r = dot_product(y, x)
 end function
 
 elemental function DUAL_ABS(x) result(r)
