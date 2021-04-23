@@ -176,7 +176,7 @@ subroutine HASHMAP_SET_KEY_1(this, key, value, status)
   call HASHMAP_SET_KEY_N(this, [key], value, status=status)
 end subroutine
 
-subroutine HASHMAP_SET_KEY_N(this, key, value, status)
+recursive subroutine HASHMAP_SET_KEY_N(this, key, value, status)
   !! lookup key and insert/update value
   class(HASHMAP_TYPE), intent(inout) :: this
   integer,             intent(in)    :: key(:)

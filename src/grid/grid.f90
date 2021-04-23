@@ -340,7 +340,7 @@ contains
     ptr%p => this
   end function
 
-  function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
+  recursive function grid_idx_allowed(this, idx_type, idx_dir, idx) result(allowed)
     !! checks if given indices are allowed for grid.
     class(grid), intent(in)           :: this
     integer,     intent(in)           :: idx_type
