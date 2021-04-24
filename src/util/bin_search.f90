@@ -1,5 +1,6 @@
 module bin_search_m
-  use error_m
+
+  use error_m,         only: program_error
   use iso_fortran_env, only: int32, int64
 
   implicit none

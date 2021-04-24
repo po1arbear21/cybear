@@ -16,7 +16,6 @@ function BIN_SEARCH(x, x1, mode) result(i)
   integer                       :: i
     !! return array index
 
-  ! local variables
   integer :: i0, i1, mode_
 
   ! mode
@@ -40,9 +39,9 @@ function BIN_SEARCH(x, x1, mode) result(i)
   ! binary search
   do while (i1 > (i0 + 1))
     i = (i1 + i0) / 2
-    if (x(i) < x1) then
+    if      (x(i) < x1) then
       i0 = i
-    elseif (x(i) > x1) then
+    else if (x(i) > x1) then
       i1 = i
     else
       return
@@ -70,7 +69,6 @@ function BIN_SEARCH(x, x1, mode) result(i)
       i = 0
       print "(I0)", mode
       call program_error("unknown search mode")
-
   end select
 end function
 

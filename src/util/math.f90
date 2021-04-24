@@ -1,22 +1,26 @@
 #include "macro.f90.inc"
 
 module math_m
-  use error_m
-  use ieee_arithmetic
+
+  use bin_search_m,    only: bin_search, BS_LESS
+  use error_m,         only: assert_failed
+  use ieee_arithmetic, only: ieee_class, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, operator(==)
+
   implicit none
 
   private
   public PI
+  public check_lin_dep
   public cross_product, cross_product_2d
   public heaviside
+  public interp1
   public isinf
   public ber, dberdx
-  public phi1, dphi1dx, phi2, dphi2dx
+  public eye_int, eye_real
   public expm1, log1p
   public linspace, logspace
-  public eye_int, eye_real
   public norm_inf
-  public check_lin_dep
+  public phi1, dphi1dx, phi2, dphi2dx
 
   real, parameter :: PI = 3.141592653589793238462643
 
@@ -57,7 +61,7 @@ contains
     real, intent(in) :: x
     logical          :: r
 
-    r = (ieee_class(x) == ieee_positive_inf) .or. (ieee_class(x) == ieee_negative_inf)
+    r = (ieee_class(x) == IEEE_POSITIVE_INF) .or. (ieee_class(x) == IEEE_NEGATIVE_INF)
   end function
 
   elemental function ber(x) result(b)
@@ -351,6 +355,35 @@ contains
     end do
 
     l = .false.
+  end function
+
+  function interp1(x, v, xq) result(vq)
+    !! interpolates data linearly
+    !!
+    !! similar to MATLAB interp1: https://de.mathworks.com/help/matlab/ref/interp1.html
+    real, intent(in) :: x(:)
+      !! x-data vector
+    real, intent(in) :: v(:)
+      !! y-data vector
+    real, intent(in) :: xq
+      !! x query point
+    real             :: vq
+      !! y query value
+
+    integer :: i
+
+    ASSERT(size(x) == size(v))
+
+    if      (xq <= x(1      )) then
+      vq = v(1)
+
+    else if (xq >= x(size(x))) then
+      vq = v(size(x))
+
+    else
+      i  = bin_search(x, xq, mode=BS_LESS)
+      vq = (v(i) * (x(i+1) - xq) + v(i+1) * (xq - x(i))) / (x(i+1) - x(i))
+    end if
   end function
 
 end module
