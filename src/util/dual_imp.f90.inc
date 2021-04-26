@@ -35,6 +35,7 @@
 #define REAL_DOT_DUAL        CONCAT(real_dot_dual,N)
 #define DUAL_DOT_REAL        CONCAT(dual_dot_real,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
+#define DUAL_SUM             CONCAT(dual_sum,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
 #define DUAL_EXP             CONCAT(dual_exp,N)
 #define DUAL_LOG             CONCAT(dual_log,N)
@@ -401,6 +402,19 @@ elemental function DUAL_ABS(x) result(r)
   end if
 end function
 
+function DUAL_SUM(x) result(r)
+  !! get absolute value of dual number
+  type(DUAL_TYPE), intent(in) :: x(:)
+  type(DUAL_TYPE)             :: r
+
+  integer :: i
+
+  call r%init(0.0)
+  do i = 1, size(x)
+    r = r + x(i)
+  end do
+end function
+
 elemental function DUAL_SQRT(x) result(r)
   !! compute square root of dual number
   type(DUAL_TYPE), intent(in) :: x
@@ -494,6 +508,7 @@ end function
 #undef REAL_DOT_DUAL
 #undef DUAL_DOT_REAL
 #undef DUAL_ABS
+#undef DUAL_SUM
 #undef DUAL_SQRT
 #undef DUAL_EXP
 #undef DUAL_LOG

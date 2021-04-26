@@ -35,6 +35,7 @@
 #define REAL_DOT_DUAL        CONCAT(real_dot_dual,N)
 #define DUAL_DOT_REAL        CONCAT(dual_dot_real,N)
 #define DUAL_ABS             CONCAT(dual_abs,N)
+#define DUAL_SUM             CONCAT(dual_sum,N)
 #define DUAL_SQRT            CONCAT(dual_sqrt,N)
 #define DUAL_EXP             CONCAT(dual_exp,N)
 #define DUAL_LOG             CONCAT(dual_log,N)
@@ -104,6 +105,10 @@ interface abs
   module procedure :: DUAL_ABS
 end interface
 
+interface sum
+  module procedure :: DUAL_SUM
+end interface
+
 interface sqrt
   module procedure :: DUAL_SQRT
 end interface
@@ -167,6 +172,7 @@ end interface
 #undef REAL_DOT_DUAL
 #undef DUAL_DOT_REAL
 #undef DUAL_ABS
+#undef DUAL_SUM
 #undef DUAL_SQRT
 #undef DUAL_EXP
 #undef DUAL_LOG

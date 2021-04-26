@@ -166,6 +166,33 @@ contains
       end do
     end block
 
+    ! test sum
+    block
+      type(dual_1)              :: s
+      type(dual_1), allocatable :: arr(:)
+
+      allocate (arr(0))
+      s = sum(arr)
+      call tc%assert_eq(0.0, s%x    , tol, "sum 0-length: value"     )
+      call tc%assert_eq(0.0, s%dx(1), tol, "sum 0-length: derivative")
+
+      deallocate (arr)
+      allocate (arr(1))
+      call arr(1)%init(2.0, i=1)
+      s = sum(arr)
+      call tc%assert_eq(2.0, s%x    , tol, "sum 1-length: value"     )
+      call tc%assert_eq(1.0, s%dx(1), tol, "sum 1-length: derivative")
+
+      deallocate (arr)
+      allocate (arr(3))
+      call arr(1)%init(2.0)               ! =   2
+      call arr(2)%init(3.0, i=1)          ! =   3 +  eps
+      arr(3) = 2.0*arr(1) - 5.0*arr(2)    ! = -11 - 5eps
+      s = sum(arr)                        ! = - 6 - 4eps
+      call tc%assert_eq(-6.0, s%x    , tol, "sum 3-length: value"     )
+      call tc%assert_eq(-4.0, s%dx(1), tol, "sum 3-length: derivative")
+    end block
+
     ! test sqrt
     block
       integer      :: i
@@ -317,7 +344,7 @@ contains
       call tc%assert_eq(z_exp%dx, z%dx, tol, "dot product dual*real (n elements): derivative")
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module

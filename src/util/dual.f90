@@ -9,7 +9,7 @@ module dual_m
   private
   public dual_1, dual_2, dual_3, dual_4, dual_5, dual_6, dual_7, dual_8
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public abs, cos, dot_product, exp, log, sin, sqrt, tan
+  public abs, cos, dot_product, exp, log, sin, sqrt, sum, tan
 
 #define N 1
 #include "dual_def.f90.inc"
