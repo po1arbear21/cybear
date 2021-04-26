@@ -104,7 +104,7 @@ end subroutine
 module recursive subroutine BLOCK_TO_DENSE(b, d, i0, j0)
   !! Insert block matrix into a dense matrix.
 
-  type(BLOCK_TYPE),  intent(in)    :: b
+  class(BLOCK_TYPE), intent(in)    :: b
     !! Block matrix (unchanged)
   type(DENSE_TYPE),  intent(inout) :: d
     !! Dense matrix (updated)
@@ -142,9 +142,9 @@ module recursive subroutine BLOCK_TO_DENSE(b, d, i0, j0)
         if (.not. associated(b%b(ib,jb)%p)) cycle
 
         select type (m => b%b(ib,jb)%p)
-          type is (BAND_TYPE)
+          class is (BLOCK_TYPE)
             call matrix_convert(m, d, i0=i0_+bi0(ib)-1, j0=j0_+bj0(jb)-1)
-          type is (BLOCK_TYPE)
+          type is (BAND_TYPE)
             call matrix_convert(m, d, i0=i0_+bi0(ib)-1, j0=j0_+bj0(jb)-1)
           type is (DENSE_TYPE)
             call matrix_convert(m, d, i0=i0_+bi0(ib)-1, j0=j0_+bj0(jb)-1)
@@ -307,7 +307,7 @@ end subroutine
 
 module subroutine BLOCK_TO_SPARSE(b, s, struct, drop_zeros)
   !! Create sparse matrix from block matrix.
-  type(BLOCK_TYPE),  intent(in)  :: b
+  class(BLOCK_TYPE), intent(in)  :: b
     !! Block matrix (unchanged)
   type(SPARSE_TYPE), intent(out) :: s
     !! Output: Sparse matrix
@@ -373,7 +373,7 @@ end subroutine
 
 module subroutine BLOCK_TO_SPBUILD(b, sb, i0, j0, struct, drop_zeros)
   !! Insert block matrix into a sparse builder.
-  type(BLOCK_TYPE),   intent(in)    :: b
+  class(BLOCK_TYPE),  intent(in)    :: b
     !! Block matrix (unchanged)
   type(SPBUILD_TYPE), intent(inout) :: sb
     !! Sparse matrix represented by sparse matrix builder (updated)
@@ -417,13 +417,13 @@ module subroutine BLOCK_TO_SPBUILD(b, sb, i0, j0, struct, drop_zeros)
         if (.not. associated(b%b(ib,jb)%p)) cycle
 
         select type (m => b%b(ib,jb)%p)
-          type is (BAND_TYPE)
+          class is (BLOCK_TYPE)
             if (present(struct)) then
               call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
             else
               call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
             end if
-          type is (BLOCK_TYPE)
+          type is (BAND_TYPE)
             if (present(struct)) then
               call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
             else

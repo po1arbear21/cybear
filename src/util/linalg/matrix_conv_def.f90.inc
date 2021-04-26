@@ -59,10 +59,10 @@ interface matrix_convert
   end subroutine
 
   module recursive subroutine BLOCK_TO_DENSE(b, d, i0, j0)
-    type(BLOCK_TYPE),  intent(in)    :: b
-    type(DENSE_TYPE),  intent(inout) :: d
-    integer, optional, intent(in)    :: i0
-    integer, optional, intent(in)    :: j0
+    class(BLOCK_TYPE),  intent(in)    :: b
+    type(DENSE_TYPE),   intent(inout) :: d
+    integer, optional,  intent(in)    :: i0
+    integer, optional,  intent(in)    :: j0
   end subroutine
 
   module subroutine DENSE_TO_DENSE(d1, d2, i0, j0)
@@ -97,10 +97,10 @@ end interface
 ! to_sparse
 interface matrix_convert
   module subroutine BLOCK_TO_SPARSE(b, s, struct, drop_zeros)
-    type(BLOCK_TYPE),  intent(in)  :: b
-    type(SPARSE_TYPE), intent(out) :: s
-    logical, optional, intent(in)  :: struct(:,:)
-    logical, optional, intent(in)  :: drop_zeros
+    class(BLOCK_TYPE),  intent(in)  :: b
+    type(SPARSE_TYPE),  intent(out) :: s
+    logical, optional,  intent(in)  :: struct(:,:)
+    logical, optional,  intent(in)  :: drop_zeros
   end subroutine
 end interface
 
@@ -116,12 +116,12 @@ interface matrix_convert
   end subroutine
 
   module subroutine BLOCK_TO_SPBUILD(b, sb, i0, j0, struct, drop_zeros)
-    type(BLOCK_TYPE),   intent(in)    :: b
-    type(SPBUILD_TYPE), intent(inout) :: sb
-    integer, optional,  intent(in)    :: i0
-    integer, optional,  intent(in)    :: j0
-    logical, optional,  intent(in)    :: struct(:,:)
-    logical, optional,  intent(in)    :: drop_zeros
+    class(BLOCK_TYPE),   intent(in)    :: b
+    type(SPBUILD_TYPE),  intent(inout) :: sb
+    integer, optional,   intent(in)    :: i0
+    integer, optional,   intent(in)    :: j0
+    logical, optional,   intent(in)    :: struct(:,:)
+    logical, optional,   intent(in)    :: drop_zeros
   end subroutine
 
   module subroutine DENSE_TO_SPBUILD(d, sb, i0, j0, struct, drop_zeros)
