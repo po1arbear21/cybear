@@ -328,6 +328,9 @@ contains
 
           ! check derivatives by finite differences
           do i = 1, this%vprov%n
+            ! does d(f_i)/d(x_j) exist? zero by default
+            if (.not. associated(this%jaco(i,j)%p)) cycle
+
             ! get dy = jaco * dx
             call this%jaco(i,j)%p%matr%mul_vec(dx, dy(i)%d)
 
@@ -371,13 +374,13 @@ contains
                   print "(A)", "dependency:"
                   call dep%print()
                   print *
-                  print "(A,I0,A,I0)",           "k     = ", k,     ";  l = ", l
-                  print "(A,ES24.16,A,ES24.16)", "xm    = ", xm(k), "; ym = ", ym(i)%d(l)
-                  print "(A,ES24.16,A,ES24.16)", "x0    = ", x0(k), "; y0 = ", y0(i)%d(l)
-                  print "(A,ES24.16,A,ES24.16)", "xp    = ", xp(k), "; yp = ", yp(i)%d(l)
-                  print "(A,ES24.16)",           "dydx  = ", dydx
-                  print "(A,ES24.16)",           "dydx1 = ", dydx1
-                  print "(A,ES24.16)",           "dydx2 = ", dydx2
+                  print "(A, I0,      A, I0     )", "k(dep) = ", k,     "; l(prov) = ", l
+                  print "(A, ES24.16, A, ES24.16)", "xm     = ", xm(k), "; ym      = ", ym(i)%d(l)
+                  print "(A, ES24.16, A, ES24.16)", "x0     = ", x0(k), "; y0      = ", y0(i)%d(l)
+                  print "(A, ES24.16, A, ES24.16)", "xp     = ", xp(k), "; yp      = ", yp(i)%d(l)
+                  print "(A, ES24.16, A         )", "dydx   = ", dydx,  " (from matrix       )"
+                  print "(A, ES24.16, A         )", "dydx1  = ", dydx1, " (fin.diff. forward )"
+                  print "(A, ES24.16, A         )", "dydx2  = ", dydx2, " (fin.diff. centered)"
                 end if
               end do
             end associate
