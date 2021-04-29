@@ -1,6 +1,8 @@
 module test_math_m
-  use test_case_m
-  use math_m
+
+  use math_m,      only: check_lin_dep, cross_product, cross_product_2d, interp1
+  use test_case_m, only: test_case
+
   implicit none
 
   private
@@ -53,8 +55,8 @@ contains
           b    = 0.0
           b(j) = real(j)
 
-          v = cross_product_2d(a(1:2), b(1:2))
-          v3d = cross_product(a, b)
+          v     = cross_product_2d(a(1:2), b(1:2))
+          v3d   = cross_product(a, b)
           v_exp = v3d(3)
 
           call tc%assert_eq(v_exp, v, 1e-15, "cross product 2d")
@@ -96,7 +98,26 @@ contains
       call tc%assert(.not. l, "check linear dependence 5")
     end block
 
-    call tc%finish
+    ! check interp1
+    block
+      real :: x(4) = [1,   2,   3,   10  ]
+      real :: v(4) = [0.0, 2.0, 0.0,  0.7]
+
+      call tc%assert_eq(0.0,  interp1(x, v, -1.0 ), 1e-15, "interp1")
+      call tc%assert_eq(0.0,  interp1(x, v,  0.5 ), 1e-15, "interp1")
+      call tc%assert_eq(0.0,  interp1(x, v,  1.0 ), 1e-15, "interp1")
+      call tc%assert_eq(1.0,  interp1(x, v,  1.5 ), 1e-15, "interp1")
+      call tc%assert_eq(1.5,  interp1(x, v,  1.75), 1e-15, "interp1")
+      call tc%assert_eq(2.0,  interp1(x, v,  2.0 ), 1e-15, "interp1")
+      call tc%assert_eq(1.0,  interp1(x, v,  2.5 ), 1e-15, "interp1")
+      call tc%assert_eq(0.0,  interp1(x, v,  3.0 ), 1e-15, "interp1")
+      call tc%assert_eq(0.07, interp1(x, v,  3.7 ), 1e-15, "interp1")
+      call tc%assert_eq(0.14, interp1(x, v,  4.4 ), 1e-15, "interp1")
+      call tc%assert_eq(0.7,  interp1(x, v, 10.0 ), 1e-15, "interp1")
+      call tc%assert_eq(0.7,  interp1(x, v, 11.0 ), 1e-15, "interp1")
+    end block
+
+    call tc%finish()
   end subroutine
 
 end module
