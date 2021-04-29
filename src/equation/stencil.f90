@@ -51,7 +51,7 @@ module stencil_m
         !! j-th dependency
       integer,               intent(out) :: idx2(:)
         !! output j-th dependency indices. size: idx_dim2
-      logical,               intent(out) :: status
+      logical, optional,     intent(out) :: status
         !! is j-th dependency used?
     end subroutine
   end interface
@@ -151,7 +151,7 @@ contains
       !! j-th dependency
     integer,              intent(out) :: idx2(:)
       !! output j-th dependency indices. size: idx_dim2
-    logical,              intent(out) :: status
+    logical, optional,    intent(out) :: status
       !! is j-th dependency used?
 
     IGNORE(this)
@@ -159,7 +159,7 @@ contains
     IGNORE(j)
 
     idx2(:) = 0
-    status  = .false.
+    if (present(status)) status = .false.
   end subroutine
 
   subroutine dirichlet_stencil_init(this, g1, g2, perm, off1, off2)
@@ -234,7 +234,7 @@ contains
       !! j-th dependency
     integer,                  intent(out) :: idx2(:)
       !! output j-th dependency indices. size: idx_dim2
-    logical,                  intent(out) :: status
+    logical, optional,        intent(out) :: status
       !! is j-th dependency used?
 
     integer :: i, k, div, rem
@@ -242,8 +242,10 @@ contains
     ASSERT(j > 0)
 
     ! status
-    status = ((j >= 1) .and. (j <= this%nmax))
-    if (.not. status) return
+    if (present(status)) then
+      status = ((j >= 1) .and. (j <= this%nmax))
+      if (.not. status) return
+    end if
 
     ! idx2 <- perm(idx1)
     where (this%perm > 0)
@@ -301,10 +303,11 @@ contains
       !! j-th dependency
     integer,                    intent(out) :: idx2(:)
       !! output j-th dependency indices. size: idx_dim2
-    logical,                    intent(out) :: status
+    logical, optional,          intent(out) :: status
       !! is j-th dependency used?
 
     integer :: shift
+    logical :: status_
 
     ASSERT(j > 0)
 
@@ -314,11 +317,13 @@ contains
     if (j-shift == 0) then
       ! couple to self
       idx2 = idx1
-      status = .true.
+      status_ = .true.
     else
       ! grid neighbours do not contain self => subtract 1 from j
-      call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j-shift, idx2, status)
+      call this%g%get_neighb(this%idx1_type, this%idx1_dir, this%idx2_type, this%idx2_dir, idx1, j-shift, idx2, status_)
     end if
+
+    if (present(status)) status = status_
   end subroutine
 
 end module
