@@ -1,3 +1,5 @@
+#include "../util/macro.f90.inc"
+
 submodule (grid_m) grid_table_m
 
 contains
@@ -37,7 +39,7 @@ contains
       this%n = count(this%flags%get())
 
       ! allocate internal tables
-      allocate (this%flat2idx(idx_dim, this%n), source = 0)
+      allocate (this%flat2idx(idx_dim,this%n), source = 0)
       call allocate_grid_data(this%idx2flat, this%g%idx_dim)
       call this%idx2flat%init(this%g, this%idx_type, this%idx_dir)
 
@@ -82,6 +84,8 @@ contains
     integer                        :: idx(this%g%idx_dim)
       !! return grid indices
 
+    ASSERT((i > 0 ) .and. (i <= this%n))
+
     idx = this%flat2idx(:,i)
   end function
 
@@ -92,6 +96,8 @@ contains
       !! grid indices (idx_dim)
     integer                        :: i
       !! return flat index (0 if grid point is not part of table)
+
+    ASSERT(this%g%idx_allowed(this%idx_type, this%idx_dir, idx=idx))
 
     i = this%idx2flat%get(idx)
   end function
