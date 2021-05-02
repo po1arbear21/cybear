@@ -3,6 +3,7 @@ program test
   use test_analysis_m
   use test_arnoldi_m
   use test_deque_m
+  use test_distributions_m
   use test_dual_m
   use test_esystem_m
   use test_expm_m
@@ -44,6 +45,7 @@ program test
   call test_analysis()
   call test_arnoldi()
   call test_deque()
+  call test_distributions()
   call test_dual()
   call test_esystem()
   call test_expm()
