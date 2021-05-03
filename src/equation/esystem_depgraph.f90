@@ -1,7 +1,7 @@
 module esystem_depgraph_m
 
   use equation_m,        only: equation
-  use error_m
+  use error_m,           only: program_error
   use hashmap_m,         only: hashmap_int
   use jacobian_chain_m,  only: jacobian_chain, jacobian_add_chain, jacobian_mul_chain, jacobian_chain_ptr, vector_jacobian_chain_ptr
   use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr, vector_jacobian_matrix_ptr
@@ -16,10 +16,10 @@ module esystem_depgraph_m
   public STATUS_DEP, STATUS_PROV, STATUS_MAIN, STATUS_RES
 
   ! node status
-  integer, parameter :: STATUS_DEP   = 0 ! created as dependency (temporary)
-  integer, parameter :: STATUS_PROV  = 1 ! provided
-  integer, parameter :: STATUS_MAIN  = 2 ! main var
-  integer, parameter :: STATUS_RES   = 3 ! residual
+  integer, parameter :: STATUS_DEP  = 0 ! created as dependency (temporary)
+  integer, parameter :: STATUS_PROV = 1 ! provided
+  integer, parameter :: STATUS_MAIN = 2 ! main var
+  integer, parameter :: STATUS_RES  = 3 ! residual
 
   type node
     !! node in dependency graph
@@ -68,8 +68,12 @@ module esystem_depgraph_m
     procedure :: eval     => node_eval
   end type
 
-#define T node
-#define TT type(node)
+  type node_ptr
+    type(node), pointer :: p => null()
+  end type
+
+#define T node_ptr
+#define TT type(node_ptr)
 #include "../util/vector_def.f90.inc"
 
   type depgraph_equ
@@ -96,17 +100,17 @@ module esystem_depgraph_m
 
   type depgraph
     !! equation system dependency graph
-    type(vector_depgraph_equ)  :: equs
+    type(vector_depgraph_equ) :: equs
       !! equations
-    type(vector_node)          :: nodes
+    type(vector_node_ptr)     :: nodes
       !! all nodes
-    type(hashmap_int)          :: hnodes
+    type(hashmap_int)         :: hnodes
       !! hashmap for vselector => node index
-    type(vector_int)           :: ires
+    type(vector_int)          :: ires
       !! residual equation indices
-    type(vector_int)           :: imvar
+    type(vector_int)          :: imvar
       !! main variable indices
-    type(vector_int)           :: ieval
+    type(vector_int)          :: ieval
       !! equation evaluation list
   contains
     procedure :: init     => depgraph_init
@@ -118,8 +122,8 @@ module esystem_depgraph_m
 
 contains
 
-#define T node
-#define TT type(node)
+#define T node_ptr
+#define TT type(node_ptr)
 #include "../util/vector_imp.f90.inc"
 
 #define T depgraph_equ
@@ -192,6 +196,14 @@ contains
           do idep = 1, r%vdep%n
             if (associated(r%jaco_f(idep)%p)) then
               ! add node as dependency to graph and save as parent
+! block
+!   integer :: itmp
+
+!   itmp = g%add_node(e, r%vdep%d(idep)%p, 0, STATUS_DEP)
+!   print *, 'itmp', itmp
+!   print *, 'parents n', this%parents%n
+!   call this%parents%push(itmp)
+! end block
               call this%parents%push(g%add_node(e, r%vdep%d(idep)%p, 0, STATUS_DEP))
 
               ! save jacobian matrix pointer for partial derivatives
@@ -256,7 +268,7 @@ contains
 
     ! analyze parents which are not already analyzed
     do i = 1, this%parents%n
-      associate (parent => g%nodes%d(this%parents%d(i)))
+      associate (parent => g%nodes%d(this%parents%d(i))%p)
         if (.not. parent%analyzed) call parent%analyze(g)
 
         ! reset const flag if parent is not constant
@@ -266,7 +278,7 @@ contains
 
     ! analyze parents_t which are not already analyzed
     do i = 1, this%parents_t%n
-      associate (parent => g%nodes%d(this%parents_t%d(i)))
+      associate (parent => g%nodes%d(this%parents_t%d(i))%p)
         if (.not. parent%analyzed) call parent%analyze(g)
 
         ! reset const flag if parent is not constant
@@ -304,10 +316,10 @@ contains
     associate (e => g%equs%d(this%iequ))
       ! analyze other nodes of equation
       if (e%ires > 0) then
-        if (.not. g%nodes%d(e%ires)%analyzed) call g%nodes%d(e%ires)%analyze(g)
+        if (.not. g%nodes%d(e%ires)%p%analyzed) call g%nodes%d(e%ires)%p%analyze(g)
       end if
       do i = 1, size(e%iprov)
-        if (.not. g%nodes%d(e%iprov(i))%analyzed) call g%nodes%d(e%iprov(i))%analyze(g)
+        if (.not. g%nodes%d(e%iprov(i))%p%analyzed) call g%nodes%d(e%iprov(i))%p%analyze(g)
       end do
 
       ! add equation to evaluation list
@@ -339,7 +351,7 @@ contains
 
       ! add multiplication chains for parents
       do i = 1, parents%n
-        associate (n => g%nodes%d(parents%d(i)))
+        associate (n => g%nodes%d(parents%d(i))%p)
           if (n%const) then
             ! do nothing for const node
             cycle
@@ -494,7 +506,8 @@ contains
 
     call this%equs%destruct()
     do i = 1, this%nodes%n
-      call this%nodes%d(i)%destruct()
+      call this%nodes%d(i)%p%destruct()
+      deallocate (this%nodes%d(i)%p)
     end do
     call this%nodes%destruct()
     call this%ires%destruct()
@@ -545,7 +558,7 @@ contains
     call this%hnodes%get(hkey, inode, hstat)
     if (hstat) then
       ! node was found
-      associate (m => this%nodes%d(inode))
+      associate (m => this%nodes%d(inode)%p)
         ! do nothing if dependency
         if (status == STATUS_DEP) return
 
@@ -562,7 +575,8 @@ contains
     else
       ! node not found, create a new one
       block
-        type(node) :: tmp
+        type(node_ptr) :: tmp
+        allocate (tmp%p)
         call this%nodes%push(tmp)
       end block
       inode = this%nodes%n
@@ -572,9 +586,9 @@ contains
     ! init/update node
     if (status == STATUS_MAIN) then
       call this%imvar%push(inode)
-      call this%nodes%d(inode)%init(this, inode, e, v, 0, this%imvar%n, status)
+      call this%nodes%d(inode)%p%init(this, inode, e, v, 0, this%imvar%n, status)
     else
-      call this%nodes%d(inode)%init(this, inode, e, v, iprov, 0, status)
+      call this%nodes%d(inode)%p%init(this, inode, e, v, iprov, 0, status)
     end if
   end function
 
@@ -587,7 +601,7 @@ contains
     ! analyze nodes, start with residuals
     do i = 1, this%ires%n
       associate (e => this%equs%d(this%ires%d(i)))
-        associate (n => this%nodes%d(e%ires))
+        associate (n => this%nodes%d(e%ires)%p)
           if (.not. n%analyzed) call n%analyze(this)
         end associate
       end associate

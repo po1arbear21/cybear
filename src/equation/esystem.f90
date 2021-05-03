@@ -352,7 +352,7 @@ contains
       call prov%init(0, 32)
       call fix_list%init(0, 32)
       do i = 1, this%g%nodes%n
-        associate (n => this%g%nodes%d(i))
+        associate (n => this%g%nodes%d(i)%p)
           if (n%status == STATUS_DEP) then
             call fix_list%push(i)
           else
@@ -364,7 +364,7 @@ contains
 
       ! fix nodes
       do i = 1, fix_list%n
-        associate (n => this%g%nodes%d(fix_list%d(i)))
+        associate (n => this%g%nodes%d(fix_list%d(i))%p)
           ! new selector equation
           allocate (e)
           call e%init(n%v, prov%d(1:prov%n), status)
@@ -397,7 +397,7 @@ contains
       ! check if all vars are provided/main vars
       fail = .false.
       do i = 1, this%g%nodes%n
-        associate (n => this%g%nodes%d(i))
+        associate (n => this%g%nodes%d(i)%p)
           if (n%status == STATUS_DEP) then
             fail = .true.
             print "(A)", "Not provided:"
@@ -417,7 +417,7 @@ contains
       ! count blocks
       this%nbl = 0
       do iimvar = 1, this%g%imvar%n
-        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%v)
+        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%p%v)
           this%nbl = this%nbl + v%ntab
         end associate
       end do
@@ -427,7 +427,7 @@ contains
       ibl    = 0
       this%n = 0
       do iimvar = 1, this%g%imvar%n
-        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%v)
+        associate (v => this%g%nodes%d(this%g%imvar%d(iimvar))%p%v)
           allocate (this%res2block(iimvar)%d(v%ntab))
 
           ! mvar is split into v%ntab blocks
@@ -461,8 +461,8 @@ contains
       ! set jacobians (loop over residuals and main variables)
       do iimvar = 1, this%g%ires%n
         do jimvar = 1, this%g%imvar%n
-          associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(iimvar))%ires), &
-            &        vn => this%g%nodes%d(this%g%imvar%d(jimvar))                     )
+          associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(iimvar))%ires)%p, &
+            &        vn => this%g%nodes%d(this%g%imvar%d(jimvar))%p                     )
             ! loop over blocks from both main variables
             do itab1 = 1, fn%v%ntab
               do itab2 = 1, vn%v%ntab
@@ -506,7 +506,7 @@ contains
       this%ninput = 0
       do i = 1, this%input_equs%n
         ! get mvar index
-        iimvar = this%g%nodes%d(this%g%equs%d(this%input_equs%d(i))%imain)%iimvar
+        iimvar = this%g%nodes%d(this%g%equs%d(this%input_equs%d(i))%imain)%p%iimvar
 
         ! get first and last block
         ibl0 = this%res2block(iimvar)%d(1)
@@ -575,12 +575,12 @@ contains
 
         ! perform non-const jacobian chain operations for provided vars
         do j = 1, size(e%iprov)
-          call this%g%nodes%d(e%iprov(j))%eval()
+          call this%g%nodes%d(e%iprov(j))%p%eval()
         end do
 
         ! perform non-const jacobian chain operations for residuals
         if (e%ires > 0) then
-          call this%g%nodes%d(e%ires)%eval()
+          call this%g%nodes%d(e%ires)%p%eval()
         end if
       end associate
     end do
@@ -588,7 +588,7 @@ contains
     ! set residuals flat array
     if (present(f)) then
       do i = 1, this%g%ires%n
-        associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires))
+        associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires)%p)
           ! get block indices
           ibl1 = this%res2block(i)%d(1)
           ibl2 = this%res2block(i)%d(fn%v%ntab)
@@ -617,7 +617,7 @@ contains
     class(vselector), pointer  :: mv
       !! return pointer to main var
 
-    mv => this%g%nodes%d(this%g%imvar%d(iimvar))%v
+    mv => this%g%nodes%d(this%g%imvar%d(iimvar))%p%v
   end function
 
   function esystem_get_res_equ(this, iires) result(re)
@@ -649,7 +649,7 @@ contains
 
     found = .false.
     do jimvar = 1, this%g%imvar%n
-      associate (n => this%g%nodes%d(this%g%imvar%d(jimvar)))
+      associate (n => this%g%nodes%d(this%g%imvar%d(jimvar))%p)
         if (n%v%name == name) then
           if (found) call program_error("multiple main variables with name "//name//" found")
           found = .true.
@@ -740,7 +740,7 @@ contains
 
     ! get values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
-    associate (n => this%g%nodes%d(imvar))
+    associate (n => this%g%nodes%d(imvar)%p)
       ! get table index
       itab = this%block2res(2,ibl)
 
@@ -775,7 +775,7 @@ contains
 
     ! set values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
-    associate (n => this%g%nodes%d(imvar))
+    associate (n => this%g%nodes%d(imvar)%p)
       ! get table index
       itab = this%block2res(2,ibl)
 
@@ -810,7 +810,7 @@ contains
 
     ! update values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
-    associate (n => this%g%nodes%d(imvar))
+    associate (n => this%g%nodes%d(imvar)%p)
       ! get table index
       itab = this%block2res(2,ibl)
 
@@ -892,7 +892,7 @@ contains
 
     ibl = 0
     do i = 1, this%g%imvar%n
-      associate (v => this%g%nodes%d(this%g%imvar%d(i))%v)
+      associate (v => this%g%nodes%d(this%g%imvar%d(i))%p%v)
         call v%print()
         do j = 1, v%ntab
           ibl = ibl + 1
