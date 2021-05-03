@@ -31,13 +31,8 @@ module test_analysis_m
 
   type, extends(res_equation) :: dt_phi
     !! d/dt phi - omega = 0
-    type(phi),   pointer :: ph => null()
-    type(omega), pointer :: om => null()
-
+    type(omega), pointer    :: om => null()
     type(dirichlet_stencil) :: st
-
-    type(jacobian), pointer :: df_om  => null()
-    type(jacobian), pointer :: dft_ph => null()
   contains
     procedure :: init => dt_phi_init
     procedure :: eval => dt_phi_eval
@@ -117,16 +112,17 @@ contains
 
   subroutine dt_phi_init(this, ph, om)
     class(dt_phi),       intent(out) :: this
-    type(phi),   target, intent(in)  :: ph
+    type(phi),           intent(in)  :: ph
     type(omega), target, intent(in)  :: om
 
-    integer :: idep, idx1(0), idx2(0)
+    integer :: idx(0)
+    type(jacobian), pointer :: jaco
+
 
     ! init base
     call this%equation_init("dt_"//ph%name)
 
     ! save pointers to variables
-    this%ph => ph
     this%om => om
 
     ! init residuals (main variable phi)
@@ -136,14 +132,12 @@ contains
     call this%st%init(ph%g)
 
     ! depend on omega
-    idep = this%depend(om)
-    this%df_om => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
-    call this%df_om%set(idx1, idx2, -1.0)
+    jaco => this%init_jaco_f(this%depend(om), [this%st%get_ptr()], const = .true.)
+    call jaco%set(idx, idx, -1.0)
 
     ! depend on phi
-    idep = this%depend(ph)
-    this%dft_ph => this%init_jaco_f(idep, [this%st%get_ptr()], dtime = .true.)
-    call this%dft_ph%set(idx1, idx2, 1.0)
+    jaco => this%init_jaco_f(this%depend(ph), [this%st%get_ptr()], dtime = .true.)
+    call jaco%set(idx, idx, 1.0)
 
     ! finish initialization
     call this%init_final()
