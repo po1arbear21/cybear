@@ -1,19 +1,13 @@
 module distributions_m
+
+  use math_m, only: expm1
+
   implicit none
 
   private
-  public distr_feq
   public bose_einstein,     d_bose_einstein
   public fermi_dirac,       d_fermi_dirac
   public maxwell_boltzmann, d_maxwell_boltzmann
-
-  abstract interface
-    real function distr_feq(E)
-      !! to easily switch between different distributions by procedure pointers
-      real, intent(in) :: E
-        !! energy
-    end function
-  end interface
 
 contains
 
@@ -38,7 +32,7 @@ contains
     real, intent(in) :: E
       !! energy
 
-    f = 1 / (exp(E) - 1)
+    f = 1 / expm1(E)
   end function
 
   real function d_bose_einstein(E) result(dfdE)
@@ -46,7 +40,7 @@ contains
     real, intent(in) :: E
       !! energy
 
-    dfdE = - exp(E) / (exp(E) - 1)**2
+    dfdE = - exp(E) / expm1(E)**2
   end function
 
   real function fermi_dirac(E) result(f)
