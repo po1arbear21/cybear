@@ -90,8 +90,6 @@ contains
 
     ! get admittance parameters for all frequencies
     do i = 1, ns
-      print "(I6,A,I6)", i, "/", ns
-
       ! construct matrix (mat = df + s * dft)
       call matrix_add(df, dft, mat, fact2 = s(i))
 
