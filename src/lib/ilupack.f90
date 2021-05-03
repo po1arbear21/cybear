@@ -3,7 +3,7 @@
 
 module ilupack_m
 
-  use error_m
+  use error_m,         only: assert_failed, program_error
   use iso_fortran_env, only: int64
   use sparse_idx_m,    only: SPARSE_IDX
   use util_m,          only: int2str

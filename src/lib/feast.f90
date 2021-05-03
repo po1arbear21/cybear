@@ -1,6 +1,8 @@
+#ifdef USE_FEAST
 #include "../util/macro.f90.inc"
 
 module feast_m
+
   use error_m,         only: assert_failed
   use iso_fortran_env, only: real64, real32
   use util_m,          only: int2str
@@ -310,3 +312,5 @@ contains
   end function
 
 end module
+
+#endif

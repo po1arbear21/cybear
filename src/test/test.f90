@@ -7,7 +7,6 @@ program test
   use test_dual_m
   use test_esystem_m
   use test_expm_m
-  use test_feast_m
   use test_gmres_m
   use test_grid_m
   use test_grid_table_m
@@ -30,6 +29,9 @@ program test
   use test_util_m
   use test_vector_m
 
+#ifdef USE_FEAST
+  use test_feast_m
+#endif
 #ifdef USE_ILUPACK
   use test_ilupack_m
 #endif
@@ -49,7 +51,6 @@ program test
   call test_dual()
   call test_esystem()
   call test_expm()
-  call test_feast()
   call test_gmres()
   call test_grid()
   call test_grid_table()
@@ -72,6 +73,9 @@ program test
   call test_util()
   call test_vector()
 
+#ifdef USE_FEAST
+  call test_feast()
+#endif
 #ifdef USE_ILUPACK
   call test_ilupack()
 #endif
