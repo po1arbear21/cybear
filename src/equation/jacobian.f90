@@ -184,7 +184,7 @@ contains
     const_  = (const_ .or. zero_) ! zero blocks are also constant
     valmsk_ = .true.
     if (present(valmsk)) then
-      ASSERT(all(shape(valmsk) == [v1%ntab, v2%ntab]))
+      ASSERT(all(shape(valmsk) == [v1%nval, v2%nval]))
       do itab2 = 1, v2%ntab; do itab1 = 1, v1%ntab
         valmsk_(:,:,itab1,itab2) = valmsk
       end do; end do

@@ -221,7 +221,7 @@ contains
         ! find variable in v2(i)%p%v
         ival2 = -1
         do j = 1, v2(i)%p%nval
-          if (associated(v1%v(ival1)%p, v2(i)%p%v(j)%p)) then
+          if (associated(v1%v(ival1)%p, target=v2(i)%p%v(j)%p)) then
             ival2 = j
             exit
           end if
@@ -232,7 +232,7 @@ contains
         itab2 = -1
         do itab1 = 1, v1%ntab
           do j = 1, v2(i)%p%ntab
-            if (associated(v1%tab(itab1)%p, v2(i)%p%tab(j)%p)) then
+            if (associated(v1%tab(itab1)%p, target=v2(i)%p%tab(j)%p)) then
               itab2(itab1) = j
               exit
             end if
@@ -263,6 +263,7 @@ contains
             end do
           end do
         end block
+        exit
       end do
 
       if (i > size(v2)) then
