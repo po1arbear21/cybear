@@ -4,9 +4,10 @@ module simple_equations_m
 
   use equation_m,     only: equation
   use grid_m,         only: grid_table, grid_table_ptr
-  use jacobian_m,     only: jacobian
+  use jacobian_m,     only: jacobian, jacobian_ptr
+  use qsort_m,        only: qsort
   use res_equation_m, only: res_equation
-  use stencil_m,      only: stencil_ptr, dirichlet_stencil
+  use stencil_m,      only: stencil_ptr, dirichlet_stencil, empty_stencil
   use variable_m,     only: variable, variable_ptr
   use vselector_m,    only: vselector, vselector_ptr
 
@@ -35,7 +36,8 @@ module simple_equations_m
   type, extends(equation) :: selector_equation
     !! equation that selects variables from one or multiple var selectors
 
-    type(dirichlet_stencil) :: st
+    type(dirichlet_stencil) :: dir_st
+    type(empty_stencil)     :: emp_st
   contains
     procedure :: init => selector_equation_init
     procedure :: eval => selector_equation_eval
@@ -199,8 +201,11 @@ contains
     logical,                          intent(out) :: status
       !! return success/fail: success=true, fail=false
 
-    integer           :: i, j, iprov, idep, ival1, ival2, itab1, itab2(v1%ntab), idx2(v1%g%idx_dim)
-    type(stencil_ptr) :: st(v1%ntab)
+    integer              :: i, i0, i1, j, iprov, ival1, ival2tmp, itab1
+    integer              :: ivsel2(v1%ntab), ival2(v1%ntab), itab2(v1%ntab), idx2(v1%g%idx_dim), perm(v1%ntab)
+    logical, allocatable :: valmsk(:,:)
+    type(jacobian_ptr)   :: jaco
+    type(stencil_ptr)    :: st(v1%ntab)
 
     ! init base
     call this%equation_init("Select"//v1%name)
@@ -208,69 +213,75 @@ contains
     ! provide v1
     iprov = this%provide(v1)
 
-    ! stencil
-    call this%st%init(v1%g) ! dirichlet stencil
-    do itab1 = 1, v1%ntab
-      st(itab1)%p => this%st
-    end do
+    ! stencils
+    call this%dir_st%init(v1%g)
+    call this%emp_st%init()
 
     ! loop over v1 variables
     do ival1 = 1, v1%nval
+      itab2 = -1
       ! loop over source var selectors
       do i = 1, size(v2)
-        ! find variable in v2(i)%p%v
-        ival2 = -1
-        do j = 1, v2(i)%p%nval
-          if (associated(v1%v(ival1)%p, target=v2(i)%p%v(j)%p)) then
-            ival2 = j
-            exit
-          end if
+        ! find variable in v2(i)%p%v which corresponds to ival1
+        do ival2tmp = 1, v2(i)%p%nval
+          if (associated(v1%v(ival1)%p, target = v2(i)%p%v(ival2tmp)%p)) exit
         end do
-        if (ival2 <= 0) cycle
+        if (ival2tmp > v2(i)%p%nval) cycle
 
-        ! check tables
-        itab2 = -1
+        ! check if any tables from ival, ival2tmp match
         do itab1 = 1, v1%ntab
+          if (itab2(itab1) > 0) cycle
           do j = 1, v2(i)%p%ntab
-            if (associated(v1%tab(itab1)%p, target=v2(i)%p%tab(j)%p)) then
-              itab2(itab1) = j
-              exit
-            end if
+            if (associated(v1%tab(itab1)%p, target = v2(i)%p%tab(j)%p)) exit
           end do
+          if (j > v2(i)%p%ntab) cycle
+          ivsel2(itab1) = i
+          ival2( itab1) = ival2tmp
+          itab2( itab1) = j
         end do
-        if (any(itab2 <= 0)) cycle
-
-        ! add dependency
-        idep = this%depend(v2(i)%p)
-
-        ! init+set jacobian
-        block
-          logical                 :: valmsk(v1%nval,v2(i)%p%nval)
-          type(jacobian), pointer :: jaco_ptr
-
-          valmsk = .false.
-          valmsk(ival1,ival2) = .true.
-
-          ! init jacobian
-          jaco_ptr => this%init_jaco(iprov, idep, st, const = .true., valmsk = valmsk)
-
-          ! set jacobian entries
-          do itab1 = 1, v1%ntab
-            do j = 1, v1%tab(itab1)%p%n
-              idx2 = v1%tab(itab1)%p%get_idx(j)
-              ! set derivative to 1
-              call jaco_ptr%set(itab1, j, idx2, ival1, ival2, 1.0)
-            end do
-          end do
-        end block
-        exit
+        if (all(itab2 > 0)) exit
       end do
 
-      if (i > size(v2)) then
+      ! exit if some itab1 from ival1 were not found in v2
+      if (any(itab2 <= 0)) then
         status = .false.
         call this%destruct() ! clean up
         return
       end if
+
+      ! sort ivsel2 to find out how many different ivsel2 to use
+      call qsort(ivsel2, perm=perm)
+
+      i1 = 0
+      do while (i1 < v1%ntab)
+        i0 = i1 + 1
+        ! i=i0..i1 denote same ivsel2
+        do i1 = i0, v1%ntab-1
+          if (ivsel2(i1+1) /= ivsel2(i0)) exit
+        end do
+
+        allocate (valmsk(v1%nval,v2(ivsel2(i0))%p%nval), source = .false.)
+        st = this%emp_st%get_ptr()
+        do i = i0, i1
+          valmsk(ival1,ival2(perm(i))) = .true.
+          st(perm(i)) = this%dir_st%get_ptr()
+        end do
+
+        ! init jacobian
+        jaco%p => this%init_jaco(iprov, this%depend(v2(ivsel2(i0))%p), st, const = .true., valmsk = valmsk)
+
+        ! set jacobian entries
+        do i = i0, i1
+          itab1 = perm(i)
+          do j = 1, v1%tab(itab1)%p%n
+            idx2 = v1%tab(itab1)%p%get_idx(j)
+            ! set derivative to 1
+            call jaco%p%set(itab1, j, idx2, ival1, ival2(itab1), 1.0)
+          end do
+        end do
+
+        deallocate (valmsk)
+      end do
     end do
 
     ! finish initialization
