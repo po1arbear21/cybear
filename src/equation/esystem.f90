@@ -1,8 +1,9 @@
 #include "../util/macro.f90.inc"
 
 module esystem_m
+
   use array_m,            only: array_int
-  use error_m
+  use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use grid_m,             only: grid_table, grid_table_ptr
@@ -902,4 +903,5 @@ contains
       end associate
     end do
   end subroutine
+
 end module

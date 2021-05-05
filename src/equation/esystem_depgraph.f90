@@ -45,7 +45,7 @@ module esystem_depgraph_m
     type(vector_int) :: parents
       !! indices of parent nodes
     type(vector_int) :: parents_t
-      !! indices ofr parent nodes for time derivatives (only used when status == STATUS_RES)
+      !! indices of parent nodes for time derivatives (only used when status == STATUS_RES)
 
     type(vector_jacobian_matrix_ptr) :: partial_jaco
       !! partial derivatives wrt parents
@@ -55,7 +55,7 @@ module esystem_depgraph_m
     type(jacobian_matrix_ptr), allocatable :: total_jaco(:)
       !! total derivatives wrt main vars
     type(jacobian_matrix_ptr), allocatable :: total_jaco_t(:)
-      !! total derivatives wrt time derivatives of main vars (NDSTATUS_RES only)
+      !! total derivatives wrt time derivatives of main vars (STATUS_RES only)
 
     type(vector_jacobian_chain_ptr), allocatable :: jchain(:)
       !! jacobian chains for computation of total derivatives wrt main vars
@@ -118,6 +118,7 @@ module esystem_depgraph_m
     procedure :: add_equ  => depgraph_add_equ
     procedure :: add_node => depgraph_add_node
     procedure :: analyze  => depgraph_analyze
+    procedure :: output   => depgraph_output
   end type
 
 contains
@@ -172,10 +173,10 @@ contains
     this%iequ = e%id
 
     ! init vectors
-    call this%parents%init(       0, 8)
-    call this%parents_t%init(     0, 8)
-    call this%partial_jaco%init(  0, 8)
-    call this%partial_jaco_t%init(0, 8)
+    call this%parents%init(       0, c = 8)
+    call this%parents_t%init(     0, c = 8)
+    call this%partial_jaco%init(  0, c = 8)
+    call this%partial_jaco_t%init(0, c = 8)
 
     ! get parents, parents_t
     if (status == STATUS_PROV) then
@@ -196,14 +197,6 @@ contains
           do idep = 1, r%vdep%n
             if (associated(r%jaco_f(idep)%p)) then
               ! add node as dependency to graph and save as parent
-! block
-!   integer :: itmp
-
-!   itmp = g%add_node(e, r%vdep%d(idep)%p, 0, STATUS_DEP)
-!   print *, 'itmp', itmp
-!   print *, 'parents n', this%parents%n
-!   call this%parents%push(itmp)
-! end block
               call this%parents%push(g%add_node(e, r%vdep%d(idep)%p, 0, STATUS_DEP))
 
               ! save jacobian matrix pointer for partial derivatives
@@ -606,6 +599,41 @@ contains
         end associate
       end associate
     end do
+  end subroutine
+
+  subroutine depgraph_output(this, fname)
+    class(depgraph), intent(in) :: this
+    character(*),    intent(in) :: fname
+      !! file name without extension, e.g. 'output/depgraph'
+
+    integer                 :: iounit, i, j
+    logical, allocatable    :: node_outputted
+    character(5), parameter :: COLOR(0:3) = ['red  ', 'black', 'blue ', 'green']
+
+    open (newunit=iounit, file=fname//'.gv', action='WRITE')
+
+    ! print python header
+    write (iounit, '(A)') 'digraph mygraph {'
+    write (iounit, '(A)') '  rankdir = "LR"'
+    write (iounit, '(A)') '  node [shape=box]'
+
+    do i = 1, this%nodes%n
+      associate (n => this%nodes%d(i)%p)
+        write (iounit, '(A,I0,5A)') '  ', i, ' [color=', trim(COLOR(n%status)), ', label="', n%v%name, '"]'
+      end associate
+    end do
+
+    do i = 1, this%nodes%n
+      associate (n => this%nodes%d(i)%p)
+        do j = 1, n%parents%n
+          write (iounit, '(A,I0,A,I0,3A)') '  ', n%parents%d(j), ' -> ', i, ' [label="', this%equs%d(n%iequ)%e%name, '"]'
+        end do
+      end associate
+    end do
+
+    write (iounit, '(A)') '}'
+    close (unit=iounit)
+    call system('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
   end subroutine
 
 end module
