@@ -601,28 +601,53 @@ contains
     end do
   end subroutine
 
-  subroutine depgraph_output(this, fname)
-    class(depgraph), intent(in) :: this
-    character(*),    intent(in) :: fname
+  subroutine depgraph_output(this, fname, pdf, png, svg)
+    !! create output of dependency graph.
+    !!
+    !! always outputs graphviz file: `fname//'.gv'`
+    !! pdf/png/svg files are optionally created.
+    !! create other formats by: `$ dot -T<EXT> fname.gv > fname.<EXT>`
+    !!
+    !! graphviz examples: https://graphviz.org/gallery/
+    class(depgraph),   intent(in) :: this
+    character(*),      intent(in) :: fname
       !! file name without extension, e.g. 'output/depgraph'
+    logical, optional, intent(in) :: pdf
+      !! create pdf file (default: true)
+    logical, optional, intent(in) :: png
+      !! create png file (default: false)
+    logical, optional, intent(in) :: svg
+      !! create svg file (default: false)
 
-    integer                 :: iounit, i, j
-    logical, allocatable    :: node_outputted
     character(5), parameter :: COLOR(0:3) = ['red  ', 'black', 'blue ', 'green']
+    integer :: iounit, i, j
+    logical :: pdf_, png_, svg_
 
+    ! optional args
+    pdf_ = .true.
+    if (present(pdf)) pdf_ = pdf
+    png_ = .false.
+    if (present(png)) png_ = png
+    svg_ = .false.
+    if (present(svg)) svg_ = svg
+
+    ! create file + write header
     open (newunit=iounit, file=fname//'.gv', action='WRITE')
-
-    ! print python header
     write (iounit, '(A)') 'digraph mygraph {'
     write (iounit, '(A)') '  rankdir = "LR"'
     write (iounit, '(A)') '  node [shape=box]'
 
+    ! write nodes
     do i = 1, this%nodes%n
       associate (n => this%nodes%d(i)%p)
-        write (iounit, '(A,I0,5A)') '  ', i, ' [color=', trim(COLOR(n%status)), ', label="', n%v%name, '"]'
+        write (iounit, '(A,I0,4A)', advance='no') '  ', i, ' [color=', trim(COLOR(n%status)), ' label="', n%v%name, &
+          & '" penwidth=2.0'
+        if (n%const) write (iounit, '(A)', advance='no') ' style=filled color=gray'
+        write (iounit, '(A)') ']'
       end associate
     end do
 
+    ! write edges
     do i = 1, this%nodes%n
       associate (n => this%nodes%d(i)%p)
         do j = 1, n%parents%n
@@ -631,9 +656,14 @@ contains
       end associate
     end do
 
+    ! finish
     write (iounit, '(A)') '}'
     close (unit=iounit)
-    call system('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
+
+    ! create pdf/png/svg files
+    if (pdf_) call system('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
+    if (png_) call system('dot -Tpng '//fname//'.gv > '//fname//'.png')
+    if (svg_) call system('dot -Tsvg '//fname//'.gv > '//fname//'.svg')
   end subroutine
 
 end module
