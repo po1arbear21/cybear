@@ -7,7 +7,7 @@ module esystem_m
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use grid_m,             only: grid_table, grid_table_ptr
-  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, spbuild_real, matrix_convert
+  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: dummy_equation, selector_equation, input_equation
@@ -836,13 +836,7 @@ contains
     type(sparse_real), intent(out) :: df
       !! output sparse matrix
 
-    ! local variables
-    type(spbuild_real) :: sb
-
-    call df%init(this%n)
-    call sb%init(df)
-    call matrix_convert(this%df, sb)
-    call sb%save()
+    call matrix_convert(this%df, df)          ! sparse_real <- block_real
   end subroutine
 
   subroutine esystem_get_df_cmplx(this, df)
@@ -851,15 +845,10 @@ contains
     type(sparse_cmplx), intent(out) :: df
       !! output sparse matrix
 
-    ! local variables
     type(sparse_real)  :: df_real
-    type(spbuild_real) :: sb
 
-    call df_real%init(this%n)
-    call sb%init(df_real)
-    call matrix_convert(this%df, sb)
-    call sb%save()
-    call matrix_convert(df_real, df)
+    call matrix_convert(this%df, df_real)     ! sparse_real  <- block_real
+    call matrix_convert(df_real, df     )     ! sparse_cmplx <- sparse_real
   end subroutine
 
   subroutine esystem_get_dft(this, dft)
@@ -868,13 +857,7 @@ contains
     type(sparse_real), intent(out) :: dft
       !! output sparse matrix
 
-    ! local variables
-    type(spbuild_real) :: sb
-
-    call dft%init(this%n)
-    call sb%init(dft)
-    call matrix_convert(this%dft, sb)
-    call sb%save()
+    call matrix_convert(this%dft, dft)        ! sparse_real <- block_real
   end subroutine
 
   subroutine esystem_get_dft_cmplx(this, dft)
@@ -883,15 +866,10 @@ contains
     type(sparse_cmplx), intent(out) :: dft
       !! output sparse matrix
 
-    ! local variables
     type(sparse_real)  :: dft_real
-    type(spbuild_real) :: sb
 
-    call dft_real%init(this%n)
-    call sb%init(dft_real)
-    call matrix_convert(this%dft, sb)
-    call sb%save()
-    call matrix_convert(dft_real, dft)
+    call matrix_convert(this%dft, dft_real)   ! sparse_real  <- block_real
+    call matrix_convert(dft_real, dft     )   ! sparse_cmplx <- sparse_real
   end subroutine
 
   subroutine esystem_print(this)
