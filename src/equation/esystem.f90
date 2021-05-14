@@ -532,6 +532,8 @@ contains
 
     integer :: i, i0, i1
 
+    ASSERT(size(x) == this%ninput)
+
     i1 = 0
     do i = 1, this%input_equs%n
       i0 = i1 + 1
@@ -547,6 +549,8 @@ contains
       !! input variable index
     real,           intent(in)    :: x(:)
       !! new values for i-th input variable
+
+    ASSERT(size(x) == this%input_i1(i)-this%input_i0(i)+1)
 
     select type (e => this%g%equs%d(this%input_equs%d(i))%e)
       class is (input_equation)
@@ -580,14 +584,13 @@ contains
         end do
 
         ! perform non-const jacobian chain operations for residuals
-        if (e%ires > 0) then
-          call this%g%nodes%d(e%ires)%p%eval()
-        end if
+        if (e%ires > 0) call this%g%nodes%d(e%ires)%p%eval()
       end associate
     end do
 
     ! set residuals flat array
     if (present(f)) then
+      ASSERT(size(f) == this%n)
       do i = 1, this%g%ires%n
         associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires)%p)
           ! get block indices
@@ -605,9 +608,7 @@ contains
     end if
 
     ! output jacobian
-    if (present(df)) then
-      call this%get_df(df)
-    end if
+    if (present(df)) call this%get_df(df)
   end subroutine
 
   function esystem_get_main_var(this, iimvar) result(mv)
@@ -659,9 +660,7 @@ contains
       end associate
     end do
 
-    if (.not. found) then
-      call program_error("main variable with name "//name//" not found")
-    end if
+    if (.not. found) call program_error("main variable with name "//name//" not found")
   end function
 
   subroutine esystem_solve(this, opt)
@@ -675,6 +674,7 @@ contains
     type(sparse_real), target :: df
 
     if (present(opt)) then
+      ASSERT(size(opt%atol) == this%n)
       opt_ = opt
     else
       call opt_%init(this%n)
@@ -688,6 +688,7 @@ contains
     call this%set_x(x)
 
   contains
+
     subroutine fun(x, p, f, dfdx, dfdp)
       real,                        intent(in)  :: x(:)
         !! arguments
@@ -713,6 +714,7 @@ contains
       call this%eval(f, df)
       dfdx => df
     end subroutine
+
   end subroutine
 
   function esystem_get_x(this) result(x)
@@ -758,6 +760,8 @@ contains
 
     integer :: ibl
 
+    ASSERT(size(x) == this%n)
+
     ! set values for all blocks
     do ibl = 1, this%nbl
       call this%set_x(ibl, x(this%i0(ibl):this%i1(ibl)))
@@ -773,6 +777,8 @@ contains
       !! set values from flat array
 
     integer :: itab, imvar
+
+    ASSERT(size(x) == this%i1(ibl)-this%i0(ibl)+1)
 
     ! set values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
@@ -793,6 +799,8 @@ contains
 
     integer :: ibl
 
+    ASSERT(size(dx) == this%n)
+
     ! update values for all blocks
     do ibl = 1, this%nbl
       call this%update_x(ibl, dx(this%i0(ibl):this%i1(ibl)))
@@ -808,6 +816,8 @@ contains
       !! delta values in flat array
 
     integer :: itab, imvar
+
+    ASSERT(size(dx) == this%i1(ibl)-this%i0(ibl)+1)
 
     ! update values
     imvar = this%g%imvar%d(this%block2res(1,ibl))

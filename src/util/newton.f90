@@ -1,7 +1,10 @@
+#include "macro.f90.inc"
+
 module newton_m
-  use error_m
-  use ieee_arithmetic
-  use matrix_m
+
+  use error_m,         only: assert_failed, program_error
+  use ieee_arithmetic, only: ieee_value, ieee_is_finite, ieee_negative_inf, ieee_positive_inf
+  use matrix_m,        only: matrix_real
 
   implicit none
 
@@ -106,7 +109,7 @@ contains
       !! optional output derivative of x wrt parameters
 
     ! local variables
-    integer :: i, it
+    integer :: it
     real    :: err, err0, xmin, xmax, fmin, fmax
     real    :: f, dfdx, dfdp(size(p)), dx
     logical :: bounded
@@ -127,9 +130,7 @@ contains
       bounded = .true.
       call fun(xmin, p, fmin, ipar=ipar)
       call fun(xmax, p, fmax, ipar=ipar)
-      if (sign(1.0, fmin) == sign(1.0, fmax)) then
-        call program_error("solution bounds are invalid, no sign change")
-      end if
+      if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
     end if
 
     ! newton iteration with bisection stabilization
@@ -152,9 +153,9 @@ contains
       ! bisection
       if ((x < xmin) .or. (x > xmax) .or. (err0 <= err)) then
         ! at least one of the bounds is definitely finite, since it >= 2
-        if (.not. ieee_is_finite(xmin)) then
+        if      (.not. ieee_is_finite(xmin)) then
           x = 2 * x - xmax
-        elseif (.not. ieee_is_finite(xmax)) then
+        else if (.not. ieee_is_finite(xmax)) then
           x = 2 * x - xmin
         else
           x = 0.5 * (xmin + xmax)
@@ -202,10 +203,9 @@ contains
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
+      ASSERT(size(dxdp) == size(p))
       call fun(x, p, f, dfdx=dfdx, dfdp=dfdp, ipar=ipar)
-      do i = 1, size(p)
-        dxdp(i) = - dfdp(i) / dfdx
-      end do
+      dxdp = - dfdp / dfdx
     end if
   end subroutine
 
@@ -230,10 +230,13 @@ contains
     real,               allocatable :: f(:), dfdp(:,:), dx(:)
     class(matrix_real), pointer     :: dfdx
 
+    ASSERT(size(x0      ) == size(x))
+    ASSERT(size(opt%atol) == size(x))
+
     ! allocate memory
     allocate (f(   size(x)        ), source = 1e99)
-    allocate (dfdp(size(x),size(p)), source = 0.0)
-    allocate (dx(  size(x)        ), source = 0.0)
+    allocate (dfdp(size(x),size(p)), source = 0.0 )
+    allocate (dx(  size(x)        ), source = 0.0 )
     nullify (dfdx)
 
     ! init iteration params
@@ -275,20 +278,19 @@ contains
       ! limit update
       do i = 1, size(dx)
         if (abs(dx(i)) > opt%dx_lim(i)) then
-          dx = dx * opt%dx_lim(i) / abs(dx(i))
+          dx = dx * (opt%dx_lim(i) / abs(dx(i)))
         end if
       end do
 
       ! update solution
       x = x - dx
 
-      if (opt%log) then
-        print "(A,I0,3ES25.16)", opt%msg, it, err, abs_err, maxval(abs(f))
-      end if
+      if (opt%log) print "(A,I0,3ES25.16)", opt%msg, it, err, abs_err, maxval(abs(f))
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
+      ASSERT(all(shape(dxdp) == [size(x), size(p)]))
       call fun(x, p, f, dfdx, dfdp = dfdp)
 
       call dfdx%factorize()
