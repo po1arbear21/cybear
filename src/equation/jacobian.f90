@@ -202,8 +202,6 @@ contains
       select type (st_ptr => st(itab1)%p)
         class is (static_stencil)
           call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
-        class is (dynamic_stencil)
-          ASSERT(.not. all(const_))
       end select
     end do
   end subroutine
