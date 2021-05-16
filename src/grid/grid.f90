@@ -41,7 +41,8 @@ module grid_m
     procedure                                :: init_tab_all => grid_init_tab_all
     procedure                                :: get_ptr      => grid_get_ptr
     procedure                                :: idx_allowed  => grid_idx_allowed
-    procedure(grid_get_idx_bnd),    deferred :: get_idx_bnd
+    generic                                  :: get_idx_bnd  => get_idx_bnd_n
+    procedure(grid_get_idx_bnd_n),  deferred :: get_idx_bnd_n
     procedure(grid_get_vertex),     deferred :: get_vertex
     procedure(grid_get_edge),       deferred :: get_edge
     procedure(grid_get_face),       deferred :: get_face
@@ -58,7 +59,7 @@ module grid_m
   end type
 
   abstract interface
-    subroutine grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
+    subroutine grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
       !! get grid index bounds
       import grid
       class(grid), intent(in)  :: this

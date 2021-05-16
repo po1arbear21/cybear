@@ -1,7 +1,8 @@
 #include "../util/macro.f90.inc"
 
 module sum_grid_m
-  use error_m, only: assert_failed, program_error
+
+  use error_m, only: assert_failed
   use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
 
   implicit none
@@ -15,7 +16,7 @@ module sum_grid_m
       !! sub-grids
   contains
     procedure :: init           => sum_grid_init
-    procedure :: get_idx_bnd    => sum_grid_get_idx_bnd
+    procedure :: get_idx_bnd_n  => sum_grid_get_idx_bnd_n
     procedure :: get_vertex     => sum_grid_get_vertex
     procedure :: get_edge       => sum_grid_get_edge
     procedure :: get_face       => sum_grid_get_face
@@ -28,7 +29,9 @@ module sum_grid_m
     procedure :: to_subgrid     => sum_grid_to_subgrid
     procedure :: to_sumgrid     => sum_grid_to_sumgrid
   end type
+
 contains
+
   subroutine sum_grid_init(this, g)
     !! initialize sum grid
     class(sum_grid),     intent(out) :: this
@@ -45,7 +48,7 @@ contains
     call this%init_tab_all()
   end subroutine
 
-  subroutine sum_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
+  subroutine sum_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
     !! get grid index bounds
     class(sum_grid), intent(in)  :: this
     integer,         intent(in)  :: idx_type
@@ -289,4 +292,5 @@ contains
       idx_sum = idx_sub + idx_bnd
     end do
   end function
+
 end module

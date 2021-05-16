@@ -3,7 +3,7 @@
 module tensor_grid_m
 
   use array_m,  only: array2_int
-  use error_m
+  use error_m,  only: assert_failed
   use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr, grid_data_int, allocate_grid_data
   use vector_m, only: vector_int
 
@@ -27,7 +27,7 @@ module tensor_grid_m
       !! neighbour data (delta_idx, i) x (idx1_type, idx1_dir, idx2_type, idx2_dir)
   contains
     procedure :: init           => tensor_grid_init
-    procedure :: get_idx_bnd    => tensor_grid_get_idx_bnd
+    procedure :: get_idx_bnd_n  => tensor_grid_get_idx_bnd_n
     procedure :: get_vertex     => tensor_grid_get_vertex
     procedure :: get_edge       => tensor_grid_get_edge
     procedure :: get_face       => tensor_grid_get_face
@@ -95,7 +95,7 @@ contains
     call this%init_tab_all()
   end subroutine
 
-  subroutine tensor_grid_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
+  subroutine tensor_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
     !! get grid index bounds
     class(tensor_grid), intent(in)  :: this
     integer,            intent(in)  :: idx_type

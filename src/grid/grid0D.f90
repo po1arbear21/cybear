@@ -2,8 +2,8 @@
 
 module grid0D_m
 
-  use error_m
-  use grid_m, only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use error_m, only: assert_failed
+  use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
 
   implicit none
 
@@ -15,7 +15,7 @@ module grid0D_m
     !! 0D pseudo grid (consists of single vertex at x=0), can be used for global scalar variables
   contains
     procedure :: init           => grid0D_init
-    procedure :: get_idx_bnd    => grid0D_get_idx_bnd
+    procedure :: get_idx_bnd_n  => grid0D_get_idx_bnd_n
     procedure :: get_vertex     => grid0D_get_vertex
     procedure :: get_edge       => grid0D_get_edge
     procedure :: get_face       => grid0D_get_face
@@ -53,7 +53,7 @@ contains
     call this%init_tab_all()
   end subroutine
 
-  subroutine grid0D_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
+  subroutine grid0D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
     !! get grid index bounds
     class(grid0D), intent(in)  :: this
     integer,       intent(in)  :: idx_type
@@ -61,7 +61,7 @@ contains
     integer,       intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
     integer,       intent(out) :: idx_bnd(:)
-      !! output upper bound for each index (1)
+      !! output upper bound for each index (0)
 
     ASSERT(this%idx_allowed(idx_type, idx_dir))
     ASSERT(size(idx_bnd) == 0)

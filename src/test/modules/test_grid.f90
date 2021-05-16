@@ -1,6 +1,5 @@
-#include "../../util/macro.f90.inc"
-
 module test_grid_m
+
   use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
@@ -85,19 +84,27 @@ contains
 
       ! get_idx_bnd
       block
-        integer :: bnd(1)
+        integer :: bnd_n(1), bnd
 
+        call g%get_idx_bnd(IDX_VERTEX, 0, bnd_n)
+        call tc%assert_eq([nx], bnd_n, "grid1D: idx_bnd_n: IDX_VERTEX")
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq(nx, bnd(1), "grid1D: idx_bnd: IDX_VERTEX")
+        call tc%assert_eq( nx,  bnd,   "grid1D: idx_bnd_1: IDX_VERTEX")
 
+        call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
+        call tc%assert_eq([nx-1], bnd_n, "grid1D: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq(nx-1, bnd(1), "grid1D: idx_bnd: IDX_EDGE")
+        call tc%assert_eq( nx-1,  bnd,   "grid1D: idx_bnd_1: IDX_EDGE")
 
+        call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
+        call tc%assert_eq([nx], bnd_n, "grid1D: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq(nx, bnd(1), "grid1D: idx_bnd: IDX_FACE")
+        call tc%assert_eq( nx,  bnd,   "grid1D: idx_bnd_1: IDX_FACE")
 
+        call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
+        call tc%assert_eq([nx-1], bnd_n, "grid1D: idx_bnd_n: IDX_CELL")
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq(nx-1, bnd(1), "grid1D: idx_bnd: IDX_CELL")
+        call tc%assert_eq( nx-1,  bnd,   "grid1D: idx_bnd_1: IDX_CELL")
       end block
 
       ! get_vertex
@@ -412,21 +419,29 @@ contains
       call tc%assert_eq([2], g%face_dim, "triang_grid: face_dim")
       call tc%assert_eq( 3,  g%cell_dim, "triang_grid: cell_dim")
 
-      ! ! testing get_idx_bnd
+      ! testing get_idx_bnd
       block
-        integer :: bnd(1)
+        integer :: bnd_n(1), bnd
 
+        call g%get_idx_bnd(IDX_VERTEX, 0, bnd_n)
+        call tc%assert_eq([nvert], bnd_n, "triang_grid: idx_bnd_n: IDX_VERTEX")
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq(nvert, bnd(1), "triang_grid: idx_bnd: IDX_VERTEX")
+        call tc%assert_eq( nvert,  bnd,   "triang_grid: idx_bnd_1: IDX_VERTEX")
 
+        call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
+        call tc%assert_eq([12], bnd_n, "triang_grid: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq(12, bnd(1), "triang_grid: idx_bnd: IDX_EDGE")
+        call tc%assert_eq( 12,  bnd,   "triang_grid: idx_bnd_1: IDX_EDGE")
 
+        call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
+        call tc%assert_eq([12], bnd_n, "triang_grid: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq(12, bnd(1), "triang_grid: idx_bnd: IDX_FACE")
+        call tc%assert_eq( 12,  bnd,   "triang_grid: idx_bnd_1: IDX_FACE")
 
+        call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
+        call tc%assert_eq([ncell], bnd_n, "triang_grid: idx_bnd_n: IDX_CELL")
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq(ncell, bnd(1), "triang_grid: idx_bnd: IDX_CELL")
+        call tc%assert_eq( ncell,  bnd,   "triang_grid: idx_bnd_1: IDX_CELL")
       end block
 
       ! get_vertex
@@ -1453,4 +1468,5 @@ contains
     end subroutine
 
   end subroutine
+
 end module

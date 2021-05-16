@@ -1,8 +1,10 @@
 #include "../util/macro.f90.inc"
 
 module grid1D_m
-  use error_m
-  use grid_m, only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+
+  use error_m, only: assert_failed
+  use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+
   implicit none
 
   private
@@ -14,7 +16,9 @@ module grid1D_m
       !! grid points
   contains
     procedure :: init           => grid1D_init
-    procedure :: get_idx_bnd    => grid1D_get_idx_bnd
+    procedure :: get_idx_bnd_n  => grid1D_get_idx_bnd_n
+    procedure ::                   grid1D_get_idx_bnd_1
+    generic   :: get_idx_bnd    => grid1D_get_idx_bnd_1
     procedure :: get_vertex     => grid1D_get_vertex
     procedure :: get_edge       => grid1D_get_edge
     procedure :: get_face       => grid1D_get_face
@@ -44,7 +48,7 @@ contains
     call this%init_tab_all()
   end subroutine
 
-  subroutine grid1D_get_idx_bnd(this, idx_type, idx_dir, idx_bnd)
+  subroutine grid1D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
     !! get grid index bounds
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx_type
@@ -54,20 +58,34 @@ contains
     integer,       intent(out) :: idx_bnd(:)
       !! output: upper bound for each index. size: (idx_dim=1)
 
-    ASSERT(this%idx_allowed(idx_type, idx_dir))
     ASSERT(size(idx_bnd) == 1)
+
+    call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(1))
+  end subroutine
+
+  subroutine grid1D_get_idx_bnd_1(this, idx_type, idx_dir, idx_bnd)
+    !! get grid index bounds
+    class(grid1D), intent(in)  :: this
+    integer,       intent(in)  :: idx_type
+      !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
+    integer,       intent(in)  :: idx_dir
+      !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
+    integer,       intent(out) :: idx_bnd
+      !! output: upper bound for each index.
+
+    ASSERT(this%idx_allowed(idx_type, idx_dir))
 
     IGNORE(idx_dir)
 
     select case (idx_type)
       case (IDX_VERTEX)
-        idx_bnd(1) = size(this%x)
+        idx_bnd = size(this%x)
       case (IDX_EDGE)
-        idx_bnd(1) = size(this%x) - 1
+        idx_bnd = size(this%x) - 1
       case (IDX_FACE)
-        idx_bnd(1) = size(this%x)
+        idx_bnd = size(this%x)
       case (IDX_CELL)
-        idx_bnd(1) = size(this%x) - 1
+        idx_bnd = size(this%x) - 1
     end select
   end subroutine
 
