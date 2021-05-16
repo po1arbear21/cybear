@@ -661,9 +661,9 @@ contains
     close (unit=iounit)
 
     ! create pdf/png/svg files
-    if (pdf_) call system('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
-    if (png_) call system('dot -Tpng '//fname//'.gv > '//fname//'.png')
-    if (svg_) call system('dot -Tsvg '//fname//'.gv > '//fname//'.svg')
+    if (pdf_) call execute_command_line('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
+    if (png_) call execute_command_line('dot -Tpng '//fname//'.gv > '//fname//'.png')
+    if (svg_) call execute_command_line('dot -Tsvg '//fname//'.gv > '//fname//'.svg')
   end subroutine
 
 end module
