@@ -16,7 +16,11 @@ module bin_search_m
   ! binary search modes
   integer, parameter :: BS_NEAR  = 1
   integer, parameter :: BS_LESS  = 2
+    !! returned index yields smaller/equal value wrt query point, i.e. x(i0) <= xq
+    !! (as long as xq is within range)
   integer, parameter :: BS_GREAT = 3
+    !! returned index yields larger/equal value wrt query point, i.e. x(i0) >= xq
+    !! (as long as xq is within range)
 
 contains
 

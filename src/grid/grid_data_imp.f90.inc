@@ -429,15 +429,15 @@ module function GRID_DATA_GET_POINT(this, idx) result(d)
   TT                                :: d
     !! return data
 
+  ASSERT(size(idx) == size(this%idx_bnd)             )
+  ASSERT(all(idx >= 1) .and. all(idx <= this%idx_bnd))
+
   ! default value
 #ifdef TLOG
   d = .false.
 #else
   d = 0
 #endif
-
-  ! bounds check
-  if (any(idx < 1) .or. any(idx > this%idx_bnd)) return
 
   ! get data
   select type (this)
@@ -498,8 +498,8 @@ module subroutine GRID_DATA_SET_POINT(this, idx, d)
   TT,                    intent(in)    :: d
     !! new value
 
-  ! bounds check
-  if (any(idx < 1) .or. any(idx > this%idx_bnd)) return
+  ASSERT(size(idx) == size(this%idx_bnd)             )
+  ASSERT(all(idx >= 1) .and. all(idx <= this%idx_bnd))
 
   ! set data
   select type (this)
@@ -564,8 +564,8 @@ module subroutine GRID_DATA_UPDATE_POINT(this, idx, d)
   TT,                    intent(in)    :: d
     !! delta value
 
-  ! bounds check
-  if (any(idx < 1) .or. any(idx > this%idx_bnd)) return
+  ASSERT(size(idx) == size(this%idx_bnd)             )
+  ASSERT(all(idx >= 1) .and. all(idx <= this%idx_bnd))
 
   ! set data
   select type (this)

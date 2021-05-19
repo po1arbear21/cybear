@@ -285,7 +285,7 @@ contains
     character(*),     optional, intent(in)    :: name
       !! name of new var selector
 
-    type(vselector), pointer  :: vsel
+    type(vselector), pointer :: vsel
 
     ! create main var selector and keep track of memory
     allocate (vsel)
