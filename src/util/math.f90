@@ -4,7 +4,7 @@ module math_m
 
   use bin_search_m,    only: bin_search, BS_LESS
   use error_m,         only: assert_failed
-  use ieee_arithmetic, only: ieee_class, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, operator(==)
+  use ieee_arithmetic, only: ieee_class, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, IEEE_QUIET_NAN, operator(==)
 
   implicit none
 
@@ -34,7 +34,9 @@ module math_m
 contains
 
   pure function cross_product(a, b) result(axb)
+    !! calculates the cross product between a and b
     real, intent(in) :: a(3), b(3)
+      !! 3-dimensional vectors
     real             :: axb(3)
 
     axb = [a(2)*b(3) - a(3)*b(2), &
@@ -42,31 +44,43 @@ contains
       &    a(1)*b(2) - a(2)*b(1)  ]
   end function
 
-  pure real function cross_product_2d(a, b)
+  pure function cross_product_2d(a, b) result(axb)
+    !! calculates the 2D cross product (x,y) -> z
     real, intent(in) :: a(2), b(2)
+      !! 2-dimensional vectors
+    real             :: axb
 
-    cross_product_2d = a(1)*b(2) - a(2)*b(1)
+    axb = a(1)*b(2) - a(2)*b(1)
   end function
 
   elemental function heaviside(x) result(h)
     !! heaviside step function
     real, intent(in) :: x
+      !! evaluation value
     real             :: h
 
-    h = 0.5 * (sign(1.0, x) + 1.0)
+    if      (x < 0) then
+      h = 0
+    else if (x > 0) then
+      h = 1
+    else
+      h = 0.5
+    end if
   end function
 
   elemental function isinf(x) result (r)
     !! return true if argument is positive of negative infinity
     real, intent(in) :: x
+      !! real argument
     logical          :: r
 
     r = (ieee_class(x) == IEEE_POSITIVE_INF) .or. (ieee_class(x) == IEEE_NEGATIVE_INF)
   end function
 
   elemental function ber(x) result(b)
-    !! bernoulli function
+    !! bernoulli function ber(x) = x / (exp(x) - 1)
     real, intent(in) :: x
+      !! evaluation value
     real             :: b
 
     if (abs(x) > 1e-6) then
@@ -79,6 +93,7 @@ contains
   elemental function dberdx(x) result(dbdx)
     !! derivative of bernoulli function
     real, intent(in) :: x
+      !! evaluation value
     real             :: dbdx
 
     if (abs(x) > 1e-6) then
@@ -91,6 +106,7 @@ contains
   elemental function phi1(x) result(phi)
     !! phi1(x) = (exp(x) - 1) / x = 1 / ber(x)
     real, intent(in) :: x
+      !! evaluation value
     real             :: phi
 
     phi = 1.0 / ber(x)
@@ -99,6 +115,7 @@ contains
   elemental function dphi1dx(x) result(dphidx)
     !! derivative of phi1(x)
     real, intent(in) :: x
+      !! evaluation value
     real             :: dphidx
 
     dphidx = - dberdx(x) / (ber(x)**2)
@@ -107,6 +124,7 @@ contains
   elemental function phi2(x) result(phi)
     !! phi2(x) = (exp(x) - 1 - x) / x**2
     real, intent(in) :: x
+      !! evaluation value
     real             :: phi
 
     ! local variables
@@ -130,6 +148,7 @@ contains
   elemental function dphi2dx(x) result(dphidx)
     !! derivative of phi2(x)
     real, intent(in) :: x
+      !! evaluation value
     real             :: dphidx
 
     ! local variables
@@ -153,6 +172,7 @@ contains
   elemental function m_expm1(x) result(e)
     !! exp(x) - 1; accurate even for x close to 0
     real, intent(in) :: x
+      !! evaluation value
     real             :: e
 
     if (ieee_class(x) == IEEE_POSITIVE_INF) then
@@ -173,6 +193,7 @@ contains
   elemental function m_log1p(x) result(l)
     !! log(1 + x); accurate even for x close to 0
     real, intent(in) :: x
+      !! evaluation value
     real             :: l
 
     real :: u, d
@@ -278,7 +299,7 @@ contains
   end function
 
   pure function norm_inf(arr)
-    !! Calculates the infinity norm $$ || \ \cdot \  ||_\infty $$ of the given array.
+    !! calculates the infinity norm $$ || \ \cdot \  ||_\infty $$ of the given array.
 
     real, intent(in) :: arr(:)
     real             :: norm_inf
@@ -287,7 +308,7 @@ contains
   end function
 
   pure function check_lin_dep(M, rtol) result(l)
-    !! Check if row vectors of M are linearly dependent
+    !! check if row vectors of M are linearly dependent
     real,           intent(in) :: M(:,:)
       !! input matrix
     real, optional, intent(in) :: rtol
@@ -358,7 +379,7 @@ contains
   end function
 
   function interp1(x, v, xq) result(vq)
-    !! interpolates data linearly
+    !! interpolates data piecewise linearly
     !!
     !! similar to MATLAB interp1: https://de.mathworks.com/help/matlab/ref/interp1.html
     real, intent(in) :: x(:)
