@@ -26,6 +26,7 @@ program test
   use test_random_m
   use test_schur_m
   use test_sqrtm_m
+  use test_string_m
   use test_util_m
   use test_vector_m
 
@@ -70,6 +71,7 @@ program test
   call test_normalization()
   call test_schur()
   call test_sqrtm()
+  call test_string()
   call test_util()
   call test_vector()
 
