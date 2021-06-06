@@ -1,8 +1,8 @@
 module test_util_m
 
-  use test_case_m
-  use util_m
   use string_m
+  use test_case_m, only: test_case
+  use util_m
 
   implicit none
 
@@ -18,9 +18,9 @@ contains
 
     ! int2str
     block
+      character(:), allocatable :: cval
       integer                   :: i
       type(string)              :: exp, val
-      character(:), allocatable :: cval
 
       allocate (character(0) :: cval)   ! removes gfortran warning
 
@@ -77,7 +77,63 @@ contains
       call tc%assert_eq(exp, val, "int2str")
     end block
 
-    call tc%finish
+    ! cstrlen (length of a string)
+    block
+      character(1), allocatable :: c(:)
+      integer                   :: length(3), i
+      type(string)              :: str(3)
+
+      str(1)%s = 'Hello World'
+      str(2)%s = 'Ki.D.d!ng'
+      str(3)%s = ''
+
+      length = [11, 9, 0]
+
+      do i = 1, 3
+        c = f2cstring(str(i)%s)
+        call tc%assert_eq(length(i), cstrlen(c), "cstrlen")
+      end do
+    end block
+
+    ! c2fstring (converting c to f strings)
+    block
+      character(1), allocatable :: c(:)
+      integer                   :: i
+      type(string)              :: str, str_exp(3)
+
+      str_exp(1)%s = 'Hello World'
+      str_exp(2)%s = 'Ki.D.d!ng'
+      str_exp(3)%s = ''
+
+      do i = 1, 3
+        c     = f2cstring(str_exp(i)%s)
+        str%s = c2fstring(c)
+        call tc%assert_eq(str_exp(i), str, "c2f")
+      end do
+    end block
+
+    ! select_int
+    block
+      integer :: ints(5)
+      logical :: mask(5)
+
+      ! exactly one hit
+      ints = [     -1,     500,      3,       4,       5]
+      mask = [.false., .false., .true., .false., .false.]
+      call tc%assert_eq(3, select_int(mask, ints), "select_int 1")
+
+      ! two hits
+      ints = [    -3,     500,     -3,       4,       5]
+      mask = [.true., .false., .true., .false., .false.]
+      call tc%assert_eq(-1, select_int(mask, ints), "select_int 2")
+
+      ! no hits
+      ints = [     -1,     500,       3,       4,       5]
+      mask = [.false., .false., .false., .false., .false.]
+      call tc%assert_eq(0, select_int(mask, ints), "select_int 3")
+    end block
+
+    call tc%finish()
   end subroutine
 
 end module
