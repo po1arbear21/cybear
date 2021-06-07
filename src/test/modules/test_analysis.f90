@@ -330,7 +330,7 @@ contains
 
       do i = 1, Ns
         call ac%select_abs(1, i)
-        print "(2ES24.16)", f(i), om(0)%x
+        ! print "(2ES24.16)", f(i), om(0)%x
       end do
     end block
 

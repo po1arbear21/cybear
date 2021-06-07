@@ -1,17 +1,14 @@
-#include "../../util/macro.f90.inc"
-
 module test_esystem_m
 
-  use error_m
-  use test_case_m
-
   use equation_m,     only: equation
+  use error_m,        only: program_error
   use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian
   use grid_m,         only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data1_real, grid_table
   use grid1D_m,       only: grid1D
   use res_equation_m, only: res_equation
   use stencil_m,      only: dirichlet_stencil
+  use test_case_m,    only: test_case
   use variable_m,     only: variable
   use vselector_m,    only: vselector
 
@@ -37,7 +34,7 @@ module test_esystem_m
     type(jacobian), pointer :: dydx => null()
 
     type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same index (certex index i)
+      !! y=y(x_i) only depends on depending variabls from same position index
 
     real, allocatable :: y_tmp(:)
 
@@ -58,7 +55,7 @@ module test_esystem_m
     type(jacobian), pointer :: dfdy => null()
 
     type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same index (certex index i) fixme
+      !! y=y(x_i) only depends on depending variabls from same position index
 
     real, allocatable :: f_tmp(:)
 
@@ -82,7 +79,7 @@ module test_esystem_m
     type(jacobian), pointer :: dfdz => null()
 
     type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same index (certex index i) fixme
+      !! y=y(x_i) only depends on depending variabls from same position index
   contains
     procedure :: init => res_equation2_init
     procedure :: eval => res_equation2_eval
@@ -94,18 +91,17 @@ module test_esystem_m
 contains
 
   subroutine test_esystem()
+    integer         :: i
     type(test_case) :: tc
 
-    type(var) :: x, y, z
-
+    type(var)           :: x, y, z
     type(equation1)     :: eq1
     type(esystem)       :: es
     type(res_equation1) :: req1
     type(res_equation2) :: req2
 
-    integer :: i
 
-    call tc%init("esystem")
+    call tc%init("esystem: dir solver")
 
     ! init grid
     call g%init(real([0, 1, 2, 4]))
@@ -115,13 +111,13 @@ contains
     call y%init("y", IDX_VERTEX)
     call z%init("z", IDX_VERTEX)
 
-    x%d%data = g%x+1
-    y%d%data = 0.1*(g%x+1)
-    z%d%data = 1.0+0.1*g%x
+    ! init by random data. otherwise: newton doesnt converge
+    x%d%data = g%x+100
+    y%d%data = -10*(g%x+1)
+    z%d%data = 10.0+5*g%x
 
     ! setup grid table + ptr
-    call gtab%init('all vertices', g, IDX_VERTEX, 0)
-    call gtab%flags%set([(.true., i=1, 4)])
+    call gtab%init('all vertices', g, IDX_VERTEX, 0, initial_flags = .true.)
     call gtab%init_final()
 
     ! equation system
@@ -129,17 +125,14 @@ contains
 
     ! equation1
     call eq1%init(y, x)
-    call eq1%test()
     call es%add_equation(eq1)
 
     ! res eq
     call req1%init(x, y)
-    call req1%test()
     call es%add_equation(req1)
 
     ! res eq
     call req2%init(z, x, y)
-    call req2%test()
     call es%add_equation(req2)
 
     ! finish equation system
@@ -147,9 +140,6 @@ contains
 
     ! solve esystem
     call es%solve()
-
-    print *, x%d%data
-    print *, z%d%data
 
     call tc%assert_eq([(-0.5, i=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
     call tc%assert_eq([(-1.0, i=1, 4)], z%d%data, 1e-14, "es: solve: result z" )

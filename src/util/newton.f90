@@ -3,8 +3,11 @@
 module newton_m
 
   use error_m,         only: assert_failed, program_error
+  use gmres_m,         only: gmres_options, gmres
   use ieee_arithmetic, only: ieee_value, ieee_is_finite, ieee_negative_inf, ieee_positive_inf
+  use matop_m,         only: single_matop_real
   use matrix_m,        only: matrix_real
+
 
   implicit none
 
@@ -48,6 +51,8 @@ module newton_m
     integer           :: max_it
       !! maximum number of iterations
 
+    logical                   :: it_solver
+      !! direct solver or iterative solver
     logical                   :: log
       !! enable/disable logging
     logical                   :: error_if_not_converged
@@ -74,17 +79,21 @@ module newton_m
         !! optional output derivatives of f wrt p
     end subroutine
 
-    subroutine newton_fun(x, p, f, dfdx, dfdp)
+    subroutine newton_fun(x, p, f, dfdx, dfdx_prec, dfdp)
       import matrix_real
-      real,                        intent(in)  :: x(:)
+      real,                                  intent(in)  :: x(:)
         !! arguments
-      real,                        intent(in)  :: p(:)
+      real,                                  intent(in)  :: p(:)
         !! parameters
-      real,                        intent(out) :: f(:)
+      real,               optional,          intent(out) :: f(:)
         !! output function values
-      class(matrix_real), pointer, intent(out) :: dfdx
+      class(matrix_real), optional, pointer, intent(out) :: dfdx
         !! output pointer to jacobian of f wrt x
-      real, optional,              intent(out) :: dfdp(:,:)
+        !! must be factorized if preconditioner not used
+      class(matrix_real), optional, pointer, intent(out) :: dfdx_prec
+        !! optional output pointer to preconditioner jacobian of f wrt x
+        !! must be factorized
+      real,               optional,          intent(out) :: dfdp(:,:)
         !! optional output jacobian of f wrt p
     end subroutine
   end interface
@@ -209,35 +218,44 @@ contains
     end if
   end subroutine
 
-  subroutine newton(fun, p, opt, x0, x, dxdp)
+  subroutine newton(fun, p, opt, x0, x, gmres_opt, dxdp)
     !! get root of multidimensional function by newton-raphson iteration
-    procedure(newton_fun)         :: fun
+    procedure(newton_fun)                      :: fun
       !! pointer to function
-    real,             intent(in)  :: p(:)
+    real,                          intent(in)  :: p(:)
       !! function parameters (can be empty array if not needed)
-    type(newton_opt), intent(in)  :: opt
+    type(newton_opt),              intent(in)  :: opt
       !! iteration options
-    real,             intent(in)  :: x0(:)
+    real,                          intent(in)  :: x0(:)
       !! first guess for solution
-    real,             intent(out) :: x(:)
+    real,                          intent(out) :: x(:)
       !! output solution
-    real, optional,   intent(out) :: dxdp(:,:)
+    type(gmres_options), optional, intent(in)  :: gmres_opt
+      !! options for gmres iterative solver. only used when opt%it_sol is set.
+    real,                optional, intent(out) :: dxdp(:,:)
       !! optional output derivatives of x wrt p
 
     ! local variables
     integer                         :: i, it
-    real                            :: err, abs_err
+    real                            :: err, abs_err, dx0
     real,               allocatable :: f(:), dfdp(:,:), dx(:)
-    class(matrix_real), pointer     :: dfdx
+    class(matrix_real), pointer     :: dfdx, dfdx_prec
+    type(gmres_options)             :: gmres_opt_
+    type(single_matop_real)         :: mulvec, precon
 
     ASSERT(size(x0      ) == size(x))
     ASSERT(size(opt%atol) == size(x))
+
+    ! optional args
+    gmres_opt_%atol = minval(opt%atol, dim = 1)
+    gmres_opt_%rtol = minval(opt%rtol, dim = 1)
+    if (present(gmres_opt)) gmres_opt_ = gmres_opt
 
     ! allocate memory
     allocate (f(   size(x)        ), source = 1e99)
     allocate (dfdp(size(x),size(p)), source = 0.0 )
     allocate (dx(  size(x)        ), source = 0.0 )
-    nullify (dfdx)
+    nullify (dfdx, dfdx_prec)
 
     ! init iteration params
     it  = 0
@@ -263,24 +281,32 @@ contains
         end if
       end if
 
-      ! evaluate function
-      call fun(x, p, f, dfdx)
+      ! determine update dx (either directly or by iterative solver)
+      if (opt%it_solver) then
+        ! initial solution
+        dx = 0
 
-      ! factorize and solve
-      call dfdx%factorize()
-      call dfdx%solve_vec(f, dx)
-      call dfdx%destruct()
+        ! evaluate function: compute residuals, jacobian, preconditioner
+        call fun(x, p, f = f, dfdx = dfdx, dfdx_prec = dfdx_prec)
+
+        ! set matops + solve by gmres
+        call mulvec%init(dfdx)
+        call precon%init(dfdx_prec, inv = .true.)
+        call gmres(f, mulvec, dx, opts = gmres_opt_, precon = precon)
+
+      else
+        ! evaluate function
+        call fun(x, p, f = f, dfdx = dfdx)
+        call dfdx%solve_vec(f, dx)
+      end if
 
       ! calculate new error
       err     = maxval(abs(dx) / (abs(x) + opt%atol / opt%rtol))
       abs_err = maxval(abs(dx))
 
       ! limit update
-      do i = 1, size(dx)
-        if (abs(dx(i)) > opt%dx_lim(i)) then
-          dx = dx * (opt%dx_lim(i) / abs(dx(i)))
-        end if
-      end do
+      dx0 = maxval(abs(dx) / opt%dx_lim, dim=1)
+      if (dx0 > 1) dx = dx / dx0
 
       ! update solution
       x = x - dx
@@ -291,10 +317,18 @@ contains
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
       ASSERT(all(shape(dxdp) == [size(x), size(p)]))
-      call fun(x, p, f, dfdx, dfdp = dfdp)
 
-      call dfdx%factorize()
-      call dfdx%solve_mat(-dfdp, dxdp)
+      ! set dxdp by solving: dfdx * dxdp = -dfdp
+      call fun(x, p, dfdp = dfdp)
+      if (opt%it_solver) then
+        dxdp = 0  ! init sols
+        do i = 1, size(p)
+          call gmres(-dfdp(:,i), mulvec, dxdp(:,i), opts = gmres_opt_, precon = precon)
+        end do
+
+      else
+        call dfdx%solve_mat(-dfdp, dxdp)
+      end if
     end if
   end subroutine
 
@@ -332,7 +366,7 @@ contains
     if (present(msg)) this%msg = msg
   end subroutine
 
-  subroutine newton_opt_init(this, n, atol, rtol, ftol, dx_lim, max_it, log, error_if_not_converged, msg)
+  subroutine newton_opt_init(this, n, atol, rtol, ftol, dx_lim, max_it, it_solver, log, error_if_not_converged, msg)
     !! initialize multidimensional newton iteration options
     class(newton_opt),      intent(out) :: this
     integer,                intent(in)  :: n
@@ -347,6 +381,8 @@ contains
       !! limit for newton update (default: inf)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
+    logical,      optional, intent(in)  :: it_solver
+      !! direct solver or iterative solver (default: false == direct)
     logical,      optional, intent(in)  :: log
       !! enable logging (default .false.)
     logical,      optional, intent(in)  :: error_if_not_converged
@@ -366,6 +402,8 @@ contains
     if (present(dx_lim)) this%dx_lim = dx_lim
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
+    this%it_solver = .false.
+    if (present(it_solver)) this%it_solver = it_solver
     this%log = .false.
     if (present(log)) this%log = log
     this%error_if_not_converged = .true.
