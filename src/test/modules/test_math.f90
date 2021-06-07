@@ -70,7 +70,6 @@ contains
     ! isinf(x)
     ! testing single values from x
     block
-      integer :: i
       logical :: y(5), y_exp(5)
       real    :: x(5)
 

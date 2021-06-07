@@ -24,19 +24,6 @@ use util_m,             only: int2str
 implicit none
 ```
 ## Midprogram
-### Functions and subroutines
-- Specify the type of the function if needed
-- Append the input of the function/ subroutine in a reasonable order
-- Specify in the same line the output for the function
-- Describe the function briefly in a comment below (use two exclamation marks for the documentation)
-- Contrary to statements (e.g. if-statements) do not use a space between the functions name and the brackets
-
-Example:
-```f90
-pure function linspace(x0, x1, nx) result(x)
-  !! create array of linear spaced values
-```
-
 ### Declaring variables
 - Declare only variable you actually use in the program
 - Order the data types in an alphabetic order (or if more appropiate in the order of importance)
@@ -97,4 +84,36 @@ e1 = log(x1)
 Example:
 ```f90
 a = (b * c) / (d * e)**2
+```
+### Functions and subroutines
+- Specify the type of the function if needed
+- Append the input of the function/ subroutine in a reasonable order
+- Specify in the same line the output for the function
+- Describe the function briefly in a comment below (use two exclamation marks for the documentation)
+- Contrary to statements (e.g. if-statements) do not use a space between the functions name and the brackets
+
+Example:
+```f90
+pure function linspace(x0, x1, nx) result(x)
+  !! create array of linear spaced values
+```
+
+#### Calling functions and subroutines
+- Call optional arguments always per its dummy variable name
+- Parameters from modules should always be called via their parameter name within it
+
+Example:
+```f90
+a = [1, 4, 6, 10, 20, 21, 22]
+b = bin_search(a,  4, mode = BS_NEAR)
+```
+## End of the program
+
+## Good programming practice
+### The usage of implied do-loops
+- Short-hand notation for generating arrays via a do-loop
+
+Example:
+```f90
+a = [i*2, i = 1, 3]
 ```

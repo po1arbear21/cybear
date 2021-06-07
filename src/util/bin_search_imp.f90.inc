@@ -21,6 +21,7 @@ function BIN_SEARCH(x, x1, mode) result(i)
   ! mode
   mode_ = BS_NEAR
   if (present(mode)) mode_ = mode
+  ASSERT(any(mode_ == [BS_NEAR, BS_LESS, BS_GREAT]))
 
   ! starting interval is the whole array
   i0 = 1
@@ -64,11 +65,6 @@ function BIN_SEARCH(x, x1, mode) result(i)
     case (BS_GREAT)
       ! pick larger index
       i = i1
-
-    case default
-      i = 0
-      print "(I0)", mode
-      call program_error("unknown search mode")
   end select
 end function
 
