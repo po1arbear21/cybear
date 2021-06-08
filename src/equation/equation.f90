@@ -216,13 +216,13 @@ contains
 
     ! reallocate this%jaco
     allocate (jaco_tmp(cprov, cdep))
-    jaco_tmp(1:this%vprov%n,1:this%vdep%n) = this%jaco
+    jaco_tmp(1:this%vprov%n,1:this%vdep%n) = this%jaco(1:this%vprov%n,1:this%vdep%n)
     call move_alloc(jaco_tmp, this%jaco)
 
     ! reallocate this%jaco_p
     if (allocated(this%jaco_p)) then
       allocate (jaco_tmp(cprov, cdep))
-      jaco_tmp(1:this%vprov%n,1:this%vdep%n) = this%jaco_p
+      jaco_tmp(1:this%vprov%n,1:this%vdep%n) = this%jaco_p(1:this%vprov%n,1:this%vdep%n)
       call move_alloc(jaco_tmp, this%jaco_p)
     end if
   end subroutine
