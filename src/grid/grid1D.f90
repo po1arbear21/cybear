@@ -28,6 +28,7 @@ module grid1D_m
     procedure :: get_vol        => grid1D_get_vol
     procedure :: get_max_neighb => grid1D_get_max_neighb
     procedure :: get_neighb     => grid1D_get_neighb
+    procedure :: output         => grid1D_output
   end type
 
 contains
@@ -303,6 +304,31 @@ contains
     ! make sure idx2 is valid
     call this%get_idx_bnd(idx2_type, idx2_dir, idx_bnd)
     status = ((idx2(1) >= 1) .and. (idx2(1) <= idx_bnd(1)))
+  end subroutine
+
+  subroutine grid1D_output(this, fname)
+    !! saves direct and adjoint nodes to file.
+    !!    direct nodes:  saves vertices of grid in: e.g. "output/tmp/posGrid.csv"
+    !!    adjoint nodes: saves centers of cells in: e.g. "output/tmp/posGridAdj.csv"
+    class(grid1D), intent(in) :: this
+    character(*),  intent(in) :: fname
+      !! output base file name, e.g. "output/tmp/posGrid"
+
+    integer :: iounit, i
+
+    ! direct nodes
+    open (newunit=iounit, file=fname//'.csv', action='write')
+    do i = 1, size(this%x)
+      write (iounit, *) this%x(i)
+    end do
+    close (unit=iounit)
+
+    ! adjoint nodes
+    open (newunit=iounit, file=fname//'Adj.csv', action='write')
+    do i = 1, size(this%x)-1
+      write (iounit, *) 0.5 * (this%x(i) + this%x(i+1))
+    end do
+    close (unit=iounit)
   end subroutine
 
 end module

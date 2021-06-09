@@ -109,7 +109,7 @@ type SPBUILD_TYPE
   logical, allocatable           :: keep_struct(:)
     !! Indicates whether a row should be deleted completely on reset, or structure should be kept
   logical                        :: assume_unique
-  !! user ensures no duplicate entries
+    !! user ensures no duplicate entries
 contains
   procedure :: init      => SPBUILD_INIT
   procedure :: destruct  => SPBUILD_DESTRUCT
