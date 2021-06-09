@@ -2,11 +2,12 @@
 
 module triang_grid_m
 
-  use error_m,   only: assert_failed
-  use grid_m,    only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
-  use math_m,    only: cross_product_2d
-  use plotmtv_m, only: plotmtv, plotset_options
-  use vector_m,  only: vector_int
+  use error_m,         only: assert_failed
+  use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use math_m,          only: cross_product_2d
+  use normalization_m, only: denorm
+  use plotmtv_m,       only: plotmtv, plotset_options
+  use vector_m,        only: vector_int
 
   implicit none
 
@@ -600,11 +601,13 @@ contains
     end if                ! idx1_type
   end subroutine
 
-  subroutine triang_grid_output(this, fname)
+  subroutine triang_grid_output(this, fname, unit)
     !! writes grid to plotmtv file "<fname>.plt" and a separate csv files "<fname>_vert.csv", "<fname>_icell.csv".
     class(triang_grid), intent(in) :: this
     character(*),       intent(in) :: fname
       !! output base file name, e.g. "output/tmp/triang"
+    character(*),       intent(in) :: unit
+      !! unit of grid variable, e.g. "cm"
 
     ! write plotmtv file
     block
@@ -618,7 +621,8 @@ contains
       call pmtv%write_header(plotset_opts=opts)
 
       do ie = 1, size(this%edge2vert, dim=2)
-        call pmtv%write_curve(this%vert(1,this%edge2vert(:,ie)), this%vert(2,this%edge2vert(:,ie)))
+        call pmtv%write_curve(denorm(this%vert(1,this%edge2vert(:,ie)), unit), &
+          &                   denorm(this%vert(2,this%edge2vert(:,ie)), unit)  )
       end do
 
       call pmtv%close()
@@ -630,13 +634,13 @@ contains
 
       open (newunit=iounit, file=fname//'_vert.csv', action='write')
       do i = 1, size(this%vert, dim=2)
-        write (iounit, *) this%vert(:,i)
+        write (iounit, *) denorm(this%vert(:,i), unit)
       end do
       close (unit=iounit)
 
       open (newunit=iounit, file=fname//'_icell.csv', action='write')
       do i = 1, size(this%cell2vert, dim=2)
-        write (iounit, *) this%cell2vert(:,i)
+        write (iounit, *) this%cell2vert(:,i), unit
       end do
       close (unit=iounit)
     end block

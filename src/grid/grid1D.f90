@@ -2,8 +2,9 @@
 
 module grid1D_m
 
-  use error_m, only: assert_failed
-  use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use error_m,         only: assert_failed
+  use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use normalization_m, only: denorm
 
   implicit none
 
@@ -306,27 +307,29 @@ contains
     status = ((idx2(1) >= 1) .and. (idx2(1) <= idx_bnd(1)))
   end subroutine
 
-  subroutine grid1D_output(this, fname)
+  subroutine grid1D_output(this, fname, unit)
     !! saves direct and adjoint nodes to file.
     !!    direct nodes:  saves vertices of grid in: e.g. "output/tmp/posGrid.csv"
     !!    adjoint nodes: saves centers of cells in: e.g. "output/tmp/posGridAdj.csv"
     class(grid1D), intent(in) :: this
     character(*),  intent(in) :: fname
       !! output base file name, e.g. "output/tmp/posGrid"
+    character(*),  intent(in) :: unit
+      !! unit of grid variable, e.g. "cm"
 
     integer :: iounit, i
 
     ! direct nodes
     open (newunit=iounit, file=fname//'.csv', action='write')
     do i = 1, size(this%x)
-      write (iounit, *) this%x(i)
+      write (iounit, *) denorm(this%x(i), unit)
     end do
     close (unit=iounit)
 
     ! adjoint nodes
     open (newunit=iounit, file=fname//'Adj.csv', action='write')
     do i = 1, size(this%x)-1
-      write (iounit, *) 0.5 * (this%x(i) + this%x(i+1))
+      write (iounit, *) denorm(0.5 * (this%x(i) + this%x(i+1)), unit)
     end do
     close (unit=iounit)
   end subroutine
