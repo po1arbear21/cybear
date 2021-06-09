@@ -3,7 +3,7 @@
 module res_equation_m
 
   use equation_m,  only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
-  use error_m
+  use error_m,     only: assert_failed
   use grid_m,      only: grid_table, grid_table_ptr
   use jacobian_m,  only: jacobian, jacobian_ptr
   use stencil_m,   only: stencil_ptr
@@ -32,6 +32,8 @@ module res_equation_m
 
     type(jacobian_ptr), allocatable :: jaco_f(:)
       !! derivatives of f wrt vdep. size: this%vdep%d
+    type(jacobian_ptr), allocatable :: jaco_fp(:)
+      !! preconditioner derivatives of f wrt vdep. size: this%vdep%d
     type(jacobian_ptr), allocatable :: jaco_ft(:)
       !! derivatives of f wrt d/dt(vdep), must be const. size: this%vdep%d
   contains
@@ -44,7 +46,9 @@ module res_equation_m
     procedure :: destruct      => res_equation_destruct
     procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
+    procedure :: init_jaco_fp  => res_equation_init_jaco_fp
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
+    procedure :: has_precon_f  => res_equation_has_precon_f
 
     procedure, private :: res_equation_init_f_vsel,      &
       &                   res_equation_init_f_nvar_ntab, &
@@ -81,16 +85,26 @@ contains
 
     integer :: i
 
+    ! mvar
     if (this%mvar_alc) then
       if (associated(this%mvar)) deallocate (this%mvar)
     else
       nullify (this%mvar)
     end if
 
+    ! fvar
     do i = 1, size(this%fvar)
       if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
     end do
     deallocate (this%fvar)
+
+    ! jaco_f
+    deallocate (this%jaco_f)
+
+    ! jaco_fp
+    if (allocated(this%jaco_fp)) deallocate (this%jaco_fp)
+
+    ! jaco_ft
     do i = 1, size(this%jaco_ft)
       if (associated(this%jaco_ft(i)%p)) then
         call this%jaco_ft(i)%p%destruct()
@@ -104,26 +118,35 @@ contains
   end subroutine
 
   subroutine res_equation_realloc_jaco(this, cprov, cdep)
-    !! reallocate this%jaco, this%jaco_f and this%jaco_ft if initial capacity was not big enough
+    !! reallocate this%jaco, this%jaco_f, this%jaco_fp and this%jaco_ft if initial capacity was not big enough
     class(res_equation), intent(inout) :: this
     integer,             intent(in)    :: cprov
       !! new prov capacity
     integer,             intent(in)    :: cdep
       !! new dep capacity
 
-    type(jacobian_ptr), allocatable :: jaco_f_tmp(:), jaco_ft_tmp(:)
+    type(jacobian_ptr), allocatable :: jaco_tmp(:)
 
     ! call base (reallocate this%jaco)
     call equation_realloc_jaco(this, cprov, cdep)
 
-    ! reallocate this%jaco_f and this%jaco_ft
     if (cdep > this%vdep%n) then
-      allocate (jaco_f_tmp( cdep))
-      allocate (jaco_ft_tmp(cdep))
-      jaco_f_tmp( 1:this%vdep%n) = this%jaco_f
-      jaco_ft_tmp(1:this%vdep%n) = this%jaco_ft
-      call move_alloc(jaco_f_tmp,  this%jaco_f )
-      call move_alloc(jaco_ft_tmp, this%jaco_ft)
+      ! reallocate this%jaco_f
+      allocate (jaco_tmp(cdep))
+      jaco_tmp(1:this%vdep%n) = this%jaco_f
+      call move_alloc(jaco_tmp, this%jaco_f)
+
+      ! reallocate this%jaco_fp
+      if (allocated(this%jaco_fp)) then
+        allocate (jaco_tmp(cdep))
+        jaco_tmp(1:this%vdep%n) = this%jaco_fp
+        call move_alloc(jaco_tmp, this%jaco_fp)
+      end if
+
+      ! reallocate this%jaco_ft
+      allocate (jaco_tmp(cdep))
+      jaco_tmp(1:this%vdep%n) = this%jaco_ft
+      call move_alloc(jaco_tmp, this%jaco_ft)
     end if
   end subroutine
 
@@ -150,20 +173,40 @@ contains
     dtime_ = .false.
     if (present(dtime)) dtime_ = dtime
 
-    associate (vdep => this%vdep%d(idep)%p)
-      if (dtime_) then
-        const_ = .true.
-        if (present(const)) const_ = const
-        ASSERT(const_)
+    if (dtime_) then
+      const_ = .true.
+      if (present(const)) const_ = const
+      ASSERT(const_)
 
-        allocate (this%jaco_ft(idep)%p)
-        call this%jaco_ft(idep)%p%init(this%f, vdep, st, const=const_, zero=zero, valmsk=valmsk)
-        jaco => this%jaco_ft(idep)%p
-      else
-        this%jaco_f(idep)%p => this%init_jaco(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
-        jaco => this%jaco_f(idep)%p
-      end if
-    end associate
+      allocate (this%jaco_ft(idep)%p)
+      call this%jaco_ft(idep)%p%init(this%f, this%vdep%d(idep)%p, st, const=const_, zero=zero, valmsk=valmsk)
+      jaco => this%jaco_ft(idep)%p
+    else
+      this%jaco_f(idep)%p => this%init_jaco(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
+      jaco                => this%jaco_f(idep)%p
+    end if
+  end function
+
+  function res_equation_init_jaco_fp(this, idep, st, const, zero, valmsk) result(jaco)
+    !! allocate and initialize f preconditioner jacobian
+    class(res_equation), intent(inout) :: this
+    integer,             intent(in)    :: idep
+      !! dependency var index
+    type(stencil_ptr),   intent(in)    :: st(:)
+      !! stencils (v1%ntab)
+    logical, optional,   intent(in)    :: const
+      !! const flag; default = false for f; the same for all blocks
+    logical, optional,   intent(in)    :: zero(:,:)
+      !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
+    logical, optional,   intent(in)    :: valmsk(:,:)
+      !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
+    type(jacobian), pointer            :: jaco
+      !! return pointer to newly created jacobian
+
+    ASSERT(allocated(this%jaco_fp))
+
+    this%jaco_fp(idep)%p => this%init_jaco_p(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
+    jaco                 => this%jaco_fp(idep)%p
   end function
 
   subroutine res_equation_set_jaco_matr(this, const, nonconst)
@@ -184,6 +227,16 @@ contains
       if (associated(this%jaco_ft(i)%p)) call this%jaco_ft(i)%p%set_matr(const = const, nonconst = nonconst)
     end do
   end subroutine
+
+  logical function res_equation_has_precon_f(this, idep) result(tf)
+    !! determines if derivatives of f wrt vdep has a preconditioner
+    class(res_equation), intent(in) :: this
+    integer,             intent(in) :: idep
+      !! dependency var selector index
+
+    tf = .false.
+    if (allocated(this%jaco_fp)) tf = associated(this%jaco_fp(idep)%p)
+  end function
 
   subroutine res_equation_init_f_vsel(this, mvar)
     !! set main variable and initialize residual data
@@ -208,8 +261,9 @@ contains
     this%f    => this%vprov%d(this%iprov_f)%p
 
     ! allocate f jacobians
-    allocate (this%jaco_f( size(this%vdep%d)))
-    allocate (this%jaco_ft(size(this%vdep%d)))
+    allocate (this%jaco_f( size(this%vdep%d)), &
+      &       this%jaco_fp(size(this%vdep%d)), &
+      &       this%jaco_ft(size(this%vdep%d))  )
   end subroutine
 
   subroutine res_equation_init_f_nvar_ntab(this, mvar, tab, name)

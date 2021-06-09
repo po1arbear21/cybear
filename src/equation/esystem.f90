@@ -6,6 +6,7 @@ module esystem_m
   use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
+  use gmres_m,            only: gmres_options
   use grid_m,             only: grid_table, grid_table_ptr
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, matrix_convert
   use newton_m,           only: newton_opt, newton
@@ -54,11 +55,14 @@ module esystem_m
     integer              :: ninput
       !! total number of input values
 
-    type(block_real)     :: df
+    type(block_real)              :: df
       !! derivatives of f wrt x
-    logical, allocatable :: dfconst(:,:)
+    logical,          allocatable :: dfconst(:,:)
       !! constant flags for df
-    type(block_real)     :: dft
+    type(block_real), allocatable :: dfp
+      !! preconditioner derivatives of f wrt x
+      !! allocatable: indicates if preconditioner is being computed
+    type(block_real)              :: dft
       !! derivatives of f wrt d/dt(x); constant
 
     logical :: finished_init
@@ -83,6 +87,7 @@ module esystem_m
     generic   :: set_x           => esystem_set_x,    esystem_set_x_block
     generic   :: update_x        => esystem_update_x, esystem_update_x_block
     generic   :: get_df          => esystem_get_df,   esystem_get_df_cmplx
+    generic   :: get_dfp         => esystem_get_dfp,  esystem_get_dfp_cmplx
     generic   :: get_dft         => esystem_get_dft,  esystem_get_dft_cmplx
     procedure :: print           => esystem_print
 
@@ -95,21 +100,31 @@ module esystem_m
     procedure, private :: esystem_set_x,    esystem_set_x_block
     procedure, private :: esystem_update_x, esystem_update_x_block
     procedure, private :: esystem_get_df,   esystem_get_df_cmplx
+    procedure, private :: esystem_get_dfp,  esystem_get_dfp_cmplx
     procedure, private :: esystem_get_dft,  esystem_get_dft_cmplx
     procedure, private :: esystem_get_x,    esystem_get_x_block
   end type
 
 contains
 
-  subroutine esystem_init(this, name)
+  subroutine esystem_init(this, name, prec)
     !! initialize equation system
-    class(esystem), intent(out) :: this
-    character(*),   intent(in)  :: name
+    class(esystem),    intent(out) :: this
+    character(*),      intent(in)  :: name
+    logical, optional, intent(in)  :: prec
+      !! should a preconditioner matrix be created? (default: false)
+
+    logical :: prec_
 
     this%name = name
 
+    ! preconditoner
+    prec_ = .false.
+    if (present(prec)) prec_ = prec
+    if (prec_) allocate(this%dfp)
+
     ! init dependency graph
-    call this%g%init()
+    call this%g%init(prec_)
 
     ! init allocated equation vector
     call this%ealloc%init(0, c=8)
@@ -142,6 +157,7 @@ contains
     ! destruct jacobians
     call this%df%destruct()
     call this%dft%destruct()
+    if (allocated(this%dfp)) call this%dfp%destruct()
   end subroutine
 
   subroutine esystem_provide_vsel(this, v, input)
@@ -342,6 +358,7 @@ contains
     subroutine try_fix()
       !! try to generate missing equations
 
+      integer, parameter :: CAP = 32
       integer                          :: i
       logical                          :: status
       type(vselector_ptr)              :: vp
@@ -350,8 +367,8 @@ contains
       type(selector_equation), pointer :: e
 
       ! get list of provided vars, init fix list (unprovided)
-      call prov%init(0, 32)
-      call fix_list%init(0, 32)
+      call prov%init(    0, c = CAP)
+      call fix_list%init(0, c = CAP)
       do i = 1, this%g%nodes%n
         associate (n => this%g%nodes%d(i)%p)
           if (n%status == STATUS_DEP) then
@@ -457,6 +474,7 @@ contains
       ! allocate jacobians
       call this%df%init( this%i1 - this%i0 + 1)
       call this%dft%init(this%i1 - this%i0 + 1)
+      if (allocated(this%dfp)) call this%dfp%init(this%i1 - this%i0 + 1)
       allocate (this%dfconst(this%nbl,this%nbl))
 
       ! set jacobians (loop over residuals and main variables)
@@ -479,6 +497,12 @@ contains
                   ! set pointer
                   call this%df%set_ptr(ibl1, ibl2, fn%total_jaco(jimvar)%p%b(itab1,itab2)%p)
                   this%dfconst(ibl1,ibl2) = fn%total_jaco(jimvar)%p%const(itab1,itab2)
+                end if
+
+                ! init dfp matrix
+                if (associated(fn%total_jaco_p(jimvar)%p)) then
+                  ! set pointer
+                  call this%dfp%set_ptr(ibl1, ibl2, fn%total_jaco_p(jimvar)%p%b(itab1,itab2)%p)
                 end if
 
                 ! init dft matrix
@@ -558,13 +582,15 @@ contains
     end select
   end subroutine
 
-  subroutine esystem_eval(this, f, df)
-    !! evaluate equations, get residuals and jacobians
+  subroutine esystem_eval(this, f, df, dfp)
+    !! evaluate equations, get residuals, jacobians, and preconditioner
     class(esystem),              intent(inout) :: this ! equation system
     real,              optional, intent(out)   :: f(:)
       !! output residuals
     type(sparse_real), optional, intent(out)   :: df
       !! output jacobian
+    type(sparse_real), optional, intent(out)   :: dfp
+      !! output preconditioner jacobian
 
     integer :: i, j, k0, k1, ibl1, ibl2
 
@@ -609,6 +635,9 @@ contains
 
     ! output jacobian
     if (present(df)) call this%get_df(df)
+
+    ! output preconditioner jacobian
+    if (present(dfp)) call this%get_dfp(dfp)
   end subroutine
 
   function esystem_get_main_var(this, iimvar) result(mv)
@@ -663,55 +692,79 @@ contains
     if (.not. found) call program_error("main variable with name "//name//" not found")
   end function
 
-  subroutine esystem_solve(this, opt)
+  subroutine esystem_solve(this, nopt, gopt)
     !! solves equations system by newton-raphson method.
-    class(esystem),             intent(inout) :: this
-    type(newton_opt), optional, intent(in)    :: opt
+    class(esystem),                intent(inout) :: this
+    type(newton_opt),    optional, intent(in)    :: nopt
+      !! options for the newton solver
+    type(gmres_options), optional, intent(in)    :: gopt
+      !! options for the iterative solver in each newton iteration (only used when nopt%it_solver == true)
 
     real                      :: p(0)
     real, allocatable         :: x(:)
-    type(newton_opt)          :: opt_
-    type(sparse_real), target :: df
+    type(newton_opt)          :: nopt_
+    type(sparse_real), target :: df, dfp
 
-    if (present(opt)) then
-      ASSERT(size(opt%atol) == this%n)
-      opt_ = opt
+    ! parse optional newton options
+    if (present(nopt)) then
+      ASSERT(size(nopt%atol) == this%n)
+      nopt_ = nopt
     else
-      call opt_%init(this%n)
+      call nopt_%init(this%n)
     end if
 
     allocate (x(this%n))
 
-    call newton(fun, p, opt_, this%get_x(), x)
+    call newton(fun, p, nopt_, this%get_x(), x, gmres_opt = gopt)
 
     ! save newton's result in esystem's variables
     call this%set_x(x)
 
+    ! release factorizations
+    if (nopt_%it_solver) then
+      call dfp%destruct()
+    else
+      call df%destruct()
+    end if
+
   contains
 
-    subroutine fun(x, p, f, dfdx, dfdp)
-      real,                        intent(in)  :: x(:)
+    subroutine fun(x, p, f, dfdx, dfdx_prec, dfdp)
+      real,                                  intent(in)  :: x(:)
         !! arguments
-      real,                        intent(in)  :: p(:)
+      real,                                  intent(in)  :: p(:)
         !! parameters
-      real,                        intent(out) :: f(:)
+      real,               optional,          intent(out) :: f(:)
         !! output function values
-      class(matrix_real), pointer, intent(out) :: dfdx
+      class(matrix_real), optional, pointer, intent(out) :: dfdx
         !! output pointer to jacobian of f wrt x
-      real, optional,              intent(out) :: dfdp(:,:)
+      class(matrix_real), optional, pointer, intent(out) :: dfdx_prec
+        !! optional output pointer to preconditioner jacobian of f wrt x
+      real,               optional,          intent(out) :: dfdp(:,:)
         !! optional output jacobian of f wrt p
 
       ! params not needed
       ASSERT(size(p) == 0)
-      ASSERT(.not. present(dfdp))
       IGNORE(p)
+      ASSERT(present(dfdx))
+      ASSERT(.not. present(dfdp))
       IGNORE(dfdp)
 
       ! save input variable
       call this%set_x(x)
 
-      ! compute residue and jacobian
-      call this%eval(f, df)
+      ! compute residue, jacobian, and possible preconditioner
+      if (nopt_%it_solver) then
+        ASSERT(present(dfdx_prec))
+        call this%eval(f = f, df = df, dfp = dfp)
+        call dfp%factorize()
+        dfdx_prec => dfp
+
+      else
+        ASSERT(.not. present(dfdx_prec))
+        call this%eval(f = f, df = df)
+        call df%factorize()
+      end if
       dfdx => df
     end subroutine
 
@@ -851,8 +904,33 @@ contains
     call matrix_convert(df_real, df     )     ! sparse_cmplx <- sparse_real
   end subroutine
 
+  subroutine esystem_get_dfp(this, dfp)
+    !! get dfp as sparse matrix
+    class(esystem),    intent(in)  :: this
+    type(sparse_real), intent(out) :: dfp
+      !! output sparse matrix
+
+    ASSERT(allocated(this%dfp))
+
+    call matrix_convert(this%dfp, dfp)        ! sparse_real <- block_real
+  end subroutine
+
+  subroutine esystem_get_dfp_cmplx(this, dfp)
+    !! get dfp as complex sparse matrix
+    class(esystem),     intent(in)  :: this
+    type(sparse_cmplx), intent(out) :: dfp
+      !! output sparse matrix
+
+    type(sparse_real)  :: dfp_real
+
+    ASSERT(allocated(this%dfp))
+
+    call matrix_convert(this%dfp, dfp_real)   ! sparse_real  <- block_real
+    call matrix_convert(dfp_real, dfp     )   ! sparse_cmplx <- sparse_real
+  end subroutine
+
   subroutine esystem_get_dft(this, dft)
-    !! get df as sparse matrix
+    !! get dft as sparse matrix
     class(esystem),    intent(in)  :: this
     type(sparse_real), intent(out) :: dft
       !! output sparse matrix
@@ -861,7 +939,7 @@ contains
   end subroutine
 
   subroutine esystem_get_dft_cmplx(this, dft)
-    !! get df as complex sparse matrix
+    !! get dft as complex sparse matrix
     class(esystem),     intent(in)  :: this
     type(sparse_cmplx), intent(out) :: dft
       !! output sparse matrix

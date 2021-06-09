@@ -7,6 +7,7 @@ program test
   use test_distributions_m
   use test_dual_m
   use test_esystem_m
+  use test_esystem_prec_m
   use test_expm_m
   use test_gmres_m
   use test_grid_m
@@ -53,6 +54,7 @@ program test
   call test_distributions()
   call test_dual()
   call test_esystem()
+  call test_esystem_prec()
   call test_expm()
   call test_gmres()
   call test_grid()

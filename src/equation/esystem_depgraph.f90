@@ -49,16 +49,22 @@ module esystem_depgraph_m
 
     type(vector_jacobian_matrix_ptr) :: partial_jaco
       !! partial derivatives wrt parents
+    type(vector_jacobian_matrix_ptr) :: partial_jaco_p
+      !! partial preconditioner derivatives wrt parents
     type(vector_jacobian_matrix_ptr) :: partial_jaco_t
       !! partial derivatives wrt parents_t (only used when status == STATUS_RES)
 
     type(jacobian_matrix_ptr), allocatable :: total_jaco(:)
       !! total derivatives wrt main vars
+    type(jacobian_matrix_ptr), allocatable :: total_jaco_p(:)
+      !! total preconditioner derivatives wrt main vars
     type(jacobian_matrix_ptr), allocatable :: total_jaco_t(:)
       !! total derivatives wrt time derivatives of main vars (STATUS_RES only)
 
     type(vector_jacobian_chain_ptr), allocatable :: jchain(:)
       !! jacobian chains for computation of total derivatives wrt main vars
+    type(vector_jacobian_chain_ptr), allocatable :: jchain_p(:)
+      !! jacobian chains for computation of total precondtioner derivatives wrt main vars
     type(vector_jacobian_chain_ptr), allocatable :: jchain_t(:)
       !! jacobian chains for computation of total derivatives wrt time der. of main vars
   contains
@@ -112,6 +118,8 @@ module esystem_depgraph_m
       !! main variable indices
     type(vector_int)          :: ieval
       !! equation evaluation list
+    logical                   :: prec
+      !! preconditioner flag
   contains
     procedure :: init     => depgraph_init
     procedure :: destruct => depgraph_destruct
@@ -147,8 +155,9 @@ contains
     integer,                 intent(in)    :: iimvar
       !! index for g%imvar (only used when status == STATUS_MAIN)
     integer,                 intent(in)    :: status
-      !! node status
+      !! node status (cf. STATUS_DEP/PROV/MAIN/RES)
 
+    integer, parameter :: CAP = 8
     integer :: idep
 
     ! set simple members
@@ -173,13 +182,14 @@ contains
     this%iequ = e%id
 
     ! init vectors
-    call this%parents%init(       0, c = 8)
-    call this%parents_t%init(     0, c = 8)
-    call this%partial_jaco%init(  0, c = 8)
-    call this%partial_jaco_t%init(0, c = 8)
+    call this%parents%init(       0, c = CAP)
+    call this%parents_t%init(     0, c = CAP)
+    call this%partial_jaco%init(  0, c = CAP)
+    call this%partial_jaco_t%init(0, c = CAP)
+    call this%partial_jaco_p%init(0, c = CAP)
 
     ! get parents, parents_t
-    if (status == STATUS_PROV) then
+    if      (status == STATUS_PROV) then
       ! collect dependencies
       do idep = 1, e%e%vdep%n
         if (associated(e%e%jaco(iprov,idep)%p)) then
@@ -188,9 +198,17 @@ contains
 
           ! save jacobian matrix pointer for partial derivatives
           call this%partial_jaco%push(jacobian_matrix_ptr(e%e%jaco(iprov,idep)%p%matr))
+
+          ! if precondioner should be computed: use precondionter if avail, otherwise use exact jacobian
+          if (e%e%has_precon(iprov, idep)) then
+            call this%partial_jaco_p%push(jacobian_matrix_ptr(e%e%jaco_p(iprov,idep)%p%matr))
+          else
+            call this%partial_jaco_p%push(jacobian_matrix_ptr(e%e%jaco(  iprov,idep)%p%matr))
+          end if
         end if
       end do
-    elseif (status == STATUS_RES) then
+
+    else if (status == STATUS_RES) then
       ! cast equation to residual equation
       select type (r => e%e)
         class is (res_equation)
@@ -201,6 +219,13 @@ contains
 
               ! save jacobian matrix pointer for partial derivatives
               call this%partial_jaco%push(jacobian_matrix_ptr(r%jaco_f(idep)%p%matr))
+
+              ! if precondioner should be computed: use precondionter if avail, otherwise use exact jacobian
+              if (r%has_precon_f(idep)) then
+                call this%partial_jaco_p%push(jacobian_matrix_ptr(r%jaco_fp(idep)%p%matr))
+              else
+                call this%partial_jaco_p%push(jacobian_matrix_ptr(r%jaco_f( idep)%p%matr))
+              end if
             end if
             if (associated(r%jaco_ft(idep)%p)) then
               ! add node as dependency to graph and save as parent
@@ -232,6 +257,14 @@ contains
       end do
     end if
 
+    if (allocated(this%jchain_p)) then
+      do i = 1, size(this%jchain_p)
+        do j = 1, this%jchain_p(i)%n
+          if (associated(this%jchain_p(i)%d(j)%p)) deallocate (this%jchain_p(i)%d(j)%p)
+        end do
+      end do
+    end if
+
     if (allocated(this%jchain_t)) then
       do i = 1, size(this%jchain_t)
         do j = 1, this%jchain_t(i)%n
@@ -246,6 +279,7 @@ contains
     class(node),    intent(inout) :: this
     type(depgraph), intent(inout) :: g
 
+    integer, parameter :: CAP = 8
     integer :: i
 
     ! check if this node was already visited
@@ -285,22 +319,24 @@ contains
       call g%equs%d(this%iequ)%e%eval()
     else
       ! allocate total derivative jacobian matrices and chain vectors
-      allocate (this%total_jaco(  g%imvar%n))
-      allocate (this%total_jaco_t(g%imvar%n))
-      allocate (this%jchain(      g%imvar%n))
-      allocate (this%jchain_t(    g%imvar%n))
+      allocate (this%total_jaco(  g%imvar%n), &
+        &       this%total_jaco_p(g%imvar%n), &
+        &       this%total_jaco_t(g%imvar%n), &
+        &       this%jchain(      g%imvar%n), &
+        &       this%jchain_p(    g%imvar%n), &
+        &       this%jchain_t(    g%imvar%n)  )
 
       ! init jacobian chain vectors
       do i = 1, g%imvar%n
-        call this%jchain(  i)%init(0, 8)
-        call this%jchain_t(i)%init(0, 8)
+        call this%jchain(  i)%init(0, c=CAP)
+        call this%jchain_t(i)%init(0, c=CAP)
+        call this%jchain_p(i)%init(0, c=CAP)
       end do
 
       ! add jacobian chains for parents
-      call init_jchains(this%parents, this%partial_jaco, this%total_jaco, this%jchain, .false.)
-
-      ! add jacobian chains for parents_t
-      call init_jchains(this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t, .true.)
+      call init_jchains(            this%parents,   this%partial_jaco,   this%total_jaco,   this%jchain,   .false., .false.)
+      call init_jchains(            this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t, .true.,  .false.)
+      if (g%prec) call init_jchains(this%parents,   this%partial_jaco_p, this%total_jaco_p, this%jchain_p, .false., .true. )
     end if
 
     ! set analyzed flag
@@ -324,7 +360,7 @@ contains
 
   contains
 
-    subroutine init_jchains(parents, partial_jaco, total_jaco, jchain, time)
+    subroutine init_jchains(parents, partial_jaco, total_jaco, jchain, time, prec)
       type(vector_int),                 intent(in)    :: parents
         !! parents or parents_t
       type(vector_jacobian_matrix_ptr), intent(in)    :: partial_jaco
@@ -335,6 +371,8 @@ contains
         !! jchain or jchain_t
       logical,                          intent(in)    :: time
         !! time derivative flag
+      logical,                          intent(in)    :: prec
+        !! preconditioner flag
 
       integer                                :: i, j, k
       type(jacobian_matrix),     pointer     :: n_total_jaco
@@ -345,17 +383,23 @@ contains
       ! add multiplication chains for parents
       do i = 1, parents%n
         associate (n => g%nodes%d(parents%d(i))%p)
-          if (n%const) then
+          if      (n%const) then
             ! do nothing for const node
             cycle
-          elseif (n%status == STATUS_MAIN) then
+          else if (n%status == STATUS_MAIN) then
             ! set total derivatives
             total_jaco(n%iimvar)%p => partial_jaco%d(i)%p
           else
             ! chain rule for all main vars
             do j = 1, g%imvar%n
-              if (time) then
+              if      (time) then
                 n_total_jaco => n%total_jaco_t(j)%p
+              else if (prec) then
+                if (associated(n%total_jaco_p(j)%p)) then
+                  n_total_jaco => n%total_jaco_p(j)%p
+                else
+                  n_total_jaco => n%total_jaco(j)%p
+                end if
               else
                 n_total_jaco => n%total_jaco(j)%p
               end if
@@ -381,9 +425,9 @@ contains
 
       ! add addition chains for parents (only after all multiplication chains have been added)
       do i = 1, g%imvar%n
-        if (jchain(i)%n == 0) then ! no chain for this main var
+        if      (jchain(i)%n == 0) then ! no chain for this main var
           cycle
-        elseif ((.not. associated(total_jaco(i)%p)) .and. jchain(i)%n == 1) then ! only one chain, set total derivatives
+        else if ((.not. associated(total_jaco(i)%p)) .and. (jchain(i)%n == 1)) then ! only one chain, set total derivatives
           total_jaco(i)%p => jchain(i)%d(1)%p%result
         else ! more than one chain, add results
           ! allocate temporary jacobian matrix pointers for addition
@@ -437,6 +481,15 @@ contains
         end do
       end do
     end if
+
+    if (allocated(this%jchain_p)) then
+      do i = 1, size(this%jchain_p)
+        ! evaluate non-constant parts of jacobian chains
+        do j = 1, this%jchain_p(i)%n
+          call this%jchain_p(i)%d(j)%p%eval(const = .false.)
+        end do
+      end do
+    end if
   end subroutine
 
   subroutine depgraph_equ_init(this, g, id, e)
@@ -479,16 +532,22 @@ contains
     end do
   end subroutine
 
-  subroutine depgraph_init(this)
+  subroutine depgraph_init(this, prec)
     !! initialize dependency graph
     class(depgraph), intent(out) :: this
+    logical,         intent(in)  :: prec
+      !! should a preconditioner be computed?
 
-    call this%equs%init( 0, c=32)
-    call this%nodes%init(0, c=32)
-    call this%hnodes%init(  c=32)
-    call this%ires%init( 0, c=32)
-    call this%imvar%init(0, c=32)
-    call this%ieval%init(0, c=32)
+    integer, parameter :: CAP = 32
+
+    this%prec = prec
+
+    call this%equs%init( 0, c = CAP)
+    call this%nodes%init(0, c = CAP)
+    call this%hnodes%init(  c = CAP)
+    call this%ires%init( 0, c = CAP)
+    call this%imvar%init(0, c = CAP)
+    call this%ieval%init(0, c = CAP)
   end subroutine
 
   subroutine depgraph_destruct(this)
@@ -579,9 +638,9 @@ contains
     ! init/update node
     if (status == STATUS_MAIN) then
       call this%imvar%push(inode)
-      call this%nodes%d(inode)%p%init(this, inode, e, v, 0, this%imvar%n, status)
+      call this%nodes%d(inode)%p%init(this, inode, e, v, 0,     this%imvar%n, status)
     else
-      call this%nodes%d(inode)%p%init(this, inode, e, v, iprov, 0, status)
+      call this%nodes%d(inode)%p%init(this, inode, e, v, iprov, 0,            status)
     end if
   end function
 
@@ -619,7 +678,7 @@ contains
     logical, optional, intent(in) :: svg
       !! create svg file (default: false)
 
-    character(5), parameter :: COLOR(0:3) = ['red  ', 'black', 'blue ', 'green']
+    character(len=*), parameter :: COLOR(0:3) = ['red  ', 'black', 'blue ', 'green']
     integer :: iounit, i, j
     logical :: pdf_, png_, svg_
 
