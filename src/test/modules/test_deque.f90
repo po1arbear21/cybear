@@ -1,6 +1,8 @@
 module test_deque_m
-  use test_case_m
-  use deque_m
+
+  use test_case_m, only: test_case
+  use deque_m,     only: deque_int
+
   implicit none
 
   private

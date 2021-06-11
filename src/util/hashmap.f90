@@ -2,7 +2,7 @@
 
 module hashmap_m
 
-  use error_m
+  use error_m,  only: assert_failed
   use string_m, only: string
   use util_m,   only: hash
   use vector_m, only: vector_int, vector_log, vector_string, vector_real, vector_cmplx

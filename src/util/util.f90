@@ -1,7 +1,8 @@
 module util_m
-  use error_m
+
+  use error_m,      only: program_error
   use iso_c_binding
-  use vector_m
+  use vector_m,     only: vector_real
 
   implicit none
 

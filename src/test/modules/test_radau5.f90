@@ -2,9 +2,9 @@
 
 module test_radau5_m
 
-  use test_case_m
-  use radau5_m
-  use math_m
+  use math_m,      only: linspace
+  use radau5_m,    only: ode_result, ode_options, radau5
+  use test_case_m, only: test_case
 
   implicit none
 

@@ -1,5 +1,7 @@
 module vector_m
+
   use string_m
+
   implicit none
 
   private

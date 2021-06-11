@@ -2,9 +2,8 @@
 
 module test_newton_m
 
-  use error_m,     only: assert_failed
-  use matrix_m,    only: matrix_real, dense_real
-  use newton_m
+  use matrix_m,    only: dense_real, matrix_real
+  use newton_m,    only: newton, newton_opt, newton1D, newton1D_opt
   use test_case_m, only: test_case
 
   implicit none

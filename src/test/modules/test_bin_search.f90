@@ -1,7 +1,7 @@
 module test_bin_search_m
 
-  use bin_search_m
-  use test_case_m, only: test_case
+  use bin_search_m, only: bin_search, BS_GREAT, BS_LESS, BS_NEAR
+  use test_case_m,  only: test_case
 
   implicit none
 

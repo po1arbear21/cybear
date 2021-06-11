@@ -1,8 +1,10 @@
 module test_poly_m
-  use test_case_m
-  use math_m
-  use poly_m
-  use util_m
+
+  use math_m,      only: linspace
+  use poly_m,      only: poly1D, poly2D, poly3D
+  use test_case_m, only: test_case
+  use util_m,      only: int2str
+
   implicit none
 
   private

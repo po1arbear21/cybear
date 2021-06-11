@@ -1,18 +1,20 @@
 #include "../macro.f90.inc"
 
 module pardiso_m
-  use error_m
-  use sparse_idx_m
-  use vector_m
+
+  use error_m,      only: assert_failed, program_error
+  use sparse_idx_m, only: sparse_idx
+  use vector_m,     only: vector_int
+
   implicit none
 
   ! Privat vor Staat (Olaf Scholz does not approve of this message)
 
   private
-  public :: create_pardiso_handle
-  public :: destruct_pardiso_handle
-  public :: pardiso_factorize
-  public :: pardiso_solve
+  public create_pardiso_handle
+  public destruct_pardiso_handle
+  public pardiso_factorize
+  public pardiso_solve
 
   ! include pardiso or pardiso_64 interface
 #include "mkl_pardiso.fi"

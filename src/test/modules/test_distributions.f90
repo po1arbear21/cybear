@@ -1,7 +1,7 @@
 module test_distributions_m
 
-  use distributions_m
-  use test_case_m, only: test_case
+  use distributions_m, only: bose_einstein, d_bose_einstein, fermi_dirac, d_fermi_dirac, maxwell_boltzmann, d_maxwell_boltzmann
+  use test_case_m,     only: test_case
 
   implicit none
 

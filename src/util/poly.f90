@@ -1,7 +1,9 @@
 #include "macro.f90.inc"
 
 module poly_m
-  use math_m
+
+  use math_m, only: eye_real
+
   implicit none
 
   private

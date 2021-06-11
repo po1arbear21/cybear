@@ -4,7 +4,7 @@ module math_m
 
   use bin_search_m,    only: bin_search, BS_LESS
   use error_m,         only: assert_failed
-  use ieee_arithmetic, only: ieee_class, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, IEEE_QUIET_NAN, operator(==)
+  use ieee_arithmetic
 
   implicit none
 

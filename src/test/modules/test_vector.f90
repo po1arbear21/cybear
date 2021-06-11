@@ -1,6 +1,8 @@
 module test_vector_m
-  use test_case_m
-  use vector_m
+
+  use test_case_m, only: test_case
+  use vector_m,    only: vector_int
+
   implicit none
 
   private

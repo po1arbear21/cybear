@@ -1,6 +1,6 @@
 module map_m
-  use string_m
-  use vector_m
+
+  use string_m, only: string, operator(<), operator(==)
 
   implicit none
 

@@ -2,8 +2,8 @@
 
 module qsort_m
 
-  use error_m
-  use string_m
+  use error_m,  only: assert_failed
+  use string_m, only: string, operator(<), operator(<=), operator(>)
 
   implicit none
 

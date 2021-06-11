@@ -2,7 +2,7 @@
 
 module filesystem_m
 
-  use error_m
+  use error_m, only: program_error
 
   implicit none
 

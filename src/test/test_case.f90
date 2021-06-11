@@ -1,7 +1,9 @@
 module test_case_m
-  use color_m
-  use error_m
-  use string_m
+
+  use color_m,  only: COL_DEFAULT, COL_GREEN, COL_MAGENTA, COL_RED, COL_WHITE, COL_YELLOW
+  use error_m,  only: program_error
+  use string_m, only: string
+
   implicit none
 
   private

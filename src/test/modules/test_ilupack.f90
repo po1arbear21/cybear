@@ -1,9 +1,10 @@
 #ifdef USE_ILUPACK
 
 module test_ilupack_m
-  use ilupack_m
+
+  use ilupack_m,    only: ilupack_handle
   use sparse_idx_m, only: SPARSE_IDX
-  use test_case_m
+  use test_case_m,  only: test_case
 
   implicit none
 

@@ -1,7 +1,9 @@
 module test_qsort_m
-  use test_case_m
-  use qsort_m, only: qsort
-  use string_m
+
+  use qsort_m,     only: qsort
+  use string_m,    only: string
+  use test_case_m, only: test_case
+
   implicit none
 
   private

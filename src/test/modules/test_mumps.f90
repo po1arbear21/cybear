@@ -1,8 +1,10 @@
 #ifdef USE_MUMPS
 module test_mumps_m
-  use mumps_m
-  use sparse_idx_m
-  use test_case_m
+
+  use mumps_m,      only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, destruct_mumps_handle_r, mumps_factorize, mumps_solve
+  use sparse_idx_m, only: SPARSE_IDX
+  use test_case_m,  only: test_case
+
   implicit none
 
   private

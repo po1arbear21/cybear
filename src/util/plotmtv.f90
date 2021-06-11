@@ -3,7 +3,7 @@
 module plotmtv_m
 
   use filesystem_m, only: create_parent_dir
-  use error_m
+  use error_m,      only: program_error
 
   implicit none
 

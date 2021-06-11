@@ -8,7 +8,6 @@ module newton_m
   use matop_m,         only: single_matop_real
   use matrix_m,        only: matrix_real
 
-
   implicit none
 
   private

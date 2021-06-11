@@ -1,74 +1,76 @@
 #include "../macro.f90.inc"
 
 module matrix_m
-  use array_m
-  use bin_search_m
+
+  use bin_search_m,     only: bin_search
   use blas95
-  use error_m
-  use high_precision_m
+  use error_m,          only: assert_failed, program_error
+  use high_precision_m, only: hp_dot
 #ifdef USE_ILUPACK
   use ilupack_m
 #endif
-  use iso_fortran_env, only: int32, int64
+  use iso_fortran_env,  only: int32, int64
   use lapack95
 #ifdef USE_MUMPS
-  use mumps_m
+  use mumps_m,          only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, &
+    &                         destruct_mumps_handle_r, mumps_factorize, mumps_solve
 #endif
-  use omp_lib
-  use pardiso_m
-  use qsort_m
-  use sparse_idx_m
-  use util_m, only: int2str
-  use vector_m
+  use omp_lib,          only: omp_get_thread_num, omp_get_num_threads
+  use pardiso_m,        only: create_pardiso_handle, destruct_pardiso_handle, pardiso_factorize, pardiso_solve
+  use qsort_m,          only: qsort
+  use sparse_idx_m,     only: sparse_idx
+  use util_m,           only: int2str
+  use vector_m,         only: vector_cmplx, vector_int, vector_log, vector_real
+
   implicit none
 
   private
-  public :: SOLVER_PARDISO
+  public SOLVER_PARDISO
 #ifdef USE_MUMPS
-  public :: SOLVER_MUMPS
+  public SOLVER_MUMPS
 #endif
 #ifdef USE_ILUPACK
-  public :: SOLVER_ILUPACK
+  public SOLVER_ILUPACK
 #endif
-  public :: default_solver
-  public :: matrix_real
-  public :: matrix_cmplx
-  public :: matrix_ptr_real
-  public :: matrix_ptr_cmplx
-  public :: dense_real
-  public :: dense_cmplx
-  public :: dense_ptr_real
-  public :: dense_ptr_cmplx
-  public :: dense_eye_real
-  public :: dense_eye_cmplx
-  public :: sparse_real
-  public :: sparse_cmplx
-  public :: sparse_ptr_real
-  public :: sparse_ptr_cmplx
-  public :: sparse_eye_real
-  public :: sparse_eye_cmplx
-  public :: sparse_zero_real
-  public :: sparse_zero_cmplx
-  public :: spbuild_real
-  public :: spbuild_cmplx
-  public :: band_real
-  public :: band_cmplx
-  public :: band_ptr_real
-  public :: band_ptr_cmplx
-  public :: band_eye_real
-  public :: band_eye_cmplx
-  public :: hessenberg_real
-  public :: hessenberg_cmplx
-  public :: hessenberg_ptr_real
-  public :: hessenberg_ptr_cmplx
-  public :: triang_real
-  public :: triang_cmplx
-  public :: triang_ptr_real
-  public :: triang_ptr_cmplx
-  public :: block_real
-  public :: block_cmplx
-  public :: block_ptr_real
-  public :: block_ptr_cmplx
+  public default_solver
+  public matrix_real
+  public matrix_cmplx
+  public matrix_ptr_real
+  public matrix_ptr_cmplx
+  public dense_real
+  public dense_cmplx
+  public dense_ptr_real
+  public dense_ptr_cmplx
+  public dense_eye_real
+  public dense_eye_cmplx
+  public sparse_real
+  public sparse_cmplx
+  public sparse_ptr_real
+  public sparse_ptr_cmplx
+  public sparse_eye_real
+  public sparse_eye_cmplx
+  public sparse_zero_real
+  public sparse_zero_cmplx
+  public spbuild_real
+  public spbuild_cmplx
+  public band_real
+  public band_cmplx
+  public band_ptr_real
+  public band_ptr_cmplx
+  public band_eye_real
+  public band_eye_cmplx
+  public hessenberg_real
+  public hessenberg_cmplx
+  public hessenberg_ptr_real
+  public hessenberg_ptr_cmplx
+  public triang_real
+  public triang_cmplx
+  public triang_ptr_real
+  public triang_ptr_cmplx
+  public block_real
+  public block_cmplx
+  public block_ptr_real
+  public block_ptr_cmplx
 
   public matrix_add
   public matrix_convert
