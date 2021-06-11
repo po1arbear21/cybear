@@ -1,13 +1,15 @@
 #include "../macro.f90.inc"
 
 module sqrtm_m
-  use error_m
-  use matrix_m
-  use schur_m
+
+  use error_m,  only: assert_failed
+  use matrix_m, only: dense_real, hessenberg_real, matrix_convert, triang_real
+  use schur_m,  only: schur
+
   implicit none
 
   private
-  public :: sqrtm
+  public sqrtm
 
   interface sqrtm
     module procedure :: sqrtm_dense_real

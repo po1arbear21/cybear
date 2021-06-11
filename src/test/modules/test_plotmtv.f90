@@ -1,9 +1,9 @@
 module test_plotmtv_m
 
-  use filesystem_m
-  use plotmtv_m
-  use string_m
-  use test_case_m
+  use filesystem_m, only: create_tmp_file, remove_file
+  use plotmtv_m,    only: curve_options, plotmtv, plotmtv_write, plotset_options, view3d_options
+  use string_m,     only: string
+  use test_case_m,  only: test_case
 
   implicit none
 

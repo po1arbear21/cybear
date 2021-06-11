@@ -1,4 +1,5 @@
 module string_m
+
   implicit none
 
   type string

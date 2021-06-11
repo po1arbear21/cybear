@@ -1,11 +1,12 @@
 #include "macro.f90.inc"
 
 module input_m
-  use error_m
+
+  use error_m,         only: program_error
   use iso_fortran_env, only: int32, int64
-  use normalization_m
-  use vector_m
-  use string_m
+  use normalization_m, only: norm, normalization
+  use vector_m,        only: vector_int, vector_real, vector_string
+  use string_m,        only: string
 
   implicit none
 

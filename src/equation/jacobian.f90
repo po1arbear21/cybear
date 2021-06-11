@@ -1,7 +1,8 @@
 #include "../util/macro.f90.inc"
 
 module jacobian_m
-  use error_m
+
+  use error_m,           only: assert_failed
   use hashmap_m,         only: hashmap_int
   use jacobian_matrix_m, only: jacobian_matrix
   use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil

@@ -1,9 +1,10 @@
 #include "../macro.f90.inc"
 
 module matop_m
-  use error_m
+
+  use error_m,        only: program_error
   use iso_c_binding,  only: c_loc, c_f_pointer
-  use matrix_m
+  use matrix_m,       only: matrix_cmplx, matrix_real, matrix_ptr_cmplx, matrix_ptr_real
 
   implicit none
 

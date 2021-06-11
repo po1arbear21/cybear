@@ -1,7 +1,8 @@
 module test_expm_m
-  use expm_m
-  use matrix_m
-  use test_case_m
+
+  use expm_m,      only: expm
+  use matrix_m,    only: dense_real
+  use test_case_m, only: test_case
 
   implicit none
 

@@ -1,6 +1,8 @@
 module test_random_m
-  use test_case_m
+
   use random_m
+  use test_case_m, only: test_case
+
   implicit none
 
   private

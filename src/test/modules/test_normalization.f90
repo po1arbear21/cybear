@@ -1,10 +1,12 @@
 module test_normalization_m
-  use test_case_m
-  use math_m
-  use normalization_m
+
+  use math_m,          only: PI
+  use normalization_m, only: denorm, destruct_normconst, init_normconst, norm
+  use test_case_m,     only: test_case
 #ifdef __INTEL_COMPILER
   use ifport
 #endif
+
   implicit none
 
   private

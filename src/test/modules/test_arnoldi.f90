@@ -1,8 +1,9 @@
 module test_arnoldi_m
-  use arnoldi_m
-  use matop_m
-  use matrix_m
-  use test_case_m
+
+  use arnoldi_m,   only: arnoldi
+  use matop_m,     only: single_matop_real
+  use matrix_m,    only: band_real, dense_real
+  use test_case_m, only: test_case
 
   implicit none
 

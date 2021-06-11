@@ -1,6 +1,7 @@
 #ifdef USE_FEAST
 
 module test_feast_m
+
   use feast_m,     only: feast, feast_option
   use test_case_m, only: test_case
 

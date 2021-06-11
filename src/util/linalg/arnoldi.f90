@@ -1,10 +1,12 @@
 #include "../macro.f90.inc"
 
 module arnoldi_m
-  use blas95
-  use error_m
-  use matop_m
-  use matrix_m
+
+  use blas95,   only: axpy, dot, nrm2
+  use error_m,  only: assert_failed
+  use matop_m,  only: matop_real
+  use matrix_m, only: dense_real
+
   implicit none
 
   private

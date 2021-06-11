@@ -1,7 +1,9 @@
 module test_sqrtm_m
-  use matrix_m
-  use sqrtm_m
-  use test_case_m
+
+  use matrix_m,    only: dense_real, hessenberg_real
+  use sqrtm_m,     only: sqrtm
+  use test_case_m, only: test_case
+
   implicit none
 
   private

@@ -1,9 +1,10 @@
 module test_input_m
-  use input_m
+
+  use input_m,         only: input_file
   use iso_fortran_env, only: int32, int64
-  use normalization_m
-  use string_m
-  use test_case_m
+  use normalization_m, only: init_normconst, norm
+  use string_m,        only: string
+  use test_case_m,     only: test_case
 
   implicit none
 

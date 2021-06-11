@@ -1,6 +1,7 @@
 module test_hashmap_m
-  use hashmap_m
-  use test_case_m
+
+  use hashmap_m,   only: hashmap_int
+  use test_case_m, only: test_case
 
   implicit none
 

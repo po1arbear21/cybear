@@ -1,9 +1,11 @@
 #ifdef USE_QUADPACK
 
 module test_quadpack_m
+
   use, intrinsic :: ieee_arithmetic
-  use test_case_m
-  use quadpack_m
+  use quadpack_m,  only: quadpack_int
+  use test_case_m, only: test_case
+
   implicit none
 
   private

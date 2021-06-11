@@ -1,5 +1,7 @@
 module random_m
+
   use iso_c_binding
+
   implicit none
 
   private

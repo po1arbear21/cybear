@@ -1,5 +1,6 @@
 module deque_m
-  use string_m
+
+  use string_m, only: string
 
   implicit none
 

@@ -2,7 +2,7 @@
 
 module bin_search_m
 
-  use error_m,         only: program_error, assert_failed
+  use error_m,         only: assert_failed, program_error
   use iso_fortran_env, only: int32, int64
 
   implicit none

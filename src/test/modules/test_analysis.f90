@@ -1,6 +1,6 @@
 module test_analysis_m
 
-  use test_case_m
+  use test_case_m,    only: test_case
   use esystem_m,      only: esystem
   use grid_m,         only: grid_data0_real
   use jacobian_m,     only: jacobian, jacobian_ptr

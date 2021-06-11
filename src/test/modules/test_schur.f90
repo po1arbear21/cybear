@@ -1,7 +1,9 @@
 module test_schur_m
-  use matrix_m
-  use schur_m
-  use test_case_m
+
+  use matrix_m,    only: dense_real, hessenberg_real
+  use schur_m,     only: schur
+  use test_case_m, only: test_case
+
   implicit none
 
   private

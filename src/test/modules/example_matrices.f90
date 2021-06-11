@@ -1,5 +1,6 @@
 module example_matrices_m
-  use matrix_m
+
+  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, hessenberg_real, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx, triang_real
 
   implicit none
 

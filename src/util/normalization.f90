@@ -1,10 +1,11 @@
 #include "macro.f90.inc"
 
 module normalization_m
-  use error_m
-  use map_m
-  use math_m
-  use string_m
+
+  use error_m,  only: program_error
+  use map_m,    only: map_string_real, mapnode_string_real
+  use math_m,   only: PI
+  use string_m, only: string
 
   implicit none
 

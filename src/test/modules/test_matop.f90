@@ -1,8 +1,8 @@
 module test_matop_m
 
-  use matop_m
-  use matrix_m
-  use test_case_m
+  use matop_m,     only: matop_c2r, single_matop_cmplx , single_matop_real
+  use matrix_m,    only: dense_cmplx, dense_real
+  use test_case_m, only: test_case
 
   implicit none
 

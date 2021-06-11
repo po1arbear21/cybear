@@ -1,13 +1,15 @@
 #include "../macro.f90.inc"
 
 module schur_m
-  use error_m
+
+  use error_m,  only: assert_failed
   use lapack95
-  use matrix_m
+  use matrix_m, only: dense_cmplx, dense_real, hessenberg_cmplx, hessenberg_real
+
   implicit none
 
   private
-  public :: schur
+  public schur
 
   interface schur
     module procedure :: schur_dense_real

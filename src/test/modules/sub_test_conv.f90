@@ -1,6 +1,7 @@
 #include "../../util/macro.f90.inc"
 
 submodule (test_matrix_m) test_conv_m
+
   implicit none
 
 contains

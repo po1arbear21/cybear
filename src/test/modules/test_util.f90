@@ -2,7 +2,7 @@ module test_util_m
 
   use string_m
   use test_case_m, only: test_case
-  use util_m
+  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, select_int
 
   implicit none
 
