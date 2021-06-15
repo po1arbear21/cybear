@@ -1,6 +1,9 @@
+#include "macro.f90.inc"
+
 module map_m
 
-  use string_m, only: string, operator(<), operator(==)
+  use error_m, only: assert_failed
+  use string_m
 
   implicit none
 

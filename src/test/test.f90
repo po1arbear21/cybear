@@ -15,6 +15,7 @@ program test
   use test_hashmap_m
   use test_high_precision_m
   use test_input_m
+  use test_map_m
   use test_math_m
   use test_matop_m
   use test_matrix_m
@@ -62,17 +63,18 @@ program test
   call test_hashmap()
   call test_high_precision()
   call test_input()
+  call test_map()
+  call test_math()
   call test_matop()
+  call test_matrix()
   call test_mkl_ilu()
+  call test_newton()
+  call test_normalization()
   call test_plotmtv()
   call test_poly()
   call test_qsort()
   call test_radau5()
   call test_random()
-  call test_math()
-  call test_matrix()
-  call test_newton()
-  call test_normalization()
   call test_schur()
   call test_sqrtm()
   call test_string()

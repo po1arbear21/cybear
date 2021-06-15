@@ -309,12 +309,13 @@ subroutine MAP_COPY(this, m)
 end subroutine
 
 function MAP_FIND(this, key) result(node)
-  !! find key in map (null if not found)
+  !! find using the key in map
   class(MAP_TYPE), intent(in) :: this
   TT,              intent(in) :: key
     !! key to lookup
   type(MAPNODE_TYPE), pointer :: node
     !! return found node
+    !! (null if not found)
 
   node => this%root
   do while (associated(node))
@@ -528,14 +529,22 @@ end subroutine
 subroutine MAP_TO_ARRAY(this, keys, values)
   !! convert map to array
   class(MAP_TYPE), intent(in)  :: this
-  TT, optional,    intent(out) :: keys(this%n)
+  TT, optional,    intent(out) :: keys(:)
     !! optional output array with keys
-  UU, optional,    intent(out) :: values(this%n)
+  UU, optional,    intent(out) :: values(:)
     !! optional output array with values
 
   ! local variables
   type(MAPNODE_TYPE), pointer  :: n
   integer                      :: i
+
+  if (present(keys)) then
+    ASSERT(size(keys) == this%n)
+  end if
+
+  if (present(values)) then
+    ASSERT(size(values) == this%n)
+  end if
 
   ! goto leftmost node
   n => this%leftmost()
@@ -543,12 +552,8 @@ subroutine MAP_TO_ARRAY(this, keys, values)
   ! iterate through map
   i = 1
   do while (associated(n))
-    if (present(keys)) then
-      keys(i) = n%key
-    end if
-    if (present(values)) then
-      values(i) = n%value
-    end if
+    if (present(keys  )) keys(i)   = n%key
+    if (present(values)) values(i) = n%value
     n => n%next()
     i = i + 1
   end do
