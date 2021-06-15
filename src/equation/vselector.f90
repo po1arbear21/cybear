@@ -2,7 +2,7 @@
 
 module vselector_m
 
-  use error_m,         only: assert_failed, programm_error
+  use error_m,         only: assert_failed, program_error
   use grid_m,          only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
   use iso_fortran_env, only: int64, int32
   use util_m,          only: hash

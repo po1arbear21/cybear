@@ -67,17 +67,17 @@ type MAP_TYPE
   integer                     :: n
     !! number of elements
 contains
-  procedure :: init      => MAP_INIT
-  procedure :: destruct  => MAP_DESTRUCT
-  procedure :: copy      => MAP_COPY
-  procedure :: find      => MAP_FIND
-  procedure :: find_pos  => MAP_FIND_POS
-  procedure :: get       => MAP_GET
-  procedure :: set       => MAP_SET
-  procedure :: leftmost  => MAP_LEFTMOST
-  procedure :: rightmost => MAP_RIGHTMOST
-  procedure :: insert    => MAP_INSERT
-  procedure :: to_array  => MAP_TO_ARRAY
+  procedure :: init     => MAP_INIT
+  procedure :: destruct => MAP_DESTRUCT
+  procedure :: copy     => MAP_COPY
+  procedure :: find     => MAP_FIND
+  procedure :: get      => MAP_GET
+  procedure :: set      => MAP_SET
+  procedure :: insert   => MAP_INSERT
+  procedure :: to_array => MAP_TO_ARRAY
+  procedure, private :: find_pos  => MAP_FIND_POS
+  procedure, private :: leftmost  => MAP_LEFTMOST
+  procedure, private :: rightmost => MAP_RIGHTMOST
 end type
 
 #undef PASTE
