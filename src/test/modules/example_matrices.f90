@@ -1,6 +1,6 @@
 module example_matrices_m
 
-  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, hessenberg_real, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx, triang_real
+  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, dense_cmplx, hessenberg_real, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx, triang_real
 
   implicit none
 
@@ -9,6 +9,7 @@ module example_matrices_m
   public matrix2
   public example_matrix3
   public example_matrix4
+  public example_matrix6
 
   interface matrix1
     !! full 9x9 matrix.
@@ -46,6 +47,13 @@ module example_matrices_m
     !! 3000 entries -> sparse
     !! taken from FEAST example folder
     module procedure :: example_matrix4_sparse_cmplx
+  end interface
+
+  interface example_matrix6
+    ! 2x2 matrix
+    ! 1  i
+    ! i  1
+    module procedure :: example_matrix6_dense_cmplx
   end interface
 
 contains
@@ -300,6 +308,19 @@ contains
 
     close (unit=iounit)
     call sb%save()
+  end subroutine
+
+  subroutine example_matrix6_dense_cmplx(d)
+    !! load example matrix 6 as complex dense matrix
+    type(dense_cmplx), intent(out) :: d
+
+    ! 2x2 matrix
+    ! 1  i
+    ! i  1
+
+    call d%init(reshape([&
+      & (1, 0), (0, 1),  &
+      & (0, 1), (1,  0)  ], [2, 2], order = [2, 1]))
   end subroutine
 
 end module

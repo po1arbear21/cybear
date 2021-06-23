@@ -9,6 +9,25 @@ contains
 
     call tc%init("dense")
 
+    ! scale real
+    block
+      real             :: d_0(5,5)
+      real, parameter  :: l = 3.0
+      type(dense_real) :: d
+
+      d_0 = reshape([         &
+        & 11, 16,  0,  0,  0, &
+        &  7, 12, 17,  0,  0, &
+        &  3,  8, 13, 18,  0, &
+        &  0,  4,  9, 14, 19, &
+        &  0,  0,  5, 10, 15  ], [5, 5])
+
+      call d%init(d_0)
+      call d%scale(l)
+
+      call tc%assert_eq(d_0 * l, d%d, 0.0, "scale")
+    end block
+
     ! mul_vec
     block
       integer          :: i, j
@@ -269,38 +288,67 @@ contains
       call tc%assert_eq(d3%d, mat3, 1e-12, "mul dense")
     end block
 
-    ! eig
+    ! eig real
     block
-      type(dense_real)  :: d
-      real :: mat(3,3)
-      complex, dimension(3,3) :: R, R_exp, L, L_exp
-      complex, dimension(3) :: e, e_exp
-      integer :: i
+      complex          :: e(2), e_exp(2), L(2,2), L_exp(2,2), R(2,2), R_exp(2,2)
+      type(dense_real) :: d
 
-      mat = 0.0
-      mat(1,1) = 1.0
-      mat(2,2) = 2.0
-      mat(3,3) = 3.0
+      call d%init(real(reshape([&
+        &  4, 12, &
+        & 12, 11  ], [2, 2], order = [2, 1])))
 
-      e_exp = [1,2,3]
-      d = dense_eye_real(3)
-      R_exp = d%d
-      L_exp = d%d
+      e_exp = [-5, 20]
+      R_exp = reshape([&
+        & -0.8,  0.6,  &
+        & -0.6, -0.8   ], [2, 2])
+      L_exp = R_exp
 
-      call d%init(mat)
-      call d%eig(e, R=R, L=L, sort=.true.)
+      call d%eig(e, R = R, L = L, sort = .true.)
 
-      ! scale Evecs
-      do i = 1, 3
-        R(:,i) = R_exp(i,i) / R(i,i) * R(:,i)
-        L(i,:) = L_exp(i,i) / L(i,i) * L(i,:)
-      end do
-
-      call tc%assert_eq(e_exp, e, 1e-12, "eig eval")
-      call tc%assert_eq(R_exp, R, 1e-12, "eig R")
-      call tc%assert_eq(L_exp, L, 1e-12, "eig L")
+      call tc%assert_eq(e_exp, e, 1e-14, "eig real eval")
+      call tc%assert_eq(R_exp, R, 1e-15, "eig real R")
+      call tc%assert_eq(L_exp, L, 1e-15, "eig real L")
     end block
 
-    call tc%finish
+    ! eig cmplx
+    block
+      complex           :: e(2), e_exp(2), L(2,2), L_exp(2,2), R(2,2), R_exp(2,2)
+      real, parameter   :: sqrt2 = 1/sqrt(2.0)
+      type(dense_cmplx) :: d
+
+      e_exp = [(1, 1), (1, -1)]
+      call example_matrix6(d)
+      call d%eig(e, R = R, L = L, sort = .true.)
+
+      R_exp = reshape([      &
+        & (sqrt2), ( sqrt2), &
+        & (sqrt2), (-sqrt2)  ], [2, 2], order = [2, 1])
+      L_exp = reshape([      &
+        & (sqrt2), (-sqrt2), &
+        & (sqrt2), ( sqrt2)  ], [2, 2], order = [2, 1])
+
+      call tc%assert_eq(e_exp, e, 1e-14, "eig cmplx eval")
+      call tc%assert_eq(R_exp, R, 1e-15, "eig cmplx R")
+      call tc%assert_eq(L_exp, L, 1e-15, "eig cmplx L")
+    end block
+
+    ! eye real
+    block
+      real             :: d_eye(5,5)
+      type(dense_real) :: eye
+
+      d_eye = reshape([   &
+        &  1, 0, 0, 0, 0, &
+        &  0, 1, 0, 0, 0, &
+        &  0, 0, 1, 0, 0, &
+        &  0, 0, 0, 1, 0, &
+        &  0, 0, 0, 0, 1  ], [5, 5], order = [2, 1])
+
+      eye = dense_eye_real(5)
+
+      call tc%assert_eq(d_eye, eye%d, 0.0, "eye")
+    end block
+
+    call tc%finish()
   end subroutine
 end submodule
