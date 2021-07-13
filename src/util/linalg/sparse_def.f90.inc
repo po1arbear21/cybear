@@ -118,9 +118,9 @@ contains
   procedure :: set       => SPBUILD_SET
   procedure :: set_row   => SPBUILD_SET_ROW
   procedure :: add       => SPBUILD_ADD
-  procedure :: sort      => SPBUILD_SORT
   procedure :: load      => SPBUILD_LOAD
   procedure :: save      => SPBUILD_SAVE
+  procedure, private :: sort => SPBUILD_SORT
 end type
 
 interface

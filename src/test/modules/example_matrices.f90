@@ -9,6 +9,7 @@ module example_matrices_m
   public matrix2
   public example_matrix3
   public example_matrix4
+  public example_matrix5
   public example_matrix6
 
   interface matrix1
@@ -47,6 +48,17 @@ module example_matrices_m
     !! 3000 entries -> sparse
     !! taken from FEAST example folder
     module procedure :: example_matrix4_sparse_cmplx
+  end interface
+
+  interface example_matrix5
+    !! 4x4 matrix
+    !! 1+i   0    -2-3i   0
+    !!  0   2+0i    0     0
+    !!  0    0     0-i    0
+    !!  0    0      0    0+i
+    !! octave:
+    !!    = [(1,1) 0 (-2,-3) 0; 0 (2,0) 0 0; 0 0 (0,-1) 0; 0 0 0 (0,1)]
+    module procedure :: example_matrix5_sparse_cmplx
   end interface
 
   interface example_matrix6
@@ -289,15 +301,14 @@ contains
     !! load example matrix 4 as complex sparse matrix
     type(sparse_cmplx), intent(out) :: s
 
-    integer             :: iounit, i, n, row, col
+    integer             :: iounit, i, n, row, rows, col, cols
     real                :: re, im
     type(spbuild_cmplx) :: sb
 
-    open (newunit=iounit, file='example_matrix4.dat', action='read')
+    open (newunit=iounit, file='src/test/example_matrix4.dat', action='read')
     read (iounit, *)
-    read (iounit, *) n
-
-    call s%init(n)
+    read (iounit, *) rows, cols, n
+    call s%init(rows)
     call sb%init(s)
 
     ! load values and save into spbuild
@@ -307,6 +318,33 @@ contains
     end do
 
     close (unit=iounit)
+    call sb%save()
+  end subroutine
+
+  subroutine example_matrix5_sparse_cmplx(s)
+    !! load example matrix 5 as complex sparse matrix
+    type(sparse_cmplx), intent(out) :: s
+
+    type(spbuild_cmplx) :: sb
+
+    ! 4x4 matrix
+    ! 1+i   0    -2-3i   0
+    !  0   2+0i    0     0
+    !  0    0     0-i    0
+    !  0    0      0    0+i
+    !
+    ! a  = [(1,1), (-2,-3), (2,0), (0,-1), (1,0)]
+    ! ia = [1, 3, 2, 3, 4]
+    ! ja = [1, 3, 4, 5, 6]
+
+    call s%init(4)
+    call sb%init(s)
+
+    call sb%add(1, 1, ( 1,  1))
+    call sb%add(1, 3, (-2, -3))
+    call sb%add(2, 2, ( 2,  0))
+    call sb%add(3, 3, ( 0, -1))
+    call sb%add(4, 4, ( 0,  1))
     call sb%save()
   end subroutine
 
