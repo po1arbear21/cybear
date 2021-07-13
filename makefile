@@ -74,10 +74,13 @@ $(BUILD_DIR)%.o:
 clean:
 	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o} $(BUILD_DIR).depend $(TARGETS)
 
+clean_mod:
+	find src -type f -name '*.mod' -delete
+
 doc: all
 	ford -e i90 -d $(BUILD_DIR) README.md
 
-.PHONY: all dirs doc clean
+.PHONY: all dirs doc clean clean_mod
 
 
 #
