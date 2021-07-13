@@ -11,6 +11,8 @@ module example_matrices_m
   public example_matrix4
   public example_matrix5
   public example_matrix6
+  public example_matrix7
+  public example_matrix8
 
   interface matrix1
     !! full 9x9 matrix.
@@ -66,6 +68,16 @@ module example_matrices_m
     ! 1  i
     ! i  1
     module procedure :: example_matrix6_dense_cmplx
+  end interface
+
+  interface example_matrix7
+    !! 3x3 Matrix
+    module procedure :: example_matrix7_block_real
+  end interface
+
+  interface example_matrix8
+    !! 3x3 Matrix
+    module procedure :: example_matrix8_block_real
   end interface
 
 contains
@@ -359,6 +371,87 @@ contains
     call d%init(reshape([&
       & (1, 0), (0, 1),  &
       & (0, 1), (1,  0)  ], [2, 2], order = [2, 1]))
+  end subroutine
+
+  subroutine example_matrix7_block_real(M)
+    !! create block matrix M for some tests: mulvec, etc.
+    !! Example
+    !!        / A B \
+    !!    M = \ C D / for A is (1,1), B is (1,2),
+    !!                    C is (2,1) and D is (2,2)-matrix
+    !!        / -1  1  1 \
+    !!    M = |  1  0  1 |
+    !!        \  1  1  0 /
+    !!
+    !!    => nbrows=[1, 2], nbcols=[1, 2], i0=[1,2], i1=[1,3], j0=[1,2], j1=[1,3]
+    type(block_real), intent(out) :: M
+
+    call M%init([1, 2])
+
+    block
+      type(dense_real), pointer :: A
+
+      call M%get(1, 1, A)
+      call A%init(real(reshape([-1], [1, 1])))
+    end block
+
+    block
+      type(dense_real), pointer :: B
+
+      call M%get(1, 2, B)
+      call B%init(real(reshape([1, 1], [1, 2])))
+    end block
+
+    block
+      type(dense_real), pointer :: C
+
+      call M%get(2, 1, C)
+      call C%init(real(reshape([1, 1], [2, 1])))
+    end block
+
+    block
+      type(dense_real), pointer :: D
+
+      call M%get(2, 2, D)
+      call D%init(real(reshape([ &
+                          &0, 1, &
+                          &1, 0  ], [2, 2], order = [2, 1])))
+    end block
+  end subroutine
+
+  subroutine example_matrix8_block_real(M)
+    !! create block matrix M for some tests: mulvec, etc.
+    !! Example
+    !!        / A 0 \
+    !!    M = \ 0 B / for A and B are (2,2) matrices
+    !!
+    !!        /  1  2  0  0 \
+    !!    M = |  2  1  0  0 |
+    !!        |  0  0 -1  3 |
+    !!        \  0  0  3 -1 /
+    !!
+    !!
+    type(block_real), intent(out) :: M
+
+    call M%init([2, 2], diag = .true.)
+
+    block
+      type(dense_real), pointer :: A
+
+      call M%get(1, 1, A)
+      call A%init(real(reshape([&
+                        & 1, 2, &
+                        & 2, 1  ], [2, 2])))
+    end block
+
+    block
+      type(dense_real), pointer :: B
+
+      call M%get(2, 2, B)
+      call B%init(real(reshape([&
+                      & -1,  3, &
+                      &  3, -1  ], [2, 2])))
+    end block
   end subroutine
 
 end module
