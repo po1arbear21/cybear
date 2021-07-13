@@ -282,7 +282,12 @@ contains
     integer,                    intent(in)  :: idx2_dir
       !! dependency index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
-    call this%static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir))
+    integer :: shift
+
+    shift = 0
+    if ((this%idx1_type == this%idx2_type) .and. (this%idx1_dir == this%idx2_dir)) shift = 1
+
+    call this%static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir) + shift)
 
     ! set members
     this%g => g
