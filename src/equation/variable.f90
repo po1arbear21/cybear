@@ -2,9 +2,10 @@
 
 module variable_m
 
-  use error_m,  only: assert_failed
-  use grid_m,   only: allocate_grid_data, grid, grid_data_real, IDX_VERTEX
-  use grid0D_m, only: get_dummy_grid
+  use error_m,         only: assert_failed
+  use grid_m,          only: allocate_grid_data, grid, grid_data_real, IDX_VERTEX
+  use grid0D_m,        only: get_dummy_grid
+  use normalization_m, only: denorm, norm
 
   implicit none
 
@@ -32,9 +33,11 @@ module variable_m
       !! values
   contains
     procedure :: variable_init
-    procedure :: get_ptr => variable_get_ptr
-    generic   :: get     => variable_get_point, variable_get_all
-    generic   :: set     => variable_set_point, variable_set_all
+    procedure :: get_ptr   => variable_get_ptr
+    generic   :: get       => variable_get_point, variable_get_all
+    generic   :: set       => variable_set_point, variable_set_all
+    procedure :: load_data => variable_load_data
+    procedure :: save_data => variable_save_data
 
     procedure, private :: variable_get_point, variable_get_all
     procedure, private :: variable_set_point, variable_set_all
@@ -130,6 +133,53 @@ contains
       !! new values
 
     call this%data%set(d)
+  end subroutine
+
+  subroutine variable_save_data(this, fname)
+    !! save variable's data into file as denormalized values.
+    class(variable), intent(in) :: this
+    character(*),    intent(in) :: fname
+      !! file name, e.g. "output/tmp/pot.csv"
+
+    integer           :: iounit, i
+    real, allocatable :: d(:)
+
+    d = denorm(this%get(), this%unit)
+
+    open (newunit = iounit, file = fname, action = 'WRITE')
+    do i = 1, size(d)
+      write (iounit, '(E32.24)') d(i)
+    end do
+    close (unit = iounit)
+  end subroutine
+
+  subroutine variable_load_data(this, fname)
+    !! load variable's data from file.
+    !! assume denormalized data in file and perform normalization.
+    class(variable), intent(inout) :: this
+    character(*),    intent(in)    :: fname
+      !! file name, e.g. "output/tmp/pot.csv"
+
+    integer           :: iounit, n, ios
+    real              :: tmp
+    real, allocatable :: d(:)
+
+    open (newunit = iounit, file = fname, action = 'READ')
+
+    ! count lines in file
+    n   = -1
+    ios = 0
+    do while (ios == 0)
+      n = n + 1
+      read (iounit, *, iostat = ios) tmp
+    end do
+
+    allocate (d(n))
+    rewind (iounit)
+    read (iounit, *) d
+    close (unit = iounit)
+
+    call this%set(norm(d, this%unit))
   end subroutine
 
 end module

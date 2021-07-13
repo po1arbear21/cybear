@@ -93,9 +93,9 @@ contains
       call tc%assert_eq(PI/4.0, deg, 1e-14, "norming degrees")
     end block
 
-    call destruct_normconst
+    call destruct_normconst()
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module
