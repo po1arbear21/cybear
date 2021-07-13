@@ -1,6 +1,6 @@
 module test_matrix_m
 
-  use example_matrices_m, only: example_matrix3, example_matrix4, example_matrix6, matrix1, matrix2
+  use example_matrices_m, only: example_matrix3, example_matrix4, example_matrix5, example_matrix6, matrix1, matrix2
   use matrix_m
   use test_case_m,        only: test_case
 
