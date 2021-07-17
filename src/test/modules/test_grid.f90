@@ -3,7 +3,8 @@ module test_grid_m
   use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
-  use math_m,        only: logspace
+  use grid_data_m
+  use math_m,        only: linspace, logspace
   use qsort_m,       only: qsort
   use test_case_m,   only: test_case
   use tensor_grid_m, only: tensor_grid
@@ -26,6 +27,7 @@ contains
 
     call tc%init("grid")
 
+    call test_grid_data()
     call test_grid0D()
     call test_grid1D()
     call test_triang_grid()
@@ -34,6 +36,43 @@ contains
     call tc%finish()
 
   contains
+
+    subroutine test_grid_data()
+      integer, parameter :: nx=10, ny=10
+      real, allocatable  :: x(:), y(:)
+      type(grid1D)       :: gx, gy
+      type(grid_data2_real) :: par
+      type(tensor_grid)     :: g
+
+      allocate (x(nx), y(ny))
+      x = linspace(1.0, nx, nx)
+      y = linspace(1.0, ny, ny)
+
+      ! initialize 1D grids
+      call gx%init(x)
+      call gy%init(y)
+
+      ! initialize tensor grid and grid_data
+      call g%init([gx%get_ptr(), gy%get_ptr()])
+      call par%init(g, IDX_CELL, 0)
+
+      ! check attributes
+      call tc%assert_eq(3,   par%idx_type,         "grid_data: idx_type")
+      call tc%assert_eq(0.0, par%d0, 0.0,          "grid_data: d0")
+      call tc%assert_eq(0.0, par%get([1, 1]), 0.0, "grid_data: get default")
+
+      ! check set and get
+      call par%set([2, 3], 10.0)
+      call tc%assert_eq(10.0, par%get([2, 3]), 0.0, "grid_data: set")
+
+      ! check update
+      call par%update([2, 3], -5.0)
+      call par%update([1, 1],  5.0)
+      call tc%assert_eq(-5.0, par%get([2, 3]), 0.0, "grid_data: update idx")
+      call par%update(2.0)
+      call tc%assert_eq( 2.0, par%get([2, 3]), 0.0, "grid_data: update all 1")
+      call tc%assert_eq( 2.0, par%get([5, 8]), 0.0, "grid_data: update all 2")
+    end subroutine
 
     subroutine test_grid0D()
       type(grid0D) :: g
