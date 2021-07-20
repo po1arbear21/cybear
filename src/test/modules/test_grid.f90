@@ -37,12 +37,12 @@ contains
   contains
 
     subroutine test_grid_data()
-      integer            :: i
-      integer, parameter :: nx=11, ny=11
-      real, allocatable  :: x(:), y(:)
-      type(grid1D)       :: gx, gy
+      integer                       :: i
+      integer, parameter            :: nx = 11, ny = 11
+      real, allocatable             :: x(:), y(:)
+      type(grid1D)                  :: gx, gy
       type(grid_data2_real), target :: par
-      type(tensor_grid)     :: g
+      type(tensor_grid)             :: g
 
       allocate (x(nx), y(ny))
       x = linspace(1.0, real(nx), nx)
@@ -57,19 +57,21 @@ contains
       call par%init(g, IDX_CELL, 0)
 
       ! check attributes
-      call tc%assert_eq(100, par%n,                "grid_data: idx_type")
+      call tc%assert_eq(100,                   par%n,                           "grid_data: idx_type")
       call tc%assert_eq([(0.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: data")
-      call tc%assert_eq(0.0, par%get([1, 1]), 0.0, "grid_data: get default")
+      call tc%assert_eq(0.0,                   par%get([1, 1]),            0.0, "grid_data: get default")
 
       ! check set and get
       call par%set([2, 3], 10.0)
       call tc%assert_eq(10.0, par%get([2, 3]), 0.0, "grid_data: set")
 
-      ! check update
+      ! check update idx
       call par%update([2, 3], -5.0)
       call par%update([1, 1],  5.0)
       call tc%assert_eq(5.0, par%get([2, 3]), 0.0, "grid_data: update idx 1")
       call tc%assert_eq(5.0, par%get([1, 1]), 0.0, "grid_data: update idx 2")
+
+      ! check update all
       call par%update(reshape(-par%data, [par%n]))
       call par%update([(2.0, i = 1, par%n)])
       call tc%assert_eq([(2.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: update all")
