@@ -1,9 +1,8 @@
 module test_grid_m
 
-  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data2_real
   use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
-  use grid_data_m
   use math_m,        only: linspace, logspace
   use qsort_m,       only: qsort
   use test_case_m,   only: test_case
@@ -38,15 +37,16 @@ contains
   contains
 
     subroutine test_grid_data()
-      integer, parameter :: nx=10, ny=10
+      integer            :: i
+      integer, parameter :: nx=11, ny=11
       real, allocatable  :: x(:), y(:)
       type(grid1D)       :: gx, gy
-      type(grid_data2_real) :: par
+      type(grid_data2_real), target :: par
       type(tensor_grid)     :: g
 
       allocate (x(nx), y(ny))
-      x = linspace(1.0, nx, nx)
-      y = linspace(1.0, ny, ny)
+      x = linspace(1.0, real(nx), nx)
+      y = linspace(1.0, real(ny), ny)
 
       ! initialize 1D grids
       call gx%init(x)
@@ -57,8 +57,8 @@ contains
       call par%init(g, IDX_CELL, 0)
 
       ! check attributes
-      call tc%assert_eq(3,   par%idx_type,         "grid_data: idx_type")
-      call tc%assert_eq(0.0, par%d0, 0.0,          "grid_data: d0")
+      call tc%assert_eq(100, par%n,                "grid_data: idx_type")
+      call tc%assert_eq([(0.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: data")
       call tc%assert_eq(0.0, par%get([1, 1]), 0.0, "grid_data: get default")
 
       ! check set and get
@@ -68,10 +68,14 @@ contains
       ! check update
       call par%update([2, 3], -5.0)
       call par%update([1, 1],  5.0)
-      call tc%assert_eq(-5.0, par%get([2, 3]), 0.0, "grid_data: update idx")
-      call par%update(2.0)
-      call tc%assert_eq( 2.0, par%get([2, 3]), 0.0, "grid_data: update all 1")
-      call tc%assert_eq( 2.0, par%get([5, 8]), 0.0, "grid_data: update all 2")
+      call tc%assert_eq(5.0, par%get([2, 3]), 0.0, "grid_data: update idx 1")
+      call tc%assert_eq(5.0, par%get([1, 1]), 0.0, "grid_data: update idx 2")
+      call par%update(reshape(-par%data, [par%n]))
+      call par%update([(2.0, i = 1, par%n)])
+      call tc%assert_eq([(2.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: update all")
+
+      ! check get_ptr2
+      call tc%assert(associated(par%get_ptr2(), target = par), "grid_data: get_ptr2")
     end subroutine
 
     subroutine test_grid0D()

@@ -11,7 +11,7 @@ INTSIZE = 32
 IDXSIZE = 32
 
 # libraries (disable unused, ILUPACK and MUMPS are incompatible)
-#USE_ARPACK   = true
+USE_ARPACK   = true
 USE_EXPOKIT  = true
 USE_FEAST    = true
 #USE_ILUPACK  = true
