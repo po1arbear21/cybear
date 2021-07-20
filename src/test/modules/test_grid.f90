@@ -44,7 +44,7 @@ contains
       type(grid_data2_real), target :: par
       type(tensor_grid)             :: g
 
-      allocate (x(nx), y(ny))
+      allocate(x(nx), y(nx))
       x = linspace(1.0, real(nx), nx)
       y = linspace(1.0, real(ny), ny)
 
