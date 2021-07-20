@@ -57,9 +57,9 @@ contains
       call par%init(g, IDX_CELL, 0)
 
       ! check attributes
-      call tc%assert_eq(100,                   par%n,                           "grid_data: idx_type")
-      call tc%assert_eq([(0.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: data")
-      call tc%assert_eq(0.0,                   par%get([1, 1]),            0.0, "grid_data: get default")
+      call tc%assert_eq(100,                   par%n,                "grid_data: idx_type")
+      call tc%assert_eq([(0.0, i = 1, par%n)], par%get(),     0.0, "grid_data: data")
+      call tc%assert_eq(0.0,                   par%get([1, 1]), 0.0, "grid_data: get default")
 
       ! check set and get
       call par%set([2, 3], 10.0)
@@ -72,9 +72,9 @@ contains
       call tc%assert_eq(5.0, par%get([1, 1]), 0.0, "grid_data: update idx 2")
 
       ! check update all
-      call par%update(reshape(-par%data, [par%n]))
+      call par%update(-par%get())
       call par%update([(2.0, i = 1, par%n)])
-      call tc%assert_eq([(2.0, i = 1, par%n)], reshape(par%data, [par%n]), 0.0, "grid_data: update all")
+      call tc%assert_eq([(2.0, i = 1, par%n)], par%get(), 0.0, "grid_data: update all")
 
       ! check get_ptr2
       call tc%assert(associated(par%get_ptr2(), target = par), "grid_data: get_ptr2")
