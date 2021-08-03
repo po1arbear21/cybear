@@ -169,6 +169,7 @@ contains
 
                   ! stencil connects itab1 to itab2 => not zero
                   itab2 = v2%itab%get(idx2)
+                  if (itab2 <= 0) cycle
                   zero_(itab1,itab2) = .false.
                 end do
               end do
