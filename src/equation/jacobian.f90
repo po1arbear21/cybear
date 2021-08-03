@@ -100,9 +100,12 @@ contains
         call st%get(idx1, j, idx2, status)
         if (.not. status) exit
 
-        ! lookup idx2
+        ! get dependency grid table
         itab2 = v2%itab%get(idx2)
-        i2    = v2%tab(itab2)%p%get_flat(idx2)
+        if (itab2 <= 0) cycle
+
+        ! lookup idx2
+        i2 = v2%tab(itab2)%p%get_flat(idx2)
 
         ! save stencil dependency index (j) in hashmap
         call this%hmap%set([i1, itab2, i2], j)
@@ -167,9 +170,11 @@ contains
                   call st_ptr%get(idx1, j, idx2, status)
                   if (.not. status) exit
 
-                  ! stencil connects itab1 to itab2 => not zero
+                  ! get dependency grid table
                   itab2 = v2%itab%get(idx2)
                   if (itab2 <= 0) cycle
+
+                  ! stencil connects itab1 to itab2 => not zero
                   zero_(itab1,itab2) = .false.
                 end do
               end do
@@ -273,6 +278,7 @@ contains
 
                   ! get dependency table index
                   itab2 = v2%itab%get(idx2)
+                  if (itab2 <= 0) cycle
 
                   ! reset only if flag is set
                   if (reset(itab1,itab2)) this%sd(itab1)%d(:,:,j,i) = 0
@@ -347,6 +353,7 @@ contains
 
                   ! get dependency table index
                   itab2 = v2%itab%get(idx2)
+                  if (itab2 <= 0) cycle
 
                   ! do nothing if dependency matrix is not used (const or zero flag prevents it)
                   if ((.not. set(itab1,itab2)) .or. (this%matr%zero(itab1,itab2))) cycle
