@@ -1,0 +1,35 @@
+temperature = 300.0 : K
+n_intrin    = 1e10 : 1/cm^3
+
+[grid]
+  x0 = -250 : nm
+  x1 =  250 : nm
+  Nx = 101
+
+[permittivity]
+  x0  = -250 : nm
+  x1  =  250 : nm
+  eps = 11.7 : eps0
+
+[doping]
+  x0   = -250 : nm
+  x1   = -200 : nm
+  dcon = 1e20 : 1/cm^3
+
+[doping]
+  x0   = -200 : nm
+  x1   =  200 : nm
+  dcon = 1e15 : 1/cm^3
+
+[doping]
+  x0   =  200 : nm
+  x1   =  250 : nm
+  dcon = 1e20 : 1/cm^3
+
+[contact]
+  x    = -250 : nm
+  name = "SRC"
+
+[contact]
+  x    = 250 : nm
+  name = "DRN"
