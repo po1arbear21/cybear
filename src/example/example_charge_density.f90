@@ -1,8 +1,10 @@
+#include "../util/macro.f90.inc"
+
 module example_charge_density_m
 
   use equation_m,        only: equation
   use example_contact_m, only: contacts, uncontacted
-  use example_device_m,  only: dop, grd
+  use example_device_m,  only: dop_v, grd
   use example_density_m, only: density, dens
   use grid_m,            only: IDX_VERTEX, grid_data1_real
   use jacobian_m,        only: jacobian, jacobian_ptr
@@ -70,7 +72,9 @@ contains
   subroutine calc_charge_density_eval(this)
     class(calc_charge_density), intent(inout) :: this
 
-    call e_dens%set([dop%get() - dens%get()])
+    IGNORE(this)
+
+    call e_dens%set([dop_v%get() - dens%get()])
   end subroutine
 
 end module

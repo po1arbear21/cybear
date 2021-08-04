@@ -63,7 +63,7 @@ contains
     ! provides dens and depends on potential and imref
     i_prov = this%provide(dens)
     i_dep  = this%depend(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    this%jaco_pot => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i=0, size(contacts))], const = .false.)
+    this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
     i_dep  = this%depend(iref)
     this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 

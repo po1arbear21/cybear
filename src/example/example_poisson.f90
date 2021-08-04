@@ -80,7 +80,7 @@ contains
       idx1 = [i]
 
       if (uncontacted%flags%get(idx1)) then
-        call this%jaco_rho%set(idx1, idx1, adj_v%get(idx1))
+        call this%jaco_rho%set(idx1, idx1, -adj_v%get(idx1))
       else
         call this%jaco_pot%set(idx1, idx1, 1.0)
       end if
