@@ -1,14 +1,15 @@
 module example_contact_m
 
   use bin_search_m,     only: bin_search
-  use example_device_m, only: grd, dop, dop_v, n_intrin
+  use example_device_m, only: dop, dop_v, grd, n_intrin
   use grid_m,           only: grid_table, IDX_CELL, IDX_VERTEX
   use input_m,          only: input_file
 
   implicit none
 
   private
-  public contact, contacts, uncontacted, init_contacts
+  public init_contacts
+  public contact, contacts, uncontacted
 
   type contact
     character(:), allocatable :: name
@@ -45,7 +46,6 @@ subroutine init_contacts(f)
 
   ! finalize uncontacted
   call uncontacted%init_final()
-
 end subroutine
 
 subroutine contact_init(this, f, sid)
@@ -72,8 +72,7 @@ subroutine contact_init(this, f, sid)
   call this%conts%init_final()
 
   ! set phi_ms
-  this%phi_ms = log(dop_v%get([indx])/n_intrin)
-
+  this%phi_ms = log(dop_v%get([indx]) / n_intrin)
 end subroutine
 
 end module

@@ -1,7 +1,7 @@
 module example_device_m
 
   use bin_search_m,    only: bin_search
-  use grid_m,          only: IDX_VERTEX, IDX_CELL, grid_data1_real
+  use grid_m,          only: grid_data1_real, IDX_VERTEX, IDX_CELL
   use grid1D_m,        only: grid1D
   use input_m,         only: input_file
   use math_m,          only: linspace
@@ -11,7 +11,7 @@ module example_device_m
 
   private
   public init_device
-  public adj_v, n_intrin, grd, eps, dop, dop_v
+  public adj_v, dop, dop_v, eps, grd, n_intrin
 
   real                  :: n_intrin
   type(grid1D)          :: grd
@@ -76,8 +76,8 @@ contains
     type(input_file), intent(in) :: f
     !! input file for initialisation
 
-    integer :: i, ind0, ind1
-    real :: x0, x1, value
+    integer :: ind0, ind1, i
+    real    :: x0, x1, value
 
     ! initialise the grid_data for the permittivity
     call eps%init(grd, IDX_CELL, 0)
@@ -105,7 +105,7 @@ contains
     real                 :: x0, x1, value
 
     ! initialise the grid_data for the doping and dop_v
-    call dop%init(grd, IDX_CELL, 0)
+    call dop%init(  grd, IDX_CELL,   0)
     call dop_v%init(grd, IDX_VERTEX, 0)
 
     ! get different sections of doping

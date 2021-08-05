@@ -1,13 +1,13 @@
 module example_density_m
 
   use example_device_m, only: grd
-  use grid_m,           only: IDX_VERTEX, grid_data1_real
+  use grid_m,           only: grid_data1_real, IDX_VERTEX
   use variable_m,       only: variable
 
   implicit none
 
   private
-  public density, dens
+  public dens, density
 
   type, extends(variable) :: density
     !! density

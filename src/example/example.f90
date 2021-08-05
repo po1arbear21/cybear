@@ -1,23 +1,23 @@
 program example
 
-  use normalization_m,          only: norm, denorm
-  use newton_m,                 only: newton_opt
   use esystem_m,                only: esystem
-  use example_density_m,        only: dens
-  use example_poisson_m,        only: pois
-  use example_imref_m,          only: iref, c_dens
-  use example_charge_density_m, only: e_dens, calc_e_dens
+  use example_charge_density_m, only: calc_e_dens, e_dens
   use example_contact_m,        only: init_contacts
-  use example_device_m,         only: init_device, grd
+  use example_density_m,        only: dens
+  use example_device_m,         only: grd, init_device
+  use example_imref_m,          only: c_dens, iref
+  use example_poisson_m,        only: pois
   use example_potential_m,      only: pot
   use input_m,                  only: input_file
+  use newton_m,                 only: newton_opt
+  use normalization_m,          only: denorm, norm
 
   implicit none
 
+  integer          :: i
   type(input_file) :: f
   type(esystem)    :: sys
   type(newton_opt) :: opt
-  integer :: i
 
   ! init input file
   call f%init("src/example/example.inp")

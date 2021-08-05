@@ -1,14 +1,14 @@
 module example_potential_m
 
-  use example_device_m,  only: dop, grd
-  use example_density_m, only: density, dens
+  use example_density_m, only: dens
+  use example_device_m,  only: grd
   use grid_m,            only: grid_data1_real, IDX_VERTEX
   use variable_m,        only: variable
 
   implicit none
 
   private
-  public potential, pot
+  public pot, potential
 
   type, extends(variable) :: potential
     !! electric potential

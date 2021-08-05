@@ -4,9 +4,9 @@ module example_charge_density_m
 
   use equation_m,        only: equation
   use example_contact_m, only: contacts, uncontacted
+  use example_density_m, only: dens, density
   use example_device_m,  only: dop_v, grd
-  use example_density_m, only: density, dens
-  use grid_m,            only: IDX_VERTEX, grid_data1_real
+  use grid_m,            only: grid_data1_real, IDX_VERTEX
   use jacobian_m,        only: jacobian, jacobian_ptr
   use stencil_m,         only: dirichlet_stencil
   use variable_m,        only: variable
@@ -14,7 +14,8 @@ module example_charge_density_m
   implicit none
 
   private
-  public charge_density, e_dens, calc_e_dens
+  public calc_e_dens
+  public charge_density, e_dens
 
   type, extends(variable) :: charge_density
     !! electric density
@@ -50,7 +51,7 @@ contains
   subroutine calc_charge_density_init(this)
     class(calc_charge_density), intent(out) :: this
 
-    integer                 :: i, i_dep, i_prov
+    integer                 :: i_dep, i_prov, i
     type(jacobian), pointer :: jaco
 
     ! init equation
@@ -62,7 +63,7 @@ contains
     ! provides e_dens and depends on dens
     i_prov = this%provide(e_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     i_dep  = this%depend(dens)
-    jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i=0, size(contacts))], const = .true.)
+    jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .true.)
     do i = 1, size(grd%x)
       call jaco%set([i], [i], -1.0)
     end do

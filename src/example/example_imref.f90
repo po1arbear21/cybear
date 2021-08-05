@@ -1,10 +1,10 @@
 module example_imref_m
 
-  use example_device_m,    only: dop, grd, n_intrin
-  use example_density_m,   only: dens
-  use example_potential_m, only: pot
-  use example_contact_m,   only: contacts, uncontacted
   use equation_m,          only: equation
+  use example_contact_m,   only: contacts, uncontacted
+  use example_density_m,   only: dens
+  use example_device_m,    only: dop, grd, n_intrin
+  use example_potential_m, only: pot
   use grid_m,              only: grid_data1_real, IDX_VERTEX
   use jacobian_m,          only: jacobian, jacobian_ptr
   use stencil_m,           only: dirichlet_stencil
@@ -13,7 +13,7 @@ module example_imref_m
   implicit none
 
   private
-  public imref, iref, c_dens
+  public c_dens, imref, iref
 
   type, extends(variable) :: imref
   !! quasi-fermi-potential
@@ -32,8 +32,8 @@ module example_imref_m
   procedure :: eval => calc_dens_eval
   end type
 
-  type(imref)     :: iref
   type(calc_dens) :: c_dens
+  type(imref)     :: iref
 
 contains
 
