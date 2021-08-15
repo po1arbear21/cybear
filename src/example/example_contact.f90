@@ -1,9 +1,10 @@
 module example_contact_m
 
-  use bin_search_m,     only: bin_search
-  use example_device_m, only: dop, dop_v, grd, n_intrin
-  use grid_m,           only: grid_table, IDX_CELL, IDX_VERTEX
-  use input_m,          only: input_file
+  use bin_search_m,      only: bin_search
+  use example_device_m,  only: dop, dop_v, grd, n_intrin
+  use example_voltage_m, only: cont_v, voltage
+  use grid_m,            only: grid_table, IDX_CELL, IDX_VERTEX
+  use input_m,           only: input_file
 
   implicit none
 
@@ -40,8 +41,10 @@ subroutine init_contacts(f)
 
   ! getting input for the contact at each section
   allocate(contacts(num_ct))
+  allocate(cont_v(num_ct))
   do i = 1, num_ct
     call contacts(i)%init(f, sid(i))
+    call cont_v(i)%init(f, sid(i))
   end do
 
   ! finalize uncontacted

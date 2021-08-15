@@ -53,8 +53,10 @@ program example
 
   call sys%solve(nopt = opt)
 
-  do i = 1, size(pot%x)
-    print "(3ES24.16)", denorm(grd%x(i), "nm"), denorm(pot%x(i), "V"), denorm(dens%x(i), "1/cm^3")
-  end do
+  ! do i = 1, size(pot%x)
+  !   print "(3ES24.16)", denorm(grd%x(i), "nm"), denorm(pot%x(i), "V"), denorm(dens%x(i), "1/cm^3")
+  ! end do
+
+  call dens%output_data("dens.csv")
 
 end program

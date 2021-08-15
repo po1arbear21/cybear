@@ -17,19 +17,18 @@ module example_imref_m
 
   type, extends(variable) :: imref
   !! quasi-fermi-potential
-
-  real, pointer :: x(:) => null()
+    real, pointer :: x(:) => null()
   contains
-  procedure :: init => imref_init
+    procedure :: init => imref_init
   end type
 
   type, extends(equation) :: calc_dens
-  type(dirichlet_stencil) :: st
-  type(jacobian), pointer :: jaco_pot   => null()
-  type(jacobian), pointer :: jaco_imref => null()
+    type(dirichlet_stencil) :: st
+    type(jacobian), pointer :: jaco_pot   => null()
+    type(jacobian), pointer :: jaco_imref => null()
   contains
-  procedure :: init => calc_dens_init
-  procedure :: eval => calc_dens_eval
+    procedure :: init => calc_dens_init
+    procedure :: eval => calc_dens_eval
   end type
 
   type(calc_dens) :: c_dens
