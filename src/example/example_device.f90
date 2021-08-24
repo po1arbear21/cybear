@@ -11,9 +11,9 @@ module example_device_m
 
   private
   public init_device
-  public adj_v, dop, dop_v, eps, grd, n_intrin
+  public adj_v, dop, dop_v, eps, grd, mobility, n_intrin
 
-  real                  :: n_intrin
+  real                  :: mobility, n_intrin
   type(grid1D)          :: grd
   type(grid_data1_real) :: adj_v, dop, dop_v, eps
 
@@ -40,6 +40,7 @@ contains
     call f%get("", "temperature", T, normalize = .false.)
     call init_normconst(T)
     call f%get("", "n_intrin", n_intrin)
+    call f%get("", "mobility", mobility)
   end subroutine
 
   subroutine init_grid(f)

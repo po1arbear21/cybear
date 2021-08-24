@@ -2,7 +2,7 @@ module example_imref_m
 
   use equation_m,          only: equation
   use example_contact_m,   only: contacts, uncontacted
-  use example_density_m,   only: dens
+  use example_density_m,   only: dens, density
   use example_device_m,    only: dop, grd, n_intrin
   use example_potential_m, only: pot
   use grid_m,              only: grid_data1_real, IDX_VERTEX
@@ -20,10 +20,14 @@ module example_imref_m
     real, pointer :: x(:) => null()
   contains
     procedure :: init => imref_init
+    procedure :: calc => from_dens
   end type
 
   type, extends(equation) :: calc_dens
+    !! n_intrin*exp(pot-iref)
+
     type(dirichlet_stencil) :: st
+
     type(jacobian), pointer :: jaco_pot   => null()
     type(jacobian), pointer :: jaco_imref => null()
   contains
@@ -46,6 +50,16 @@ contains
     ! get pointer to data
     p      => this%data%get_ptr1()
     this%x => p%data
+  end subroutine
+
+  subroutine from_dens(this)
+    class(imref), intent(out) :: this
+
+    real, allocatable :: dens_arr(:)
+
+    allocate(dens_arr(size(grd%x)))
+    dens_arr = dens%get()
+    call this%set(-log(dens_arr/n_intrin)+pot%get())
   end subroutine
 
   subroutine calc_dens_init(this)
@@ -80,5 +94,6 @@ contains
       call dens%set(           [i],       n_intrin*exp(pot%get([i])-iref%get([i])))
     end do
   end subroutine
+
 
 end module
