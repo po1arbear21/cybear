@@ -26,7 +26,7 @@ module example_steady_state_m
 
   type(esystem)    :: sys_dd, sys_full, sys_nlpe
   type(input_file) :: f
-  type(newton_opt) :: opt_full, opt_nlpe
+  type(newton_opt) :: opt_dd, opt_full, opt_nlpe
 
 contains
 
@@ -43,12 +43,14 @@ contains
     call init_contacts(f)
 
     ! init variables
+    call curr%init()
     call pot%init()
     call dens%init()
     call e_dens%init()
     call iref%init()
 
     ! init equations
+    call c_curr%init()
     call calc_e_dens%init()
     call pois%init()
     call c_dens%init()
@@ -56,25 +58,33 @@ contains
   end subroutine
 
   subroutine init_dd()
+    integer :: max_it
+    real    :: atol, rtol
+
+    call f%get("dd_parameters", "max_it", max_it)
+    call f%get("dd_parameters", "atol",   atol)
+    call f%get("dd_parameters", "rtol",   rtol)
+
     call sys_dd%init("drift-diffusion")
     call sys_dd%add_equation(cont)
     call sys_dd%add_equation(c_curr)
-    call sys_dd%provide(pot)
+    call sys_dd%provide(pois%pot)
     call sys_dd%init_final()
     call sys_dd%g%output("dd")
+
+    ! init solver options
+    call opt_dd%init(sys_dd%n, log = .false., max_it = max_it)
+    opt_dd%atol = atol
+    opt_dd%rtol = rtol
   end subroutine
 
   subroutine init_nlpe()
     integer :: max_it
-    real    :: atol(1), rtol(1)
+    real    :: atol, rtol
 
     call f%get("nlpe_parameters", "max_it", max_it)
-    call f%get("nlpe_parameters", "atol",   atol(1))
-    call f%get("nlpe_parameters", "rtol",   rtol(1))
-
-    ! init optimizer
-    call opt_nlpe%init(sys_nlpe%n, log = .true., max_it = max_it, atol = atol, rtol = rtol)
-    opt_nlpe%dx_lim = norm(0.2, "V")
+    call f%get("nlpe_parameters", "atol",   atol)
+    call f%get("nlpe_parameters", "rtol",   rtol)
 
     ! init equation system
     call sys_nlpe%init("non-linear poisson")
@@ -90,27 +100,30 @@ contains
 
     ! output the related graph to the esystem
     call sys_nlpe%g%output("nlpe")
+
+    ! init solver options
+    call opt_nlpe%init(sys_nlpe%n, log = .false., max_it = max_it)
+    opt_nlpe%dx_lim = norm(0.2, "V")
+    opt_nlpe%atol = atol
+    opt_nlpe%rtol = rtol
   end subroutine
 
   subroutine init_full()
     integer :: i
     integer :: max_it
-    real    :: atol(1), rtol(1)
+    real    :: atol, rtol
 
     call f%get("nlpe_parameters", "max_it", max_it)
-    call f%get("nlpe_parameters", "atol",   atol(1))
-    call f%get("nlpe_parameters", "rtol",   rtol(1))
-
-    ! init optimizer
-    call opt_full%init(sys_nlpe%n, log = .true., max_it = max_it, atol = atol, rtol = rtol)
-    opt_full%dx_lim = norm(0.2, "V")
-
+    call f%get("nlpe_parameters", "atol",   atol)
+    call f%get("nlpe_parameters", "rtol",   rtol)
 
     ! init equation system
     call sys_full%init("full newton")
     ! add related equations to the system
+
     call sys_full%add_equation(pois)
     call sys_full%add_equation(cont)
+    call sys_full%add_equation(calc_e_dens)
     call sys_full%add_equation(c_curr)
     ! provide variables
     do i = 1, size(contacts)
@@ -121,6 +134,12 @@ contains
 
     ! output the related graph to the esystem
     call sys_full%g%output("full")
+
+    ! init solver options
+    call opt_full%init(sys_full%n, log = .true., max_it = max_it)
+    opt_full%dx_lim = norm(0.2, "V")
+    opt_full%atol = atol
+    opt_full%rtol = rtol
   end subroutine
 
   subroutine solve_nlpe()
@@ -138,16 +157,17 @@ contains
     call f%get("gummel_parameters", "atol",   atol)
 
     i = 1
+    error = huge(1.0)
     do while (error > atol .and. i <= max_it)
       pot0 = pot%get()
-      call sys_nlpe%solve()
+      call sys_nlpe%solve(nopt = opt_nlpe)
 
       iref0 = iref%get()
-      call sys_dd%solve()
+      call sys_dd%solve(nopt = opt_dd)
       call iref%calc()
 
       error = max(maxval(abs(pot%get()-pot0)), maxval(abs(iref%get()-iref0)))
-      print *, i, error
+      print *, i, denorm(error, "V")
       i = i + 1
     end do
 

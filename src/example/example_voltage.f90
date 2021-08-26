@@ -20,12 +20,13 @@ module example_voltage_m
 
 contains
 
-  subroutine voltage_init(this)
+  subroutine voltage_init(this, cont_name)
     class(voltage),   intent(out) :: this
+    character(*),     intent(in)  :: cont_name
 
     type(grid_data0_real), pointer :: p
 
-    call this%variable_init("voltage", "V")
+    call this%variable_init("voltage_"//cont_name, "V")
 
     ! get pointer to data
     p      => this%data%get_ptr0()

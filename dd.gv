@@ -1,0 +1,16 @@
+digraph mygraph {
+  rankdir = "LR"
+  node [shape=box]
+  1 [color=blue label="n
+" penwidth=2.0]
+  2 [color=green label="n_res
+" penwidth=2.0]
+  3 [color=black label="j
+" penwidth=2.0]
+  4 [color=black label="pot
+" penwidth=2.0 style=filled color=gray]
+  3 -> 2 [label="continuity"]
+  1 -> 2 [label="continuity"]
+  1 -> 3 [label="drift_diffusion_curr"]
+  4 -> 3 [label="drift_diffusion_curr"]
+}

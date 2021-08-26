@@ -62,7 +62,7 @@ contains
 
     ! provides e_dens and depends on dens
     i_prov = this%provide(e_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    i_dep  = this%depend(dens)
+    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .true.)
     do i = 1, size(grd%x)
       call jaco%set([i], [i], -1.0)

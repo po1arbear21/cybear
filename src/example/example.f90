@@ -9,7 +9,9 @@ program example
   call init_full()
   call init_nlpe()
 
-  call solve_nlpe()
+  !call solve_nlpe()
+  call solve_gummel()
+  call solve_full_newton()
 
   call output()
 

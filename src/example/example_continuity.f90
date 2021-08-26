@@ -73,13 +73,13 @@ contains
       idx1 = [i]
 
       if (uncontacted%flags%get(idx1)) then
-        ! setting uncontacted const jacobs
-        call this%jaco_dens%set(idx1, idx1, 1.0)
-      else
         ! setting contacted const jacobs
         call this%jaco_curr%add( idx1, idx0, -1.0)
         call this%jaco_curr%add( idx1, idx1,  1.0)
         call this%jaco_dens_t%set( idx1, idx1, adj_v%get(idx1))
+      else
+        ! setting uncontacted const jacobs
+        call this%jaco_dens%set(idx1, idx1, 1.0)
       end if
     end do
     call this%init_final()

@@ -20,7 +20,7 @@ module example_imref_m
     real, pointer :: x(:) => null()
   contains
     procedure :: init => imref_init
-    procedure :: calc => from_dens
+    procedure :: calc => imref_calc
   end type
 
   type, extends(equation) :: calc_dens
@@ -52,8 +52,8 @@ contains
     this%x => p%data
   end subroutine
 
-  subroutine from_dens(this)
-    class(imref), intent(out) :: this
+  subroutine imref_calc(this)
+    class(imref), intent(inout) :: this
 
     real, allocatable :: dens_arr(:)
 
@@ -74,11 +74,11 @@ contains
     call this%st%init(grd)
 
     ! provides dens and depends on potential and imref
-    i_prov = this%provide(dens)
+    i_prov = this%provide(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     i_dep  = this%depend(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+    this%jaco_pot => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
     i_dep  = this%depend(iref)
-    this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+    this%jaco_imref => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
 
     call this%init_final()
   end subroutine

@@ -1,5 +1,6 @@
 module example_current_density_m
 
+  use example_contact_m,   only: uncontacted, contacts
   use example_density_m,   only: dens
   use example_device_m,    only: grd, mobility
   use example_potential_m, only: pot
@@ -54,7 +55,7 @@ contains
   subroutine calc_curr_d_init(this)
     class(calc_curr_d), intent(out) :: this
 
-    integer :: i_dep, i_prov
+    integer :: i_dep, i_prov, i
 
     ! init equation
     call this%equation_init("drift_diffusion_curr")
@@ -65,10 +66,10 @@ contains
     ! provides curr
     i_prov = this%provide(curr)
     ! depends on dens
-    i_dep  = this%depend(dens)
+    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
     ! depends on pot
-    i_dep  = this%depend(pot)
+    i_dep  = this%depend(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 
     call this%init_final()
@@ -78,12 +79,14 @@ contains
     class(calc_curr_d), intent(inout) :: this
 
     integer :: i, idx1(1), idx2(1)
-    real    :: ber1, ber2, dber1, dber2
+    real    :: ber1, ber2, dber1, dber2, len
 
     ! loop over edges
     do i = 1, size(grd%x)-1
       idx1 = [i]
       idx2 = [i+1]
+
+      len = grd%get_len(idx1, 1)
 
       ber1 = ber(pot%get(idx2)-pot%get(idx1))
       ber2 = ber(pot%get(idx1)-pot%get(idx2))
@@ -92,13 +95,13 @@ contains
       dber2 = dberdx(pot%get(idx1)-pot%get(idx2))
 
       ! curr
-      call curr%set(           idx1,        mobility * (ber1 * dens%get(idx2)) - ber2 * dens%get(idx1) / grd%get_len(idx1, 1))
+      call curr%set(           idx1,       -mobility * (ber1 * dens%get(idx2) - ber2 * dens%get(idx1)) / len)
       ! jaco_dens
-      call this%jaco_dens%set( idx1, idx1, -mobility * ber2 / grd%get_len(idx1, 1))
-      call this%jaco_dens%set( idx1, idx2,  mobility * ber1 / grd%get_len(idx1, 1))
+      call this%jaco_dens%set( idx1, idx1,  mobility * ber2 / len)
+      call this%jaco_dens%set( idx1, idx2, -mobility * ber1 / len)
       ! jaco_pot
-      call this%jaco_pot%set(  idx1, idx1, -mobility * (dber1 * dens%get(idx2) + dber2 * dens%get(idx1)) / grd%get_len(idx1, 1))
-      call this%jaco_pot%add(  idx1, idx2,  mobility * (dber1 * dens%get(idx2) + dber2 * dens%get(idx1)) / grd%get_len(idx1, 1))
+      call this%jaco_pot%set(  idx1, idx1,  mobility * (dber1 * dens%get(idx2) + dber2 * dens%get(idx1)) / len)
+      call this%jaco_pot%set(  idx1, idx2, -mobility * (dber1 * dens%get(idx2) + dber2 * dens%get(idx1)) / len)
     end do
   end subroutine
 
