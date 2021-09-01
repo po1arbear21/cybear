@@ -384,14 +384,14 @@ contains
       n = 600
       call example_matrix4(sA)
       deallocate (x, y)
-      x = [(complex(i, n-2*i), i=0, n-1)]    ! [(0, 600), (1, 598)...]
+      x = [(cmplx(i, n-2*i), i=0, n-1)]    ! [(0, 600), (1, 598)...]
       allocate (y(n))
       ! test: y <- A*x
       call sA%mul_vec(x, y)
       call tc%assert_eq((46419.56269819, 690392.61484622), sum(y), 1e-8, "mul_vec cmplx 5")
 
       ! test: y <- A*x -3y
-      y = [(complex(i,-i), i=0, n-1)]
+      y = [(cmplx(i,-i), i=0, n-1)]
       call sA%mul_vec(x, y, fact_y = (3, 0))
       call tc%assert_eq((585519.56269819, 151292.61484622), sum(y), 1e-8, "mul_vec cmplx 6")
 
@@ -401,7 +401,7 @@ contains
       call tc%assert_eq((46203.56269819, 690284.61484622), sum(y), 1e-8, "mul_vec cmplx 7")
 
       ! test: y <- (A^t)*x +4y
-      y = [(complex(i,-i), i=0, n-1)]
+      y = [(cmplx(i,-i), i=0, n-1)]
       call sA%mul_vec(x, y, fact_y = (-1, 1), trans='T')
       call tc%assert_eq((46203.56269819, 1049684.61484622), sum(y), 1e-8, "mul_vec cmplx 8")
     end block
