@@ -4,7 +4,6 @@ module mumps_m
 
   use deque_m,      only: deque_int
   use error_m,      only: program_error
-  use omp_lib,      only: OMP_lock_kind, omp_init_lock, omp_set_lock, omp_unset_lock
   use sparse_idx_m, only: sparse_idx
 
   implicit none
@@ -20,13 +19,11 @@ module mumps_m
   include 'dmumps_struc.h'
   include 'zmumps_struc.h'
 
-  integer, parameter     :: MUMPS_NUM_HANDLES = 128
-  type(dmumps_struc)     :: dmumps_handles(MUMPS_NUM_HANDLES)
-  type(zmumps_struc)     :: zmumps_handles(MUMPS_NUM_HANDLES)
-  type(deque_int)        :: dmumps_free_handles
-  type(deque_int)        :: zmumps_free_handles
-  integer(OMP_lock_kind) :: dmumps_lock = 0
-  integer(OMP_lock_kind) :: zmumps_lock = 0
+  integer, parameter :: MUMPS_NUM_HANDLES = 128
+  type(dmumps_struc) :: dmumps_handles(MUMPS_NUM_HANDLES)
+  type(zmumps_struc) :: zmumps_handles(MUMPS_NUM_HANDLES)
+  type(deque_int)    :: dmumps_free_handles
+  type(deque_int)    :: zmumps_free_handles
 
   interface
     subroutine dmumps(d)
@@ -90,25 +87,15 @@ contains
 
     integer :: i
 
-    ! initialize lock
-    if (dmumps_lock == 0) then
-      !$omp critical
-      if (dmumps_lock == 0) call omp_init_lock(dmumps_lock)
-      !$omp end critical
-    end if
-
     ! get free handle
-    call omp_set_lock(dmumps_lock)
+    !$omp critical (dmumps_handles)
     if (.not. allocated(dmumps_free_handles%d)) then
       call dmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
-    if (dmumps_free_handles%n < 1) then
-      call omp_unset_lock(dmumps_lock)
-      call program_error("No free dmumps handles!")
-    end if
+    if (dmumps_free_handles%n < 1) call program_error("No free dmumps handles!")
     h = dmumps_free_handles%front()
     call dmumps_free_handles%pop_front()
-    call omp_unset_lock(dmumps_lock)
+    !$omp end critical (dmumps_handles)
 
     associate (m => dmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
@@ -127,25 +114,15 @@ contains
 
     integer :: i
 
-    ! initialize lock
-    if (zmumps_lock == 0) then
-      !$omp critical
-      if (zmumps_lock == 0) call omp_init_lock(zmumps_lock)
-      !$omp end critical
-    end if
-
     ! get free handle
-    call omp_set_lock(zmumps_lock)
+    !$omp critical (zmumps_handles)
     if (.not. allocated(zmumps_free_handles%d)) then
       call zmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
-    if (zmumps_free_handles%n < 1) then
-      call omp_unset_lock(zmumps_lock)
-      call program_error("No free zmumps handles!")
-    end if
+    if (zmumps_free_handles%n < 1) call program_error("No free zmumps handles!")
     h = zmumps_free_handles%front()
     call zmumps_free_handles%pop_front()
-    call omp_unset_lock(zmumps_lock)
+    !$omp end critical (zmumps_handles)
 
     associate (m => zmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
@@ -173,9 +150,9 @@ contains
       call exec_dmumps(m, -2)
     end associate
 
-    call omp_set_lock(dmumps_lock)
+    !$omp critical (dmumps_handles)
     call dmumps_free_handles%push_back(h)
-    call omp_unset_lock(dmumps_lock)
+    !$omp end critical (dmumps_handles)
 
     h = 0
   end subroutine
@@ -196,9 +173,9 @@ contains
       call exec_zmumps(m, -2)
     end associate
 
-    call omp_set_lock(zmumps_lock)
+    !$omp critical (zmumps_handles)
     call zmumps_free_handles%push_back(h)
-    call omp_unset_lock(zmumps_lock)
+    !$omp end critical (zmumps_handles)
 
     h = 0
   end subroutine

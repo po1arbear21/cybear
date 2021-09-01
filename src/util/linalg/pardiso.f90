@@ -4,7 +4,6 @@ module pardiso_m
 
   use deque_m,      only: deque_int
   use error_m,      only: assert_failed, program_error
-  use omp_lib,      only: OMP_lock_kind, omp_init_lock, omp_set_lock, omp_unset_lock
   use sparse_idx_m, only: sparse_idx
 
   implicit none
@@ -44,10 +43,9 @@ module pardiso_m
       !! factorization complete flag
   end type
 
-  integer, parameter     :: PARDISO_NUM_HANDLES = 128
-  type(pardiso_handle)   :: pardiso_handles(PARDISO_NUM_HANDLES)
-  type(deque_int)        :: pardiso_free_handles
-  integer(OMP_lock_kind) :: pardiso_lock = 0
+  integer, parameter   :: PARDISO_NUM_HANDLES = 128
+  type(pardiso_handle) :: pardiso_handles(PARDISO_NUM_HANDLES)
+  type(deque_int)      :: pardiso_free_handles
 
   interface pardiso_factorize
     module procedure :: pardiso_factorize_r
@@ -87,25 +85,15 @@ contains
 
     integer :: i, mtype, iparm(64)
 
-    ! initialize lock
-    if (pardiso_lock == 0) then
-      !$omp critical
-      if (pardiso_lock == 0) call omp_init_lock(pardiso_lock)
-      !$omp end critical
-    end if
-
     ! get free handle
-    call omp_set_lock(pardiso_lock)
+    !$omp critical (pardiso_handles)
     if (.not. allocated(pardiso_free_handles%d)) then
       call pardiso_free_handles%init(PARDISO_NUM_HANDLES, x = [(i, i=1, PARDISO_NUM_HANDLES)])
     end if
-    if (pardiso_free_handles%n < 1) then
-      call omp_unset_lock(pardiso_lock)
-      call program_error("No free pardiso handles!")
-    end if
+    if (pardiso_free_handles%n < 1) call program_error("No free pardiso handles!")
     h = pardiso_free_handles%front()
     call pardiso_free_handles%pop_front()
-    call omp_unset_lock(pardiso_lock)
+    !$omp end critical (pardiso_handles)
 
     associate (p => pardiso_handles(h))
       ! maximum number of factors with idential sparse structure
@@ -194,9 +182,9 @@ contains
       p%factorized = .false.
     end associate
 
-    call omp_set_lock(pardiso_lock)
+    !$omp critical (pardiso_handles)
     call pardiso_free_handles%push_back(h)
-    call omp_unset_lock(pardiso_lock)
+    !$omp end critical (pardiso_handles)
 
     h = 0
   end subroutine
