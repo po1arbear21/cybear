@@ -1,13 +1,12 @@
 module example_voltage_m
 
   use grid_m,     only: grid_data0_real
-  use input_m,    only: input_file
   use variable_m, only: variable
 
   implicit none
 
   private
-  public cont_v, voltage
+  public contact_volt, voltage
 
   type, extends(variable) :: voltage
     !! electric voltage
@@ -16,7 +15,7 @@ module example_voltage_m
     procedure :: init => voltage_init
   end type
 
-  type(voltage), allocatable :: cont_v(:)
+  type(voltage), allocatable :: contact_volt(:)
 
 contains
 

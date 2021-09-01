@@ -14,8 +14,7 @@ module example_charge_density_m
   implicit none
 
   private
-  public calc_e_dens
-  public charge_density, e_dens
+  public calc_charge_dens, charge_dens
 
   type, extends(variable) :: charge_density
     !! electric density
@@ -31,8 +30,8 @@ module example_charge_density_m
     procedure :: eval => calc_charge_density_eval
   end type
 
-  type(charge_density)      :: e_dens
-  type(calc_charge_density) :: calc_e_dens
+  type(charge_density)      :: charge_dens
+  type(calc_charge_density) :: calc_charge_dens
 
 contains
 
@@ -60,9 +59,9 @@ contains
     ! init stencil
     call this%st%init(grd)
 
-    ! provides e_dens and depends on dens
-    i_prov = this%provide(e_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    ! provides charge_density and depends on density
+    i_prov = this%provide(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend(dens,         [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .true.)
     do i = 1, size(grd%x)
       call jaco%set([i], [i], -1.0)
@@ -75,7 +74,7 @@ contains
 
     IGNORE(this)
 
-    call e_dens%set([dop_v%get() - dens%get()])
+    call charge_dens%set([dop_v%get() - dens%get()])
   end subroutine
 
 end module

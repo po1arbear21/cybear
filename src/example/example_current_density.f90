@@ -1,6 +1,6 @@
 module example_current_density_m
 
-  use example_contact_m,   only: uncontacted, contacts
+  use example_contact_m,   only: contacts, uncontacted
   use example_density_m,   only: dens
   use example_device_m,    only: grd, mobility
   use example_potential_m, only: pot
@@ -14,7 +14,7 @@ module example_current_density_m
   implicit none
 
   private
-  public curr, c_curr
+  public current_dens, calc_current_dens
 
   type, extends(variable) :: current_density
     !! electric current_density
@@ -23,7 +23,7 @@ module example_current_density_m
     procedure :: init => current_density_init
   end type
 
-  type, extends(equation) :: calc_curr_d
+  type, extends(equation) :: calc_current_density
     !! drift diffusion
 
     type(near_neighb_stencil) :: st
@@ -31,12 +31,12 @@ module example_current_density_m
     type(jacobian), pointer   :: jaco_dens => null()
     type(jacobian), pointer   :: jaco_pot => null()
   contains
-    procedure :: init => calc_curr_d_init
-    procedure :: eval => calc_curr_d_eval
+    procedure :: init => calc_current_density_init
+    procedure :: eval => calc_current_density_eval
   end type
 
-  type(current_density) :: curr
-  type(calc_curr_d)     :: c_curr
+  type(current_density)      :: current_dens
+  type(calc_current_density) :: calc_current_dens
 
 contains
 
@@ -52,30 +52,30 @@ contains
     this%x => p%data
   end subroutine
 
-  subroutine calc_curr_d_init(this)
-    class(calc_curr_d), intent(out) :: this
+  subroutine calc_current_density_init(this)
+    class(calc_current_density), intent(out) :: this
 
     integer :: i_dep, i_prov, i
 
     ! init equation
-    call this%equation_init("drift_diffusion_curr")
+    call this%equation_init("drift_diffusion_current_dens")
 
     ! init stencil
     call this%st%init(grd, IDX_EDGE, 1, IDX_VERTEX, 0)
 
-    ! provides curr
-    i_prov = this%provide(curr)
-    ! depends on dens
+    ! provides current_density
+    i_prov = this%provide(current_dens)
+    ! depends on density
     i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
-    ! depends on pot
+    ! depends on potential
     i_dep  = this%depend(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 
     call this%init_final()
   end subroutine
 
-  subroutine calc_curr_d_eval(this)
+  subroutine calc_current_density_eval(this)
     class(calc_curr_d), intent(inout) :: this
 
     integer :: i, idx1(1), idx2(1)
@@ -95,7 +95,7 @@ contains
       dber2 = dberdx(pot%get(idx1)-pot%get(idx2))
 
       ! curr
-      call curr%set(           idx1,       -mobility * (ber1 * dens%get(idx2) - ber2 * dens%get(idx1)) / len)
+      call current_dens%set(           idx1,       -mobility * (ber1 * dens%get(idx2) - ber2 * dens%get(idx1)) / len)
       ! jaco_dens
       call this%jaco_dens%set( idx1, idx1,  mobility * ber2 / len)
       call this%jaco_dens%set( idx1, idx2, -mobility * ber1 / len)

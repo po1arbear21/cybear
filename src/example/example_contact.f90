@@ -2,7 +2,7 @@ module example_contact_m
 
   use bin_search_m,      only: bin_search
   use example_device_m,  only: dop, dop_v, grd, n_intrin
-  use example_voltage_m, only: cont_v, voltage
+  use example_voltage_m, only: voltage
   use grid_m,            only: grid_data1_int, grid_table, IDX_CELL, IDX_VERTEX
   use input_m,           only: input_file
 
@@ -10,7 +10,7 @@ module example_contact_m
 
   private
   public init_contacts
-  public contact, contacts, uncontacted, grd_cont
+  public contacts, uncontacted, grd_contacts
 
   type contact
     character(:), allocatable :: name
@@ -24,7 +24,7 @@ module example_contact_m
 
   type(contact), allocatable :: contacts(:)
   type(grid_table)           :: uncontacted
-  type(grid_data1_int)       :: grd_cont
+  type(grid_data1_int)       :: grd_contacts
 
 contains
 
@@ -41,13 +41,13 @@ subroutine init_contacts(f)
 
   ! initialise uncontacted with default True
   call uncontacted%init("uncontacted", grd, IDX_VERTEX, 0, initial_flags = .true.)
-  call grd_cont%init(grd, IDX_VERTEX, 0)
+  call grd_contacts%init(grd, IDX_VERTEX, 0)
 
   ! getting input for the contact at each section
   allocate(contacts(num_ct))
   do i = 1, num_ct
     call contacts(i)%init(f, sid(i))
-    call grd_cont%set(contacts(i)%idx, i)
+    call grd_contacts%set(contacts(i)%idx, i)
   end do
 
   ! finalize uncontacted

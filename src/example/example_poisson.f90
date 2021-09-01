@@ -1,7 +1,7 @@
 module example_poisson_m
 
-  use example_charge_density_m, only: e_dens
-  use example_contact_m,        only: contacts, uncontacted, grd_cont
+  use example_charge_density_m, only: charge_dens
+  use example_contact_m,        only: contacts, uncontacted, grd_contacts
   use example_device_m,         only: adj_v, eps, grd
   use example_potential_m,      only: pot
   use grid_m,                   only: IDX_VERTEX

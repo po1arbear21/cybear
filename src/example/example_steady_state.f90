@@ -2,14 +2,15 @@ module example_steady_state_m
 
   use error_m,                   only: program_error
   use esystem_m,                 only: esystem
-  use example_charge_density_m,  only: calc_e_dens, e_dens
+  use example_charge_density_m,  only: calc_charge_dens, charge_dens
   use example_contact_m,         only: contacts, init_contacts
-  use example_continuity_m,      only: cont
-  use example_current_density_m, only: curr, c_curr
-  use example_density_m,         only: dens
+  use example_continuity_m,      only: contin
+  use example_current_density_m, only: calc_current_dens, current_dens
+  use example_density_m,         only: calc_dens, dens
   use example_device_m,          only: grd, init_device
-  use example_imref_m,           only: c_dens, iref
+  use example_imref_m,           only: iref
   use example_poisson_m,         only: pois
+
   use example_potential_m,       only: pot
   use input_m,                   only: input_file
   use newton_m,                  only: newton_opt
