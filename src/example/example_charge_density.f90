@@ -17,7 +17,7 @@ module example_charge_density_m
   public calc_charge_dens, charge_dens
 
   type, extends(variable) :: charge_density
-    !! electric density
+    !! charge density
     real, pointer :: x(:) => null()
   contains
     procedure :: init => charge_density_init
@@ -38,7 +38,7 @@ contains
   subroutine charge_density_init(this)
     class(charge_density), intent(out) :: this
 
-    type(grid_data1_real), pointer :: p
+    type(grid_data1_real), pointer :: p => null()
 
     call this%variable_init("rho", "C/cm^3", g = grd, idx_type = IDX_VERTEX, idx_dir = 0)
 
@@ -61,8 +61,10 @@ contains
 
     ! provides charge_density and depends on density
     i_prov = this%provide(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    i_dep  = this%depend(dens,         [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend( dens,        [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    ! init jaco
     jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .true.)
+    ! setting jaco
     do i = 1, size(grd%x)
       call jaco%set([i], [i], -1.0)
     end do
@@ -74,6 +76,7 @@ contains
 
     IGNORE(this)
 
+    ! calculating the charge density
     call charge_dens%set([dop_v%get() - dens%get()])
   end subroutine
 

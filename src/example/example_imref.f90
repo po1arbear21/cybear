@@ -42,7 +42,7 @@ contains
 
     allocate(dens_arr(size(grd%x)))
     dens_arr = dens%get()
-    call this%set(-log(dens_arr/n_intrin)+pot%get())
+    call this%set(-log(dens_arr / n_intrin) + pot%get())
   end subroutine
 
 end module

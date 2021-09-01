@@ -62,7 +62,7 @@ contains
     call this%st_nn%init( grd, IDX_VERTEX, 0, IDX_EDGE, 1)
     call this%st_em%init()
 
-    ! init jaco
+    ! init jacos
     this%jaco_current_dens => this%init_jaco_f(this%depend(this%current_dens),  [this%st_nn%get_ptr(),  (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .false.)
     this%jaco_dens         => this%init_jaco_f(this%depend(this%dens),          [this%st_em%get_ptr(),  (this%st_dir%get_ptr(), i=1, size(contacts))], const = .true.,  dtime = .false.)
     this%jaco_dens_t       => this%init_jaco_f(this%depend(this%dens),          [this%st_dir%get_ptr(), (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .true.)
@@ -97,6 +97,7 @@ contains
     integer :: i, j, idx(1)
 
     allocate(tmp(this%dens%n))
+    ! calculating the density
     call this%jaco_current_dens%matr%mul_vec(this%current_dens%get(), tmp)
     call this%jaco_dens%matr%mul_vec(        this%dens%get(),         tmp, fact_y = 1.0)
     call this%f%set(tmp)

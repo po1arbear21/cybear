@@ -95,7 +95,7 @@ contains
       dber2 = dberdx(pot%get(idx1)-pot%get(idx2))
 
       ! curr
-      call current_dens%set(           idx1,       -mobility * (ber1 * dens%get(idx2) - ber2 * dens%get(idx1)) / len)
+      call current_dens%set(   idx1,       -mobility * (ber1 * dens%get(idx2) - ber2 * dens%get(idx1)) / len)
       ! jaco_dens
       call this%jaco_dens%set( idx1, idx1,  mobility * ber2 / len)
       call this%jaco_dens%set( idx1, idx2, -mobility * ber1 / len)

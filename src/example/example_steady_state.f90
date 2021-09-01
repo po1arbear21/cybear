@@ -10,7 +10,6 @@ module example_steady_state_m
   use example_device_m,          only: grd, init_device
   use example_imref_m,           only: iref
   use example_poisson_m,         only: pois
-
   use example_potential_m,       only: pot
   use input_m,                   only: input_file
   use newton_m,                  only: newton_opt
@@ -23,7 +22,6 @@ module example_steady_state_m
   public init_dd, init_full, init_nlpe
   public solve_full_newton, solve_gummel, solve_nlpe
   public output
-  ! public sys_dd, sys_full, sys_nlpe
 
   type(esystem)    :: sys_dd, sys_full, sys_nlpe
   type(input_file) :: f
@@ -62,15 +60,22 @@ contains
     integer :: max_it
     real    :: atol, rtol
 
+    ! reading parameters
     call f%get("dd_parameters", "max_it", max_it)
     call f%get("dd_parameters", "atol",   atol)
     call f%get("dd_parameters", "rtol",   rtol)
 
+    ! init equation system
     call sys_dd%init("drift-diffusion")
-    call sys_dd%add_equation(cont)
-    call sys_dd%add_equation(c_curr)
+    ! add related equations to the system
+    call sys_dd%add_equation(contin)
+    call sys_dd%add_equation(calc_current_dens)
+    ! provide variables
     call sys_dd%provide(pois%pot)
+    ! finalize the equation system
     call sys_dd%init_final()
+
+    ! output the related graph to the equation system
     call sys_dd%g%output("dd")
 
     ! init solver options
@@ -83,6 +88,7 @@ contains
     integer :: max_it
     real    :: atol, rtol
 
+    ! reading parameters
     call f%get("nlpe_parameters", "max_it", max_it)
     call f%get("nlpe_parameters", "atol",   atol)
     call f%get("nlpe_parameters", "rtol",   rtol)
@@ -91,15 +97,15 @@ contains
     call sys_nlpe%init("non-linear poisson")
     ! add related equations to the system
     call sys_nlpe%add_equation(pois)
-    call sys_nlpe%add_equation(calc_e_dens)
-    call sys_nlpe%add_equation(c_dens)
+    call sys_nlpe%add_equation(calc_charge_dens)
+    call sys_nlpe%add_equation(calc_dens)
     ! provide variables
     call sys_nlpe%provide(iref)
     call sys_nlpe%provide(pois%volt)
     ! finalize the equation system
     call sys_nlpe%init_final()
 
-    ! output the related graph to the esystem
+    ! output the related graph to the equation system
     call sys_nlpe%g%output("nlpe")
 
     ! init solver options
@@ -114,6 +120,7 @@ contains
     integer :: max_it
     real    :: atol, rtol
 
+    ! reading parameters
     call f%get("nlpe_parameters", "max_it", max_it)
     call f%get("nlpe_parameters", "atol",   atol)
     call f%get("nlpe_parameters", "rtol",   rtol)
@@ -121,11 +128,10 @@ contains
     ! init equation system
     call sys_full%init("full newton")
     ! add related equations to the system
-
     call sys_full%add_equation(pois)
-    call sys_full%add_equation(cont)
-    call sys_full%add_equation(calc_e_dens)
-    call sys_full%add_equation(c_curr)
+    call sys_full%add_equation(contin)
+    call sys_full%add_equation(calc_charge_dens)
+    call sys_full%add_equation(calc_current_dens)
     ! provide variables
     do i = 1, size(contacts)
       call sys_full%provide(contacts(i)%volt, input = .true.)
@@ -133,7 +139,7 @@ contains
     ! finalize the equation system
     call sys_full%init_final()
 
-    ! output the related graph to the esystem
+    ! output the related graph to the equation system
     call sys_full%g%output("full")
 
     ! init solver options
@@ -144,16 +150,19 @@ contains
   end subroutine
 
   subroutine solve_nlpe()
+    !! solve the non-linear poisson system
     call sys_nlpe%solve(nopt = opt_nlpe)
   end subroutine
 
   subroutine solve_gummel()
+    !! solve the gummel system
     integer           :: max_it, i
     real              :: error, atol
     real, allocatable :: iref0(:), pot0(:)
 
     allocate(iref0(size(iref%get())), pot0(size(pot%get())))
 
+    ! reading parameters
     call f%get("gummel_parameters", "max_it", max_it)
     call f%get("gummel_parameters", "atol",   atol)
 
@@ -176,13 +185,15 @@ contains
   end subroutine
 
   subroutine solve_full_newton()
+    !! solve the full newton system
     call sys_full%solve(nopt = opt_full)
   end subroutine
 
   subroutine output()
+    !! output denity, potential and current_density
     call dens%output_data("dens.csv")
     call pot%output_data( "pot.csv")
-    call curr%output_data("curr.csv")
+    call current_dens%output_data("current_dens.csv")
   end subroutine
 
 end module

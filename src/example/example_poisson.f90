@@ -72,8 +72,8 @@ contains
 
 
     ! init jaco
-    this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(), i = 1, size(contacts))], const = .true.)
-    this%jaco_rho  => this%init_jaco_f(this%depend(this%rho),  [this%st_dir%get_ptr(), (this%st_em%get_ptr(),  i = 1, size(contacts))], const = .true.)
+    this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)
+    this%jaco_rho  => this%init_jaco_f(this%depend(this%rho),  [this%st_dir%get_ptr(), (this%st_em%get_ptr(),       i = 1, size(contacts))], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), [this%st_em%get_ptr(),  (this%st_dir_volt%get_ptr(), i = 1, size(contacts))], const = .true.)
 
     ! loop over cells
@@ -84,6 +84,7 @@ contains
       ! capacity
       cap = eps%get(idx1) / grd%get_len(idx1, 1)
 
+      ! setting jaco_pot
       if (uncontacted%flags%get(idx1)) then
         call this%jaco_pot%add(idx1, idx1,  cap)
         call this%jaco_pot%add(idx1, idx2, -cap)
@@ -100,11 +101,14 @@ contains
       idx1 = [i]
 
       if (uncontacted%flags%get(idx1)) then
+        ! setting jaco_rho
         call this%jaco_rho%set(idx1, idx1, -adj_v%get(idx1))
       else
         j = grd_cont%get(idx1)
         d_volt = -eye(j:j, :)
+        ! setting jaco_volt
         call this%jaco_volt%set(idx1, dum,  d_volt)
+        ! setting jaco_pot
         call this%jaco_pot%set( idx1, idx1, 1.0)
       end if
     end do
@@ -118,6 +122,7 @@ contains
     integer           :: i, j, idx(1)
 
     allocate(tmp(this%pot%n))
+    ! calculating potential (f)
     call this%jaco_pot%matr%mul_vec(this%pot%get(), tmp)
     call this%jaco_rho%matr%mul_vec(this%rho%get(), tmp, fact_y = 1.0)
     call this%f%set(tmp)

@@ -88,7 +88,6 @@ contains
     call f%get("permittivity", "x0",  x0)
     call f%get("permittivity", "x1",  x1)
 
-
     ! set values in the given range
     ind0 = bin_search(grd%x, x0)
     ind1 = bin_search(grd%x, x1) - 1

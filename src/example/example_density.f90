@@ -34,8 +34,8 @@ module example_density_m
     procedure :: eval => calc_density_eval
   end type
 
-  type(density)      :: dens
   type(calc_density) :: calc_dens
+  type(density)      :: dens
 
 contains
 
@@ -62,10 +62,12 @@ contains
     ! init stencil
     call this%st%init(grd)
 
-    ! provides density and depends on potential and imref
+    ! provides density
     i_prov = this%provide(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    ! depends on potential
     i_dep  = this%depend(pot,   [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_pot => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
+    ! depends also on imref
     i_dep  = this%depend(iref)
     this%jaco_imref => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
 
@@ -77,6 +79,7 @@ contains
 
     integer :: i
 
+    ! calculating density
     do i = 1, size(dens%x)
       call this%jaco_pot%set(  [i], [i],  n_intrin*exp(pot%get([i])-iref%get([i])))
       call this%jaco_imref%set([i], [i], -n_intrin*exp(pot%get([i])-iref%get([i])))
