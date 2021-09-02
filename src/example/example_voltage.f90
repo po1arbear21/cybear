@@ -6,7 +6,7 @@ module example_voltage_m
   implicit none
 
   private
-  public contact_volt, voltage
+  public volt, voltage
 
   type, extends(variable) :: voltage
     !! electric voltage
@@ -15,7 +15,7 @@ module example_voltage_m
     procedure :: init => voltage_init
   end type
 
-  type(voltage), allocatable :: contact_volt(:)
+  type(voltage), allocatable :: volt(:)
 
 contains
 

@@ -6,9 +6,9 @@ module example_steady_state_m
   use example_contact_m,         only: contacts, init_contacts
   use example_continuity_m,      only: contin
   use example_current_density_m, only: calc_current_dens, current_dens
-  use example_density_m,         only: calc_dens, dens
+  use example_density_m,         only: dens
   use example_device_m,          only: grd, init_device
-  use example_imref_m,           only: iref
+  use example_imref_m,           only: calc_dens, iref
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
   use input_m,                   only: input_file
@@ -42,18 +42,18 @@ contains
     call init_contacts(f)
 
     ! init variables
-    call curr%init()
+    call current_dens%init()
     call pot%init()
     call dens%init()
-    call e_dens%init()
+    call charge_dens%init()
     call iref%init()
 
     ! init equations
-    call c_curr%init()
-    call calc_e_dens%init()
+    call calc_current_dens%init()
+    call calc_charge_dens%init()
     call pois%init()
-    call c_dens%init()
-    call cont%init()
+    call calc_dens%init()
+    call contin%init()
   end subroutine
 
   subroutine init_dd()

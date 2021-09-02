@@ -4,7 +4,7 @@ module example_charge_density_m
 
   use equation_m,        only: equation
   use example_contact_m, only: contacts, uncontacted
-  use example_density_m, only: dens, density
+  use example_density_m, only: dens
   use example_device_m,  only: dop_v, grd
   use grid_m,            only: grid_data1_real, IDX_VERTEX
   use jacobian_m,        only: jacobian, jacobian_ptr

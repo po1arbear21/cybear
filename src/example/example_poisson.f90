@@ -58,8 +58,8 @@ contains
 
     ! vselect the variables
     call this%volt%init([(contacts(i)%volt%get_ptr(), i = 1 , size(contacts))], "voltages")
-    call this%pot%init(pot,    [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    call this%rho%init(e_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%pot%init(pot,         [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%rho%init(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
 
     ! set main variable
     call this%init_f(this%pot)
@@ -104,7 +104,7 @@ contains
         ! setting jaco_rho
         call this%jaco_rho%set(idx1, idx1, -adj_v%get(idx1))
       else
-        j = grd_cont%get(idx1)
+        j = grd_contacts%get(idx1)
         d_volt = -eye(j:j, :)
         ! setting jaco_volt
         call this%jaco_volt%set(idx1, dum,  d_volt)

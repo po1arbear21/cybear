@@ -76,7 +76,7 @@ contains
   end subroutine
 
   subroutine calc_current_density_eval(this)
-    class(calc_curr_d), intent(inout) :: this
+    class(calc_current_density), intent(inout) :: this
 
     integer :: i, idx1(1), idx2(1)
     real    :: ber1, ber2, dber1, dber2, len

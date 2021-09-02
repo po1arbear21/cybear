@@ -31,8 +31,8 @@ digraph mygraph {
   10 -> 4 [label="Selectvoltages"]
   7 -> 6 [label="continuity"]
   5 -> 6 [label="continuity"]
-  5 -> 7 [label="drift_diffusion_curr"]
-  1 -> 7 [label="drift_diffusion_curr"]
+  5 -> 7 [label="drift_diffusion_current_dens"]
+  1 -> 7 [label="drift_diffusion_current_dens"]
   8 -> 9 [label="Inputvoltage_SRC"]
   10 -> 11 [label="Inputvoltage_DRN"]
 }

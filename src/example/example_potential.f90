@@ -1,6 +1,5 @@
 module example_potential_m
 
-  use example_density_m, only: dens
   use example_device_m,  only: grd
   use grid_m,            only: grid_data1_real, IDX_VERTEX
   use variable_m,        only: variable
