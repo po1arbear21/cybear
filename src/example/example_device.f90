@@ -1,7 +1,7 @@
 module example_device_m
 
   use bin_search_m,    only: bin_search
-  use grid_m,          only: grid_data1_real, IDX_VERTEX, IDX_CELL
+  use grid_m,          only: grid_data1_real, IDX_VERTEX, IDX_CELL, IDX_EDGE
   use grid1D_m,        only: grid1D
   use input_m,         only: input_file
   use math_m,          only: linspace
@@ -11,11 +11,11 @@ module example_device_m
 
   private
   public init_device
-  public adj_v, dop, dop_v, eps, grd, mobility, n_intrin
+  public adj_v, beta_mob, dop, dop_v, eps, grd, mu_0, n_intrin, v_sat
 
-  real                  :: mobility, n_intrin
+  real                  :: beta_mob, n_intrin, v_sat
   type(grid1D)          :: grd
-  type(grid_data1_real) :: adj_v, dop, dop_v, eps
+  type(grid_data1_real) :: adj_v, dop, dop_v, eps, mu_0
 
 
 contains
@@ -28,6 +28,7 @@ contains
     call init_adj_v()
     call init_permittivity(f)
     call init_doping(f)
+    call init_mobility(f)
 
   end subroutine
 
@@ -40,7 +41,6 @@ contains
     call f%get("", "temperature", T, normalize = .false.)
     call init_normconst(T)
     call f%get("", "n_intrin", n_intrin)
-    call f%get("", "mobility", mobility)
   end subroutine
 
   subroutine init_grid(f)
@@ -129,6 +129,30 @@ contains
     do i = 1, dop%n
       call dop_v%update([i],   0.5*grd%get_vol([i])*dop%get([i])/adj_v%get([i]))
       call dop_v%update([i+1], 0.5*grd%get_vol([i])*dop%get([i])/adj_v%get([i+1]))
+    end do
+  end subroutine
+
+  subroutine init_mobility(f)
+    type(input_file), intent(in) :: f
+    !! input file for initialisation
+
+    integer :: ind0, ind1, i
+    real    :: a, mu_min, mu_max, N_ref
+
+    ! initialise the grid_data for the low-field mobility mu_0
+    call mu_0%init(grd, IDX_EDGE, 1)
+
+    ! getting input for the grid
+    call f%get("mobility", "alpha",  a)
+    call f%get("mobility", "mu_min", mu_min)
+    call f%get("mobility", "mu_max", mu_max)
+    call f%get("mobility", "N_ref",  N_ref)
+    call f%get("mobility", "beta",   beta_mob)
+    call f%get("mobility", "v_sat",  v_sat)
+
+    ! Caughey-Thomas low-field mobility
+    do i = 1, dop%n
+      call mu_0%set([i], mu_min + (mu_max - mu_min) / (1 + ((dop%get([i])) / N_ref)**a))
     end do
   end subroutine
 

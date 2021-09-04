@@ -9,6 +9,7 @@ module example_steady_state_m
   use example_density_m,         only: dens
   use example_device_m,          only: grd, init_device
   use example_imref_m,           only: calc_dens, iref
+  use example_mobility_m,        only: calc_mobil, mobil
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
   use input_m,                   only: input_file
@@ -47,6 +48,7 @@ contains
     call dens%init()
     call charge_dens%init()
     call iref%init()
+    call mobil%init()
 
     ! init equations
     call calc_current_dens%init()
@@ -54,6 +56,7 @@ contains
     call pois%init()
     call calc_dens%init()
     call contin%init()
+    call calc_mobil%init()
   end subroutine
 
   subroutine init_dd()
@@ -70,6 +73,7 @@ contains
     ! add related equations to the system
     call sys_dd%add_equation(contin)
     call sys_dd%add_equation(calc_current_dens)
+    call sys_dd%add_equation(calc_mobil)
     ! provide variables
     call sys_dd%provide(pois%pot)
     ! finalize the equation system
@@ -132,6 +136,7 @@ contains
     call sys_full%add_equation(contin)
     call sys_full%add_equation(calc_charge_dens)
     call sys_full%add_equation(calc_current_dens)
+    call sys_full%add_equation(calc_mobil)
     ! provide variables
     do i = 1, size(contacts)
       call sys_full%provide(contacts(i)%volt, input = .true.)

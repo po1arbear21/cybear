@@ -1,6 +1,5 @@
 temperature = 300.0 : K
 n_intrin    = 1e10 : 1/cm^3
-mobility    = 1400 : cm^2/V/s
 
 [grid]
   x0 = -250 : nm
@@ -26,6 +25,14 @@ mobility    = 1400 : cm^2/V/s
   x0   =  200 : nm
   x1   =  250 : nm
   dcon = 1e20 : 1/cm^3
+
+[mobility]
+  alpha  = 0.77
+  mu_min = 74.5   : cm^2/V/s
+  mu_max = 1430   : cm^2/V/s
+  N_ref  = 8.6e16 : 1/cm^3
+  beta   = 2.0
+  v_sat  = 1e7    : cm/s
 
 [contact]
   x    = -250 : nm
