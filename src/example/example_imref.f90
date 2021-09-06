@@ -13,29 +13,41 @@ module example_imref_m
   implicit none
 
   private
-  public calc_dens, iref
+  public calc_dens, calc_iref, iref
 
   type, extends(variable) :: imref
   !! quasi-fermi-potential
     real, pointer :: x(:) => null()
   contains
     procedure :: init => imref_init
-    procedure :: calc => imref_calc
   end type
 
-    type, extends(equation) :: calc_density
-    !! n_intrin*exp(pot-iref)
+  type, extends(equation) :: calc_imref
+  !! n_intrin * exp(pot - iref)
 
-    type(dirichlet_stencil) :: st
+  type(dirichlet_stencil) :: st
 
-    type(jacobian), pointer :: jaco_pot   => null()
-    type(jacobian), pointer :: jaco_imref => null()
-  contains
-    procedure :: init => calc_density_init
-    procedure :: eval => calc_density_eval
-  end type
+  type(jacobian), pointer :: jaco_pot  => null()
+  type(jacobian), pointer :: jaco_dens => null()
+contains
+  procedure :: init => calc_imref_init
+  procedure :: eval => calc_imref_eval
+end type
+
+  type, extends(equation) :: calc_density
+  !! iref = -log(dens / n_intrin) + pot
+
+  type(dirichlet_stencil) :: st
+
+  type(jacobian), pointer :: jaco_pot   => null()
+  type(jacobian), pointer :: jaco_imref => null()
+contains
+  procedure :: init => calc_density_init
+  procedure :: eval => calc_density_eval
+end type
 
   type(calc_density) :: calc_dens
+  type(calc_imref)   :: calc_iref
   type(imref)        :: iref
 
 contains
@@ -52,14 +64,46 @@ contains
     this%x => p%data
   end subroutine
 
-  subroutine imref_calc(this)
-    class(imref), intent(inout) :: this
+  subroutine calc_imref_init(this)
+    class(calc_imref), intent(out) :: this
 
-    real, allocatable :: dens_arr(:)
+    integer :: i_dep, i_prov, i
 
-    allocate(dens_arr(size(grd%x)))
-    dens_arr = dens%get()
-    call this%set(-log(dens_arr / n_intrin) + pot%get())
+    ! init equation
+    call this%equation_init("imref_calc")
+
+    ! init stencil
+    call this%st%init(grd)
+
+    ! provides imref
+    i_prov = this%provide(iref)
+    ! depends on potential
+    i_dep  = this%depend(pot,  [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    this%jaco_pot  => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .true.)
+    ! depends also on density
+    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+
+    ! setting jaco_pot
+    do i=1, size(grd%x)
+      call this%jaco_pot%set([i], [i], 1.0)
+    end do
+
+    call this%init_final()
+  end subroutine
+
+  subroutine calc_imref_eval(this)
+    class(calc_imref), intent(inout) :: this
+
+    integer :: i
+
+    do i = 1, size(grd%x)
+      ! setting jaco
+      call this%jaco_dens%set([i], [i], -1 / dens%get([i]))
+
+      ! calculating imref
+      call iref%set(          [i],      -log(dens%get([i]) / n_intrin) + pot%get([i]))
+    end do
   end subroutine
 
   subroutine calc_density_init(this)
@@ -75,9 +119,11 @@ contains
 
     ! provides density
     i_prov = this%provide(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+
     ! depends on potential
     i_dep  = this%depend(pot,   [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
     this%jaco_pot => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
+
     ! depends also on imref
     i_dep  = this%depend(iref)
     this%jaco_imref => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
@@ -90,10 +136,12 @@ contains
 
     integer :: i
 
-    ! calculating density
-    do i = 1, size(dens%x)
+    do i = 1, size(grd%x)
+      ! setting jacos
       call this%jaco_pot%set(  [i], [i],  n_intrin*exp(pot%get([i])-iref%get([i])))
       call this%jaco_imref%set([i], [i], -n_intrin*exp(pot%get([i])-iref%get([i])))
+
+      ! calculating density
       call dens%set(           [i],       n_intrin*exp(pot%get([i])-iref%get([i])))
     end do
   end subroutine

@@ -106,8 +106,10 @@ contains
       else
         j = grd_contacts%get(idx1)
         d_volt = -eye(j:j, :)
+
         ! setting jaco_volt
         call this%jaco_volt%set(idx1, dum,  d_volt)
+
         ! setting jaco_pot
         call this%jaco_pot%set( idx1, idx1, 1.0)
       end if
@@ -122,6 +124,7 @@ contains
     integer           :: i, j, idx(1)
 
     allocate(tmp(this%pot%n))
+
     ! calculating potential (f)
     call this%jaco_pot%matr%mul_vec(this%pot%get(), tmp)
     call this%jaco_rho%matr%mul_vec(this%rho%get(), tmp, fact_y = 1.0)

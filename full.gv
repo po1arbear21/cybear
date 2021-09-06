@@ -15,24 +15,32 @@ digraph mygraph {
 " penwidth=2.0]
   7 [color=black label="j
 " penwidth=2.0]
-  8 [color=blue label="voltage_SRC
+  8 [color=black label="mu
 " penwidth=2.0]
-  9 [color=green label="voltage_SRC_res
+  9 [color=black label="imref
 " penwidth=2.0]
-  10 [color=blue label="voltage_DRN
+  10 [color=blue label="voltage_SRC
 " penwidth=2.0]
-  11 [color=green label="voltage_DRN_res
+  11 [color=green label="voltage_SRC_res
+" penwidth=2.0]
+  12 [color=blue label="voltage_DRN
+" penwidth=2.0]
+  13 [color=green label="voltage_DRN_res
 " penwidth=2.0]
   1 -> 2 [label="poisson"]
   3 -> 2 [label="poisson"]
   4 -> 2 [label="poisson"]
   5 -> 3 [label="charge_density_calc"]
-  8 -> 4 [label="Selectvoltages"]
   10 -> 4 [label="Selectvoltages"]
+  12 -> 4 [label="Selectvoltages"]
   7 -> 6 [label="continuity"]
   5 -> 6 [label="continuity"]
   5 -> 7 [label="drift_diffusion_current_dens"]
   1 -> 7 [label="drift_diffusion_current_dens"]
-  8 -> 9 [label="Inputvoltage_SRC"]
-  10 -> 11 [label="Inputvoltage_DRN"]
+  8 -> 7 [label="drift_diffusion_current_dens"]
+  9 -> 8 [label="calc_mobility"]
+  1 -> 9 [label="imref_calc"]
+  5 -> 9 [label="imref_calc"]
+  10 -> 11 [label="Inputvoltage_SRC"]
+  12 -> 13 [label="Inputvoltage_DRN"]
 }

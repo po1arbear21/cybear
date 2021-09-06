@@ -8,11 +8,11 @@ digraph mygraph {
   3 [color=black label="rho
 " penwidth=2.0]
   4 [color=black label="voltages
-" penwidth=2.0 style=filled color=gray]
+" penwidth=2.0]
   5 [color=black label="n
 " penwidth=2.0]
   6 [color=black label="imref
-" penwidth=2.0 style=filled color=gray]
+" penwidth=2.0]
   1 -> 2 [label="poisson"]
   3 -> 2 [label="poisson"]
   4 -> 2 [label="poisson"]

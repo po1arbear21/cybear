@@ -8,7 +8,7 @@ module example_steady_state_m
   use example_current_density_m, only: calc_current_dens, current_dens
   use example_density_m,         only: dens
   use example_device_m,          only: grd, init_device
-  use example_imref_m,           only: calc_dens, iref
+  use example_imref_m,           only: calc_dens, calc_iref, iref
   use example_mobility_m,        only: calc_mobil, mobil
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
@@ -55,6 +55,7 @@ contains
     call calc_charge_dens%init()
     call pois%init()
     call calc_dens%init()
+    call calc_iref%init()
     call contin%init()
     call calc_mobil%init()
   end subroutine
@@ -70,12 +71,16 @@ contains
 
     ! init equation system
     call sys_dd%init("drift-diffusion")
+
     ! add related equations to the system
     call sys_dd%add_equation(contin)
     call sys_dd%add_equation(calc_current_dens)
     call sys_dd%add_equation(calc_mobil)
+
     ! provide variables
     call sys_dd%provide(pois%pot)
+    call sys_dd%provide(iref)
+
     ! finalize the equation system
     call sys_dd%init_final()
 
@@ -99,13 +104,16 @@ contains
 
     ! init equation system
     call sys_nlpe%init("non-linear poisson")
+
     ! add related equations to the system
     call sys_nlpe%add_equation(pois)
     call sys_nlpe%add_equation(calc_charge_dens)
     call sys_nlpe%add_equation(calc_dens)
+
     ! provide variables
     call sys_nlpe%provide(iref)
     call sys_nlpe%provide(pois%volt)
+
     ! finalize the equation system
     call sys_nlpe%init_final()
 
@@ -131,12 +139,14 @@ contains
 
     ! init equation system
     call sys_full%init("full newton")
+
     ! add related equations to the system
     call sys_full%add_equation(pois)
     call sys_full%add_equation(contin)
     call sys_full%add_equation(calc_charge_dens)
     call sys_full%add_equation(calc_current_dens)
     call sys_full%add_equation(calc_mobil)
+    call sys_full%add_equation(calc_iref)
     ! provide variables
     do i = 1, size(contacts)
       call sys_full%provide(contacts(i)%volt, input = .true.)
@@ -176,10 +186,9 @@ contains
     do while (error > atol .and. i <= max_it)
       pot0 = pot%get()
       call sys_nlpe%solve(nopt = opt_nlpe)
-
       iref0 = iref%get()
       call sys_dd%solve(nopt = opt_dd)
-      call iref%calc()
+      call calc_iref%eval()
 
       error = max(maxval(abs(pot%get()-pot0)), maxval(abs(iref%get()-iref0)))
       print *, i, denorm(error, "V")
@@ -191,6 +200,9 @@ contains
 
   subroutine solve_full_newton()
     !! solve the full newton system
+    integer :: i
+
+    call sys_full%set_input([(contacts(i)%volt%x, i = 1, size(contacts))])
     call sys_full%solve(nopt = opt_full)
   end subroutine
 

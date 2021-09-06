@@ -1,12 +1,14 @@
 module example_mobility_m
 
-  use example_device_m, only: grd, mu_0, beta_mob, v_sat
-  use example_imref_m,  only: iref
-  use equation_m,       only: equation
-  use grid_m,           only: grid_data1_real, IDX_EDGE, IDX_VERTEX
-  use jacobian_m,       only: jacobian, jacobian_ptr
-  use stencil_m,        only: near_neighb_stencil
-  use variable_m,       only: variable
+  use dual_m
+  use example_contact_m, only: contacts, uncontacted
+  use example_device_m,  only: grd, mu_0, beta_mob, v_sat
+  use example_imref_m,   only: iref
+  use equation_m,        only: equation
+  use grid_m,            only: grid_data1_real, IDX_EDGE, IDX_VERTEX
+  use jacobian_m,        only: jacobian, jacobian_ptr
+  use stencil_m,         only: near_neighb_stencil
+  use variable_m,        only: variable
 
   implicit none
 
@@ -51,7 +53,7 @@ contains
   subroutine calc_mobility_init(this)
     class(calc_mobility), intent(out) :: this
 
-    integer :: i_dep, i_prov
+    integer :: i_dep, i_prov, i
 
     ! init equation
     call this%equation_init("calc_mobility")
@@ -70,30 +72,28 @@ contains
     call this%init_final()
   end subroutine
 
-
   subroutine calc_mobility_eval(this)
     class(calc_mobility), intent(inout) :: this
 
-    integer :: abs_dif, i, idx1(1), idx2(1)
+    integer :: sgn_dif, i, idx1(1), idx2(1)
     real    :: dif, fact, val
+    type(dual_1) :: mob, iref_grad
 
+    call iref_grad%init(1.0, 1)
     do i = 1, size(grd%x)-1
       idx1 = [i]
       idx2 = [i+1]
 
       fact = mu_0%get(idx1) / (v_sat * grd%get_len(idx1, 1))
-      dif  = iref%get(idx2) - iref%get(idx1)
-      ! derivative of the absolute value
-      abs_dif = 1
-      if (dif >= 0) abs_dif = -1
+      iref_grad%x  = iref%get(idx2) - iref%get(idx1)
+      mob = mu_0%get(idx1) / (1 + (fact * abs(iref_grad))**beta_mob)**(1/beta_mob)
 
-      val = -abs_dif * mu_0%get(idx1) * (fact)**beta_mob * abs(dif)**(beta_mob-1) / (1 + (fact * abs(dif))**beta_mob)**(1/beta_mob - 1)
-
-      ! calculating the jacobi_matrix
-      call this%jaco_imref%set(idx1, idx1,  val)
-      call this%jaco_imref%set(idx1, idx2, -val)
       ! calculating the mobility
-      call mobil%set(idx1, mu_0%get(idx1) / (1 + (fact * abs(dif))**beta_mob)**(1/beta_mob))
+      call mobil%set(idx1, mob%x)
+
+      ! setting jaco_imref
+      call this%jaco_imref%set(idx1, idx1, -mob%dx(1))
+      call this%jaco_imref%set(idx1, idx2,  mob%dx(1))
     end do
   end subroutine
 

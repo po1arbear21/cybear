@@ -85,9 +85,7 @@ contains
     call this%init_final()
 
     call matrix_convert(this%jaco_current_dens%matr, sp)
-    call sp%output("jaco_current_dens.csv")
-    call matrix_convert(this%jaco_dens%matr, sp)
-    call sp%output("jaco_dens.csv")
+    call matrix_convert(this%jaco_dens%matr,         sp)
   end subroutine
 
   subroutine continuity_eval(this)
@@ -97,6 +95,7 @@ contains
     integer :: i, j, idx(1)
 
     allocate(tmp(this%dens%n))
+
     ! calculating the density
     call this%jaco_current_dens%matr%mul_vec(this%current_dens%get(), tmp)
     call this%jaco_dens%matr%mul_vec(        this%dens%get(),         tmp, fact_y = 1.0)
