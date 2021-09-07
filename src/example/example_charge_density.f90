@@ -3,7 +3,6 @@
 module example_charge_density_m
 
   use equation_m,        only: equation
-  use example_contact_m, only: contacts, uncontacted
   use example_density_m, only: dens
   use example_device_m,  only: dop_v, grd
   use grid_m,            only: grid_data1_real, IDX_VERTEX
@@ -60,11 +59,13 @@ contains
     call this%st%init(grd)
 
     ! provides charge_density and depends on density
-    i_prov = this%provide(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    i_dep  = this%depend( dens,        [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_prov = this%provide(charge_dens)
+    i_dep  = this%depend(dens)
+
     ! init jaco
-    jaco => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .true.)
-    ! setting jaco
+    jaco => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .true.)
+
+    ! set jacobian entries
     do i = 1, size(grd%x)
       call jaco%set([i], [i], -1.0)
     end do

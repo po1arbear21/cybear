@@ -136,7 +136,7 @@ contains
     type(input_file), intent(in) :: f
     !! input file for initialisation
 
-    integer :: ind0, ind1, i
+    integer :: i
     real    :: a, mu_min, mu_max, N_ref
 
     ! initialise the grid_data for the low-field mobility mu_0

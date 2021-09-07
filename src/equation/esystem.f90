@@ -757,13 +757,10 @@ contains
       if (nopt_%it_solver) then
         ASSERT(present(dfdx_prec))
         call this%eval(f = f, df = df, dfp = dfp)
-        call dfp%factorize()
         dfdx_prec => dfp
-
       else
         ASSERT(.not. present(dfdx_prec))
         call this%eval(f = f, df = df)
-        call df%factorize()
       end if
       dfdx => df
     end subroutine

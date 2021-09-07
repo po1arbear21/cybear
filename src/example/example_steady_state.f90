@@ -78,7 +78,7 @@ contains
     call sys_dd%add_equation(calc_mobil)
 
     ! provide variables
-    call sys_dd%provide(pois%pot)
+    call sys_dd%provide(pot)
     call sys_dd%provide(iref)
 
     ! finalize the equation system
@@ -94,7 +94,7 @@ contains
   end subroutine
 
   subroutine init_nlpe()
-    integer :: max_it
+    integer :: max_it, i
     real    :: atol, rtol
 
     ! reading parameters
@@ -112,7 +112,9 @@ contains
 
     ! provide variables
     call sys_nlpe%provide(iref)
-    call sys_nlpe%provide(pois%volt)
+    do i = 1, size(contacts)
+      call sys_nlpe%provide(contacts(i)%volt)
+    end do
 
     ! finalize the equation system
     call sys_nlpe%init_final()
@@ -147,10 +149,12 @@ contains
     call sys_full%add_equation(calc_current_dens)
     call sys_full%add_equation(calc_mobil)
     call sys_full%add_equation(calc_iref)
+
     ! provide variables
     do i = 1, size(contacts)
       call sys_full%provide(contacts(i)%volt, input = .true.)
     end do
+
     ! finalize the equation system
     call sys_full%init_final()
 
@@ -207,7 +211,7 @@ contains
   end subroutine
 
   subroutine output()
-    !! output denity, potential and current_density
+    !! output density, potential and current_density
     call dens%output_data("dens.csv")
     call pot%output_data( "pot.csv")
     call current_dens%output_data("current_dens.csv")

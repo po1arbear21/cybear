@@ -58,8 +58,8 @@ contains
 
     ! vselect the variables
     call this%volt%init([(contacts(i)%volt%get_ptr(), i = 1 , size(contacts))], "voltages")
-    call this%pot%init(pot,         [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    call this%rho%init(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%pot%init(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%rho%init(charge_dens)
 
     ! set main variable
     call this%init_f(this%pot)
@@ -69,7 +69,6 @@ contains
     call this%st_dir_volt%init(grd, g2 = get_dummy_grid(), perm = dum)
     call this%st_nn%init( grd, IDX_VERTEX, 0, IDX_VERTEX, 0)
     call this%st_em%init()
-
 
     ! init jaco
     this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)

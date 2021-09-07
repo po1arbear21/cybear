@@ -2,6 +2,7 @@
 
 module simple_equations_m
 
+  use array_m,        only: array_int, array2_log
   use equation_m,     only: equation
   use grid_m,         only: grid_table, grid_table_ptr
   use jacobian_m,     only: jacobian, jacobian_ptr
@@ -78,7 +79,7 @@ contains
     integer :: iprov
 
     ! init base
-    call this%equation_init("Provide"//v%name)
+    call this%equation_init("provide_"//v%name)
 
     ! add provided var
     iprov = this%provide(v)
@@ -100,7 +101,7 @@ contains
     integer :: iprov
 
     ! init base
-    call this%equation_init("Provide"//name)
+    call this%equation_init("provide_"//name)
 
     ! add provided var
     iprov = this%provide(v, tab, name)
@@ -123,9 +124,9 @@ contains
 
     ! init base
     if (present(name)) then
-      call this%equation_init("Provide"//name)
+      call this%equation_init("provide_"//name)
     else
-      call this%equation_init("Provide"//v%name)
+      call this%equation_init("provide_"//v%name)
     end if
 
     ! add provided var
@@ -148,7 +149,7 @@ contains
     integer :: iprov
 
     ! init base
-    call this%equation_init("Provide"//name)
+    call this%equation_init("provide_"//name)
 
     ! add provided var
     iprov = this%provide(v, name, tab=tab)
@@ -171,9 +172,9 @@ contains
 
     ! init base
     if (present(name)) then
-      call this%equation_init("Provide"//name)
+      call this%equation_init("provide_"//name)
     else
-      call this%equation_init("Provide"//v%name)
+      call this%equation_init("provide_"//v%name)
     end if
 
     ! add provided var
@@ -201,14 +202,15 @@ contains
     logical,                          intent(out) :: status
       !! return success/fail: success=true, fail=false
 
-    integer              :: i, i0, i1, j, iprov, ival1, ival2tmp, itab1
-    integer              :: ivsel2(v1%ntab), ival2(v1%ntab), itab2(v1%ntab), idx2(v1%g%idx_dim), perm(v1%ntab)
-    logical, allocatable :: valmsk(:,:)
-    type(jacobian_ptr)   :: jaco
-    type(stencil_ptr)    :: st(v1%ntab)
+    integer                 :: i, j, ival1, ival2, itab1, itab2, idx(v1%g%idx_dim), iprov, idep
+    logical                 :: v2_used(size(v2))
+    type(array_int)         :: get_v2(v1%ntab,v1%nval), get_ival2(v1%ntab,v1%nval)
+    type(array2_log)        :: valmsk(size(v2))
+    type(jacobian), pointer :: jaco
+    type(stencil_ptr)       :: st(v1%ntab)
 
     ! init base
-    call this%equation_init("Select"//v1%name)
+    call this%equation_init("select_"//v1%name)
 
     ! provide v1
     iprov = this%provide(v1)
@@ -217,70 +219,88 @@ contains
     call this%dir_st%init(v1%g)
     call this%emp_st%init()
 
-    ! loop over v1 variables
+    ! loop over v1 values
+    v2_used = .false.
     do ival1 = 1, v1%nval
-      itab2 = -1
-      ! loop over source var selectors
-      do i = 1, size(v2)
-        ! find variable in v2(i)%p%v which corresponds to ival1
-        do ival2tmp = 1, v2(i)%p%nval
-          if (associated(v1%v(ival1)%p, target = v2(i)%p%v(ival2tmp)%p)) exit
-        end do
-        if (ival2tmp > v2(i)%p%nval) cycle
-
-        ! check if any tables from ival, ival2tmp match
-        do itab1 = 1, v1%ntab
-          if (itab2(itab1) > 0) cycle
-          do j = 1, v2(i)%p%ntab
-            if (associated(v1%tab(itab1)%p, target = v2(i)%p%tab(j)%p)) exit
-          end do
-          if (j > v2(i)%p%ntab) cycle
-          ivsel2(itab1) = i
-          ival2( itab1) = ival2tmp
-          itab2( itab1) = j
-        end do
-        if (all(itab2 > 0)) exit
+      do itab1 = 1, v1%ntab
+        allocate (get_v2(   itab1,ival1)%d(v1%tab(itab1)%p%n), source = 0)
+        allocate (get_ival2(itab1,ival1)%d(v1%tab(itab1)%p%n), source = 0)
       end do
 
-      ! exit if some itab1 from ival1 were not found in v2
-      if (any(itab2 <= 0)) then
-        status = .false.
-        call this%destruct() ! clean up
-        return
-      end if
+      ! loop over source var selectors
+      do j = 1, size(v2)
+        ! check if grids match
+        if (.not. associated(v2(j)%p%g, target = v1%g)) cycle
 
-      ! sort ivsel2 to find out how many different ivsel2 to use
-      call qsort(ivsel2, perm=perm)
+        ! check if idx_type, idx_dir match
+        if ((v1%idx_type /= v2(j)%p%idx_type) .or. (v1%idx_dir /= v2(j)%p%idx_dir)) cycle
 
-      i1 = 0
-      do while (i1 < v1%ntab)
-        i0 = i1 + 1
-        ! i=i0..i1 denote same ivsel2
-        do i1 = i0, v1%ntab-1
-          if (ivsel2(i1+1) /= ivsel2(i0)) exit
+        ! find value in v2(j)%p%v which corresponds to ival1
+        do ival2 = 1, v2(j)%p%nval
+          if (associated(v1%v(ival1)%p, target = v2(j)%p%v(ival2)%p)) exit
         end do
+        if (ival2 > v2(j)%p%nval) cycle
 
-        allocate (valmsk(v1%nval,v2(ivsel2(i0))%p%nval), source = .false.)
-        st = this%emp_st%get_ptr()
-        do i = i0, i1
-          valmsk(ival1,ival2(perm(i))) = .true.
-          st(perm(i)) = this%dir_st%get_ptr()
-        end do
+        ! allocate value mask
+        if (.not. allocated(valmsk(j)%d)) allocate (valmsk(j)%d(v1%nval,v2(j)%p%nval), source = .false.)
 
-        ! init jacobian
-        jaco%p => this%init_jaco(iprov, this%depend(v2(ivsel2(i0))%p), st, const = .true., valmsk = valmsk)
+        ! find points
+        do itab1 = 1, v1%ntab
+          do i = 1, v1%tab(itab1)%p%n
+            if (get_v2(itab1,ival1)%d(i) > 0) cycle
 
-        ! set jacobian entries
-        do i = i0, i1
-          itab1 = perm(i)
-          do j = 1, v1%tab(itab1)%p%n
-            idx2 = v1%tab(itab1)%p%get_idx(j)
-            ! set derivative to 1
-            call jaco%p%set(itab1, j, idx2, ival1, ival2(itab1), 1.0)
+            idx   = v1%tab(itab1)%p%get_idx(i)
+            itab2 = v2(j)%p%itab%get(idx)
+
+            if (itab2 > 0) then
+              get_v2(   itab1,ival1)%d(i) = j
+              get_ival2(itab1,ival1)%d(i) = ival2
+              v2_used(j) = .true.
+              valmsk(j)%d(ival1,ival2) = .true.
+            end if
           end do
         end do
+      end do
 
-        deallocate (valmsk)
+      ! make sure this value was found for all points
+      do itab1 = 1, v1%ntab
+        if (any(get_v2(itab1,ival1)%d <= 0)) then
+          ! clean up and return fail
+          call this%destruct()
+          status = .false.
+          return
+        end if
+      end do
+    end do
+
+    ! init dependencies
+    do j = 1, size(v2)
+      if (.not. v2_used(j)) cycle
+      idep = this%depend(v2(j)%p)
+
+      ! get stencils
+      st = this%emp_st%get_ptr()
+      do itab1 = 1, v1%ntab
+        do ival1 = 1, v1%nval
+          if (any(get_v2(itab1,ival1)%d == j)) then
+            st(itab1) = this%dir_st%get_ptr()
+            exit
+          end if
+        end do
+      end do
+
+      ! init jacobian
+      jaco => this%init_jaco(iprov, idep, st, const = .true., valmsk = valmsk(j)%d)
+
+      ! set jacobian entries
+      do itab1 = 1, v1%ntab
+        do ival1 = 1, v1%nval
+          if (all(get_v2(itab1,ival1)%d /= j)) cycle
+          do i = 1, v1%tab(itab1)%p%n
+            idx = v1%tab(itab1)%p%get_idx(i)
+            call jaco%set(itab1, i, idx, ival1, get_ival2(itab1,ival1)%d(i), 1.0)
+          end do
+        end do
       end do
     end do
 
@@ -304,7 +324,7 @@ contains
       !! input parameter variable
 
     ! init base
-    call this%equation_init("Input"//v%name)
+    call this%equation_init("input_"//v%name)
 
     ! init residual data
     call this%init_f(v)
@@ -324,7 +344,7 @@ contains
       !! selector name
 
     ! init base
-    call this%equation_init("Input"//name)
+    call this%equation_init("input_"//name)
 
     ! init residual data
     call this%init_f(v, tab, name)
@@ -344,7 +364,7 @@ contains
       !! name of new var selector (default: v%name)
 
     ! init base
-    call this%equation_init("Input"//v%name)
+    call this%equation_init("input_"//v%name)
 
     ! init residual data
     call this%init_f(v, tab, name=name)
@@ -364,7 +384,7 @@ contains
       !! grid table
 
     ! init base
-    call this%equation_init("Input"//name)
+    call this%equation_init("input_"//name)
 
     ! init residual data
     call this%init_f(v, name, tab=tab)
@@ -384,7 +404,7 @@ contains
       !! name of new var selector (default: var%name)
 
     ! init base
-    call this%equation_init("Input"//v%name)
+    call this%equation_init("input_"//v%name)
 
     ! init residual data
     call this%init_f(v, tab=tab, name=name)

@@ -78,13 +78,13 @@ contains
     ! provides imref
     i_prov = this%provide(iref)
     ! depends on potential
-    i_dep  = this%depend(pot,  [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend(pot)
     this%jaco_pot  => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .true.)
     ! depends also on density
-    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend(dens)
     this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 
-    ! setting jaco_pot
+    ! set jaco_pot entries
     do i=1, size(grd%x)
       call this%jaco_pot%set([i], [i], 1.0)
     end do
@@ -98,18 +98,18 @@ contains
     integer :: i
 
     do i = 1, size(grd%x)
-      ! setting jaco
-      call this%jaco_dens%set([i], [i], -1 / dens%get([i]))
+      ! calculate imref
+      call iref%set([i], -log(dens%get([i]) / n_intrin) + pot%get([i]))
 
-      ! calculating imref
-      call iref%set(          [i],      -log(dens%get([i]) / n_intrin) + pot%get([i]))
+      ! set jaco_dens entries
+      call this%jaco_dens%set([i], [i], -1 / dens%get([i]))
     end do
   end subroutine
 
   subroutine calc_density_init(this)
     class(calc_density), intent(out) :: this
 
-    integer :: i_dep, i_prov, i
+    integer :: i_dep, i_prov
 
     ! init equation
     call this%equation_init("density_calc")
@@ -118,15 +118,15 @@ contains
     call this%st%init(grd)
 
     ! provides density
-    i_prov = this%provide(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_prov = this%provide(dens)
 
     ! depends on potential
-    i_dep  = this%depend(pot,   [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    this%jaco_pot => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
+    i_dep = this%depend(pot)
+    this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 
     ! depends also on imref
-    i_dep  = this%depend(iref)
-    this%jaco_imref => this%init_jaco(i_prov, i_dep, [(this%st%get_ptr(), i = 0, size(contacts))], const = .false.)
+    i_dep = this%depend(iref)
+    this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
 
     call this%init_final()
   end subroutine
@@ -135,14 +135,16 @@ contains
     class(calc_density), intent(inout) :: this
 
     integer :: i
+    real    :: n
 
     do i = 1, size(grd%x)
-      ! setting jacos
-      call this%jaco_pot%set(  [i], [i],  n_intrin*exp(pot%get([i])-iref%get([i])))
-      call this%jaco_imref%set([i], [i], -n_intrin*exp(pot%get([i])-iref%get([i])))
+      ! calculate and set density
+      n = n_intrin*exp(pot%get([i])-iref%get([i]))
+      call dens%set([i], n)
 
-      ! calculating density
-      call dens%set(           [i],       n_intrin*exp(pot%get([i])-iref%get([i])))
+      ! set jacobian entries
+      call this%jaco_pot%set(  [i], [i],  n)
+      call this%jaco_imref%set([i], [i], -n)
     end do
   end subroutine
 

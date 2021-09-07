@@ -63,15 +63,13 @@ module newton_m
   end type
 
   abstract interface
-    subroutine newton1D_fun(x, p, f, ipar, dfdx, dfdp)
+    subroutine newton1D_fun(x, p, f, dfdx, dfdp)
       real,              intent(in)  :: x
         !! argument
       real,              intent(in)  :: p(:)
         !! parameters
       real,              intent(out) :: f
         !! output function value
-      integer, optional, intent(in)  :: ipar(:)
-        !! integer parameters
       real,    optional, intent(out) :: dfdx
         !! optional output derivative of f wrt x
       real,    optional, intent(out) :: dfdp(:)
@@ -99,7 +97,7 @@ module newton_m
 
 contains
 
-  subroutine newton1D(fun, p, opt, x0, x, ipar, dxdp)
+  subroutine newton1D(fun, p, opt, x0, x, dxdp)
     !! get root of 1D function by newton iteration with bisection stabilization
     procedure(newton1D_fun)         :: fun
       !! pointer to function
@@ -111,8 +109,6 @@ contains
       !! first guess for solution
     real,               intent(out) :: x
       !! output solution
-    integer, optional,  intent(in)  :: ipar(:)
-      !! integer function parameters
     real,    optional,  intent(out) :: dxdp(:)
       !! optional output derivative of x wrt parameters
 
@@ -136,8 +132,8 @@ contains
     bounded = .false.
     if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
       bounded = .true.
-      call fun(xmin, p, fmin, ipar=ipar)
-      call fun(xmax, p, fmax, ipar=ipar)
+      call fun(xmin, p, fmin)
+      call fun(xmax, p, fmax)
       if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
     end if
 
@@ -171,7 +167,7 @@ contains
       end if
 
       ! evaluate function
-      call fun(x, p, f, dfdx=dfdx, ipar=ipar)
+      call fun(x, p, f, dfdx=dfdx)
 
       ! calculate newton update and new error
       dx   = f / dfdx
@@ -212,7 +208,7 @@ contains
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
       ASSERT(size(dxdp) == size(p))
-      call fun(x, p, f, dfdx=dfdx, dfdp=dfdp, ipar=ipar)
+      call fun(x, p, f, dfdx=dfdx, dfdp=dfdp)
       dxdp = - dfdp / dfdx
     end if
   end subroutine
@@ -286,16 +282,20 @@ contains
         dx = 0
 
         ! evaluate function: compute residuals, jacobian, preconditioner
+        if (associated(dfdx     )) call dfdx%reset()
+        if (associated(dfdx_prec)) call dfdx_prec%reset()
         call fun(x, p, f = f, dfdx = dfdx, dfdx_prec = dfdx_prec)
+        call dfdx_prec%factorize()
 
         ! set matops + solve by gmres
         call mulvec%init(dfdx)
         call precon%init(dfdx_prec, inv = .true.)
         call gmres(f, mulvec, dx, opts = gmres_opt_, precon = precon)
-
       else
-        ! evaluate function
+        ! evaluate function and solve
+        if (associated(dfdx)) call dfdx%reset()
         call fun(x, p, f = f, dfdx = dfdx)
+        call dfdx%factorize()
         call dfdx%solve_vec(f, dx)
       end if
 
@@ -324,7 +324,6 @@ contains
         do i = 1, size(p)
           call gmres(-dfdp(:,i), mulvec, dxdp(:,i), opts = gmres_opt_, precon = precon)
         end do
-
       else
         call dfdx%solve_mat(-dfdp, dxdp)
       end if
@@ -370,13 +369,13 @@ contains
     class(newton_opt),      intent(out) :: this
     integer,                intent(in)  :: n
       !! system size
-    real,         optional, intent(in)  :: atol(:)
+    real,         optional, intent(in)  :: atol
       !! absolute solution tolerance (default: 1e-16)
-    real,         optional, intent(in)  :: rtol(:)
+    real,         optional, intent(in)  :: rtol
       !! relative solution tolerance (default: 1e-12)
-    real,         optional, intent(in)  :: ftol(:)
+    real,         optional, intent(in)  :: ftol
       !! absolute residual tolerance (default: 0.0)
-    real,         optional, intent(in)  :: dx_lim(:)
+    real,         optional, intent(in)  :: dx_lim
       !! limit for newton update (default: inf)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)

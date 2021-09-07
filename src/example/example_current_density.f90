@@ -58,7 +58,7 @@ contains
   subroutine calc_current_density_init(this)
     class(calc_current_density), intent(out) :: this
 
-    integer :: i_dep, i_prov, i
+    integer :: i_dep, i_prov
 
     ! init equation
     call this%equation_init("drift_diffusion_current_dens")
@@ -71,11 +71,11 @@ contains
     i_prov = this%provide(current_dens)
 
     ! depends on density
-    i_dep  = this%depend(dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend(dens)
     this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st_nn%get_ptr()], const = .false.)
 
     ! depends on potential
-    i_dep  = this%depend(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    i_dep  = this%depend(pot)
     this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st_nn%get_ptr()], const = .false.)
 
     ! depends on mobility

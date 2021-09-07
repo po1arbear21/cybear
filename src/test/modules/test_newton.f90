@@ -11,6 +11,8 @@ module test_newton_m
   private
   public test_newton
 
+
+
 contains
 
   subroutine test_newton()
@@ -24,15 +26,14 @@ contains
       type(newton1D_opt) :: opt
 
       real,    parameter :: p(2)    = [3, 1]
-      integer, parameter :: ipar(1) = [-2]
 
       ! expected values for f = (x - rp1*ip1) * (4*x**2 + rp2)
-      xe       = p(1)*ipar(1)
-      dxedp(1) = ipar(1)
+      xe       = - 2.0 * p(1)
+      dxedp(1) = - 2.0
       dxedp(2) = 0
 
       call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -10*abs(xe), xmax = 10*abs(xe), log = .true., msg = "poly1D: ")
-      call newton1D(poly1D, p, opt, -1.0, x, dxdp = dxdp, ipar = ipar)
+      call newton1D(poly1D, p, opt, -1.0, x, dxdp = dxdp)
 
       call tc%assert_eq(   xe,    x, opt%atol, "newton1D: x"   )
       call tc%assert_eq(dxedp, dxdp, opt%atol, "newton1D: dxdp")
@@ -64,14 +65,14 @@ contains
     dxedp(2,2) = 1
 
     ! direct solver
-    call opt%init(2, atol = 1e-15 * [1, 1], rtol = 1e-14 * [1, 1], log = .true., msg = "poly2D: dir sol: ")
+    call opt%init(2, atol = 1e-15, rtol = 1e-14, log = .true., msg = "poly2D: dir sol: ")
     call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
 
     call tc%assert_eq(   xe,    x, opt%atol(1), "newton: dir sol: x"   )
     call tc%assert_eq(dxedp, dxdp, opt%atol(1), "newton: dir sol: dxdp")
 
     ! iterative solver with preconditioner
-    call opt%init(2, atol = 1e-15 * [1, 1], rtol = 1e-14 * [1, 1], it_solver = .true., log = .true., &
+    call opt%init(2, atol = 1e-15, rtol = 1e-14, it_solver = .true., log = .true., &
       &           msg = "poly2D: it sol: ")
     call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
 
@@ -111,7 +112,6 @@ contains
         jaco%d(2,1) = 2*p(1)*x(1)*x(2)
         jaco%d(2,2) = p(1)*x(1)**2 + p(1)*p(2) - 2*x(2)
         dfdx => jaco
-        if (.not. present(dfdx_prec)) call dfdx%factorize()
       end if
 
       ! set preconditioner dfdx_prec
@@ -121,7 +121,6 @@ contains
         prec%d(2,1) = p(1)*x(1)*x(2)
         prec%d(2,2) = p(1)*x(1)**2 + p(1)*p(2) - 3*x(2)
         dfdx_prec => prec
-        call dfdx_prec%factorize()
       end if
 
       ! set dfdp
@@ -134,25 +133,23 @@ contains
     end subroutine
   end subroutine
 
-  subroutine poly1D(x, p, f, ipar, dfdx, dfdp)
+  subroutine poly1D(x, p, f, dfdx, dfdp)
     real,              intent(in)  :: x
       !! argument
     real,              intent(in)  :: p(:)
       !! parameters
     real,              intent(out) :: f
       !! output function value
-    integer, optional, intent(in)  :: ipar(:)
-      !! integer paramters
     real,    optional, intent(out) :: dfdx
       !! optional output derivative of f wrt x
     real,    optional, intent(out) :: dfdp(:)
       !! optional output derivatives of f wrt p
 
-    f = (x - p(1)*ipar(1)) * (4*x**2 + p(2))
-    if (present(dfdx)) dfdx = 4*x*(3*x - 2*p(1)*ipar(1)) + p(2)
+    f = (x + 2*p(1)) * (4*x**2 + p(2))
+    if (present(dfdx)) dfdx = 4*x*(3*x + 4*p(1)) + p(2)
     if (present(dfdp)) then
-      dfdp(1) = - ipar(1)*(4*x**2 + p(2))
-      dfdp(2) = x - p(1)*ipar(1)
+      dfdp(1) = 2*(4*x**2 + p(2))
+      dfdp(2) = x + 2*p(1)
     end if
   end subroutine
 

@@ -53,7 +53,7 @@ contains
   subroutine calc_mobility_init(this)
     class(calc_mobility), intent(out) :: this
 
-    integer :: i_dep, i_prov, i
+    integer :: i_dep, i_prov
 
     ! init equation
     call this%equation_init("calc_mobility")
@@ -63,8 +63,10 @@ contains
 
     ! provides mobility
     i_prov = this%provide(mobil)
+
     ! depends on imref
     i_dep = this%depend(iref)
+
     ! init jaco
     this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()])
 
@@ -75,18 +77,23 @@ contains
   subroutine calc_mobility_eval(this)
     class(calc_mobility), intent(inout) :: this
 
-    integer :: sgn_dif, i, idx1(1), idx2(1)
-    real    :: dif, fact, val
-    type(dual_1) :: mob, iref_grad
+    integer      :: i, idx1(1), idx2(1)
+    real         :: mob0
+    type(dual_1) :: mob, delta_iref
 
-    call iref_grad%init(1.0, 1)
+    call delta_iref%init(1.0, 1)
     do i = 1, size(grd%x)-1
-      idx1 = [i]
+      idx1 = [i  ]
       idx2 = [i+1]
 
-      fact = mu_0%get(idx1) / (v_sat * grd%get_len(idx1, 1))
-      iref_grad%x  = iref%get(idx2) - iref%get(idx1)
-      mob = mu_0%get(idx1) / (1 + (fact * abs(iref_grad))**beta_mob)**(1/beta_mob)
+      ! low-field mobility
+      mob0 = mu_0%get(idx1)
+
+      ! imref difference
+      delta_iref%x = iref%get(idx2) - iref%get(idx1)
+
+      ! calculate mobility including derivative wrt delta_imref
+      mob = mob0 / (1 + ((mob0 / (v_sat * grd%get_len(idx1, 1))) * abs(delta_iref))**beta_mob)**(1/beta_mob)
 
       ! calculating the mobility
       call mobil%set(idx1, mob%x)

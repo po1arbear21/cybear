@@ -1,6 +1,9 @@
 .*
 *.asc
 *.i90
+*.csv
+*.pdf
+*.gv
 doc
 build
 !.gitignore
