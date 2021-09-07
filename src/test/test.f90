@@ -31,7 +31,6 @@ program test
   use test_sqrtm_m
   use test_string_m
   use test_util_m
-  use test_variable_m
   use test_vector_m
 
 #ifdef USE_FEAST
@@ -80,7 +79,6 @@ program test
   call test_sqrtm()
   call test_string()
   call test_util()
-  call test_variable()
   call test_vector()
 
 #ifdef USE_FEAST

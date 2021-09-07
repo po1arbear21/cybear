@@ -37,8 +37,6 @@ module variable_m
     generic   :: get         => variable_get_point, variable_get_all
     generic   :: set         => variable_set_point, variable_set_all
     procedure :: output_data => variable_output_data
-    procedure :: load_data   => variable_load_data
-    procedure :: save_data   => variable_save_data
 
     procedure, private :: variable_get_point, variable_get_all
     procedure, private :: variable_set_point, variable_set_all
@@ -136,33 +134,15 @@ contains
     call this%data%set(d)
   end subroutine
 
-  subroutine variable_save_data(this, fname)
-    !! save variable's data into file as denormalized values.
-    class(variable), intent(in) :: this
-    character(*),    intent(in) :: fname
-      !! file name, e.g. "output/tmp/pot.csv"
-
-    integer           :: iounit, i
-    real, allocatable :: d(:)
-
-    d = denorm(this%get(), this%unit)
-
-    open (newunit = iounit, file = fname, action = 'WRITE')
-    do i = 1, size(d)
-      write (iounit, '(E32.24)') d(i)
-    end do
-    close (unit = iounit)
-  end subroutine
-
   subroutine variable_output_data(this, fname, grd_unit, tab)
     !! save variable's data into file as denormalized values.
-    class(variable), target,     intent(in) :: this
-    character(*),                intent(in) :: fname
+    class(variable), target,            intent(in) :: this
+    character(*),                       intent(in) :: fname
       !! file name, e.g. "output/tmp/pot.csv"
-    character(*),      optional, intent(in) :: grd_unit
-      !! physical unit token
+    character(*),             optional, intent(in) :: grd_unit
+      !! physical unit token (default: "nm")
     type(grid_table), target, optional, intent(in) :: tab
-      !! optional grid table for certain data
+      !! optional grid table for certain data (default: tab_all)
 
     integer                   :: iounit, idx(this%g%idx_dim), i, j
     real                      :: coord(this%g%dim)
@@ -170,6 +150,7 @@ contains
     character(:), allocatable :: grd_unit_
 
     ! optional arguments
+    allocate (character(2) :: grd_unit_)
     grd_unit_ = "nm"
     if (present(grd_unit)) grd_unit_ = grd_unit
     tab_ => this%g%tab_all(this%idx_type, this%idx_dir)
@@ -210,35 +191,6 @@ contains
       write (iounit, '(ES24.16)') denorm(this%get(idx), this%unit)
     end do
     close (unit = iounit)
-  end subroutine
-
-  subroutine variable_load_data(this, fname)
-    !! load variable's data from file.
-    !! assume denormalized data in file and perform normalization.
-    class(variable), intent(inout) :: this
-    character(*),    intent(in)    :: fname
-      !! file name, e.g. "output/tmp/pot.csv"
-
-    integer           :: iounit, n, ios
-    real              :: tmp
-    real, allocatable :: d(:)
-
-    open (newunit = iounit, file = fname, action = 'READ')
-
-    ! count lines in file
-    n   = -1
-    ios = 0
-    do while (ios == 0)
-      n = n + 1
-      read (iounit, *, iostat = ios) tmp
-    end do
-
-    allocate (d(n))
-    rewind (iounit)
-    read (iounit, *) d
-    close (unit = iounit)
-
-    call this%set(norm(d, this%unit))
   end subroutine
 
 end module
