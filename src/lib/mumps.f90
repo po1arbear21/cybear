@@ -88,14 +88,14 @@ contains
     integer :: i
 
     ! get free handle
-    !$omp critical (dmumps_handles)
+    !$omp critical (omp_dmumps_handles)
     if (.not. allocated(dmumps_free_handles%d)) then
       call dmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
     if (dmumps_free_handles%n < 1) call program_error("No free dmumps handles!")
     h = dmumps_free_handles%front()
     call dmumps_free_handles%pop_front()
-    !$omp end critical (dmumps_handles)
+    !$omp end critical (omp_dmumps_handles)
 
     associate (m => dmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
@@ -115,14 +115,14 @@ contains
     integer :: i
 
     ! get free handle
-    !$omp critical (zmumps_handles)
+    !$omp critical (omp_zmumps_handles)
     if (.not. allocated(zmumps_free_handles%d)) then
       call zmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
     if (zmumps_free_handles%n < 1) call program_error("No free zmumps handles!")
     h = zmumps_free_handles%front()
     call zmumps_free_handles%pop_front()
-    !$omp end critical (zmumps_handles)
+    !$omp end critical (omp_zmumps_handles)
 
     associate (m => zmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
@@ -150,9 +150,9 @@ contains
       call exec_dmumps(m, -2)
     end associate
 
-    !$omp critical (dmumps_handles)
+    !$omp critical (omp_dmumps_handles)
     call dmumps_free_handles%push_back(h)
-    !$omp end critical (dmumps_handles)
+    !$omp end critical (omp_dmumps_handles)
 
     h = 0
   end subroutine
@@ -173,9 +173,9 @@ contains
       call exec_zmumps(m, -2)
     end associate
 
-    !$omp critical (zmumps_handles)
+    !$omp critical (omp_zmumps_handles)
     call zmumps_free_handles%push_back(h)
-    !$omp end critical (zmumps_handles)
+    !$omp end critical (omp_zmumps_handles)
 
     h = 0
   end subroutine

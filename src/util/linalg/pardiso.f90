@@ -86,14 +86,14 @@ contains
     integer :: i, mtype, iparm(64)
 
     ! get free handle
-    !$omp critical (pardiso_handles)
+    !$omp critical (omp_pardiso_handles)
     if (.not. allocated(pardiso_free_handles%d)) then
       call pardiso_free_handles%init(PARDISO_NUM_HANDLES, x = [(i, i=1, PARDISO_NUM_HANDLES)])
     end if
     if (pardiso_free_handles%n < 1) call program_error("No free pardiso handles!")
     h = pardiso_free_handles%front()
     call pardiso_free_handles%pop_front()
-    !$omp end critical (pardiso_handles)
+    !$omp end critical (omp_pardiso_handles)
 
     associate (p => pardiso_handles(h))
       ! maximum number of factors with idential sparse structure
@@ -182,9 +182,9 @@ contains
       p%factorized = .false.
     end associate
 
-    !$omp critical (pardiso_handles)
+    !$omp critical (omp_pardiso_handles)
     call pardiso_free_handles%push_back(h)
-    !$omp end critical (pardiso_handles)
+    !$omp end critical (omp_pardiso_handles)
 
     h = 0
   end subroutine
