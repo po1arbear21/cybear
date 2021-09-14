@@ -330,6 +330,37 @@ contains
       call tc%assert_eq(y_exp, yq, 1e-15, "interp1")
     end block
 
+    ! roots
+    block
+      real    :: p1(1), p2(2), p3(3), p4(7), p5(2)
+      complex :: r1(1), r2(2), r3(3), r4(7), r5(2)
+
+      ! f(x) = 4 + x
+      p1 = [ 4.0 ]
+      r1 = roots(p1)
+      call tc%assert_eq(cmplx([-4.0]), r1, 1e-14, "roots 1")
+
+      ! f(x) = 2 - 3x + x² = (x-1)(x-2)
+      p2 = [ 2.0, -3.0 ]
+      r2 = roots(p2)
+      call tc%assert_eq(cmplx([1.0, 2.0]), r2, 1e-14, "roots 2")
+
+      ! f(x) = 2 - x - 2x² + x³ = (x+1)(x-1)(x-2)
+      p3 = [ 2.0, -1.0, -2.0 ]
+      r3 = roots(p3)
+      call tc%assert_eq(cmplx([-1.0, 1.0, 2.0]), r3, 1e-14, "roots 3")
+
+      ! f(x) = -36x + 49x³ - 14x⁵ + x⁷ = (x+3)(x+2)(x+1)x(x-1)(x-2)(x-3)
+      p4 = [ 0.0, -36.0, 0.0, 49.0, 0.0, -14.0, 0.0]
+      r4 = roots(p4)
+      call tc%assert_eq(cmplx([-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0]), r4, 1e-14, "roots 4")
+
+      ! f(x) = 1 + x² = (x-i)(x+i)
+      p5 = [ 1.0, 0.0 ]
+      r5 = roots(p5)
+      call tc%assert_eq(cmplx([0.0, 0.0], [-1.0, 1.0]), r5, 1e-14, "roots 5")
+    end block
+
     call tc%finish()
   end subroutine
 
