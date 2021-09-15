@@ -77,7 +77,7 @@ contains
     type(input_file), intent(in) :: f
     !! input file for initialisation
 
-    integer              :: ind0, ind1, i
+    integer              :: ind0, ind1, i, j
     integer, allocatable :: sid(:)
     real                 :: x0, x1, value
 
@@ -97,8 +97,8 @@ contains
       ! set values in the given range
       ind0 = bin_search(grd%x, x0)
       ind1 = bin_search(grd%x, x1) - 1
-      do i = ind0, ind1
-        call eps%set([i], value)
+      do j = ind0, ind1
+        call eps%set([j], value)
       end do
     end do
   end subroutine
