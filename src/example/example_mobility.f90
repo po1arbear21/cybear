@@ -53,7 +53,7 @@ contains
   subroutine calc_mobility_init(this)
     class(calc_mobility), intent(out) :: this
 
-    integer :: i_dep, i_prov, i
+    integer :: i_dep, i_prov
 
     ! init equation
     call this%equation_init("calc_mobility")
@@ -75,8 +75,8 @@ contains
   subroutine calc_mobility_eval(this)
     class(calc_mobility), intent(inout) :: this
 
-    integer :: sgn_dif, i, idx1(1), idx2(1)
-    real    :: dif, fact, val
+    integer :: i, idx1(1), idx2(1)
+    real    :: fact, val
     type(dual_1) :: mob, iref_grad
 
     call iref_grad%init(1.0, 1)

@@ -273,6 +273,7 @@ contains
     call this%unit_const%insert(string("A/cm"   ),        ampere  / (CENTI*meter)        )
     call this%unit_const%insert(string("A/cm/V" ),        ampere  / (CENTI*meter) / volt )
     call this%unit_const%insert(string("A/cm^2" ),        ampere  / (CENTI*meter)**2     )
+    call this%unit_const%insert(string("A/um^2" ),        ampere  / (MICRO*meter)**2     )
     call this%unit_const%insert(string("mA/um^2"), (MILLI*ampere) / (MICRO*meter)**2     )
 
     associate (coulomb => ampere * second)

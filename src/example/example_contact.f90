@@ -1,6 +1,7 @@
 module example_contact_m
 
   use bin_search_m,      only: bin_search
+  use example_current_m, only: current
   use example_device_m,  only: dop, dop_v, grd, n_intrin
   use example_voltage_m, only: voltage
   use grid_m,            only: grid_data1_int, grid_table, IDX_CELL, IDX_VERTEX
@@ -16,6 +17,7 @@ module example_contact_m
     character(:), allocatable :: name
     real                      :: phi_ms
     type(voltage)             :: volt
+    type(current)             :: curr
     type(grid_table)          :: conts
     integer                   :: idx(1)
   contains
@@ -64,8 +66,9 @@ subroutine contact_init(this, f, sid)
   ! set name
   call f%get(sid, "name", this%name)
 
-  ! initialise voltage
+  ! initialise voltage and current
   call this%volt%init(this%name)
+  call this%current%init(this%name)
 
   ! set voltage
   call f%get(sid, "V", v)

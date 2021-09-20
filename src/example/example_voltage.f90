@@ -6,7 +6,8 @@ module example_voltage_m
   implicit none
 
   private
-  public volt, voltage
+  public voltage
+  !public volt, voltage
 
   type, extends(variable) :: voltage
     !! electric voltage
