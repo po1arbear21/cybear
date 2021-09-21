@@ -68,7 +68,7 @@ subroutine contact_init(this, f, sid)
 
   ! initialise voltage and current
   call this%volt%init(this%name)
-  call this%current%init(this%name)
+  call this%curr%init(this%name)
 
   ! set voltage
   call f%get(sid, "V", v)

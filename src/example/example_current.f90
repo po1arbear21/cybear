@@ -6,7 +6,7 @@ module example_current_m
   implicit none
 
   private
-  public curr, current
+  public current
 
   type, extends(variable) :: current
     !! electric current
@@ -14,8 +14,6 @@ module example_current_m
   contains
     procedure :: init => current_init
   end type
-
-  type(current), allocatable :: curr(:)
 
 contains
 

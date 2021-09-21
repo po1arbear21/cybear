@@ -5,7 +5,7 @@ module example_ramo_m
   use example_contact_m,         only: contacts, grd_contacts, uncontacted
   use example_current_density_m, only: current_dens
   use example_device_m,          only: eps, grd
-  use example_poisson_m,         only: poisson
+  use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
   use grid_m,                    only: grid_data1_real
   use grid0D_m,                  only: get_dummy_grid
@@ -32,18 +32,20 @@ module example_ramo_m
     type(vselector)         :: volt
       !! dependency
 
-    type(dirichlet_stencil) :: st_dir
+    type(dirichlet_stencil) :: st_curr_dens
+    type(dirichlet_stencil) :: st_curr_volt
 
     type(jacobian), pointer :: jaco_curr
     type(jacobian), pointer :: jaco_curr_dens
     type(jacobian), pointer :: jaco_volt
   contains
-    procedure :: init => ramo_shockley_init()
-    procedure :: eval => ramo_shockley_eval()
+    procedure :: init => ramo_shockley_init
+    procedure :: eval => ramo_shockley_eval
   end type
 
   real,                  allocatable :: ramo_cap(:,:)
   type(grid_data1_real), allocatable :: ramo_nu(:)
+  type(ramo_shockley)                :: ramo_eq
 
 contains
 
@@ -59,19 +61,27 @@ contains
     call sys_ramo%init("fundamental solutions")
 
     ! add related equations to the system
-    call sys_ramo%add_equation(possion)
+    call sys_ramo%add_equation(pois)
 
     ! provide variables
     call sys_ramo%provide(charge_dens, input = .false.)
     do i = 1, size(contacts)
-      call sys_full%provide(contacts(i)%volt, input = .true.)
+      call sys_ramo%provide(contacts(i)%volt, input = .true.)
     end do
 
+    call sys_ramo%g%output("sys_ramo")
+    ! finalize esystem
+    call sys_ramo%init_final()
+
     ! evaluate equation system
-    call sys_ramo%eva()
+    call sys_ramo%eval()
 
     ! get jacobian
     call sys_ramo%get_df(df)
+
+    ! allocate memory to rhs and x
+    allocate (rhs(df%nrows,sys_ramo%ninput))
+    allocate (  x(df%nrows,sys_ramo%ninput))
 
     ! set right-hand sides
     k = 0
@@ -92,21 +102,27 @@ contains
     ! set the result in the esystem
     ! and set the fundamental solution as the result from the poisson equation
     do i = 1, size(contacts)
-      call sys_ramo%set_x(x(i))
-      call ramo_nu(i)%set(pot%x)
+      call sys_ramo%set_x(x(:,i))
+      call ramo_nu(i)%set(pot%get())
     end do
 
     ! iteration over the contacts
-    do i = 1, size(ramo_mu)
-      do j = i, size(ramo_mu)
+    do i = 1, size(ramo_nu)
+      do j = i, size(ramo_nu)
         cap = 0
         ! sum over the grid
         do k = 1, size(grd%x)-1
-          cap = cap + (ramo_nu(i)%get([k]) - ramo_nu(i)%get([k+1])) * (ramo_nu(j)%get([k]) - ramo_nu(j)%get([k+1]))
-          cap = cap * grd%get_len([k], idx_dir = 1) * eps%get([k])
+          cap = cap + (ramo_nu(i)%get([k]) - ramo_nu(i)%get([k+1])) * (ramo_nu(j)%get([k]) - ramo_nu(j)%get([k+1])) &
+            & * grd%get_len([k], idx_dir = 1) * eps%get([k])
         end do
         ramo_cap(i, j) = cap
-        ramo_cap(i, j) = cap
+        ramo_cap(j, i) = cap
+      end do
+    end do
+
+    do j = 1, size(ramo_nu)
+      do i = 1, ramo_nu(j)%n
+      print *, ramo_nu(j)%get([i])
       end do
     end do
   end subroutine
@@ -123,21 +139,22 @@ contains
     ! vselect the variables
     call this%curr%init([(contacts(i)%curr%get_ptr(), i = 1 , size(contacts))], "currents")
     call this%volt%init([(contacts(i)%volt%get_ptr(), i = 1 , size(contacts))], "voltages")
-    call this%curr_dens%init(current_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%curr_dens%init(current_dens)
 
     ! set main variable
     call this%init_f(this%curr)
 
     ! init stencils
-    call this%st_dir%init(g1 = get_dummy_grid(), g2 = grd, perm = dum, off2 = [size(grd%x)-1])
+    call this%st_curr_dens%init(get_dummy_grid(), g2 = grd, perm = dum, off2 = [size(grd%x)-1])
+    call this%st_curr_volt%init(get_dummy_grid())
 
     ! init jacos
-    this%jaco_curr      => this%init_jaco_f(this%depend(this%curr),       [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)
-    this%jaco_volt      => this%init_jaco_f(this%depend(this%volt),       [this%st_em%get_ptr(),  (this%st_dir_volt%get_ptr(), i = 1, size(contacts))], const = .true.)
-    this%jaco_curr_dens => this%init_jaco_f(this%depend(this%curr_dens),  [this%st_dir%get_ptr(), (this%st_em%get_ptr(),       i = 1, size(contacts))], const = .true.)
+    this%jaco_curr      => this%init_jaco_f(this%depend(this%curr),      [this%st_curr_volt%get_ptr()], const = .true.)
+    this%jaco_volt      => this%init_jaco_f(this%depend(this%volt),      [this%st_curr_volt%get_ptr()], const = .true., dtime = .true.)
+    this%jaco_curr_dens => this%init_jaco_f(this%depend(this%curr_dens), [this%st_curr_dens%get_ptr()], const = .true.)
 
     ! allocate memory to d_volt and d_curr_dens
-    allocate(d_volt(1, size(contacts)), d_curr_dens(1, size(contacts)))
+    allocate(d_curr_dens(size(contacts), 1))
 
     ! loop over edges
     do i = 1, size(grd%x)-1
@@ -146,19 +163,17 @@ contains
 
       ! setting jaco_curr_dens
       do j = 1, size(contacts)
-        d_curr_dens(1,i) = ramo_nu(i)%get(idx2) - ramo_nu(i)%get(idx1)
+        d_curr_dens(i,1) = ramo_nu(i)%get(idx2) - ramo_nu(i)%get(idx1)
       end do
-      this%jaco_curr_dens%set(dum, idx1, d_curr_dens)
-
-      ! setting jaco_volt
-      k = grd_contacts%get(idx1)
-      d_curr = -eye(k:k, :)
-
-      call this%jaco_volt%set(idx1, dum,  d_volt)
-
-      ! setting jaco_curr
+      call this%jaco_curr_dens%set(dum, idx1, d_curr_dens)
 
     end do
+    ! setting jaco_volt
+    call this%jaco_volt%set(dum, dum, -ramo_cap)
+
+    ! setting jaco_curr
+    call this%jaco_curr%set(dum, dum, eye_real(size(contacts)))
+
     call this%init_final()
   end subroutine
 
@@ -170,9 +185,8 @@ contains
     allocate(tmp(this%curr%n))
 
     ! calculating the current (f)
-    call this%jaco_curr%matr%mul_vec(this%curr%get(),           tmp)
+    call this%jaco_curr%matr%mul_vec(     this%curr%get(),      tmp)
     call this%jaco_curr_dens%matr%mul_vec(this%curr_dens%get(), tmp, fact_y = 1.0)
-    call this%jaco_volt%matr%mul_vec(this%volt%get(),           tmp, fact_y = 1.0)
     call this%f%set(tmp)
   end subroutine
 

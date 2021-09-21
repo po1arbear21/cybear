@@ -6,7 +6,6 @@ module example_continuity_m
   use example_density_m,         only: dens
   use example_device_m,          only: adj_v, grd, n_intrin
   use example_imref_m,           only: iref
-  use example_voltage_m,         only: volt
   use grid_m,                    only: IDX_VERTEX, IDX_EDGE
   use jacobian_m,                only: jacobian, jacobian_ptr
   use res_equation_m,            only: res_equation
