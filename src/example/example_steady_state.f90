@@ -15,6 +15,7 @@ module example_steady_state_m
   use input_m,                   only: input_file
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
+  use steady_state_m,            only: steady_state
 
   implicit none
 
@@ -24,9 +25,10 @@ module example_steady_state_m
   public solve_full_newton, solve_gummel, solve_nlpe
   public output
 
-  type(esystem)    :: sys_dd, sys_full, sys_nlpe
-  type(input_file) :: f
-  type(newton_opt) :: opt_dd, opt_full, opt_nlpe
+  type(esystem)      :: sys_dd, sys_full, sys_nlpe
+  type(input_file)   :: f
+  type(newton_opt)   :: opt_dd, opt_full, opt_nlpe
+  type(steady_state) :: steady_dd, steady_full, steady_nlpe
 
 contains
 
@@ -170,7 +172,7 @@ contains
 
   subroutine solve_nlpe()
     !! solve the non-linear poisson system
-    call sys_nlpe%solve(nopt = opt_nlpe)
+    call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe)
   end subroutine
 
   subroutine solve_gummel()
@@ -189,9 +191,9 @@ contains
     error = huge(1.0)
     do while (error > atol .and. i <= max_it)
       pot0 = pot%get()
-      call sys_nlpe%solve(nopt = opt_nlpe)
+      call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe)
       iref0 = iref%get()
-      call sys_dd%solve(nopt = opt_dd)
+      call steady_dd%run(  sys_dd,   nopt = opt_dd)
       call calc_iref%eval()
 
       error = max(maxval(abs(pot%get()-pot0)), maxval(abs(iref%get()-iref0)))
@@ -204,10 +206,12 @@ contains
 
   subroutine solve_full_newton()
     !! solve the full newton system
-    integer :: i
+    integer           :: i
+    real, allocatable :: input(:,:)
 
-    call sys_full%set_input([(contacts(i)%volt%x, i = 1, size(contacts))])
-    call sys_full%solve(nopt = opt_full)
+    allocate(input(size(contacts), 1))
+    input(:,1) = [(contacts(i)%volt%x, i = 1, size(contacts))]
+    call steady_full%run(sys_full, nopt = opt_full, input = input)
   end subroutine
 
   subroutine output()
