@@ -1,10 +1,14 @@
 #ifdef USE_MUMPS
 
 module mumps_m
-  use error_m
-  use sparse_idx_m
-  use vector_m
+
+  use deque_m,      only: deque_int
+  use error_m,      only: program_error
+  use sparse_idx_m, only: sparse_idx
+
   implicit none
+
+  ! FIXME: not thread-safe
 
   private
   public create_mumps_handle_r, create_mumps_handle_c
@@ -15,17 +19,11 @@ module mumps_m
   include 'dmumps_struc.h'
   include 'zmumps_struc.h'
 
-#define T dmumps_struc
-#define TT type(dmumps_struc)
-#include "../util/vector_def.f90.inc"
-#define T zmumps_struc
-#define TT type(zmumps_struc)
-#include "../util/vector_def.f90.inc"
-
-  type(vector_dmumps_struc) :: dmumps_handles
-  type(vector_zmumps_struc) :: zmumps_handles
-  type(vector_int)          :: free_dmumps_handles
-  type(vector_int)          :: free_zmumps_handles
+  integer, parameter :: MUMPS_NUM_HANDLES = 128
+  type(dmumps_struc) :: dmumps_handles(MUMPS_NUM_HANDLES)
+  type(zmumps_struc) :: zmumps_handles(MUMPS_NUM_HANDLES)
+  type(deque_int)    :: dmumps_free_handles
+  type(deque_int)    :: zmumps_free_handles
 
   interface
     subroutine dmumps(d)
@@ -49,13 +47,6 @@ module mumps_m
   end interface
 
 contains
-
-#define T dmumps_struc
-#define TT type(dmumps_struc)
-#include "../util/vector_imp.f90.inc"
-#define T zmumps_struc
-#define TT type(zmumps_struc)
-#include "../util/vector_imp.f90.inc"
 
   subroutine exec_dmumps(m, job)
     !! set job and execute dmumps(m); handle potential error
@@ -94,22 +85,19 @@ contains
     integer :: h
       !! return real mumps handle (index)
 
-    if (.not. allocated(dmumps_handles%d)) then
-      call dmumps_handles%init(0, c = 4)
-    end if
+    integer :: i
 
-    if (free_dmumps_handles%n > 0) then
-      h = free_dmumps_handles%d(free_dmumps_handles%n)
-      call free_dmumps_handles%resize(free_dmumps_handles%n-1)
-    else
-      block
-        type(dmumps_struc) :: m
-        call dmumps_handles%push(m)
-      end block
-      h = dmumps_handles%n
+    ! get free handle
+    !$omp critical (omp_dmumps_handles)
+    if (.not. allocated(dmumps_free_handles%d)) then
+      call dmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
+    if (dmumps_free_handles%n < 1) call program_error("No free dmumps handles!")
+    h = dmumps_free_handles%front()
+    call dmumps_free_handles%pop_front()
+    !$omp end critical (omp_dmumps_handles)
 
-    associate (m => dmumps_handles%d(h))
+    associate (m => dmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
       m%PAR  = 1              ! run calculation on host cpu
       call exec_dmumps(m, -1) ! initialize
@@ -124,22 +112,19 @@ contains
     integer :: h
       !! return complex mumps handle (index)
 
-    if (.not. allocated(zmumps_handles%d)) then
-      call zmumps_handles%init(0, c = 4)
-    end if
+    integer :: i
 
-    if (free_zmumps_handles%n > 0) then
-      h = free_zmumps_handles%d(free_zmumps_handles%n)
-      call free_zmumps_handles%resize(free_zmumps_handles%n-1)
-    else
-      block
-        type(zmumps_struc) :: m
-        call zmumps_handles%push(m)
-      end block
-      h = zmumps_handles%n
+    ! get free handle
+    !$omp critical (omp_zmumps_handles)
+    if (.not. allocated(zmumps_free_handles%d)) then
+      call zmumps_free_handles%init(MUMPS_NUM_HANDLES, x = [(i, i=1, MUMPS_NUM_HANDLES)])
     end if
+    if (zmumps_free_handles%n < 1) call program_error("No free zmumps handles!")
+    h = zmumps_free_handles%front()
+    call zmumps_free_handles%pop_front()
+    !$omp end critical (omp_zmumps_handles)
 
-    associate (m => zmumps_handles%d(h))
+    associate (m => zmumps_handles(h))
       m%SYM  = 0              ! unsymmetric
       m%PAR  = 1              ! run calculation on host cpu
       call exec_zmumps(m, -1) ! initialize
@@ -154,7 +139,7 @@ contains
     integer, intent(inout) :: h
       !! real mumps handle (index)
 
-    associate (m => dmumps_handles%d(h))
+    associate (m => dmumps_handles(h))
       ! deallocate user data
       if (associated(m%IRN)) deallocate (m%IRN)
       if (associated(m%JCN)) deallocate (m%JCN)
@@ -165,10 +150,10 @@ contains
       call exec_dmumps(m, -2)
     end associate
 
-    if (.not. allocated(free_dmumps_handles%d)) then
-      call free_dmumps_handles%init(0, c = 4)
-    end if
-    call free_dmumps_handles%push(h)
+    !$omp critical (omp_dmumps_handles)
+    call dmumps_free_handles%push_back(h)
+    !$omp end critical (omp_dmumps_handles)
+
     h = 0
   end subroutine
 
@@ -177,7 +162,7 @@ contains
     integer, intent(inout) :: h
       !! complex mumps handle (index)
 
-    associate (m => zmumps_handles%d(h))
+    associate (m => zmumps_handles(h))
       ! deallocate user data
       if (associated(m%IRN)) deallocate (m%IRN)
       if (associated(m%JCN)) deallocate (m%JCN)
@@ -188,10 +173,10 @@ contains
       call exec_zmumps(m, -2)
     end associate
 
-    if (.not. allocated(free_zmumps_handles%d)) then
-      call free_zmumps_handles%init(0, c = 4)
-    end if
-    call free_zmumps_handles%push(h)
+    !$omp critical (omp_zmumps_handles)
+    call zmumps_free_handles%push_back(h)
+    !$omp end critical (omp_zmumps_handles)
+
     h = 0
   end subroutine
 
@@ -206,7 +191,7 @@ contains
     integer             :: i, n
     integer(SPARSE_IDX) :: j, nnz
 
-    associate (m => dmumps_handles%d(h))
+    associate (m => dmumps_handles(h))
       ! matrix size and number of zeros
       n   = size(ia) - 1
       nnz = size(a, kind = SPARSE_IDX)
@@ -239,7 +224,7 @@ contains
     integer             :: i, n
     integer(SPARSE_IDX) :: j, nnz
 
-    associate (m => zmumps_handles%d(h))
+    associate (m => zmumps_handles(h))
       ! matrix size and number of zeros
       n   = size(ia) - 1
       nnz = size(a, kind = SPARSE_IDX)
@@ -267,7 +252,7 @@ contains
     real,    intent(in)  :: b(:)
     real,    intent(out) :: x(:)
 
-    associate (m => dmumps_handles%d(h))
+    associate (m => dmumps_handles(h))
       ! set rhs
       if (.not. associated(m%RHS)) allocate (m%RHS(size(b)))
       m%RHS = b
@@ -289,7 +274,7 @@ contains
     complex, intent(in)  :: b(:)
     complex, intent(out) :: x(:)
 
-    associate (m => zmumps_handles%d(h))
+    associate (m => zmumps_handles(h))
       ! set rhs
       if (.not. associated(m%RHS)) allocate (m%RHS(size(b)))
       m%RHS = b

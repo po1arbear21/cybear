@@ -5,6 +5,8 @@ module math_m
   use bin_search_m,    only: bin_search, BS_LESS
   use error_m,         only: assert_failed
   use ieee_arithmetic
+  use lapack95
+  use qsort_m,         only: qsort
 
   implicit none
 
@@ -21,6 +23,7 @@ module math_m
   public linspace, logspace
   public norm_inf
   public phi1, dphi1dx, phi2, dphi2dx
+  public roots
 
   real, parameter :: PI = 3.141592653589793238462643
 
@@ -406,5 +409,81 @@ contains
       vq = (v(i) * (x(i+1) - xq) + v(i+1) * (xq - x(i))) / (x(i+1) - x(i))
     end if
   end function
+
+  function roots(p) result(r)
+    !! Find complex roots of polynomial
+    real, intent(in) :: p(:)
+      !! coefficients of polynomial in reduced form: f(x) = p(1) + p(2) * x + p(3) * x**2 + ... + x**n
+    complex          :: r(size(p))
+      !! return roots of polynomial
+
+    integer :: n, nz, i, perm(size(p))
+    real    :: real_r(size(p))
+
+    ! get degree
+    n = size(p)
+    ASSERT(n > 0)
+
+    ! every leading zero in p is a zero in r
+    do nz = 0, n-1
+      if (p(nz+1) /= 0) exit
+    end do
+    r(1:nz) = 0
+    n = n - nz
+
+    ! calculate non-zero roots
+    select case (n)
+    case (0) ! constant: f(x) = 1 == 0
+
+    case (1) ! linear: f(x) = p(nz+1) + x == 0
+      r(nz + 1) = - p(nz + 1)
+
+    case (2) ! quadratic: f(x) = p(nz+1) + p(nz+2) * x + x**2 == 0
+      block
+        complex :: d
+
+        ! discriminant
+        d = p(nz + 2)**2 - 4*p(nz + 1)
+
+        ! add numbers of similar sign to prevent loss of accuracy
+        if (p(nz + 2) >= 0) then
+          r(nz + 1) = - 0.5 * (sqrt(d) + p(nz + 2))
+          r(nz + 2) = p(nz + 1) / r(nz + 1)
+        else
+          r(nz + 2) = 0.5 * (sqrt(d) - p(nz + 2))
+          r(nz + 1) = p(nz + 1) / r(nz + 2)
+        end if
+      end block
+
+    case default ! default: f(x) = p(nz+1) + p(nz+2) * x + p(nz+3) * x**2 + ... + p(nz+n) * x**(n-1) + x**n
+      block
+        real :: a(n,n), wr(n), wi(n)
+
+        ! construct companion matrix
+        a = 0
+        do i = 1, n
+          a(1,i) = -p(nz + n - i + 1)
+        end do
+        do i = 2, n
+          a(i,i-1) = 1
+        end do
+
+        ! get eigenvalues of companion matrix
+        call geev(a, wr, wi)
+
+        ! construct complex roots
+        do i = 1, n
+          r(nz + i) = cmplx(wr(i), wi(i))
+        end do
+      end block
+
+    end select
+
+    ! sort by real part
+    real_r = real(r)
+    call qsort(real_r, perm = perm)
+    r = r(perm)
+  end function
+
 
 end module

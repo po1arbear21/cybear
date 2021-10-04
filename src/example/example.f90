@@ -5,14 +5,14 @@ program example
   implicit none
 
   call init_configuration("src/example/example.inp")
-  ! call init_dd()
-  ! call init_full()
-  ! call init_nlpe()
+  call init_dd()
+  call init_full()
+  call init_nlpe()
 
-  ! !call solve_nlpe()
-  ! call solve_gummel()
-  ! call solve_full_newton()
+  !call solve_nlpe()
+  call solve_gummel()
+  call solve_full_newton()
 
-  ! call output()
+  call output()
 
 end program

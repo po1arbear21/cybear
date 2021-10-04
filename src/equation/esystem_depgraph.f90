@@ -699,9 +699,18 @@ contains
     ! write nodes
     do i = 1, this%nodes%n
       associate (n => this%nodes%d(i)%p)
-        write (iounit, '(A,I0,4A)', advance='no') '  ', i, ' [color=', trim(COLOR(n%status)), ' label="', n%v%name, &
-          & '" penwidth=2.0'
-        if (n%const) write (iounit, '(A)', advance='no') ' style=filled color=gray'
+        write (iounit, '(A,I0,A)', advance='no') '  ', i, ' ['
+        write (iounit, '(2A)', advance='no') 'color=', trim(COLOR(n%status))
+        write (iounit, '(2A)', advance='no') ' label="', n%v%name
+        if (n%iequ > 0) then
+          write (iounit, '(2A)', advance='no') '\n', this%equs%d(n%iequ)%e%name
+        end if
+        write (iounit, '(A)', advance='no') '"'
+        write (iounit, '(A)', advance='no') ' penwidth=2.0'
+        if (n%const) then
+          write (iounit, '(A)', advance='no') ' style=filled'
+          write (iounit, '(A)', advance='no') ' color=gray'
+        end if
         write (iounit, '(A)') ']'
       end associate
     end do
@@ -710,7 +719,7 @@ contains
     do i = 1, this%nodes%n
       associate (n => this%nodes%d(i)%p)
         do j = 1, n%parents%n
-          write (iounit, '(A,I0,A,I0,3A)') '  ', n%parents%d(j), ' -> ', i, ' [label="', this%equs%d(n%iequ)%e%name, '"]'
+          write (iounit, '(A,I0,A,I0)') '  ', n%parents%d(j), ' -> ', i
         end do
       end associate
     end do

@@ -447,7 +447,6 @@ contains
     class(tensor_grid), intent(inout) :: this
 
     integer          :: i, j, idx1_type, idx2_type, idx1_dir, idx2_dir, idir0(4), idir1(4), todo(4,4*4*(this%idx_dim+1)*(this%idx_dim+1)), n
-    type(vector_int) :: neighb(this%idx_dim), neighb_tmp(this%idx_dim), neighb_mul(size(this%g),this%idx_dim)
 
     ! allocate memory
     allocate (this%max_neighb(4,0:this%idx_dim,4,0:this%idx_dim), source = 0)
@@ -476,47 +475,22 @@ contains
     end do
 
     ! init neighbours
-    !$omp parallel default(none) &
-    !$omp private(i, j, idx1_type, idx2_type, idx1_dir, idx2_dir, neighb, neighb_tmp, neighb_mul) &
+    !$omp parallel do schedule(dynamic) default(none) &
+    !$omp private(i, j, idx1_type, idx2_type, idx1_dir, idx2_dir) &
     !$omp shared(this, idir0, idir1, todo, n)
-
-    ! allocate thread local memory
-    do i = 1, this%idx_dim
-      call neighb(i)%init(0, c = 1024)
-      call neighb_tmp(i)%init(0, c = 16)
-      do j = 1, size(this%g)
-        call neighb_mul(j,i)%init(0, c = 16)
-      end do
-    end do
-
-    !$omp do schedule(dynamic)
     do i = 1, n
       idx1_type = todo(1,i)
       idx1_dir  = todo(2,i)
       idx2_type = todo(3,i)
       idx2_dir  = todo(4,i)
-      call this%init_neighb_loop(neighb, neighb_tmp, neighb_mul, idx1_type, idx1_dir, idx2_type, idx2_dir)
+      call this%init_neighb_loop(idx1_type, idx1_dir, idx2_type, idx2_dir)
     end do
-    !$omp end do
-
-    ! free thread local memory
-    do i = 1, this%idx_dim
-      call neighb(i)%destruct()
-      call neighb_tmp(i)%destruct()
-      do j = 1, size(this%g)
-        call neighb_mul(j,i)%destruct()
-      end do
-    end do
-
-    !$omp end parallel
+    !$omp end parallel do
   end subroutine
 
-  subroutine tensor_grid_init_neighb_loop(this, neighb, neighb_tmp, neighb_mul, idx1_type, idx1_dir, idx2_type, idx2_dir)
+  subroutine tensor_grid_init_neighb_loop(this, idx1_type, idx1_dir, idx2_type, idx2_dir)
     !! init neighbour data for one combination of idx1_type, idx1_dir, idx2_type idx2_dir
     class(tensor_grid), intent(inout) :: this
-    type(vector_int),   intent(inout) :: neighb(:)
-    type(vector_int),   intent(inout) :: neighb_tmp(:)
-    type(vector_int),   intent(inout) :: neighb_mul(:,:)
     integer,            intent(in)    :: idx1_type
     integer,            intent(in)    :: idx2_type
     integer,            intent(in)    :: idx1_dir
@@ -528,14 +502,19 @@ contains
       &                                            MULOP, MULOP, ADDOP, SELOP, &
       &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
 
-    integer :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch
-    integer :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
-    integer :: neighb_mul_n(size(this%g)), imul(size(this%g))
-    logical :: select1, select2, status
+    integer          :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch
+    integer          :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
+    integer          :: neighb_mul_n(size(this%g)), imul(size(this%g))
+    logical          :: select1, select2, status
+    type(vector_int) :: neighb(this%idx_dim), neighb_tmp(this%idx_dim), neighb_mul(size(this%g),this%idx_dim)
 
-    ! reset neighbour data vector
+    ! allocate memory
     do i = 1, this%idx_dim
-      call neighb(i)%reset()
+      call neighb(i)%init(0, c = 1024)
+      call neighb_tmp(i)%init(0, c = 16)
+      do j = 1, size(this%g)
+        call neighb_mul(j,i)%init(0, c = 16)
+      end do
     end do
 
     ! search hint

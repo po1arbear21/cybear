@@ -25,9 +25,10 @@ module example_steady_state_m
   public solve_full_newton, solve_gummel, solve_nlpe
   public output
 
-  type(esystem)    :: sys_dd, sys_full, sys_nlpe
-  type(input_file) :: f
-  type(newton_opt) :: opt_dd, opt_full, opt_nlpe
+  type(esystem)      :: sys_dd, sys_full, sys_nlpe
+  type(input_file)   :: f
+  type(newton_opt)   :: opt_dd, opt_full, opt_nlpe
+  type(steady_state) :: steady_dd, steady_full, steady_nlpe
 
 contains
 
@@ -82,7 +83,7 @@ contains
     call sys_dd%add_equation(calc_mobil)
 
     ! provide variables
-    call sys_dd%provide(pois%pot)
+    call sys_dd%provide(pot)
     call sys_dd%provide(iref)
 
     ! finalize the equation system
@@ -98,7 +99,7 @@ contains
   end subroutine
 
   subroutine init_nlpe()
-    integer :: max_it
+    integer :: max_it, i
     real    :: atol, rtol
 
     ! reading parameters
@@ -116,7 +117,9 @@ contains
 
     ! provide variables
     call sys_nlpe%provide(iref)
-    call sys_nlpe%provide(pois%volt)
+    do i = 1, size(contacts)
+      call sys_nlpe%provide(contacts(i)%volt)
+    end do
 
     ! finalize the equation system
     call sys_nlpe%init_final()
@@ -151,10 +154,12 @@ contains
     call sys_full%add_equation(calc_current_dens)
     call sys_full%add_equation(calc_mobil)
     call sys_full%add_equation(calc_iref)
+
     ! provide variables
     do i = 1, size(contacts)
       call sys_full%provide(contacts(i)%volt, input = .true.)
     end do
+
     ! finalize the equation system
     call sys_full%init_final()
 
@@ -170,7 +175,7 @@ contains
 
   subroutine solve_nlpe()
     !! solve the non-linear poisson system
-    call sys_nlpe%solve(nopt = opt_nlpe)
+    call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe)
   end subroutine
 
   subroutine solve_gummel()
@@ -189,9 +194,9 @@ contains
     error = huge(1.0)
     do while (error > atol .and. i <= max_it)
       pot0 = pot%get()
-      call sys_nlpe%solve(nopt = opt_nlpe)
+      call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe)
       iref0 = iref%get()
-      call sys_dd%solve(nopt = opt_dd)
+      call steady_dd%run(  sys_dd,   nopt = opt_dd)
       call calc_iref%eval()
 
       error = max(maxval(abs(pot%get()-pot0)), maxval(abs(iref%get()-iref0)))
@@ -204,14 +209,16 @@ contains
 
   subroutine solve_full_newton()
     !! solve the full newton system
-    integer :: i
+    integer           :: i
+    real, allocatable :: input(:,:)
 
-    call sys_full%set_input([(contacts(i)%volt%x, i = 1, size(contacts))])
-    call sys_full%solve(nopt = opt_full)
+    allocate(input(size(contacts), 1))
+    input(:,1) = [(contacts(i)%volt%x, i = 1, size(contacts))]
+    call steady_full%run(sys_full, nopt = opt_full, input = input)
   end subroutine
 
   subroutine output()
-    !! output denity, potential and current_density
+    !! output density, potential and current_density
     call dens%output_data("dens.csv")
     call pot%output_data( "pot.csv")
     call current_dens%output_data("current_dens.csv")

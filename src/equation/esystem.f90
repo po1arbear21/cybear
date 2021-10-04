@@ -600,6 +600,9 @@ contains
     do i = 1, this%g%ieval%n
       ! get dependency graph equation
       associate (e => this%g%equs%d(this%g%ieval%d(i)))
+        ! reset non-constant parts of provided var selectors and jacobians
+        call e%e%reset(const = .false., nonconst = .true.)
+
         ! evaluate equation
         call e%e%eval()
         call e%e%set_jaco_matr(const = .false., nonconst = .true.)
@@ -757,13 +760,10 @@ contains
       if (nopt_%it_solver) then
         ASSERT(present(dfdx_prec))
         call this%eval(f = f, df = df, dfp = dfp)
-        call dfp%factorize()
         dfdx_prec => dfp
-
       else
         ASSERT(.not. present(dfdx_prec))
         call this%eval(f = f, df = df)
-        call df%factorize()
       end if
       dfdx => df
     end subroutine

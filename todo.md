@@ -8,11 +8,8 @@
 
 # esystem
 - test
+
 # variable
-- grid_table in variable
-## output
-- csv
-- plt
 
 # analysis
 ## stationary

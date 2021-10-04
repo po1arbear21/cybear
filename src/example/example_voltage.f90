@@ -7,7 +7,6 @@ module example_voltage_m
 
   private
   public voltage
-  !public volt, voltage
 
   type, extends(variable) :: voltage
     !! electric voltage
@@ -15,8 +14,6 @@ module example_voltage_m
   contains
     procedure :: init => voltage_init
   end type
-
-  type(voltage), allocatable :: volt(:)
 
 contains
 

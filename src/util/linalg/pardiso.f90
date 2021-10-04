@@ -2,9 +2,9 @@
 
 module pardiso_m
 
+  use deque_m,      only: deque_int
   use error_m,      only: assert_failed, program_error
   use sparse_idx_m, only: sparse_idx
-  use vector_m,     only: vector_int
 
   implicit none
 
@@ -43,12 +43,9 @@ module pardiso_m
       !! factorization complete flag
   end type
 
-#define T pardiso_handle
-#define TT type(pardiso_handle)
-#include "../vector_def.f90.inc"
-
-  type(vector_pardiso_handle) :: pardiso_handles
-  type(vector_int)            :: free_pardiso_handles
+  integer, parameter   :: PARDISO_NUM_HANDLES = 128
+  type(pardiso_handle) :: pardiso_handles(PARDISO_NUM_HANDLES)
+  type(deque_int)      :: pardiso_free_handles
 
   interface pardiso_factorize
     module procedure :: pardiso_factorize_r
@@ -78,10 +75,6 @@ module pardiso_m
 
 contains
 
-#define T pardiso_handle
-#define TT type(pardiso_handle)
-#include "../vector_imp.f90.inc"
-
   function create_pardiso_handle(nrows, cmplx) result(h)
     integer, intent(in) :: nrows
       !! number of rows
@@ -90,24 +83,19 @@ contains
     integer             :: h
       !! return pardiso handle (index)
 
-    integer :: mtype, iparm(64)
+    integer :: i, mtype, iparm(64)
 
-    if (.not. allocated(pardiso_handles%d)) then
-      call pardiso_handles%init(0, c = 4)
+    ! get free handle
+    !$omp critical (omp_pardiso_handles)
+    if (.not. allocated(pardiso_free_handles%d)) then
+      call pardiso_free_handles%init(PARDISO_NUM_HANDLES, x = [(i, i=1, PARDISO_NUM_HANDLES)])
     end if
+    if (pardiso_free_handles%n < 1) call program_error("No free pardiso handles!")
+    h = pardiso_free_handles%front()
+    call pardiso_free_handles%pop_front()
+    !$omp end critical (omp_pardiso_handles)
 
-    if (free_pardiso_handles%n > 0) then
-      h = free_pardiso_handles%d(free_pardiso_handles%n)
-      call free_pardiso_handles%resize(free_pardiso_handles%n-1)
-    else
-      block
-        type(pardiso_handle) :: p
-        call pardiso_handles%push(p)
-      end block
-      h = pardiso_handles%n
-    end if
-
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       ! maximum number of factors with idential sparse structure
       p%maxfct = 1
 
@@ -176,7 +164,7 @@ contains
     real                :: a(0), b(0), x(0)
     complex             :: ca(0), cb(0), cx(0)
 
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       if (any(p%pt%dummy /= 0)) then
         ! termination and release of memory
         nrhs = int(0, kind = SPARSE_IDX)
@@ -194,10 +182,10 @@ contains
       p%factorized = .false.
     end associate
 
-    if (.not. allocated(free_pardiso_handles%d)) then
-      call free_pardiso_handles%init(0, c = 4)
-    end if
-    call free_pardiso_handles%push(h)
+    !$omp critical (omp_pardiso_handles)
+    call pardiso_free_handles%push_back(h)
+    !$omp end critical (omp_pardiso_handles)
+
     h = 0
   end subroutine
 
@@ -215,7 +203,7 @@ contains
     integer(SPARSE_IDX), pointer :: japtr(:)
     real                         :: dum(0)
 
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       ! make sure the matrix type is real
       ASSERT(p%mtype == 11)
 
@@ -263,7 +251,7 @@ contains
     integer(SPARSE_IDX), pointer :: japtr(:)
     complex                      :: dum(0)
 
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       ! make sure matrix type is complex
       ASSERT(p%mtype == 13)
 
@@ -313,7 +301,7 @@ contains
     integer(SPARSE_IDX), pointer :: japtr(:)
     real                         :: b_(size(b))
 
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       ! make sure matrix type is real and matrix is factorized
       ASSERT(p%mtype == 11)
       ASSERT(p%factorized)
@@ -358,7 +346,7 @@ contains
     integer(SPARSE_IDX), pointer :: japtr(:)
     complex                      :: b_(size(b))
 
-    associate (p => pardiso_handles%d(h))
+    associate (p => pardiso_handles(h))
       ! make sure matrix type is complex and matrix is factorized
       ASSERT(p%mtype == 13)
       ASSERT(p%factorized)

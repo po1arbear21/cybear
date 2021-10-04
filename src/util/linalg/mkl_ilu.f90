@@ -178,13 +178,13 @@ module mkl_ilu_m
     end
   end interface
 
-  character(*), parameter :: MKL_ILU0_ERROR(-106:-101) = [                              &
-    & "ja not in ascending order                                                     ", &
-    & "system size: n <= 0                                                           ", &
-    & "insufficient memory                                                           ", &
-    & "small diagonal element: overflow or bad approximation possible                ", &
-    & "zero diagonal encountered but ipar(31)==0                                     ", &
-    & "error. at least one diagonal element is omitted from the matrix in CSR3 format"  ]
+  character(*), parameter :: MKL_ILU0_ERROR(-106:-101) = [                       &
+    & "ja not in ascending order                                              ", &
+    & "system size: n <= 0                                                    ", &
+    & "insufficient memory                                                    ", &
+    & "small diagonal element: overflow or bad approximation possible         ", &
+    & "zero diagonal encountered but ipar(31)==0                              ", &
+    & "at least one diagonal element is omitted from the matrix in CSR3 format"  ]
 
   character(*), parameter :: MKL_ILUT_ERROR(-107:-101) = [ &
     & "entry of ja is less than 1 or greater n  ",         &

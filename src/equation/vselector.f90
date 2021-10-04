@@ -204,14 +204,24 @@ contains
     ptr%p => this
   end function
 
-  subroutine vselector_reset(this)
+  subroutine vselector_reset(this, itab)
     !! reset all data selected to zero
-    class(vselector), intent(inout) :: this
+    class(vselector),  intent(inout) :: this
+    integer, optional, intent(in)    :: itab
+      !! select table to reset (default: reset all tables)
 
-    integer :: i, j, itab, idx(this%g%idx_dim)
+    integer :: i, j, itab0, itab1, itab_, idx(this%g%idx_dim)
 
-    do itab = 1, this%ntab
-      associate (tab => this%tab(itab)%p)
+    ! optional table index
+    itab0 = 1
+    itab1 = this%ntab
+    if (present(itab)) then
+      itab0 = itab
+      itab1 = itab
+    end if
+
+    do itab_ = itab0, itab1
+      associate (tab => this%tab(itab_)%p)
         do i = 1, tab%n
           idx = tab%get_idx(i)
           do j = 1, this%nval

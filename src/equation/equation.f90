@@ -182,23 +182,41 @@ contains
     if (allocated(this%jaco_p)) deallocate (this%jaco_p)
   end subroutine
 
-  subroutine equation_reset(this)
-    !! reset provided var selectors and non-const jacobians
-    class(equation), intent(inout) :: this
+  subroutine equation_reset(this, const, nonconst)
+    !! reset provided var selectors and jacobians
+    class(equation),   intent(inout) :: this
+    logical, optional, intent(in)    :: const
+      !! reset constant parts (default: true)
+    logical, optional, intent(in)    :: nonconst
+      !! reset non-constant parts (default: true)
 
-    integer :: i, j
+    integer :: i, j, itab
+    logical :: const_, nonconst_, vprov_const
+
+    ! optional arguments
+    const_ = .true.
+    if (present(const)) const_ = const
+    nonconst_ = .true.
+    if (present(nonconst)) nonconst_ = nonconst
 
     ! reset provided var selectors
     do i = 1, this%vprov%n
-      call this%vprov%d(i)%p%reset()
+      do itab = 1, this%vprov%d(i)%p%ntab
+        vprov_const = .true.
+        do j = 1, this%vdep%n
+          if (associated(this%jaco(i,j)%p)) vprov_const = all(this%jaco(i,j)%p%matr%const(itab,:))
+          if (.not. vprov_const) exit
+        end do
+        if ((const_ .and. vprov_const) .or. (nonconst_ .and. .not. vprov_const)) call this%vprov%d(i)%p%reset(itab = itab)
+      end do
     end do
 
-    ! reset non-const parts of jacobians
-    do j = 1, size(this%jaco, dim = 2)
-      do i = 1, size(this%jaco, dim = 1)
-        if (associated(this%jaco(i,j)%p)) call this%jaco(i,j)%p%reset(const = .false.)
+    ! reset jacobians
+    do j = 1, this%vdep%n
+      do i = 1, this%vprov%n
+        if (associated(this%jaco(i,j)%p)) call this%jaco(i,j)%p%reset(const = const, nonconst = nonconst)
         if (allocated(this%jaco_p)) then
-          if (associated(this%jaco_p(i,j)%p)) call this%jaco_p(i,j)%p%reset(const = .false.)
+          if (associated(this%jaco_p(i,j)%p)) call this%jaco_p(i,j)%p%reset(const = const, nonconst = nonconst)
         end if
       end do
     end do

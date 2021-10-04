@@ -58,8 +58,8 @@ contains
 
     ! vselect the variables
     call this%volt%init([(contacts(i)%volt%get_ptr(), i = 1 , size(contacts))], "voltages")
-    call this%pot%init(pot,         [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
-    call this%rho%init(charge_dens, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%pot%init(pot, [uncontacted%get_ptr(), (contacts(i)%conts%get_ptr() , i=1, size(contacts))])
+    call this%rho%init(charge_dens)
 
     ! set main variable
     call this%init_f(this%pot)
