@@ -376,7 +376,7 @@ module subroutine DENSE_EIG(this, e, R, L, sort)
   ! sort
   sort_ = .false.
   if (present(sort)) sort_ = sort
-  if (sort) then
+  if (sort_) then
     block
       real,    allocatable :: abs_e(:)
       integer, allocatable :: perm(:)
