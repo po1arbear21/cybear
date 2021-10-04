@@ -16,6 +16,7 @@ module example_steady_state_m
   use input_m,                   only: input_file
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
+  use steady_state_m,            only: steady_state
 
   implicit none
 

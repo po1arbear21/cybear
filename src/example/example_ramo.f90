@@ -7,7 +7,7 @@ module example_ramo_m
   use example_device_m,          only: eps, grd
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
-  use grid_m,                    only: grid_data1_real
+  use grid_m,                    only: grid_data1_real, IDX_VERTEX
   use grid0D_m,                  only: get_dummy_grid
   use jacobian_m,                only: jacobian, jacobian_ptr
   use math_m,                    only: eye_real
@@ -80,7 +80,7 @@ contains
     call sys_ramo%get_df(df)
 
     ! allocate memory to rhs and x
-    allocate (rhs(df%nrows,sys_ramo%ninput))
+    allocate (rhs(df%nrows,sys_ramo%ninput), source = 0.0)
     allocate (  x(df%nrows,sys_ramo%ninput))
 
     ! set right-hand sides
@@ -103,6 +103,7 @@ contains
     ! and set the fundamental solution as the result from the poisson equation
     do i = 1, size(contacts)
       call sys_ramo%set_x(x(:,i))
+      call ramo_nu(i)%init(grd, IDX_VERTEX, 0)
       call ramo_nu(i)%set(pot%get())
     end do
 
@@ -117,12 +118,6 @@ contains
         end do
         ramo_cap(i, j) = cap
         ramo_cap(j, i) = cap
-      end do
-    end do
-
-    do j = 1, size(ramo_nu)
-      do i = 1, ramo_nu(j)%n
-      print *, ramo_nu(j)%get([i])
       end do
     end do
   end subroutine

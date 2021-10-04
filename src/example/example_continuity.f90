@@ -43,12 +43,7 @@ contains
   subroutine continuity_init(this)
     class(continuity), intent(out) :: this
 
-<<<<<<< HEAD
-    integer           :: i, idx0(1), idx1(1)
-    type(sparse_real) :: sp
-=======
     integer :: i, idx0(1), idx1(1)
->>>>>>> master
 
     ! init res_equation
     call this%equation_init("continuity")
@@ -76,51 +71,29 @@ contains
       idx1 = [i]
 
       if (uncontacted%flags%get(idx1)) then
-<<<<<<< HEAD
-        ! setting contacted const jacobs
-=======
         ! setting contacted const jacobian entries
->>>>>>> master
         call this%jaco_current_dens%add( idx1, idx0, -1.0)
         call this%jaco_current_dens%add( idx1, idx1,  1.0)
         call this%jaco_dens_t%set(       idx1, idx1, adj_v%get(idx1))
       else
-<<<<<<< HEAD
-        ! setting uncontacted const jacobs
-=======
         ! setting uncontacted const jacobian entries
->>>>>>> master
         call this%jaco_dens%set(idx1, idx1, 1.0)
       end if
     end do
     call this%init_final()
-<<<<<<< HEAD
-
-    call matrix_convert(this%jaco_current_dens%matr, sp)
-    call matrix_convert(this%jaco_dens%matr,         sp)
-=======
->>>>>>> master
   end subroutine
 
   subroutine continuity_eval(this)
     class(continuity), intent(inout) :: this
 
     real, allocatable :: tmp(:)
-<<<<<<< HEAD
-    integer :: i, j, idx(1)
-=======
     integer           :: i, j, idx(1)
->>>>>>> master
 
     allocate(tmp(this%dens%n))
 
     ! calculating the density
     call this%jaco_current_dens%matr%mul_vec(this%current_dens%get(), tmp)
-<<<<<<< HEAD
-    call this%jaco_dens%matr%mul_vec(        this%dens%get(),         tmp, fact_y = 1.0)
-=======
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp, fact_y = 1.0)
->>>>>>> master
     call this%f%set(tmp)
 
     do i = 1, size(contacts)

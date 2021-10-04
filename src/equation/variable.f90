@@ -37,11 +37,6 @@ module variable_m
     generic   :: get         => variable_get_point, variable_get_all
     generic   :: set         => variable_set_point, variable_set_all
     procedure :: output_data => variable_output_data
-<<<<<<< HEAD
-    procedure :: load_data   => variable_load_data
-    procedure :: save_data   => variable_save_data
-=======
->>>>>>> master
 
     procedure, private :: variable_get_point, variable_get_all
     procedure, private :: variable_set_point, variable_set_all
@@ -141,90 +136,8 @@ contains
 
   subroutine variable_output_data(this, fname, grd_unit, tab)
     !! save variable's data into file as denormalized values.
-<<<<<<< HEAD
-    class(variable), intent(in) :: this
-    character(*),    intent(in) :: fname
-      !! file name, e.g. "output/tmp/pot.csv"
-
-    integer           :: iounit, i
-    real, allocatable :: d(:)
-
-    d = denorm(this%get(), this%unit)
-
-    open (newunit = iounit, file = fname, action = 'WRITE')
-    do i = 1, size(d)
-      write (iounit, '(E32.24)') d(i)
-    end do
-    close (unit = iounit)
-  end subroutine
-
-  subroutine variable_output_data(this, fname, grd_unit, tab)
-    !! save variable's data into file as denormalized values.
-    class(variable), target,     intent(in) :: this
-    character(*),                intent(in) :: fname
-      !! file name, e.g. "output/tmp/pot.csv"
-    character(*),      optional, intent(in) :: grd_unit
-      !! physical unit token
-    type(grid_table), target, optional, intent(in) :: tab
-      !! optional grid table for certain data
-
-    integer                   :: iounit, idx(this%g%idx_dim), i, j
-    real                      :: coord(this%g%dim)
-    type(grid_table), pointer :: tab_
-    character(:), allocatable :: grd_unit_
-
-    ! optional arguments
-    grd_unit_ = "nm"
-    if (present(grd_unit)) grd_unit_ = grd_unit
-    tab_ => this%g%tab_all(this%idx_type, this%idx_dir)
-    if (present(tab)) tab_ => tab
-
-    open (newunit = iounit, file = fname, action = 'write')
-    do i = 1, tab_%n
-      idx = tab_%get_idx(i)
-
-      select case (this%idx_type)
-        case(IDX_CELL)
-          block
-            real :: coord_cl(this%g%dim, this%g%cell_dim)
-            call this%g%get_cell(idx, coord_cl)
-            coord = sum(coord_cl, dim = 2) / size(coord_cl, dim = 2)
-          end block
-        case(IDX_EDGE)
-          block
-            real :: coord_ed(this%g%dim ,2)
-            call this%g%get_edge(idx, this%idx_dir, coord_ed)
-            coord = sum(coord_ed, dim = 2) / size(coord_ed, dim = 2)
-          end block
-        case(IDX_FACE)
-          block
-            real :: coord_fc(this%g%dim, this%g%face_dim(this%idx_dir))
-            call this%g%get_face(idx, this%idx_dir, coord_fc)
-            coord = sum(coord_fc, dim = 2) / size(coord_fc, dim = 2)
-          end block
-        case(IDX_VERTEX)
-          call this%g%get_vertex(idx, coord)
-      end select
-
-      coord = denorm(coord, grd_unit_)
-
-      do j = 1 , size(coord)
-        write (iounit, '(ES24.16)', advance = "no") coord(j)
-      end do
-      write (iounit, '(ES24.16)') denorm(this%get(idx), this%unit)
-    end do
-    close (unit = iounit)
-  end subroutine
-
-  subroutine variable_load_data(this, fname)
-    !! load variable's data from file.
-    !! assume denormalized data in file and perform normalization.
-    class(variable), intent(inout) :: this
-    character(*),    intent(in)    :: fname
-=======
     class(variable), target,            intent(in) :: this
     character(*),                       intent(in) :: fname
->>>>>>> master
       !! file name, e.g. "output/tmp/pot.csv"
     character(*),             optional, intent(in) :: grd_unit
       !! physical unit token (default: "nm")
