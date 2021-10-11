@@ -77,22 +77,29 @@ contains
     type(input_file), intent(in) :: f
     !! input file for initialisation
 
-    integer :: ind0, ind1, i
-    real    :: x0, x1, value
+    integer              :: ind0, ind1, i, j
+    integer, allocatable :: sid(:)
+    real                 :: x0, x1, value
 
     ! initialise the grid_data for the permittivity
     call eps%init(grd, IDX_CELL, 0)
 
-    ! getting input for the permittivity
-    call f%get("permittivity", "eps", value)
-    call f%get("permittivity", "x0",  x0)
-    call f%get("permittivity", "x1",  x1)
+    ! get different sections of doping
+    call f%get_sections("permittivity", sid)
 
-    ! set values in the given range
-    ind0 = bin_search(grd%x, x0)
-    ind1 = bin_search(grd%x, x1) - 1
-    do i = ind0, ind1
-      call eps%set([i], value)
+    ! getting input for the doping at each section
+    do i = 1, size(sid)
+      ! getting input for the permittivity
+      call f%get(sid(i), "eps", value)
+      call f%get(sid(i), "x0",  x0)
+      call f%get(sid(i), "x1",  x1)
+
+      ! set values in the given range
+      ind0 = bin_search(grd%x, x0)
+      ind1 = bin_search(grd%x, x1) - 1
+      do j = ind0, ind1
+        call eps%set([j], value)
+      end do
     end do
   end subroutine
 

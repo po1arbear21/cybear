@@ -12,6 +12,7 @@ module example_steady_state_m
   use example_mobility_m,        only: calc_mobil, mobil
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
+  use example_ramo_m,            only: ramo_init
   use input_m,                   only: input_file
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
@@ -60,6 +61,9 @@ contains
     call calc_iref%init()
     call contin%init()
     call calc_mobil%init()
+
+    ! init fundamental solution
+    call ramo_init()
   end subroutine
 
   subroutine init_dd()

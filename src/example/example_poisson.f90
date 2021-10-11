@@ -70,7 +70,7 @@ contains
     call this%st_nn%init( grd, IDX_VERTEX, 0, IDX_VERTEX, 0)
     call this%st_em%init()
 
-    ! init jaco
+    ! init jacos
     this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)
     this%jaco_rho  => this%init_jaco_f(this%depend(this%rho),  [this%st_dir%get_ptr(), (this%st_em%get_ptr(),       i = 1, size(contacts))], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), [this%st_em%get_ptr(),  (this%st_dir_volt%get_ptr(), i = 1, size(contacts))], const = .true.)
