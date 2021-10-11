@@ -125,8 +125,8 @@ contains
   subroutine ramo_shockley_init(this)
     class(ramo_shockley), intent(out) :: this
 
-    integer           :: i, j, k, idx1(1), idx2(1), dum(0)
-    real, allocatable :: d_curr_dens(:,:), d_volt(:,:)
+    integer           :: i, j, idx1(1), idx2(1), dum(0)
+    real, allocatable :: d_curr_dens(:,:)
 
     ! init res_equation
     call this%equation_init("ramo_shockley")
@@ -158,7 +158,7 @@ contains
 
       ! setting jaco_curr_dens
       do j = 1, size(contacts)
-        d_curr_dens(i,1) = ramo_nu(i)%get(idx2) - ramo_nu(i)%get(idx1)
+        d_curr_dens(j,1) = ramo_nu(j)%get(idx2) - ramo_nu(j)%get(idx1)
       end do
       call this%jaco_curr_dens%set(dum, idx1, d_curr_dens)
 
