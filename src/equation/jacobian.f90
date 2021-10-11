@@ -236,8 +236,8 @@ contains
     logical, optional, intent(in)    :: nonconst
       !! reset non-constant blocks (default: true)
 
-    integer :: i, j, itab1, itab2
-    logical :: const_, nonconst_, reset(this%matr%v1%ntab,this%matr%v2%ntab)
+    integer :: i, j, itab1, itab2, idx1(this%matr%v1%g%idx_dim), idx2(this%matr%v2%g%idx_dim)
+    logical :: const_, nonconst_, reset(this%matr%v1%ntab,this%matr%v2%ntab), status
 
     ! optional arguments
     const_ = .true.
@@ -261,30 +261,25 @@ contains
               cycle
             end if
 
-            block
-              integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
-              logical :: status
+            ! loop over result points
+            do i = 1, v1%tab(itab1)%p%n
+              ! get result grid indices
+              idx1 = v1%tab(itab1)%p%get_idx(i)
 
-              ! loop over result points
-              do i = 1, v1%tab(itab1)%p%n
-                ! get result grid indices
-                idx1 = v1%tab(itab1)%p%get_idx(i)
+              ! loop over dependency grid indices
+              do j = 1, st%nmax
+                ! get dependency grid indices
+                call st%get(idx1, j, idx2, status)
+                if (.not. status) exit
 
-                ! loop over dependency grid indices
-                do j = 1, st%nmax
-                  ! get dependency grid indices
-                  call st%get(idx1, j, idx2, status)
-                  if (.not. status) exit
+                ! get dependency table index
+                itab2 = v2%itab%get(idx2)
+                if (itab2 <= 0) cycle
 
-                  ! get dependency table index
-                  itab2 = v2%itab%get(idx2)
-                  if (itab2 <= 0) cycle
-
-                  ! reset only if flag is set
-                  if (reset(itab1,itab2)) this%sd(itab1)%d(:,:,j,i) = 0
-                end do
+                ! reset only if flag is set
+                if (reset(itab1,itab2)) this%sd(itab1)%d(:,:,j,i) = 0
               end do
-            end block
+            end do
 
           class is (dynamic_stencil)
             do itab2 = 1, v2%ntab
