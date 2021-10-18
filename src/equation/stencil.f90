@@ -215,7 +215,6 @@ contains
       if (g2_%idx_dim > 0) then
         ASSERT(minval(perm) >= -1)
         ASSERT(maxval(perm) <= g1%idx_dim)
-        ASSERT(.not. any(perm == 0))
       end if
       this%perm = perm
     end if

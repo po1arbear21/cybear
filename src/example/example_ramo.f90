@@ -140,7 +140,7 @@ contains
     call this%init_f(this%curr)
 
     ! init stencils
-    call this%st_curr_dens%init(get_dummy_grid(), g2 = grd, perm = dum, off2 = [size(grd%x)-1])
+    call this%st_curr_dens%init(get_dummy_grid(), g2 = grd, perm = [0], off1 = [1], off2 = [size(grd%x)-1])
     call this%st_curr_volt%init(get_dummy_grid())
 
     ! init jacos
