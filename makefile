@@ -72,7 +72,7 @@ $(BUILD_DIR)%.o:
 	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $< -o $@
 
 clean:
-	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o} $(BUILD_DIR).depend $(TARGETS)
+	rm -f $(TRASH_DIR)*.{s,}mod $(BUILD_DIR)*.{anc,i90,mod,smod,o,a} $(BUILD_DIR).depend $(TARGETS)
 
 clean_mod:
 	find src -type f -name '*.mod' -delete

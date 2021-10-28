@@ -95,6 +95,7 @@ contains
     ! factorize and solve esystem
     call df%factorize()
     call df%solve_mat(rhs, x)
+    call df%destruct()
 
     ! allocate memory to ramo_nu and ramo_cap
     allocate(ramo_cap(size(contacts), size(contacts)), ramo_nu(size(contacts)))

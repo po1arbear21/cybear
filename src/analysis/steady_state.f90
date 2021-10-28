@@ -80,16 +80,16 @@ contains
       if (present(gum))   call gum()
       call newton(fun, p, nopt_, sys%get_x(), this%x(:,i), gmres_opt = gopt)
 
+      ! release factorizations
+      if (nopt_%it_solver) then
+        call dfp%destruct()
+      else
+        call df%destruct()
+      end if
+
       ! save results in esystem variables
       call sys%set_x(this%x(:,i))
     end do
-
-    ! release factorizations
-    if (nopt_%it_solver) then
-      call dfp%destruct()
-    else
-      call df%destruct()
-    end if
 
   contains
 
