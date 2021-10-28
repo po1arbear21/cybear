@@ -40,8 +40,15 @@ module triang_grid_m
       !! maximal neighbours wrt idx_types
       !! indices: (idx1_type, idx2_type), each idx_type = IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
       !! max_neighb(idx1_type, idx2_type): idx1_type has how many neighbours of type idx2_type
+
+    type(quadtree), allocatable :: qtree
+      !! quadtree, purpose: searching for triangles
+    logical                     :: qtree_init
+      !! has qtree been intialized?
+      !! default: .false.
   contains
     procedure :: init           => triang_grid_init
+    procedure :: get_icell      => triang_grid_get_icell
     procedure :: get_idx_bnd_n  => triang_grid_get_idx_bnd_n
     procedure ::                   triang_grid_get_idx_bnd_1
     generic   :: get_idx_bnd    => triang_grid_get_idx_bnd_1
@@ -57,7 +64,96 @@ module triang_grid_m
     procedure :: output         => triang_grid_output
   end type
 
+  type node
+    integer, allocatable :: itr(:)
+      !! idx of triangles that are within the node
+    integer              :: ichild
+      !! index of childrens in quadtree%n(:)
+      !! ichild = 0 (no children)
+      !!        = i (nodes i, i+1, i+2, i+3 are children)
+    real                 :: bnds(2,2)
+      !! axis-aligned boundaries
+      !! 1st index: x-  (=: 1) or y-range   (=: 2)
+      !! 2nd index: min (=: 1) or max value (=: 2)
+  contains
+    procedure :: contain_pnt => node_contain_pnt
+  end type
+
+#define T node
+#define TT type(node)
+#include "../util/vector_def.f90.inc"
+
+  type quadtree
+    integer, allocatable :: itr(:)
+      !! indices of all triangles
+    integer, allocatable :: cell2vert(:,:)
+      !! indices to triangle's vertices: cell_i = [vert_1, vert_2, vert_3] = cell2vert(1:3,i)
+      !! size(3,ncell)
+    real,    allocatable :: vert(:,:)
+      !! vertices:  [x_i, y_i] = vert(1:2,i).
+    type(vector_node) :: nodes
+      !! nodes of quadtree
+  contains
+    procedure :: init       => quadtree_init
+    procedure :: subdivide  => quadtree_subdivide
+    procedure :: overlap    => quadtree_overlap
+    procedure :: lookup_pnt => quadtree_lookup_pnt
+    procedure :: print      => quadtree_print
+  end type
+
+  ! interface to submodule routines in grid/quadtree.f90
+  interface
+    module subroutine node_contain_pnt(this, pnt, res, wEDGE)
+      !! check if pnt lies within bnds of node
+      class(node), intent(in)  :: this
+      real,        intent(in)  :: pnt(2)
+      logical,     intent(out) :: res
+      logical,     intent(in), optional :: wEDGE
+    end subroutine
+    
+    module subroutine quadtree_init(this, g)
+      !! int quadtree
+
+      class(quadtree),   intent(out) :: this
+      type(triang_grid), intent(in)  :: g
+    end subroutine
+
+    module recursive subroutine quadtree_subdivide(this, n)
+      !! subdivide node into its 4 children
+
+      class(quadtree), intent(inout) :: this
+      type(node),      intent(inout) :: n
+    end subroutine
+
+    module function quadtree_overlap(this, n, itriang) result(res)
+      class(quadtree), intent(in) :: this
+      type(node),      intent(in) :: n
+        !! node
+      integer,         intent(in) :: itriang
+        !! idx of triangle
+      logical                     :: res
+    end function
+
+    module function quadtree_lookup_pnt(this, pnt) result(icell)
+      !! find idx of the triangle that contains the point pnt
+
+      class(quadtree), intent(in) :: this
+      real,            intent(in) :: pnt(2)
+        !! point
+      integer                     :: icell
+        !! result: idx of triangle
+    end function
+
+    module subroutine quadtree_print(this)
+      class(quadtree), intent(in) :: this
+    end subroutine
+  end interface
+
 contains
+
+#define T node
+#define TT type(node)
+#include "../util/vector_imp.f90.inc"
 
   subroutine triang_grid_init(this, vert, icell)
     !! initialize 1D grid
@@ -76,6 +172,8 @@ contains
 
     ASSERT(2 == size(vert,  dim=1))
     ASSERT(3 == size(icell, dim=1))
+
+    this%qtree_init = .false.
 
     ! init base
     call this%grid_init(2, 1, [2], 3)
@@ -206,7 +304,23 @@ contains
 
       edge_exists = (0 < count([(iv0 == edge%d(j), j=1,edge%n)]))
     end function
+  end subroutine
 
+  subroutine triang_grid_get_icell(this, pnt, icell)
+    !! get cell idx of triangle that contains point pnt
+    class(triang_grid), intent(inout) :: this
+    real,               intent(in)    :: pnt(2)
+      !! pnt = [x, y]
+    integer,            intent(out)   :: icell
+      !! idx of triangle
+
+    if (.not. this%qtree_init) then
+      allocate (this%qtree)
+      call this%qtree%init(this)
+      this%qtree_init = .true.
+    end if
+
+    icell =  this%qtree%lookup_pnt(pnt)
   end subroutine
 
   subroutine triang_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)

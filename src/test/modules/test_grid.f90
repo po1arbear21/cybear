@@ -12,8 +12,6 @@ module test_grid_m
   use vector_m,      only: vector_int
 
   ! no tests implemented but used s.t. modules get compiled at all
-  use sum_grid_m
-
   implicit none
 
   private
@@ -463,6 +461,20 @@ contains
       call tc%assert_eq( 1,  g%idx_dim,  "triang_grid: idx_dim")
       call tc%assert_eq([2], g%face_dim, "triang_grid: face_dim")
       call tc%assert_eq( 3,  g%cell_dim, "triang_grid: cell_dim")
+
+      ! testing get_icell
+      block 
+        integer :: itr
+
+        call g%get_icell([0.5, -0.1], itr)
+        call tc%assert_eq(1, itr, "triang_grid: get_icell 1")
+        call g%get_icell([1.0, -0.3], itr)
+        call tc%assert_eq(3, itr, "triang_grid: get_icell 3")
+        call g%get_icell([0.5, 0.8], itr)
+        call tc%assert_eq(4, itr, "triang_grid: get_icell 4")
+        call g%get_icell([0.5, 1.2], itr)
+        call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
+      end block 
 
       ! testing get_idx_bnd
       block
