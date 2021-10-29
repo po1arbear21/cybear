@@ -14,6 +14,7 @@ module example_steady_state_m
   use example_potential_m,       only: pot
   use example_ramo_m,            only: ramo_init
   use input_m,                   only: input_file
+  use input_src_m,               only: const_src
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
   use steady_state_m,            only: steady_state
@@ -141,9 +142,9 @@ contains
     real    :: atol, rtol
 
     ! reading parameters
-    call f%get("nlpe_parameters", "max_it", max_it)
-    call f%get("nlpe_parameters", "atol",   atol)
-    call f%get("nlpe_parameters", "rtol",   rtol)
+    call f%get("full_newton_parameters", "max_it", max_it)
+    call f%get("full_newton_parameters", "atol",   atol)
+    call f%get("full_newton_parameters", "rtol",   rtol)
 
     ! init equation system
     call sys_full%init("full newton")
@@ -210,11 +211,13 @@ contains
 
   subroutine solve_full_newton()
     !! solve the full newton system
-    integer           :: i
-    real, allocatable :: input(:,:)
+    integer         :: i
+    type(const_src) :: input
 
-    allocate(input(size(contacts), 1))
-    input(:,1) = [(contacts(i)%volt%x, i = 1, size(contacts))]
+    ! init constant input source (voltages)
+    call input%init([(contacts(i)%volt%x, i = 1, size(contacts))])
+
+    ! solve steady-state
     call steady_full%run(sys_full, nopt = opt_full, input = input)
   end subroutine
 

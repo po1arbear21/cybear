@@ -19,19 +19,22 @@ module input_src_m
 
   type, abstract :: input_src
     !! input source: provide time-dependent values for input variables
+    integer :: n
+      !! number of values
   contains
+    procedure                          :: input_src_init
     procedure(input_src_get), deferred :: get
   end type
 
   abstract interface
-    subroutine input_src_get(this, t, y)
+    function input_src_get(this, t) result(y)
       import input_src
-      class(input_src), intent(in)  :: this
-      real,             intent(in)  :: t
+      class(input_src), intent(in) :: this
+      real,             intent(in) :: t
         !! time
-      real,             intent(out) :: y(:)
-        !! output y(t)
-    end subroutine
+      real                         :: y(this%n)
+        !! return y(t)
+    end function
   end interface
 
   type, extends(input_src) :: const_src
@@ -97,26 +100,38 @@ module input_src_m
 
 contains
 
+  subroutine input_src_init(this, n)
+    !! initialize input source
+    class(input_src), intent(out) :: this
+    integer,          intent(in)  :: n
+      !! number of values
+
+    this%n = n
+  end subroutine
+
   subroutine const_src_init(this, const)
     !! initialize const input source
     class(const_src), intent(out) :: this
     real,             intent(in)  :: const(:)
       !! constant value
 
+    ! init base
+    call this%input_src_init(size(const))
+
     this%const = const
   end subroutine
 
-  subroutine const_src_get(this, t, y)
+  function const_src_get(this, t) result(y)
     !! get value for time t
-    class(const_src), intent(in)  :: this
-    real,             intent(in)  :: t
+    class(const_src), intent(in) :: this
+    real,             intent(in) :: t
       !! time
-    real,             intent(out) :: y(:)
+    real                         :: y(this%n)
       !! return y(t)
 
     IGNORE(t)
     y = this%const
-  end subroutine
+  end function
 
   subroutine polygon_src_init(this, t, y)
     !! initialize polygonal input source
@@ -128,16 +143,19 @@ contains
 
     ASSERT(size(y,2) == size(t))
 
+    ! init base
+    call this%input_src_init(size(y,1))
+
     this%t = t
     this%y = y
   end subroutine
 
-  subroutine polygon_src_get(this, t, y)
+  function polygon_src_get(this, t) result(y)
     !! get value for time t
-    class(polygon_src), intent(in)  :: this
-    real,               intent(in)  :: t
+    class(polygon_src), intent(in) :: this
+    real,               intent(in) :: t
       !! time
-    real,               intent(out) :: y(:)
+    real                           :: y(this%n)
       !! return y(t)
 
     integer :: i
@@ -164,13 +182,18 @@ contains
       ! result
       y = w1 * this%y(:,i) + w2 * this%y(:,i+1)
     end if
-  end subroutine
+  end function
 
-  subroutine periodic_src_init(this, freq)
+  subroutine periodic_src_init(this, n, freq)
     !! initialize periodic input source
     class(periodic_src), intent(out) :: this
+    integer,             intent(in)  :: n
+      !! number of values
     real,                intent(in)  :: freq
       !! frequency
+
+    ! init base
+    call this%input_src_init(n)
 
     this%freq = freq
   end subroutine
@@ -186,23 +209,23 @@ contains
       !! optional phase shift in rad (default: 0)
 
     ! init base
-    call this%periodic_src_init(freq)
+    call this%periodic_src_init(size(ampl), freq)
 
     this%ampl  = ampl
     allocate (this%phase(size(ampl)), source = 0.0)
     if (present(phase)) this%phase = phase
   end subroutine
 
-  subroutine sine_src_get(this, t, y)
+  function sine_src_get(this, t) result(y)
     !! get value for time t
-    class(sine_src), intent(in)  :: this
-    real,            intent(in)  :: t
+    class(sine_src), intent(in) :: this
+    real,            intent(in) :: t
       !! time
-    real,            intent(out) :: y(:)
+    real                        :: y(this%n)
       !! return y(t)
 
     y = this%ampl * sin(2 * PI * this%freq * t + this%phase)
-  end subroutine
+  end function
 
   subroutine harmonic_src_init(this, freq, c, s)
     !! initialize harmonic input source
@@ -218,18 +241,18 @@ contains
     ASSERT(ubound(c,2) == ubound(s,2))
 
     ! init base
-    call this%periodic_src_init(freq)
+    call this%periodic_src_init(size(c,1), freq)
 
     this%c = c
     this%s = s
   end subroutine
 
-  subroutine harmonic_src_get(this, t, y)
+  function harmonic_src_get(this, t) result(y)
     !! get value for time t
-    class(harmonic_src), intent(in)  :: this
-    real,                intent(in)  :: t
+    class(harmonic_src), intent(in) :: this
+    real,                intent(in) :: t
       !! time
-    real,                intent(out) :: y(:)
+    real                            :: y(this%n)
       !! return y(t)
 
     integer :: i
@@ -239,7 +262,7 @@ contains
       y = y + this%c(:,i) * cos(i * 2 * PI * this%freq * t) &
         &   + this%s(:,i) * sin(i * 2 * PI * this%freq * t)
     end do
-  end subroutine
+  end function
 
   subroutine periodic_polygon_src_init(this, freq, t, y)
     !! initialize polygonal input source
@@ -256,18 +279,18 @@ contains
     ASSERT(t(size(t)) <= 1.0 / freq)
 
     ! init base
-    call this%periodic_src_init(freq)
+    call this%periodic_src_init(size(y,1), freq)
 
     this%t = t
     this%y = y
   end subroutine
 
-  subroutine periodic_polygon_src_get(this, t, y)
+  function periodic_polygon_src_get(this, t) result(y)
     !! get value for time t
-    class(periodic_polygon_src), intent(in)  :: this
-    real,                        intent(in)  :: t
+    class(periodic_polygon_src), intent(in) :: this
+    real,                        intent(in) :: t
       !! time
-    real,                        intent(out) :: y(:)
+    real                                    :: y(this%n)
       !! return y(t)
 
     integer :: i1, i2, n
@@ -312,6 +335,6 @@ contains
 
     ! result
     y = w1 * this%y(:,i1) + w2 * this%y(:,i2)
-  end subroutine
+  end function
 
 end module

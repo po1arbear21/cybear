@@ -2,11 +2,12 @@
 
 module steady_state_m
 
-  use error_m,   only: assert_failed, program_error
-  use esystem_m, only: esystem
-  use gmres_m,   only: gmres_options
-  use matrix_m,  only: matrix_real, sparse_real
-  use newton_m,  only: newton, newton_opt
+  use error_m,     only: assert_failed, program_error
+  use esystem_m,   only: esystem
+  use gmres_m,     only: gmres_options
+  use input_src_m, only: input_src
+  use matrix_m,    only: matrix_real, sparse_real
+  use newton_m,    only: newton, newton_opt
 
   implicit none
 
@@ -32,7 +33,7 @@ module steady_state_m
 
 contains
 
-  recursive subroutine steady_state_run(this, sys, nopt, gopt, input, gum)
+  recursive subroutine steady_state_run(this, sys, nopt, gopt, input, t_input, gum)
     !! perform steady-state analysis for one or multiple sets of input parameters
     class(steady_state),           intent(out)   :: this
     type(esystem),       target,   intent(inout) :: sys
@@ -41,13 +42,16 @@ contains
       !! options for the newton solver
     type(gmres_options), optional, intent(in)    :: gopt
       !! options for the iterative solver in each newton iteration (only used when nopt%it_solver == true)
-    real,                optional, intent(in)    :: input(:,:)
-      !! optional input parameters, dimension: sys%ninput, number of input sets
+    class(input_src),    optional, intent(in)    :: input
+      !! optional input source
+    real,                optional, intent(in)    :: t_input(:)
+      !! perform quasi-stationary simulations for these time-points (default: [0.0])
     procedure(gummel),   optional                :: gum
       !! optional procedure to run before newton iteration
 
-    integer                   :: n_inputs, i
+    integer                   :: nt, i
     real                      :: p(0)
+    real, allocatable         :: t(:)
     type(newton_opt)          :: nopt_
     type(sparse_real), target :: df, dfp
 
@@ -62,25 +66,31 @@ contains
       call nopt_%init(sys%n)
     end if
 
-    ! check input parameters
+    ! input
     if (present(input)) then
-      ASSERT(size(input, 1) == sys%ninput)
-      n_inputs = size(input, 2)
+      ASSERT(input%n == sys%ninput)
+      if (present(t_input)) then
+        t = t_input
+      else
+        t = [0.0]
+      end if
+      nt = size(t)
     else
       ASSERT(sys%ninput == 0)
-      n_inputs = 1
+      ASSERT(.not. present(t_input))
+      nt = 1
     end if
 
     ! allocate memory to store results
-    allocate (this%x(sys%n, n_inputs))
+    allocate (this%x(sys%n, nt))
 
-    ! solve steady-state for each set of input parameters
-    do i = 1, n_inputs
-      if (present(input)) call sys%set_input(input(:,i))
+    ! solve steady-state for each input time
+    do i = 1, nt
+      if (present(input)) call sys%set_input(input%get(t(i)))
       if (present(gum))   call gum()
       call newton(fun, p, nopt_, sys%get_x(), this%x(:,i), gmres_opt = gopt)
 
-      ! release factorizations
+      ! release factorization
       if (nopt_%it_solver) then
         call dfp%destruct()
       else
@@ -108,25 +118,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
       IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
       IGNORE(dfdp)
 
-      ! save input variable
+      ! set variables
       call sys%set_x(x)
 
-      ! compute residue, jacobian, and possible preconditioner
+      ! evaluate system to compute residuals, jacobian, and possible preconditioner
       if (nopt_%it_solver) then
-        ASSERT(present(dfdx_prec))
         call sys%eval(f = f, df = df, dfp = dfp)
-        dfdx_prec => dfp
       else
-        ASSERT(.not. present(dfdx_prec))
         call sys%eval(f = f, df = df)
       end if
-      dfdx => df
+
+      ! output jacobian pointers
+      if (present(dfdx     )) dfdx      => df
+      if (present(dfdx_prec)) dfdx_prec => dfp
     end subroutine
   end subroutine
 
