@@ -89,8 +89,8 @@ module input_src_m
 
   type, extends(periodic_src) :: periodic_polygon_src
     !! periodic polygonal input source
-    real, allocatable :: t(:)
-      !! time coordinates of nodes
+    real, allocatable :: tn(:)
+      !! time coordinates of nodes normalized to 1/freq
     real, allocatable :: y(:,:)
       !! y(t) at nodes
   contains
@@ -211,7 +211,7 @@ contains
     ! init base
     call this%periodic_src_init(size(ampl), freq)
 
-    this%ampl  = ampl
+    this%ampl = ampl
     allocate (this%phase(size(ampl)), source = 0.0)
     if (present(phase)) this%phase = phase
   end subroutine
@@ -264,25 +264,34 @@ contains
     end do
   end function
 
-  subroutine periodic_polygon_src_init(this, freq, t, y)
+  subroutine periodic_polygon_src_init(this, freq, tn, y)
     !! initialize polygonal input source
     class(periodic_polygon_src), intent(out) :: this
     real,                        intent(in)  :: freq
       !! frequency
-    real,                        intent(in)  :: t(:)
-      !! time coordinates of nodes (must be sorted in ascending order, must lie in interval [0; 1/freq])
+    real,                        intent(in)  :: tn(:)
+      !! time coordinates of nodes normalized to 1/freq (must be sorted in ascending order, must lie in interval [0; 1])
     real,                        intent(in)  :: y(:,:)
       !! y(t) at nodes; N_val x N_t
 
-    ASSERT(size(y,2) == size(t))
-    ASSERT(t(1) >= 0.0)
-    ASSERT(t(size(t)) <= 1.0 / freq)
+#ifdef DEBUG
+    integer :: i
+#endif
+
+    ASSERT(size(y,2) == size(tn))
+    ASSERT(tn(1) >= 0.0)
+    ASSERT(tn(size(tn)) <= 1.0)
+#ifdef DEBUG
+    do i = 2, size(tn)
+      ASSERT(tn(i) >= tn(i-1))
+    end do
+#endif
 
     ! init base
     call this%periodic_src_init(size(y,1), freq)
 
-    this%t = t
-    this%y = y
+    this%tn = tn
+    this%y  = y
   end subroutine
 
   function periodic_polygon_src_get(this, t) result(y)
@@ -294,33 +303,32 @@ contains
       !! return y(t)
 
     integer :: i1, i2, n
-    real    :: tperiod, t_, t1, t2, w1, w2
+    real    :: t_, t1, t2, w1, w2
 
-    ! reduce range so that t in [0; 1/freq]
-    tperiod = 1.0 / this%freq
-    if ((t >= 0) .and. (t <= tperiod)) then
-      t_ = t
-    else
-      t_ = t - floor(t * this%freq) * tperiod
+    ! normalize to one period
+    t_ = t * this%freq
+    if ((t_ < 0) .or. (t > 1)) then
+      ! reduce range so that t in [0; 1/freq]
+      t_ = t_ - floor(t_)
     end if
 
     ! get interval i1:i2 so that t in [t(i1):t(i2)], extend periodically
-    n = size(this%t)
-    if (t_ <= this%t(1)) then
+    n = size(this%tn)
+    if (t_ <= this%tn(1)) then
       i1 = n
       i2 = 1
-      t1 = this%t(n) - tperiod
-      t2 = this%t(1)
-    elseif (t_ >= this%t(n)) then
+      t1 = this%tn(n) - 1.0
+      t2 = this%tn(1)
+    elseif (t_ >= this%tn(n)) then
       i1 = n
       i2 = 1
-      t1 = this%t(n)
-      t2 = this%t(1) + tperiod
+      t1 = this%tn(n)
+      t2 = this%tn(1) + 1.0
     else
-      i1 = bin_search(this%t, t_, BS_LESS)
+      i1 = bin_search(this%tn, t_, BS_LESS)
       i2 = i1 + 1
-      t1 = this%t(i1)
-      t2 = this%t(i2)
+      t1 = this%tn(i1)
+      t2 = this%tn(i2)
     end if
 
     ! linear weights

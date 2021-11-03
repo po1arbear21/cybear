@@ -12,6 +12,7 @@ program example
   !call solve_nlpe()
   call solve_gummel()
   call solve_full_newton()
+  call solve_harmonic_balance()
 
   call output()
 

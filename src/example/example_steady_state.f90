@@ -13,8 +13,10 @@ module example_steady_state_m
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
   use example_ramo_m,            only: ramo_init
+  use harmonic_balance_m,        only: harmonic_balance
   use input_m,                   only: input_file
-  use input_src_m,               only: const_src
+  use input_src_m,               only: const_src, harmonic_src
+  use math_m,                    only: logspace
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
   use steady_state_m,            only: steady_state
@@ -24,12 +26,12 @@ module example_steady_state_m
   private
   public init_configuration
   public init_dd, init_full, init_nlpe
-  public solve_full_newton, solve_gummel, solve_nlpe
+  public solve_full_newton, solve_gummel, solve_nlpe, solve_harmonic_balance
   public output
 
   type(esystem)      :: sys_dd, sys_full, sys_nlpe
   type(input_file)   :: f
-  type(newton_opt)   :: opt_dd, opt_full, opt_nlpe
+  type(newton_opt)   :: opt_dd, opt_full, opt_nlpe, opt_hb
   type(steady_state) :: steady_dd, steady_full, steady_nlpe
 
 contains
@@ -219,6 +221,26 @@ contains
 
     ! solve steady-state
     call steady_full%run(sys_full, nopt = opt_full, input = input)
+  end subroutine
+
+  subroutine solve_harmonic_balance()
+    integer                :: i, nH
+    real                   :: c(2,0:1), s(2,1)
+    real, allocatable      :: freq(:)
+    type(harmonic_src)     :: input
+    type(harmonic_balance) :: hb
+
+    ! init sine input source (voltages)
+    c(:,0) = [(contacts(i)%volt%x, i = 1, size(contacts))]
+    c(:,1) = 0
+    s(:,1) = norm([0.0, 0.05], "V")
+    call input%init(norm(1.0, "THz"), c, s)
+
+    ! harmonic balance
+    nH = 2
+    freq = logspace(norm(1e9, "Hz"), norm(1e15, "Hz"), 101)
+    call opt_hb%init(sys_full%n*(1+2*nH), atol = 1e-12, rtol = 1e-10, log = .true., max_it = 20)
+    call hb%run(sys_full, nH, freq, input, nopt = opt_hb)
   end subroutine
 
   subroutine output()
