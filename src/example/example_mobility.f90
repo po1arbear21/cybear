@@ -68,7 +68,7 @@ contains
     i_dep = this%depend(iref)
 
     ! init jaco
-    this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()])
+    this%jaco_imref => this%init_jaco(i_prov, i_dep, st = [this%st%get_ptr()])
 
     ! finalize equation
     call this%init_final()

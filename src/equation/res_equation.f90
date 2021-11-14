@@ -46,7 +46,6 @@ module res_equation_m
     procedure :: destruct      => res_equation_destruct
     procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
-    procedure :: init_jaco_fp  => res_equation_init_jaco_fp
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
     procedure :: has_precon_f  => res_equation_has_precon_f
 
@@ -150,63 +149,51 @@ contains
     end if
   end subroutine
 
-  function res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, dtime) result(jaco)
+  function res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, dtime, precon) result(jaco)
     !! allocate and initialize f/ft jacobian
-    class(res_equation), intent(inout) :: this
-    integer,             intent(in)    :: idep
+    class(res_equation),         intent(inout) :: this
+    integer,                     intent(in)    :: idep
       !! dependency var index
-    type(stencil_ptr),   intent(in)    :: st(:)
-      !! stencils (v1%ntab)
-    logical, optional,   intent(in)    :: const
+    type(stencil_ptr), optional, intent(in)    :: st(:)
+      !! stencils (v1%ntab); default = dirichtlet_stencil (works only if provided and dependend variables are defined on same grid)
+    logical,           optional, intent(in)    :: const
       !! const flag; default = false for f, true for ft; the same for all blocks
-    logical, optional,   intent(in)    :: zero(:,:)
+    logical,           optional, intent(in)    :: zero(:,:)
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
-    logical, optional,   intent(in)    :: valmsk(:,:)
+    logical,           optional, intent(in)    :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
-    logical, optional,   intent(in)    :: dtime
-      !! false: init f; true: init ft (default: false)
-    type(jacobian), pointer            :: jaco
+    logical,           optional, intent(in)    :: dtime
+      !! false: init f; true: init ft; default = false
+    logical,           optional, intent(in)    :: precon
+      !! create preconditioner jacobian; default = false
+    type(jacobian),    pointer                 :: jaco
       !! return pointer to newly created jacobian
 
-    logical :: const_, dtime_
+    logical :: const_, dtime_, precon_
 
     dtime_ = .false.
     if (present(dtime)) dtime_ = dtime
+    precon_ = .false.
+    if (present(precon)) precon_ = precon
+    ASSERT(.not. (dtime_ .and. precon_))
+    ASSERT((.not. precon_) .or. allocated(this%jaco_fp))
 
     if (dtime_) then
       const_ = .true.
       if (present(const)) const_ = const
       ASSERT(const_)
 
-      allocate (this%jaco_ft(idep)%p)
-      call this%jaco_ft(idep)%p%init(this%f, this%vdep%d(idep)%p, st, const=const_, zero=zero, valmsk=valmsk)
-      jaco => this%jaco_ft(idep)%p
+      allocate (jaco)
+      call jaco%init(this%f, this%vdep%d(idep)%p, st = st, const = const_, zero = zero, valmsk = valmsk)
+      this%jaco_ft(idep)%p => jaco
     else
-      this%jaco_f(idep)%p => this%init_jaco(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
-      jaco                => this%jaco_f(idep)%p
+      jaco => this%init_jaco(this%iprov_f, idep, st = st, const = const, zero = zero, valmsk = valmsk, precon = precon)
+      if (precon_) then
+        this%jaco_fp(idep)%p => jaco
+      else
+        this%jaco_f(idep)%p => jaco
+      end if
     end if
-  end function
-
-  function res_equation_init_jaco_fp(this, idep, st, const, zero, valmsk) result(jaco)
-    !! allocate and initialize f preconditioner jacobian
-    class(res_equation), intent(inout) :: this
-    integer,             intent(in)    :: idep
-      !! dependency var index
-    type(stencil_ptr),   intent(in)    :: st(:)
-      !! stencils (v1%ntab)
-    logical, optional,   intent(in)    :: const
-      !! const flag; default = false for f; the same for all blocks
-    logical, optional,   intent(in)    :: zero(:,:)
-      !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
-    logical, optional,   intent(in)    :: valmsk(:,:)
-      !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
-    type(jacobian), pointer            :: jaco
-      !! return pointer to newly created jacobian
-
-    ASSERT(allocated(this%jaco_fp))
-
-    this%jaco_fp(idep)%p => this%init_jaco_p(this%iprov_f, idep, st, const=const, zero=zero, valmsk=valmsk)
-    jaco                 => this%jaco_fp(idep)%p
   end function
 
   subroutine res_equation_set_jaco_matr(this, const, nonconst)
@@ -228,14 +215,15 @@ contains
     end do
   end subroutine
 
-  logical function res_equation_has_precon_f(this, idep) result(tf)
+  function res_equation_has_precon_f(this, idep) result(precon)
     !! determines if derivatives of f wrt vdep has a preconditioner
     class(res_equation), intent(in) :: this
     integer,             intent(in) :: idep
       !! dependency var selector index
+    logical                         :: precon
 
-    tf = .false.
-    if (allocated(this%jaco_fp)) tf = associated(this%jaco_fp(idep)%p)
+    precon = .false.
+    if (allocated(this%jaco_fp)) precon = associated(this%jaco_fp(idep)%p)
   end function
 
   subroutine res_equation_init_f_vsel(this, mvar)

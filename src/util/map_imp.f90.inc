@@ -168,7 +168,6 @@ function MAPNODE_NEXT(this) result(next)
   type(MAPNODE_TYPE), pointer             :: next
     !! return next map-node
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: p
 
   if (associated(this%right)) then
@@ -194,7 +193,6 @@ function MAPNODE_PREVIOUS(this) result(prev)
   type(MAPNODE_TYPE), pointer           :: prev
     !! return previous map-node
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: p
 
   if (associated(this%left)) then
@@ -218,7 +216,6 @@ subroutine MAPNODE_ROTATE_LEFT(this)
   !! rotate tree left
   class(MAPNODE_TYPE), target, intent(inout) :: this
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: n, g
 
   g => this%parent
@@ -244,7 +241,6 @@ subroutine MAPNODE_ROTATE_RIGHT(this)
   !! rotate tree left
   class(MAPNODE_TYPE), target, intent(inout) :: this
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: p, g
 
   g => this%parent
@@ -340,7 +336,6 @@ function MAP_FIND_POS(this, key) result(node)
   type(MAPNODE_TYPE), pointer    :: node
     !! return node which is nearest to key
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: tmp
 
   tmp => this%root
@@ -368,7 +363,6 @@ function MAP_GET(this, key) result(val)
   UU                          :: val
     !! return value
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: n
 
   n => this%find(key)
@@ -381,7 +375,6 @@ subroutine MAP_SET(this, key, value)
   TT,              intent(in)    :: key
   UU,              intent(in)    :: value
 
-  ! local variables
   type(MAPNODE_TYPE), pointer :: node
   logical                     :: status
 
@@ -418,112 +411,111 @@ end function
 
 subroutine MAP_INSERT(this, key, value, node, status)
   !! insert key-value-pair into map
-    class(MAP_TYPE),                       intent(inout) :: this
-    TT,                                    intent(in)    :: key
-      !! key to insert
-    UU,                                    intent(in)    :: value
-      !! value to insert
-    type(MAPNODE_TYPE), optional, pointer, intent(out)   :: node
-      !! optional output pointer to newly created node (or to already existing one with the same key)
-    logical,            optional,          intent(out)   :: status
-      !! optional output status of insertion: success => true, fail => false
+  class(MAP_TYPE),                       intent(inout) :: this
+  TT,                                    intent(in)    :: key
+    !! key to insert
+  UU,                                    intent(in)    :: value
+    !! value to insert
+  type(MAPNODE_TYPE), optional, pointer, intent(out)   :: node
+    !! optional output pointer to newly created node (or to already existing one with the same key)
+  logical,            optional,          intent(out)   :: status
+    !! optional output status of insertion: success => true, fail => false
 
-    ! local variables
-    type(MAPNODE_TYPE), pointer :: n, p, g, u
+  type(MAPNODE_TYPE), pointer :: n, p, g, u
 
-    ! check for empty map
-    if (.not. associated(this%root)) then
-      allocate (this%root)
-      call this%root%init(key, value, RB_BLACK, null(), null(), null())
-      this%n = 1
-      if (present(node)) node => this%root
-      if (present(status)) status = .true.
-      return
-    end if
+  ! check for empty map
+  if (.not. associated(this%root)) then
+    allocate (this%root)
+    call this%root%init(key, value, RB_BLACK, null(), null(), null())
+    this%n = 1
+    if (present(node)) node => this%root
+    if (present(status)) status = .true.
+    return
+  end if
 
-    ! find insertion position
-    p => this%find_pos(key)
+  ! find insertion position
+  p => this%find_pos(key)
 
-    ! make sure key does not exist already
-    if (key == p%key) then
-      ! insertion failed: duplicate key
-      if (present(node)) node => p
-      if (present(status)) status = .false.
-      return
-    end if
+  ! make sure key does not exist already
+  if (key == p%key) then
+    ! insertion failed: duplicate key
+    if (present(node)) node => p
+    if (present(status)) status = .false.
+    return
+  end if
 
-    ! allocate new node and insert it into the map
-    allocate (n)
-    if (present(node)) node => n
-    call n%init(key, value, RB_RED, null(), null(), p)
-    if (key < p%key) then
-      p%left => n
-    else
-      p%right => n
-    end if
+  ! allocate new node and insert it into the map
+  allocate (n)
+  if (present(node)) node => n
+  call n%init(key, value, RB_RED, null(), null(), p)
+  if (key < p%key) then
+    p%left => n
+  else
+    p%right => n
+  end if
 
-    ! rebalance map
-    do while (.true.)
-      ! condition 1: n has no parent
-      if (.not. associated(p)) then
-        this%root => n ! new root
-        n%color = RB_BLACK
-        exit
-      end if
-
-      ! condition 2: parent is black
-      if (p%color == RB_BLACK) then
-        exit
-      end if
-
-      g => p%parent  ! grandparent
-      u => n%uncle() ! uncle
-
-      ! condition 3: parent and uncle are red
-      if (associated(u)) then
-        if (u%color == RB_RED) then
-          p%color = RB_BLACK
-          u%color = RB_BLACK
-          g%color = RB_RED
-          n => g
-          p => n%parent
-          cycle
-        end if
-      end if
-
-      ! condition 4a: uncle is black and n is the right child of p which is the left child of g
-      if (associated(n, p%right) .and. associated(p, g%left)) then
-        call p%rotate_left()
-        n => p
-        p => g%left
-      ! condition 4b: uncle is black and n is the left child of p which is the right child of g
-      else if (associated(n, p%left) .and. associated(p, g%right)) then
-        call p%rotate_right()
-        n => p
-        p => g%right
-      end if
-
-      ! condition 5a: uncle is black and n is the left child of p which is the left child of g
-      if (associated(n, p%left) .and. associated(p, g%left)) then
-        call g%rotate_right()
-        if (associated(g, this%root)) this%root => p
-      ! condition 5b: uncle is black and n is the right child of p which is the right child of g
-      else
-        call g%rotate_left()
-        if (associated(g, this%root)) this%root => p
-      end if
-
-      p%color = RB_BLACK
-      g%color = RB_RED
+  ! rebalance map
+  do while (.true.)
+    ! condition 1: n has no parent
+    if (.not. associated(p)) then
+      this%root => n ! new root
+      n%color = RB_BLACK
       exit
-    end do
-
-    ! update number of nodes
-    this%n = this%n + 1
-
-    if (present(status)) then
-      status = .true.
     end if
+
+    ! condition 2: parent is black
+    if (p%color == RB_BLACK) then
+      exit
+    end if
+
+    g => p%parent  ! grandparent
+    u => n%uncle() ! uncle
+
+    ! condition 3: parent and uncle are red
+    if (associated(u)) then
+      if (u%color == RB_RED) then
+        p%color = RB_BLACK
+        u%color = RB_BLACK
+        g%color = RB_RED
+        n => g
+        p => n%parent
+        cycle
+      end if
+    end if
+
+    ! condition 4a: uncle is black and n is the right child of p which is the left child of g
+    if (associated(n, p%right) .and. associated(p, g%left)) then
+      call p%rotate_left()
+      n => p
+      p => g%left
+    ! condition 4b: uncle is black and n is the left child of p which is the right child of g
+    else if (associated(n, p%left) .and. associated(p, g%right)) then
+      call p%rotate_right()
+      n => p
+      p => g%right
+    end if
+
+    ! condition 5a: uncle is black and n is the left child of p which is the left child of g
+    if (associated(n, p%left) .and. associated(p, g%left)) then
+      call g%rotate_right()
+      if (associated(g, this%root)) this%root => p
+    ! condition 5b: uncle is black and n is the right child of p which is the right child of g
+    else
+      call g%rotate_left()
+      if (associated(g, this%root)) this%root => p
+    end if
+
+    p%color = RB_BLACK
+    g%color = RB_RED
+    exit
+  end do
+
+  ! update number of nodes
+  this%n = this%n + 1
+
+  if (present(status)) then
+    status = .true.
+  end if
 end subroutine
 
 subroutine MAP_TO_ARRAY(this, keys, values)
@@ -534,7 +526,6 @@ subroutine MAP_TO_ARRAY(this, keys, values)
   UU, optional,    intent(out) :: values(:)
     !! optional output array with values
 
-  ! local variables
   type(MAPNODE_TYPE), pointer  :: n
   integer                      :: i
 

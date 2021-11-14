@@ -72,15 +72,15 @@ contains
 
     ! depends on density
     i_dep  = this%depend(dens)
-    this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st_nn%get_ptr()], const = .false.)
+    this%jaco_dens => this%init_jaco(i_prov, i_dep, st = [this%st_nn%get_ptr()], const = .false.)
 
     ! depends on potential
     i_dep  = this%depend(pot)
-    this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st_nn%get_ptr()], const = .false.)
+    this%jaco_pot => this%init_jaco(i_prov, i_dep, st = [this%st_nn%get_ptr()], const = .false.)
 
     ! depends on mobility
     i_dep = this%depend(mobil)
-    this%jaco_mob => this%init_jaco(i_prov, i_dep, [this%st_dir%get_ptr()], const = .false.)
+    this%jaco_mob => this%init_jaco(i_prov, i_dep, st = [this%st_dir%get_ptr()], const = .false.)
 
     call this%init_final()
   end subroutine

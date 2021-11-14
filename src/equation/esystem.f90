@@ -107,24 +107,24 @@ module esystem_m
 
 contains
 
-  subroutine esystem_init(this, name, prec)
+  subroutine esystem_init(this, name, precon)
     !! initialize equation system
     class(esystem),    intent(out) :: this
     character(*),      intent(in)  :: name
-    logical, optional, intent(in)  :: prec
+    logical, optional, intent(in)  :: precon
       !! should a preconditioner matrix be created? (default: false)
 
-    logical :: prec_
+    logical :: precon_
 
     this%name = name
 
     ! preconditoner
-    prec_ = .false.
-    if (present(prec)) prec_ = prec
-    if (prec_) allocate(this%dfp)
+    precon_ = .false.
+    if (present(precon)) precon_ = precon
+    if (precon_) allocate(this%dfp)
 
     ! init dependency graph
-    call this%g%init(prec_)
+    call this%g%init(precon_)
 
     ! init allocated equation vector
     call this%ealloc%init(0, c=8)

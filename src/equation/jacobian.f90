@@ -5,7 +5,7 @@ module jacobian_m
   use error_m,           only: assert_failed, program_error
   use hashmap_m,         only: hashmap_int
   use jacobian_matrix_m, only: jacobian_matrix
-  use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil
+  use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil, dirichlet_stencil
   use vselector_m,       only: vselector
 
   implicit none
@@ -32,6 +32,8 @@ module jacobian_m
 
     type(stencil_ptr), allocatable :: st(:)
       !! stencils (v1%ntab)
+    type(dirichlet_stencil)        :: dum_st
+      !! dummy stencil (used if stencils were not specified by user)
     type(static_data), allocatable :: sd(:)
       !! derivatives for static stencils (v1%ntab)
   contains
@@ -122,26 +124,40 @@ contains
 
   subroutine jacobian_init(this, v1, v2, st, const, zero, valmsk)
     !! initialize jacobian
-    class(jacobian), target, intent(out) :: this
-    type(vselector), target, intent(in)  :: v1
+    class(jacobian),   target,   intent(out) :: this
+    type(vselector),   target,   intent(in)  :: v1
       !! result variable selector
-    type(vselector), target, intent(in)  :: v2
+    type(vselector),   target,   intent(in)  :: v2
       !! dependency variable selector
-    type(stencil_ptr),       intent(in)  :: st(:)
-      !! stencils (v1%ntab)
-    logical, optional,       intent(in)  :: const
+    type(stencil_ptr), optional, intent(in)  :: st(:)
+      !! stencils (v1%ntab); default: use this%dum_st (only works if v1 and v2 defined on same grid with same idx_type)
+    logical,           optional, intent(in)  :: const
       !! const flag; default = false; the same for all blocks
-    logical, optional,       intent(in)  :: zero(:,:)
+    logical,           optional, intent(in)  :: zero(:,:)
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
-    logical, optional,       intent(in)  :: valmsk(:,:)
+    logical,           optional, intent(in)  :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
 
     integer :: i, j, itab1, itab2
     logical :: const_(v1%ntab,v2%ntab), zero_(v1%ntab,v2%ntab), valmsk_(v1%nval,v2%nval,v1%ntab,v2%ntab), status
 
-    ASSERT(size(st) == v1%ntab)
+    ! stencil pointers
+    if (present(st)) then
+      ! save stencil pointers
+      ASSERT(size(st) == v1%ntab)
+      this%st = st
+    else
+      ! use dummy stencil
+      ASSERT(associated(v1%g, target = v2%g))
+      ASSERT((v1%idx_type == v2%idx_type) .and. (v1%idx_dir == v2%idx_dir))
+      call this%dum_st%init(v1%g)
+      allocate (this%st(v1%ntab))
+      do itab1 = 1, v1%ntab
+        this%st(itab1)%p => this%dum_st
+      end do
+    end if
 
-    ! optional arguments
+    ! const and zero flags
     const_ = .false.
     if (present(const)) const_ = const
     if (present(zero)) then
@@ -152,9 +168,9 @@ contains
       zero_ = .true.
       do itab1 = 1, v1%ntab
         ! do nothing for empty stencil
-        if (.not. associated(st(itab1)%p)) cycle
+        if (.not. associated(this%st(itab1)%p)) cycle
 
-        select type (st_ptr => st(itab1)%p)
+        select type (st_ptr => this%st(itab1)%p)
           class is (static_stencil)
             block
               integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
@@ -189,6 +205,8 @@ contains
       end do
     end if
     const_  = (const_ .or. zero_) ! zero blocks are also constant
+
+    ! value mask
     valmsk_ = .true.
     if (present(valmsk)) then
       ASSERT(all(shape(valmsk) == [v1%nval, v2%nval]))
@@ -200,13 +218,10 @@ contains
     ! init matrix
     call this%matr%init(v1, v2, const_, zero_, valmsk_)
 
-    ! save stencil pointers
-    this%st = st
-
     ! allocate memory for derivatives of static stencil data
     allocate (this%sd(v1%ntab))
     do itab1 = 1, v1%ntab
-      select type (st_ptr => st(itab1)%p)
+      select type (st_ptr => this%st(itab1)%p)
         class is (static_stencil)
           call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
       end select

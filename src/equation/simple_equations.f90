@@ -49,8 +49,6 @@ module simple_equations_m
 
     real, allocatable :: appl(:)
       !! applied values
-
-    type(dirichlet_stencil)  :: st
   contains
     generic   :: init  => input_equation_init_vsel,      &
       &                   input_equation_init_nvar_ntab, &
@@ -290,7 +288,7 @@ contains
       end do
 
       ! init jacobian
-      jaco => this%init_jaco(iprov, idep, st, const = .true., valmsk = valmsk(j)%d)
+      jaco => this%init_jaco(iprov, idep, st = st, const = .true., valmsk = valmsk(j)%d)
 
       ! set jacobian entries
       do itab1 = 1, v1%ntab
@@ -419,17 +417,10 @@ contains
 
     integer                 :: i, idx(this%mvar%g%idx_dim), idep, itab, ival
     logical                 :: valmsk(this%mvar%nval,this%mvar%nval)
-    type(stencil_ptr)       :: st(this%mvar%ntab)
     type(jacobian), pointer :: jaco
 
     ! depend on main variable
     idep = this%depend(this%mvar)
-
-    ! dirichlet stencil
-    call this%st%init(this%mvar%g)
-    do itab = 1, this%mvar%ntab
-      st(itab)%p => this%st
-    end do
 
     ! value mask
     valmsk = .false.
@@ -438,7 +429,7 @@ contains
     end do
 
     ! init jacobian
-    jaco => this%init_jaco_f(idep, st, const=.true., valmsk=valmsk)
+    jaco => this%init_jaco_f(idep, const = .true., valmsk = valmsk)
     do ival = 1, this%mvar%nval
       do itab = 1, this%mvar%ntab
         do i = 1, this%mvar%tab(itab)%p%n

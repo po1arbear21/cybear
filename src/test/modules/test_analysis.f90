@@ -31,8 +31,7 @@ module test_analysis_m
 
   type, extends(res_equation) :: dt_phi
     !! d/dt phi - omega = 0
-    type(omega), pointer    :: om => null()
-    type(dirichlet_stencil) :: st
+    type(omega), pointer :: om => null()
   contains
     procedure :: init => dt_phi_init
     procedure :: eval => dt_phi_eval
@@ -49,8 +48,6 @@ module test_analysis_m
       !! approx. resonant frequency
     real :: cpl
       !! coupling to rod
-
-    type(dirichlet_stencil) :: st
 
     type(jacobian), pointer :: df_ph  => null()
     type(jacobian), pointer :: df_om  => null()
@@ -70,8 +67,6 @@ module test_analysis_m
       !! coupling to pendulums
     real              :: cpl_torque
       !! coupling to torque
-
-    type(dirichlet_stencil) :: st
 
     type(jacobian),     pointer     :: df_om0
     type(jacobian),     pointer     :: dft_om0
@@ -128,15 +123,12 @@ contains
     ! init residuals (main variable phi)
     call this%init_f(ph)
 
-    ! stencil
-    call this%st%init(ph%g)
-
     ! depend on omega
-    jaco => this%init_jaco_f(this%depend(om), [this%st%get_ptr()], const = .true.)
+    jaco => this%init_jaco_f(this%depend(om), const = .true.)
     call jaco%set(idx, idx, -1.0)
 
     ! depend on phi
-    jaco => this%init_jaco_f(this%depend(ph), [this%st%get_ptr()], dtime = .true.)
+    jaco => this%init_jaco_f(this%depend(ph), dtime = .true.)
     call jaco%set(idx, idx, 1.0)
 
     ! finish initialization
@@ -174,25 +166,22 @@ contains
     ! init residuals (main variable omega)
     call this%init_f(om)
 
-    ! stencil
-    call this%st%init(om%g)
-
     ! depend on phi
     idep = this%depend(ph)
-    this%df_ph => this%init_jaco_f(idep, [this%st%get_ptr()])
+    this%df_ph => this%init_jaco_f(idep)
 
     ! depend on omega
     idep = this%depend(om)
-    this%df_om => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%df_om => this%init_jaco_f(idep, const = .true.)
     call this%df_om%set(idx1, idx2, alpha + cpl)
 
     ! time derivative
-    this%dft_om => this%init_jaco_f(idep, [this%st%get_ptr()], dtime = .true.)
+    this%dft_om => this%init_jaco_f(idep, dtime = .true.)
     call this%dft_om%set(idx1, idx2, 1.0)
 
     ! depend on omega0
     idep = this%depend(om0)
-    this%df_om0 => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%df_om0 => this%init_jaco_f(idep, const = .true.)
     call this%df_om0%set(idx1, idx2, - cpl)
 
     ! finish initialization
@@ -232,29 +221,26 @@ contains
     ! init residuals
     call this%init_f(om0)
 
-    ! stencil
-    call this%st%init(om0%g)
-
     ! depend on omega0
     idep = this%depend(om0)
-    this%df_om0 => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%df_om0 => this%init_jaco_f(idep, const = .true.)
     call this%df_om0%set(idx1, idx2, sum(cpl) + cpl_torque)
 
     ! time derivative
-    this%dft_om0 => this%init_jaco_f(idep, [this%st%get_ptr()], dtime = .true.)
+    this%dft_om0 => this%init_jaco_f(idep, dtime = .true.)
     call this%dft_om0%set(idx1, idx2, 1.0)
 
     ! depend on omega
     allocate (this%df_om(size(om)))
     do i = 1, size(om)
       idep = this%depend(om(i))
-      this%df_om(i)%p => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+      this%df_om(i)%p => this%init_jaco_f(idep, const = .true.)
       call this%df_om(i)%p%set(idx1, idx2, - cpl(i))
     end do
 
     ! depend on torque
     idep = this%depend(torque)
-    this%df_torque => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%df_torque => this%init_jaco_f(idep, const = .true.)
     call this%df_torque%set(idx1, idx2, - cpl_torque)
 
     ! finish initialization

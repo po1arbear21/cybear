@@ -33,7 +33,6 @@ module example_ramo_m
       !! dependency
 
     type(dirichlet_stencil) :: st_curr_dens
-    type(dirichlet_stencil) :: st_curr_volt
 
     type(jacobian), pointer :: jaco_curr
     type(jacobian), pointer :: jaco_curr_dens
@@ -142,12 +141,11 @@ contains
 
     ! init stencils
     call this%st_curr_dens%init(get_dummy_grid(), g2 = grd, perm = [0], off1 = [1], off2 = [size(grd%x)-1])
-    call this%st_curr_volt%init(get_dummy_grid())
 
     ! init jacos
-    this%jaco_curr      => this%init_jaco_f(this%depend(this%curr),      [this%st_curr_volt%get_ptr()], const = .true.)
-    this%jaco_volt      => this%init_jaco_f(this%depend(this%volt),      [this%st_curr_volt%get_ptr()], const = .true., dtime = .true.)
-    this%jaco_curr_dens => this%init_jaco_f(this%depend(this%curr_dens), [this%st_curr_dens%get_ptr()], const = .true.)
+    this%jaco_curr => this%init_jaco_f(this%depend(this%curr), const = .true.                )
+    this%jaco_volt => this%init_jaco_f(this%depend(this%volt), const = .true., dtime = .true.)
+    this%jaco_curr_dens => this%init_jaco_f(this%depend(this%curr_dens), st = [this%st_curr_dens%get_ptr()], const = .true.)
 
     ! allocate memory to d_volt and d_curr_dens
     allocate(d_curr_dens(size(contacts), 1))

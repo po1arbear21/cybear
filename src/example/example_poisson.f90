@@ -71,9 +71,9 @@ contains
     call this%st_em%init()
 
     ! init jacos
-    this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)
-    this%jaco_rho  => this%init_jaco_f(this%depend(this%rho),  [this%st_dir%get_ptr(), (this%st_em%get_ptr(),       i = 1, size(contacts))], const = .true.)
-    this%jaco_volt => this%init_jaco_f(this%depend(this%volt), [this%st_em%get_ptr(),  (this%st_dir_volt%get_ptr(), i = 1, size(contacts))], const = .true.)
+    this%jaco_pot  => this%init_jaco_f(this%depend(this%pot),  st = [this%st_nn%get_ptr(),  (this%st_dir%get_ptr(),      i = 1, size(contacts))], const = .true.)
+    this%jaco_rho  => this%init_jaco_f(this%depend(this%rho),  st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(),       i = 1, size(contacts))], const = .true.)
+    this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(),  (this%st_dir_volt%get_ptr(), i = 1, size(contacts))], const = .true.)
 
     ! loop over cells
     do i = 1, size(grd%x)-1

@@ -39,9 +39,6 @@ module test_esystem_prec_m
       !! jacobians
     type(jacobian), pointer :: dzdy_prec => null()
       !! preconditioner jacobian
-
-    type(dirichlet_stencil) :: st
-      !! z only depends on depending variabls from same position index
   contains
     procedure :: init => equation1_init
     procedure :: eval => equation1_eval
@@ -59,9 +56,6 @@ module test_esystem_prec_m
       !! exact jacobians
     type(jacobian), pointer :: dfdy_prec => null(), dfdz_prec => null()
       !! preconditioner jacobians
-
-    type(dirichlet_stencil) :: st
-      !! f only depends on depending variabls from same position index
   contains
     procedure :: init => res_equation1_init
     procedure :: eval => res_equation1_eval
@@ -80,9 +74,6 @@ module test_esystem_prec_m
       !! exact jacobians
     type(jacobian), pointer :: dfdy_prec => null()
       !! preconditioner jacobian
-
-    type(dirichlet_stencil) :: st
-      !! f only depends on depending variabls from same position index
   contains
     procedure :: init => res_equation2_init
     procedure :: eval => res_equation2_eval
@@ -127,7 +118,7 @@ contains
     call gtab%init_final()
 
     ! equation system
-    call es%init('test eqs system', prec = .true.)
+    call es%init('test eqs system', precon = .true.)
 
     ! eq1
     call eq1%init(zvsel, xvsel, yvsel)
@@ -183,7 +174,7 @@ contains
     integer :: i, idx(1), iprov, idep
 
     ! init base
-    call this%equation_init('eq1', prec = .true.)
+    call this%equation_init('eq1', precon = .true.)
 
     ! save data
     this%x => x
@@ -193,11 +184,8 @@ contains
     ! provide z
     iprov = this%provide(z)
 
-    ! dirichlet stencil
-    call this%st%init(g)
-
     ! vsel x: constant jacobian
-    this%dzdx => this%init_jaco(iprov, this%depend(x), [this%st%get_ptr()], const = .true.)
+    this%dzdx => this%init_jaco(iprov, this%depend(x), const = .true.)
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
       call this%dzdx%set(idx, idx, reshape([0.1, 0.0, -0.2], [3, 1]))
@@ -205,8 +193,8 @@ contains
 
     ! vsel y: variable jacobian, variable precon
     idep = this%depend(y)
-    this%dzdy      => this%init_jaco(  iprov, idep, [this%st%get_ptr()])
-    this%dzdy_prec => this%init_jaco_p(iprov, idep, [this%st%get_ptr()])
+    this%dzdy      => this%init_jaco(iprov, idep)
+    this%dzdy_prec => this%init_jaco(iprov, idep, precon = .true.)
 
     ! finish initialization
     call this%init_final()
@@ -244,7 +232,7 @@ contains
     integer :: i, idx(1), idep
 
     ! init base
-    call this%equation_init('req1', prec=.true.)
+    call this%equation_init('req1', precon = .true.)
 
     ! save data
     this%x => x
@@ -254,11 +242,8 @@ contains
     ! init residual, set main var
     call this%init_f(this%x)
 
-    ! dirichlet stencil
-    call this%st%init(g)
-
     ! vsel x: constant jacobian
-    this%dfdx => this%init_jaco_f(this%depend(x), [this%st%get_ptr()], const = .true.)
+    this%dfdx => this%init_jaco_f(this%depend(x), const = .true.)
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
       call this%dfdx%set(idx, idx, 10.0)
@@ -266,8 +251,8 @@ contains
 
     ! vsel y: variable jacobian, constant precon
     idep = this%depend(y)
-    this%dfdy      => this%init_jaco_f( idep, [this%st%get_ptr()]                )
-    this%dfdy_prec => this%init_jaco_fp(idep, [this%st%get_ptr()], const = .true.)
+    this%dfdy      => this%init_jaco_f(idep)
+    this%dfdy_prec => this%init_jaco_f(idep, const = .true., precon = .true.)
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
       call this%dfdy_prec%set(idx, idx, reshape([0.0, -2.0], [1, 2]))
@@ -275,8 +260,8 @@ contains
 
     ! vsel z: variable jacobian, variable precon
     idep = this%depend(z)
-    this%dfdz      => this%init_jaco_f( idep, [this%st%get_ptr()])
-    this%dfdz_prec => this%init_jaco_fp(idep, [this%st%get_ptr()])
+    this%dfdz      => this%init_jaco_f(idep)
+    this%dfdz_prec => this%init_jaco_f(idep, precon = .true.)
 
     ! finish initialization
     call this%init_final()
@@ -314,7 +299,7 @@ contains
     integer :: idep
 
     ! init base
-    call this%equation_init('req2', prec=.true.)
+    call this%equation_init('req2', precon = .true.)
 
     ! save data
     this%x => x
@@ -324,19 +309,16 @@ contains
     ! init residual, set main var
     call this%init_f(this%y)
 
-    ! dirichlet stencil
-    call this%st%init(g)
-
     ! vsel x: variable jacobian
-    this%dfdx => this%init_jaco_f(this%depend(x), [this%st%get_ptr()])
+    this%dfdx => this%init_jaco_f(this%depend(x))
 
     ! vsel y: variable jacobian, variable precon
     idep = this%depend(y)
-    this%dfdy      => this%init_jaco_f( idep, [this%st%get_ptr()])
-    this%dfdy_prec => this%init_jaco_fp(idep, [this%st%get_ptr()])
+    this%dfdy      => this%init_jaco_f(idep)
+    this%dfdy_prec => this%init_jaco_f(idep, precon = .true.)
 
     ! vsel z: variable jacobian
-    this%dfdz => this%init_jaco_f(this%depend(z), [this%st%get_ptr()])
+    this%dfdz => this%init_jaco_f(this%depend(z))
 
     ! finish initialization
     call this%init_final()

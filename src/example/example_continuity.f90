@@ -61,9 +61,9 @@ contains
     call this%st_em%init()
 
     ! init jacos
-    this%jaco_current_dens => this%init_jaco_f(this%depend(this%current_dens),  [this%st_nn%get_ptr(),  (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .false.)
-    this%jaco_dens         => this%init_jaco_f(this%depend(this%dens),          [this%st_em%get_ptr(),  (this%st_dir%get_ptr(), i=1, size(contacts))], const = .true.,  dtime = .false.)
-    this%jaco_dens_t       => this%init_jaco_f(this%depend(this%dens),          [this%st_dir%get_ptr(), (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .true.)
+    this%jaco_current_dens => this%init_jaco_f(this%depend(this%current_dens), st = [this%st_nn%get_ptr(),  (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .false.)
+    this%jaco_dens         => this%init_jaco_f(this%depend(this%dens),         st = [this%st_em%get_ptr(),  (this%st_dir%get_ptr(), i=1, size(contacts))], const = .true.,  dtime = .false.)
+    this%jaco_dens_t       => this%init_jaco_f(this%depend(this%dens),         st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(),  i=1, size(contacts))], const = .true.,  dtime = .true. )
 
     ! loop over vertices
     do i = 1, size(grd%x)

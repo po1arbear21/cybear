@@ -33,9 +33,6 @@ module test_esystem_m
 
     type(jacobian), pointer :: dydx => null()
 
-    type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same position index
-
     real, allocatable :: y_tmp(:)
 
   contains
@@ -53,9 +50,6 @@ module test_esystem_m
 
     type(jacobian), pointer :: dfdx => null()
     type(jacobian), pointer :: dfdy => null()
-
-    type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same position index
 
     real, allocatable :: f_tmp(:)
 
@@ -77,9 +71,6 @@ module test_esystem_m
     type(jacobian), pointer :: dfdx => null()
     type(jacobian), pointer :: dfdy => null()
     type(jacobian), pointer :: dfdz => null()
-
-    type(dirichlet_stencil) :: st
-      !! y=y(x_i) only depends on depending variabls from same position index
   contains
     procedure :: init => res_equation2_init
     procedure :: eval => res_equation2_eval
@@ -186,14 +177,11 @@ contains
     ! provide y
     iy = this%provide(this%y)
 
-    ! stencil
-    call this%st%init(g) ! dirichlet stencil
-
     ! add dependency
     ix = this%depend(this%x)
 
     ! init jacobian
-    this%dydx => this%init_jaco(iy, ix, [this%st%get_ptr()], const = .true.)
+    this%dydx => this%init_jaco(iy, ix, const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
@@ -235,14 +223,11 @@ contains
 
     allocate (this%f_tmp(this%f%n))
 
-    ! stencil
-    call this%st%init(g) ! dirichlet stencil
-
     ! add dependencies
     idep = this%depend(this%x)
 
     ! init jacobian for x: dfdx
-    this%dfdx => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%dfdx => this%init_jaco_f(idep, const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
@@ -252,7 +237,7 @@ contains
     idep = this%depend(this%y)
 
     ! init jacobian for y: dfdy
-    this%dfdy => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%dfdy => this%init_jaco_f(idep, const = .true.)
     do i = 1, gtab%n
       idx1 = gtab%get_idx(i)
       idx2 = idx1
@@ -297,20 +282,17 @@ contains
     ! setting main var
     call this%init_f(z, gtab)
 
-    ! stencil
-    call this%st%init(g) ! dirichlet stencil
-
     ! add main: z
     idep = this%depend(z, gtab)
-    this%dfdz => this%init_jaco_f(idep, [this%st%get_ptr()])
+    this%dfdz => this%init_jaco_f(idep)
 
     ! add dep: x
     idep = this%depend(x, gtab)
-    this%dfdx => this%init_jaco_f(idep, [this%st%get_ptr()])
+    this%dfdx => this%init_jaco_f(idep)
 
     ! add dep: y
     idep = this%depend(y, gtab)
-    this%dfdy => this%init_jaco_f(idep, [this%st%get_ptr()], const = .true.)
+    this%dfdy => this%init_jaco_f(idep, const = .true.)
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
       call this%dfdy%set(idx, idx, 1.0)

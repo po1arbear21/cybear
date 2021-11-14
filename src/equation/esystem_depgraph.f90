@@ -118,7 +118,7 @@ module esystem_depgraph_m
       !! main variable indices
     type(vector_int)          :: ieval
       !! equation evaluation list
-    logical                   :: prec
+    logical                   :: precon
       !! preconditioner flag
   contains
     procedure :: init     => depgraph_init
@@ -334,9 +334,9 @@ contains
       end do
 
       ! add jacobian chains for parents
-      call init_jchains(            this%parents,   this%partial_jaco,   this%total_jaco,   this%jchain,   .false., .false.)
-      call init_jchains(            this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t, .true.,  .false.)
-      if (g%prec) call init_jchains(this%parents,   this%partial_jaco_p, this%total_jaco_p, this%jchain_p, .false., .true. )
+      call init_jchains(this%parents,   this%partial_jaco,   this%total_jaco,   this%jchain,   .false., .false.)
+      call init_jchains(this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t, .true.,  .false.)
+      if (g%precon) call init_jchains(this%parents, this%partial_jaco_p, this%total_jaco_p, this%jchain_p, .false., .true. )
     end if
 
     ! set analyzed flag
@@ -532,15 +532,15 @@ contains
     end do
   end subroutine
 
-  subroutine depgraph_init(this, prec)
+  subroutine depgraph_init(this, precon)
     !! initialize dependency graph
     class(depgraph), intent(out) :: this
-    logical,         intent(in)  :: prec
+    logical,         intent(in)  :: precon
       !! should a preconditioner be computed?
 
     integer, parameter :: CAP = 32
 
-    this%prec = prec
+    this%precon = precon
 
     call this%equs%init( 0, c = CAP)
     call this%nodes%init(0, c = CAP)

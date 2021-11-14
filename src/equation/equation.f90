@@ -61,7 +61,6 @@ module equation_m
       &                           equation_depend_var_tab
     procedure :: realloc_jaco  => equation_realloc_jaco
     procedure :: init_jaco     => equation_init_jaco
-    procedure :: init_jaco_p   => equation_init_jaco_p
     procedure :: set_jaco_matr => equation_set_jaco_matr
     procedure :: init_final    => equation_init_final
     procedure :: has_precon    => equation_has_precon
@@ -103,20 +102,20 @@ contains
 #define TT type(equation_ptr)
 #include "../util/vector_imp.f90.inc"
 
-  subroutine equation_init(this, name, prec)
+  subroutine equation_init(this, name, precon)
     !! initialize equation base
-    class(equation), intent(out) :: this
-    character(*),    intent(in)  :: name
+    class(equation),   intent(out) :: this
+    character(*),      intent(in)  :: name
       !! name of equation
-    logical, optional, intent(in) :: prec
+    logical, optional, intent(in)  :: precon
       !! preconditioner flag (will preconditioner be used?). (default: .false.)
 
     integer, parameter :: CAP = 16
-    logical            :: prec_
+    logical            :: precon_
 
     ! optional argument
-    prec_ = .false.
-    if (present(prec)) prec_ = prec
+    precon_ = .false.
+    if (present(precon)) precon_ = precon
 
     ! save name
     this%name = name
@@ -127,9 +126,9 @@ contains
     call this%vprov_alc%init(0, c = CAP)
     call this%vdep_alc%init( 0, c = CAP)
 
-    ! allocate jaco + prec
+    ! allocate jaco + preconditioner
     allocate (this%jaco(CAP,CAP))
-    if (prec_) allocate (this%jaco_p(CAP,CAP))
+    if (precon_) allocate (this%jaco_p(CAP,CAP))
 
     ! init_final has not been called yet
     this%finished_init = .false.
@@ -245,61 +244,46 @@ contains
     end if
   end subroutine
 
-  function equation_init_jaco(this, iprov, idep, st, const, zero, valmsk) result(jaco)
+  function equation_init_jaco(this, iprov, idep, st, const, zero, valmsk, precon) result(jaco)
     !! allocate and initialize jacobian
-    class(equation),   intent(inout) :: this
-    integer,           intent(in)    :: iprov
+    class(equation),             intent(inout) :: this
+    integer,                     intent(in)    :: iprov
       !! provided var selector index
-    integer,           intent(in)    :: idep
+    integer,                     intent(in)    :: idep
       !! dependency var selector index
-    type(stencil_ptr), intent(in)    :: st(:)
-      !! stencils (v1%ntab)
-    logical, optional, intent(in)    :: const
+    type(stencil_ptr), optional, intent(in)    :: st(:)
+      !! stencils (v1%ntab); default = dirichtlet_stencil (works only if provided and dependend variables are defined on same grid)
+    logical,           optional, intent(in)    :: const
       !! const flag; default = false; the same for all blocks
-    logical, optional, intent(in)    :: zero(:,:)
+    logical,           optional, intent(in)    :: zero(:,:)
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
-    logical, optional, intent(in)    :: valmsk(:,:)
+    logical,           optional, intent(in)    :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
-    type(jacobian), pointer          :: jaco
+    logical,           optional, intent(in)    :: precon
+      !! create preconditioner jacobian; default = false
+    type(jacobian),    pointer                 :: jaco
       !! return pointer to newly created jacobian
 
+    logical :: precon_
+
     associate (vprov => this%vprov%d(iprov)%p, vdep => this%vdep%d(idep)%p)
+      ! preconditioner flag
+      precon_ = .false.
+      if (present(precon)) precon_ = precon
+      ASSERT((.not. precon_) .or. allocated(this%jaco_p))
+
       ! allocate and init jacobian
-      allocate (this%jaco(iprov,idep)%p)
-      call this%jaco(iprov,idep)%p%init(vprov, vdep, st, const = const, zero = zero, valmsk = valmsk)
+      allocate (jaco)
+      call jaco%init(vprov, vdep, st = st, const = const, zero = zero, valmsk = valmsk)
 
-      ! return pointer to jacobian
-      jaco => this%jaco(iprov,idep)%p
-    end associate
-  end function
-
-  function equation_init_jaco_p(this, iprov, idep, st, const, zero, valmsk) result(jaco)
-    !! allocate and initialize preconditioner jacobian
-    class(equation),   intent(inout) :: this
-    integer,           intent(in)    :: iprov
-      !! provided var selector index
-    integer,           intent(in)    :: idep
-      !! dependency var selector index
-    type(stencil_ptr), intent(in)    :: st(:)
-      !! stencils (v1%ntab)
-    logical, optional, intent(in)    :: const
-      !! const flag; default = false; the same for all blocks
-    logical, optional, intent(in)    :: zero(:,:)
-      !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
-    logical, optional, intent(in)    :: valmsk(:,:)
-      !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
-    type(jacobian), pointer          :: jaco
-      !! return pointer to newly created preconditioner jacobian
-
-    ASSERT(allocated(this%jaco_p))
-
-    associate (vprov => this%vprov%d(iprov)%p, vdep => this%vdep%d(idep)%p)
-      ! allocate and init preconditioner jacobian
-      allocate (this%jaco_p(iprov,idep)%p)
-      call this%jaco_p(iprov,idep)%p%init(vprov, vdep, st, const = const, zero = zero, valmsk = valmsk)
-
-      ! return pointer to preconditioner jacobian
-      jaco => this%jaco_p(iprov,idep)%p
+      ! save pointer to jacobian
+      if (precon_) then
+        ASSERT(.not. associated(this%jaco_p(iprov,idep)%p))
+        this%jaco_p(iprov,idep)%p => jaco
+      else
+        ASSERT(.not. associated(this%jaco(iprov,idep)%p))
+        this%jaco(iprov,idep)%p => jaco
+      end if
     end associate
   end function
 
@@ -333,16 +317,17 @@ contains
     end do
   end subroutine
 
-  logical function equation_has_precon(this, iprov, idep) result(tf)
+  function equation_has_precon(this, iprov, idep) result(precon)
     !! determines if block (iprov, idep) has a preconditioner
     class(equation), intent(in) :: this
     integer,         intent(in) :: iprov
       !! provided var selector index
     integer,         intent(in) :: idep
       !! dependency var selector index
+    logical                     :: precon
 
-    tf = .false.
-    if (allocated(this%jaco_p)) tf = associated(this%jaco_p(iprov,idep)%p)
+    precon = .false.
+    if (allocated(this%jaco_p)) precon = associated(this%jaco_p(iprov,idep)%p)
   end function
 
   subroutine equation_test(this, rx, ax, rtol, atol)

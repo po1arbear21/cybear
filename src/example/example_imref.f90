@@ -16,35 +16,31 @@ module example_imref_m
   public calc_dens, calc_iref, iref
 
   type, extends(variable) :: imref
-  !! quasi-fermi-potential
+    !! quasi-fermi-potential
     real, pointer :: x(:) => null()
   contains
     procedure :: init => imref_init
   end type
 
   type, extends(equation) :: calc_imref
-  !! n_intrin * exp(pot - iref)
+    !! n_intrin * exp(pot - iref)
 
-  type(dirichlet_stencil) :: st
-
-  type(jacobian), pointer :: jaco_pot  => null()
-  type(jacobian), pointer :: jaco_dens => null()
-contains
-  procedure :: init => calc_imref_init
-  procedure :: eval => calc_imref_eval
-end type
+    type(jacobian), pointer :: jaco_pot  => null()
+    type(jacobian), pointer :: jaco_dens => null()
+  contains
+    procedure :: init => calc_imref_init
+    procedure :: eval => calc_imref_eval
+  end type
 
   type, extends(equation) :: calc_density
-  !! iref = -log(dens / n_intrin) + pot
+    !! iref = -log(dens / n_intrin) + pot
 
-  type(dirichlet_stencil) :: st
-
-  type(jacobian), pointer :: jaco_pot   => null()
-  type(jacobian), pointer :: jaco_imref => null()
-contains
-  procedure :: init => calc_density_init
-  procedure :: eval => calc_density_eval
-end type
+    type(jacobian), pointer :: jaco_pot   => null()
+    type(jacobian), pointer :: jaco_imref => null()
+  contains
+    procedure :: init => calc_density_init
+    procedure :: eval => calc_density_eval
+  end type
 
   type(calc_density) :: calc_dens
   type(calc_imref)   :: calc_iref
@@ -72,17 +68,16 @@ contains
     ! init equation
     call this%equation_init("imref_calc")
 
-    ! init stencil
-    call this%st%init(grd)
-
     ! provides imref
     i_prov = this%provide(iref)
+
     ! depends on potential
     i_dep  = this%depend(pot)
-    this%jaco_pot  => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .true.)
+    this%jaco_pot  => this%init_jaco(i_prov, i_dep, const = .true.)
+
     ! depends also on density
     i_dep  = this%depend(dens)
-    this%jaco_dens => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+    this%jaco_dens => this%init_jaco(i_prov, i_dep, const = .false.)
 
     ! set jaco_pot entries
     do i=1, size(grd%x)
@@ -114,19 +109,16 @@ contains
     ! init equation
     call this%equation_init("density_calc")
 
-    ! init stencil
-    call this%st%init(grd)
-
     ! provides density
     i_prov = this%provide(dens)
 
     ! depends on potential
     i_dep = this%depend(pot)
-    this%jaco_pot => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+    this%jaco_pot => this%init_jaco(i_prov, i_dep, const = .false.)
 
     ! depends also on imref
     i_dep = this%depend(iref)
-    this%jaco_imref => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .false.)
+    this%jaco_imref => this%init_jaco(i_prov, i_dep, const = .false.)
 
     call this%init_final()
   end subroutine

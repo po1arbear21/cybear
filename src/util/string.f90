@@ -34,6 +34,15 @@ module string_m
 
 contains
 
+  function new_string(c) result(s)
+    !! create new string from character array
+
+    character(*), intent(in) :: c
+    type(string)             :: s
+
+    s%s = c
+  end function
+
   function string_lt_string(s1, s2) result(r)
     !! return true if s1 < s2 in collating sense
 

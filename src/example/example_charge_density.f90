@@ -23,7 +23,6 @@ module example_charge_density_m
   end type
 
   type, extends(equation) :: calc_charge_density
-    type(dirichlet_stencil) :: st
   contains
     procedure :: init => calc_charge_density_init
     procedure :: eval => calc_charge_density_eval
@@ -55,15 +54,12 @@ contains
     ! init equation
     call this%equation_init("charge_density_calc")
 
-    ! init stencil
-    call this%st%init(grd)
-
     ! provides charge_density and depends on density
     i_prov = this%provide(charge_dens)
     i_dep  = this%depend(dens)
 
     ! init jaco
-    jaco => this%init_jaco(i_prov, i_dep, [this%st%get_ptr()], const = .true.)
+    jaco => this%init_jaco(i_prov, i_dep, const = .true.)
 
     ! set jacobian entries
     do i = 1, size(grd%x)
