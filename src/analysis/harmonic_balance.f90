@@ -7,6 +7,7 @@ module harmonic_balance_m
   use gmres_m,          only: gmres_options
   use high_precision_m, only: hp_real, real_to_hp, hp_to_real, operator (+)
   use input_src_m,      only: periodic_src
+  use blas95,           only: gemv, ger
   use math_m,           only: PI, linspace
   use matrix_m,         only: matrix_real, matrix_add, matrix_convert, sparse_real, block_real
   use normalization_m,  only: denorm
@@ -24,8 +25,8 @@ module harmonic_balance_m
     real, allocatable :: freq(:)
       !! frequencies
 
-    real, allocatable :: x(:,:)
-      !! coefficients (sys%n*(1+2*nH), nfreq)
+    real, allocatable :: x(:,:,:)
+      !! coefficients (1:sys%n, 0:2*nH, 1:nfreq)
   contains
     procedure :: run             => harmonic_balance_run
     procedure :: select_harmonic => harmonic_balance_select_harmonic
@@ -46,22 +47,21 @@ contains
     class(periodic_src),           intent(inout) :: input
       !! periodic input source (input%freq may get changed)
     type(newton_opt),    optional, intent(in)    :: nopt
-      !! options for the newton solver
+      !! options for the newton solver (size must be sys%n)
     integer,             optional, intent(in)    :: nt
-      !! number of time steps for numerical integration (default: 128)
+      !! number of time steps for numerical integration (default: 0 => adaptive integration)
 
-    integer                        :: i, i0, i1, j, j0, j1, k, l, nfreq, nt_
-    real                           :: dum(0)
-    real,              allocatable :: t(:), x0(:), ff(:)
-    type(hp_real),     allocatable :: xx(:), fc(:,:), fs(:,:)
-    type(newton_opt)               :: nopt_
-    type(sparse_real)              :: df, dft
-    type(sparse_real), target      :: dg
-    type(sparse_real), allocatable :: dfc(:), dfs(:)
-    type(sparse_real), pointer     :: ptr
-    type(block_real)               :: dg_blk
+    integer           :: ifreq, nfreq, it, it0, it1, nt0, nt1, k, l
+    real              :: dum(0)
+    real, allocatable :: t(:), w(:,:), sol(:), sol0(:), xi(:), fi(:), ff(:,:), ff_old(:,:)
+    type(newton_opt)  :: nopt_
 
-    ! error checking
+    type(sparse_real), target              :: dft, dfi, dg
+    type(sparse_real), target, allocatable :: dff(:)
+    type(sparse_real), pointer             :: ptr, df0, dfc(:), dfs(:)
+    type(block_real)                       :: dg_block
+
+    ! check for errors
     ASSERT(nH > 0)
     ASSERT(input%n == sys%ninput)
 
@@ -74,11 +74,14 @@ contains
       call nopt_%init(sys%n*(1+2*nH))
     end if
 
-    ! time points (normalized to 1/f)
-    nt_ = 128
-    if (present(nt)) nt_ = nt
-    ASSERT(nt_ > 0)
-    t = linspace(0.5/nt_, 1.0 - 0.5/nt_, nt_)
+    ! number of time points (normalized to 1/f)
+    nt0 = 8
+    nt1 = 128
+    if (present(nt)) then
+      ASSERT(nt > 0)
+      nt0 = nt
+      nt1 = nt
+    end if
 
     ! normalize input source frequency
     input%freq = 1.0
@@ -88,38 +91,56 @@ contains
     this%nH   =  nH
     this%freq =  freq
     nfreq     =  size(freq)
-    allocate (this%x(sys%n*(1+2*nH),nfreq), source = 0.0)
+    allocate (this%x(1:sys%n,0:2*nH,1:nfreq), source = 0.0)
+
+    ! generate time points suitable for recursive refinement
+    allocate (t(nt1), source = 0.0)
+    it1 = 1
+    do while (it1 <= nt1/2)
+      it0 = it1 + 1
+      it1 = 2 * it1
+      t(it0:it1) = linspace(1.0/it1, 1.0 - 1.0/it1, it1/2)
+    end do
+
+    ! precompute fourier weights (jacobians need weights up to two times the highest frequency)
+    allocate (w(0:4*nH,nt1), source = 0.0)
+    w(0,:) = 1
+    do k = 1, 2*nH
+      w(2*k-1,:) = 2 * cos(2*PI*k*t)
+      w(2*k  ,:) = 2 * sin(2*PI*k*t)
+    end do
 
     ! allocate temporary memory
-    allocate (x0(sys%n*(1+2*nH)), ff(sys%n), source = 0.0)
-    allocate (xx(sys%n), fc(sys%n,0:nH), fs(sys%n,1:nH))
-    allocate (dfc(0:2*nH), dfs(0:2*nH))
-    call dfc(0)%init(sys%n)
-    do k = 1, 2*nH
-      call dfc(k)%init(sys%n)
-      call dfs(k)%init(sys%n)
+    allocate (sol(sys%n*(1+2*nH)), sol0(sys%n*(1+2*nH)), xi(sys%n), fi(sys%n), ff(sys%n,0:2*nH), ff_old(sys%n,0:2*nH), source = 0.0)
+    allocate (dff(0:4*nH))
+    df0 => dff(0)
+    dfc => dff(1:4*nH-1:2)
+    dfs => dff(2:4*nH  :2)
+    do k = 0, 4*nH
+      call dff(k)%init(sys%n)
     end do
-    call dg_blk%init([(sys%n, i = 1, 1+2*nH)])
+    call dg_block%init([(sys%n, k = 0, 2*nH)])
 
     ! get time derivative matrix
     call sys%get_dft(dft)
 
     ! load steady-state as starting point for newton iteration
-    x0(1:sys%n) = sys%get_x()
+    sol0(1:sys%n) = sys%get_x()
 
     ! solve for all frequencies
-    do i = 1, nfreq
+    do ifreq = 1, nfreq
       print *
-      print "(A,ES24.16)", "harmonic balance: freq = ", denorm(freq(i), "Hz")
+      print "(A,ES24.16)", "harmonic balance: freq = ", denorm(freq(ifreq), "Hz")
 
       ! solve system by newton iteration
-      call newton(fun, dum, nopt_, x0, this%x(:,i))
+      call newton(fun, dum, nopt_, sol0, sol)
 
       ! release factorization
       call dg%destruct()
 
-      ! update newton starting point for next frequency (should reduce number of iterations)
-      x0 = this%x(:,i)
+      ! save solution and update newton starting point for next frequency
+      this%x(:,:,ifreq) = reshape(sol, [sys%n, 1+2*nH])
+      sol0 = sol
     end do
 
   contains
@@ -138,113 +159,135 @@ contains
       real,               optional,          intent(out) :: dfdp(:,:)
         !! optional output jacobian of f wrt p
 
+      integer :: i0, i1, j0, j1
+
       IGNORE(p)
       IGNORE(dfdx_prec)
       IGNORE(dfdp)
 
-      ! evaluate fourier coefficients of f and df
-      fc = real_to_hp(0.0)
-      fs = real_to_hp(0.0)
-      call dfc(0)%reset()
-      do k = 1, 2*nH
-        call dfc(k)%reset()
-        call dfs(k)%reset()
-      end do
-      do j = 1, nt_
-        ! get variables for time t(j)
-        xx = real_to_hp(x(1:sys%n))
-        j1 = sys%n
-        do k = 1, nH
-          i0 = j1 + 1
-          i1 = j1 + sys%n
-          j0 = i1 + 1
-          j1 = i1 + sys%n
-          xx = (xx + x(i0:i1) * cos(2*PI*k*t(j))) + x(j0:j1) * sin(2*PI*k*t(j))
-        end do
-
-        ! evaluate system
-        call sys%set_x(hp_to_real(xx))
-        call sys%set_input(input%get(t(j)))
-        call sys%eval(f = ff, df = df)
-
-        ! integrate residuals
-        fc(:,0) = fc(:,0) + ff / nt_
-        do k = 1, nH
-          fc(:,k) = fc(:,k) + (2*cos(2*PI*k*t(j))/nt_) * ff
-          fs(:,k) = fs(:,k) + (2*sin(2*PI*k*t(j))/nt_) * ff
-        end do
-
-        ! integrate jacobians
-        call matrix_add(df, dfc(0), fact = 1.0/nt_)
-        do k = 1, 2*nH
-          call matrix_add(df, dfc(k), fact = 2*cos(2*PI*k*t(j))/nt_)
-          call matrix_add(df, dfs(k), fact = 2*sin(2*PI*k*t(j))/nt_)
-        end do
-      end do
+      ! set fourier coefficients for f and df
+      call eval_fourier(reshape(x, [sys%n, 1+2*nH]))
 
       ! get residuals of large system
       if (present(f)) then
-        f(1:sys%n) = hp_to_real(fc(:,0))
+        f = reshape(ff, [sys%n*(1+2*nH)])
         j1 = sys%n
         do k = 1, nH
           i0 = j1 + 1
           i1 = j1 + sys%n
           j0 = i1 + 1
           j1 = i1 + sys%n
-          f(i0:i1) = hp_to_real(fc(:,k))
-          f(j0:j1) = hp_to_real(fs(:,k))
-          call dft%mul_vec( 2*PI*k*freq(i)*x(j0:j1), f(i0:i1), fact_y = 1.0)
-          call dft%mul_vec(-2*PI*k*freq(i)*x(i0:i1), f(j0:j1), fact_y = 1.0)
+          call dft%mul_vec( 2*PI*k*freq(ifreq)*x(j0:j1), f(i0:i1), fact_y = 1.0)
+          call dft%mul_vec(-2*PI*k*freq(ifreq)*x(i0:i1), f(j0:j1), fact_y = 1.0)
         end do
       end if
 
       ! get jacobian of large system
       if (present(dfdx)) then
-        call dg_blk%set(1, 1, dfc(0))
+        call dg_block%set(1, 1, df0)
         do l = 1, nH
-          call dg_blk%set(1, 2*l  , dfc(l), fact = 0.5)
-          call dg_blk%set(1, 2*l+1, dfs(l), fact = 0.5)
+          call dg_block%set(1, 2*l  , dfc(l), fact = 0.5)
+          call dg_block%set(1, 2*l+1, dfs(l), fact = 0.5)
         end do
         do k = 1, nH
-          call dg_blk%set(2*k  , 1, dfc(k))
-          call dg_blk%set(2*k+1, 1, dfs(k))
+          call dg_block%set(2*k  , 1, dfc(k))
+          call dg_block%set(2*k+1, 1, dfs(k))
           do l = 1, nH
-            call dg_blk%set(2*k, 2*l, dfc(k+l), fact = 0.5)
-            call dg_blk%get(2*k, 2*l, ptr)
+            call dg_block%set(2*k, 2*l, dfc(k+l), fact = 0.5)
+            call dg_block%get(2*k, 2*l, ptr)
             if (k == l) then
-              call matrix_add(dfc(0), ptr)
+              call matrix_add(df0, ptr)
             else
               call matrix_add(dfc(abs(k-l)), ptr, fact = 0.5)
             end if
 
-            call dg_blk%set(2*k, 2*l+1, dfs(k+l), fact = 0.5)
-            call dg_blk%get(2*k, 2*l+1, ptr)
+            call dg_block%set(2*k, 2*l+1, dfs(k+l), fact = 0.5)
+            call dg_block%get(2*k, 2*l+1, ptr)
             if (k == l) then
-              call matrix_add(dft, ptr, fact = 2*PI*k*freq(i))
+              call matrix_add(dft, ptr, fact = 2*PI*k*freq(ifreq))
             else
               call matrix_add(dfs(abs(k-l)), ptr, fact = -0.5*sign(1.0, real(k-l)))
             end if
 
-            call dg_blk%set(2*k+1, 2*l, dfs(k+l), fact = 0.5)
-            call dg_blk%get(2*k+1, 2*l, ptr)
+            call dg_block%set(2*k+1, 2*l, dfs(k+l), fact = 0.5)
+            call dg_block%get(2*k+1, 2*l, ptr)
             if (k == l) then
-              call matrix_add(dft, ptr, fact = -2*PI*k*freq(i))
+              call matrix_add(dft, ptr, fact = -2*PI*k*freq(ifreq))
             else
               call matrix_add(dfs(abs(k-l)), ptr, fact = 0.5*sign(1.0, real(k-l)))
             end if
 
-            call dg_blk%set(2*k+1, 2*l+1, dfc(k+l), fact = -0.5)
-            call dg_blk%get(2*k+1, 2*l+1, ptr)
+            call dg_block%set(2*k+1, 2*l+1, dfc(k+l), fact = -0.5)
+            call dg_block%get(2*k+1, 2*l+1, ptr)
             if (k == l) then
-              call matrix_add(dfc(0), ptr)
+              call matrix_add(df0, ptr)
             else
               call matrix_add(dfc(abs(k-l)), ptr, fact = 0.5)
             end if
           end do
         end do
-        call matrix_convert(dg_blk, dg)
+        call matrix_convert(dg_block, dg)
         dfdx => dg
       end if
+    end subroutine
+
+    subroutine eval_fourier(xx)
+      real, intent(in) :: xx(:,0:)
+
+      real, parameter :: ATOL = 1e-15, RTOL = 1e-12
+      logical         :: cond
+
+      ! reset
+      ff = 0
+      do k = 0, 4*nH
+        call dff(k)%reset()
+      end do
+
+      it1 = 1
+      do while (it1 <= nt1/2)
+        if (it1 < nt0) then
+          ! start integral estimate with nt0 points
+          it0 = 1
+          it1 = nt0
+        else
+          ! exit if accurate enough
+          cond = .true.
+          do k = 0, 2*nH
+            cond = cond .and. (maxval(abs(ff_old(:,k) - ff(:,k)) / (abs(ff(:,k)) + ATOL / RTOL)) <= RTOL)
+          end do
+          if (cond) exit
+
+          ! prepare for time-step halving
+          ff_old = ff
+          ff = 0.5 * ff
+          do k = 0, 4*nH
+            call dff(k)%scale(0.5)
+          end do
+
+          ! go to next set of timepoints
+          it0 = it1 + 1
+          it1 = 2 * it1
+        end if
+
+        do it = it0, it1
+          ! get variables for time t(it)
+          xi = xx(:,0)
+          call gemv(xx(:,1:2*nH), w(1:2*nH,it), xi, alpha = 0.5, beta = 1.0)
+
+          ! evaluate equation system
+          call sys%set_x(xi)
+          call sys%set_input(input%get(t(it)))
+          call sys%eval(f = fi, df = dfi)
+
+          ! update residual fourier coefficients
+          call ger(ff, fi, w(0:2*nH,it), alpha = 1.0 / it1)
+
+          ! update jacobian fourier coefficients
+          do k = 0, 4*nH
+            call matrix_add(dfi, dff(k), fact = w(k,it) / it1)
+          end do
+        end do
+      end do
     end subroutine
 
   end subroutine
@@ -253,7 +296,7 @@ contains
     !! select and save specific harmonic (overwrite equation system variables)
     class(harmonic_balance), intent(inout) :: this
     integer,                 intent(in)    :: k
-      !! harmonic number (k = 0..nH; 0 not allowed for sine)
+      !! harmonic number (k = 0..nH; 0 not allowed for cosine/sine)
     integer, optional,       intent(in)    :: ifreq
       !! frequency index (default: 1)
     logical, optional,       intent(in)    :: cosine
@@ -261,7 +304,7 @@ contains
     logical, optional,       intent(in)    :: sine
       !! select sine harmonic (default: false)
 
-    integer :: ifreq_, n, i0, i1
+    integer :: ifreq_, n, l
     logical :: cosine_, sine_
 
     ! optional arguments
@@ -276,25 +319,15 @@ contains
     ASSERT((k >= 0) .and. (k <= this%nH))
     ASSERT((ifreq_ >= 1) .and. (ifreq_ <= size(this%freq)))
     ASSERT(.not. (sine_ .and. cosine_))
-    ASSERT((k > 0) .or. (.not. sine_))
+    ASSERT((k > 0) .or. .not. (sine_ .or. cosine_))
     ASSERT((k == 0) .or. cosine_ .or. sine_)
 
     ! select harmonic and save in esystem
     n = this%sys%n
-    if (k == 0) then
-      ! constant
-      call this%sys%set_x(this%x(1:n,ifreq_))
-    else
-      if (cosine_) then
-        i0 = (2 * k - 1) * n + 1
-        i1 = (2 * k    ) * n
-        call this%sys%set_x(this%x(i0:i1,ifreq_))
-      else ! sine_
-        i0 = (2 * k    ) * n + 1
-        i1 = (2 * k + 1) * n
-        call this%sys%set_x(this%x(i0:i1,ifreq_))
-      endif
-    end if
+    l = 0
+    if (cosine_) l = 2 * k - 1
+    if (  sine_) l = 2 * k
+    call this%sys%set_x(this%x(:,l,ifreq_))
   end subroutine
 
   subroutine harmonic_balance_select_time(this, t, ifreq)
@@ -305,7 +338,7 @@ contains
     integer, optional,       intent(in)    :: ifreq
       !! frequency index (default: 1)
 
-    integer           :: ifreq_, n, i0, i1, j0, j1, k
+    integer           :: ifreq_, k
     real              :: t_
     real, allocatable :: x(:)
 
@@ -320,15 +353,9 @@ contains
     t_ = t * this%freq(ifreq_)
 
     ! get variables at time t
-    n = this%sys%n
-    x = this%x(1:n,ifreq_)
-    j1 = n
+    x = this%x(:,0,ifreq_)
     do k = 1, this%nH
-      i0 = j1 + 1
-      i1 = j1 + n
-      j0 = i1 + 1
-      j1 = i1 + n
-      x = x + this%x(i0:i1,ifreq_) * cos(2*PI*k*t_) + this%x(j0:j1,ifreq_) * sin(2*PI*k*t_)
+      x = x + this%x(:,2*k-1,ifreq_) * cos(2*PI*k*t_) + this%x(:,2*k,ifreq_) * sin(2*PI*k*t_)
     end do
 
     ! save variables in esystem
