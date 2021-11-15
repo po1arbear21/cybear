@@ -1,3 +1,5 @@
+#include "../../util/macro.f90.inc"
+
 module test_analysis_m
 
   use test_case_m,    only: test_case
@@ -135,8 +137,12 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine dt_phi_eval(this)
-    class(dt_phi), intent(inout) :: this
+  subroutine dt_phi_eval(this, t)
+    class(dt_phi),  intent(inout) :: this
+    real, optional, intent(in)    :: t
+      !! optional time; default = 0
+
+    IGNORE(t)
 
     call this%f%set([-this%om%x])
   end subroutine
@@ -188,10 +194,14 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine dt_omega_eval(this)
+  subroutine dt_omega_eval(this, t)
     class(dt_omega), intent(inout) :: this
+    real, optional,  intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: idx1(0), idx2(0)
+
+    IGNORE(t)
 
     ! d/dt omega + w0^2 * sin(ph) + alpha * om == 0
     call this%f%set([this%Omega_res**2 * sin(this%ph%x) + this%alpha * this%om%x - this%cpl * (this%om0%x - this%om%x)])
@@ -247,11 +257,15 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine dt_omega0_eval(this)
+  subroutine dt_omega0_eval(this, t)
     class(dt_omega0), intent(inout) :: this
+    real, optional,   intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: i
     real    :: f(1)
+
+    IGNORE(t)
 
     f = sum(this%cpl) * this%om0%x
     do i = 1, size(this%om)

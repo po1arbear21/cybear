@@ -68,10 +68,13 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_charge_density_eval(this)
+  subroutine calc_charge_density_eval(this, t)
     class(calc_charge_density), intent(inout) :: this
+    real, optional,             intent(in)    :: t
+      !! optional time; default = 0
 
     IGNORE(this)
+    IGNORE(t)
 
     ! calculating the charge density
     call charge_dens%set([dop_v%get() - dens%get()])

@@ -1,3 +1,5 @@
+#include "../../util/macro.f90.inc"
+
 module test_esystem_prec_m
 
   use equation_m,     only: equation
@@ -200,12 +202,16 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine equation1_eval(this)
+  subroutine equation1_eval(this, t)
     !! set z, and jacobians/preconditioners wrt y (wrt x is constant/already set/not preconditioned)
     class(equation1), intent(inout) :: this
+    real, optional,   intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: i, idx(1)
     real    :: x(1), y(2)
+
+    IGNORE(t)
 
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
@@ -267,12 +273,16 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine res_equation1_eval(this)
+  subroutine res_equation1_eval(this, t)
     !! set residual, and jacobians/preconditioners wrt y, z (wrt x is constant/already set/not preconditioned)
     class(res_equation1), intent(inout) :: this
+    real, optional,       intent(in)    :: t
+    !! optional time; default = 0
 
     integer :: i, idx(1)
     real    :: x(1), y(2), z(3)
+
+    IGNORE(t)
 
     do i = 1, gtab%n
       idx = gtab%get_idx(i)
@@ -324,12 +334,16 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine res_equation2_eval(this)
+  subroutine res_equation2_eval(this, t)
     !! set residuals, jacobians wrt x, y, z, and preconditioner wrt y
     class(res_equation2), intent(inout) :: this
+    real, optional,       intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: i, idx(1)
     real    :: x(1), y(2), z(3)
+
+    IGNORE(t)
 
     do i = 1, gtab%n
       idx = gtab%get_idx(i)

@@ -1,3 +1,5 @@
+#include "../util/macro.f90.inc"
+
 module example_current_density_m
 
   use example_contact_m,   only: contacts, uncontacted
@@ -85,11 +87,15 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_current_density_eval(this)
+  subroutine calc_current_density_eval(this, t)
     class(calc_current_density), intent(inout) :: this
+    real, optional,              intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: i, idx1(1), idx2(1)
     real    :: ber1, ber2, dber1, dber2, dens1, dens2, len, mob
+
+    IGNORE(t)
 
     ! loop over edges
     do i = 1, size(grd%x)-1

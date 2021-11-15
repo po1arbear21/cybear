@@ -81,10 +81,12 @@ module equation_m
   end type
 
   abstract interface
-    subroutine equation_eval(this)
+    subroutine equation_eval(this, t)
       !! evaluate equation (implement in child classes)
       import equation
       class(equation), intent(inout) :: this
+      real, optional,  intent(in)    :: t
+        !! optional time; default = 0
     end subroutine
   end interface
 

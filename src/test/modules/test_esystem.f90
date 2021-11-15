@@ -1,3 +1,5 @@
+#include "../../util/macro.f90.inc"
+
 module test_esystem_m
 
   use equation_m,     only: equation
@@ -192,9 +194,13 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine equation1_eval(this)
+  subroutine equation1_eval(this, t)
     !! evaluate equation: y=3x+1
     class(equation1), intent(inout) :: this
+    real, optional,   intent(in)    :: t
+      !! optional time; default = 0
+
+    IGNORE(t)
 
     ! y_tmp <- jacobian * x
     call this%dydx%matr%mul_vec(this%x%get(), this%y_tmp)
@@ -248,9 +254,13 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine res_equation1_eval(this)
+  subroutine res_equation1_eval(this, t)
     !! evaluate equation: f=y-x
     class(res_equation1), intent(inout) :: this
+    real, optional,       intent(in)    :: t
+      !! optional time; default = 0
+
+    IGNORE(t)
 
     ! y_tmp <- jacobian * x
     call this%dfdx%matr%mul_vec(this%x%get(), this%f_tmp)
@@ -302,12 +312,16 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine res_equation2_eval(this)
+  subroutine res_equation2_eval(this, t)
     !! evaluate equation: f=z*x+y
     class(res_equation2), intent(inout) :: this
+    real, optional,       intent(in)    :: t
+      !! optional time; default = 0
 
     integer :: i, idx(1)
     real    :: x, y, z
+
+    IGNORE(t)
 
     do i = 1, gtab%n
       idx = gtab%get_idx(i)

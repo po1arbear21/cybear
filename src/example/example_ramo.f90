@@ -1,3 +1,5 @@
+#include "../util/macro.f90.inc"
+
 module example_ramo_m
 
   use esystem_m,                 only: esystem
@@ -171,10 +173,14 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine ramo_shockley_eval(this)
+  subroutine ramo_shockley_eval(this, t)
     class(ramo_shockley), intent(inout) :: this
+    real, optional,       intent(in)    :: t
+      !! optional time; default = 0
 
     real, allocatable :: tmp(:)
+
+    IGNORE(t)
 
     allocate(tmp(this%curr%n))
 
