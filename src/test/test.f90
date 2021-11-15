@@ -15,6 +15,7 @@ program test
   use test_hashmap_m
   use test_high_precision_m
   use test_input_m
+  use test_input_src_m
   use test_map_m
   use test_math_m
   use test_matop_m
@@ -63,6 +64,7 @@ program test
   call test_hashmap()
   call test_high_precision()
   call test_input()
+  call test_input_src()
   call test_map()
   call test_math()
   call test_matop()
