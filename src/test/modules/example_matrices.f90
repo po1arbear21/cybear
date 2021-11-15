@@ -1,6 +1,6 @@
 module example_matrices_m
 
-  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, dense_cmplx, hessenberg_real, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx, triang_real
+  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, dense_cmplx, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx
 
   implicit none
 
@@ -169,29 +169,29 @@ contains
       call E%init(3, 0, nupper=1, d0=d0)
     end block
 
-    ! set F: triangular matrix
+    ! set F: dense matrix
     block
-      type(triang_real) :: F
+      type(dense_real) :: F
 
       ! F =
       !   1 2 3
       !   0 4 5
       !   0 0 6
-      call F%init(3, .true.)
+      call F%init(3)
       F%d = reshape([1,2,3,0,4,5,0,0,6], [3, 3], order=[2, 1])
 
       call bl%set(2, 3, F)
     end block
 
-    ! set H: Hessenberg matrix
+    ! set H: dense matrix
     block
-      type(hessenberg_real) :: H
+      type(dense_real) :: H
 
       ! H =
       !   1 2 3
       !   4 5 6
       !   0 7 8
-      call H%init(3, .true.)
+      call H%init(3)
       H%d = reshape([1,2,3,4,5,6,0,7,8], [3, 3], order=[2, 1])
 
       call bl%set(3, 2, H)

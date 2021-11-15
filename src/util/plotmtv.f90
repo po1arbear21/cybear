@@ -2,8 +2,7 @@
 
 module plotmtv_m
 
-  use filesystem_m, only: create_parent_dir
-  use error_m,      only: program_error
+  use error_m, only: program_error
 
   implicit none
 
@@ -108,21 +107,21 @@ contains
     !! simple 2d write routine.
     !! wrapper around more involved plotmtv type.
 
-    character(*),          intent(in)           :: fname
-      !! file name, e.g. 'output/folder/my_data.asc'
-    real,                  intent(in)           :: x(:), y(:)
+    character(*),                    intent(in) :: fname
+      !! file name, e.g. "output/folder/my_data.asc"
+    real,                            intent(in) :: x(:), y(:)
       !! data arrays (of same length!)
-    type(plotset_options), intent(in), optional :: plotset_opts
+    type(plotset_options), optional, intent(in) :: plotset_opts
       !! plotset options
-    type(curve_options),   intent(in), optional :: curve_opts
+    type(curve_options),   optional, intent(in) :: curve_opts
       !! curve options
 
     type(plotmtv) :: p
 
     call p%init(fname)
-    call p%write_header(plotset_opts=plotset_opts)
-    call p%write_curve(x, y, opts=curve_opts)
-    call p%close
+    call p%write_header(plotset_opts = plotset_opts)
+    call p%write_curve(x, y, opts = curve_opts)
+    call p%close()
   end subroutine
 
   subroutine plotmtv_init(this, fname)
@@ -130,13 +129,14 @@ contains
 
     class(plotmtv), intent(out) :: this
     character(*),   intent(in)  :: fname
-      !! file name, e.g. 'output/folder/my_data.asc'
+      !! file name, e.g. "output/folder/my_data.asc"
 
-    integer :: ios
+    integer :: i, ios
 
-    call create_parent_dir(fname)
+    i = scan(fname, "/", back = .true.)
+    if (i /= 0) call execute_command_line("mkdir -p " // fname(:i))
 
-    open (newunit=this%iounit, file=fname, iostat=ios, action='WRITE')
+    open (newunit = this%iounit, file = fname, iostat = ios, action = "WRITE")
     if (ios /= 0) call program_error("Error opening file")
     this%file_open = .true.
   end subroutine
@@ -149,13 +149,12 @@ contains
     integer :: ios
 
     if (this%file_open) then
-      close (unit=this%iounit, iostat=ios)
+      close (unit = this%iounit, iostat = ios)
       if (ios /= 0) call program_error("Error closing file")
 
       this%file_open = .false.
-
     else
-      print *, 'Cannot close a file as none is open!'
+      print *, "Cannot close a file as none is open!"
     end if
   end subroutine
 
@@ -171,16 +170,16 @@ contains
     type(curve_options),   intent(in),   optional :: gl_curve_opts
       !! global curve options
 
-    if (.not. this%file_open) call program_error('call init beforehand to open a file!')
+    if (.not. this%file_open) call program_error("call init beforehand to open a file!")
 
     ! 3d plot?
     this%three_dim = .false.
     if (present(three_dim)) this%three_dim = three_dim
 
     ! view3d only if 3d plot
-    if (present(view3d_opts) .and. (.not. this%three_dim)) call program_error('view3d options mustnt be supplied for 3d plot!')
+    if (present(view3d_opts) .and. (.not. this%three_dim)) call program_error("view3d options mustnt be supplied for 3d plot!")
 
-    write (this%iounit, '(A)') '$ DATA=CURVE' // merge('3D', '2D', this%three_dim)
+    write (this%iounit, "(A)") "$ DATA=CURVE" // merge("3D", "2D", this%three_dim)
     write (this%iounit, *)
 
     if (present(plotset_opts) ) call plotset_opts%write( this%iounit        )
@@ -198,24 +197,24 @@ contains
 
     integer :: i
 
-    if (.not. this%file_open) call program_error('call init beforehand to open a file!')
+    if (.not. this%file_open) call program_error("call init beforehand to open a file!")
 
     ! check header/curve dimensions are same
-    if (this%three_dim .neqv. present(z)) call program_error('header specified a 2d/3d plot but curve is of opposite dimension!')
+    if (this%three_dim .neqv. present(z)) call program_error("header specified a 2d/3d plot but curve is of opposite dimension!")
 
     ! check data have same lengths
-    if (size(x) /= size(y)) call program_error('x, y arrays are of different lengths!')
+    if (size(x) /= size(y)) call program_error("x, y arrays are of different lengths!")
     if (present(z)) then
-      if (size(x) /= size(z)) call program_error('x, z arrays are of different lengths!')
+      if (size(x) /= size(z)) call program_error("x, z arrays are of different lengths!")
     end if
 
     if (present(opts)) call opts%write(this%iounit, .false.)
 
     do i = 1, size(x)
       if (this%three_dim) then
-        write (this%iounit, *) x(i), y(i), z(i)
+        write (this%iounit, "(3ES24.16)") x(i), y(i), z(i)
       else
-        write (this%iounit, *) x(i), y(i)
+        write (this%iounit, "(2ES24.16)") x(i), y(i)
       end if
     end do
 
@@ -233,14 +232,14 @@ contains
 
     character(:), allocatable :: gl_cstr
 
-    ! preprend a 'd' for global options
+    ! preprend a "d" for global options
     allocate (character(0) :: gl_cstr)      ! remove gfortran warning
-    gl_cstr = ''
-    if (global) gl_cstr = 'd'
+    gl_cstr = ""
+    if (global) gl_cstr = "d"
 
     ! linelabel only for non-global curve options
     if (global) then
-      if (allocated(this%linelabel)) call program_error('global curve options mustnt have a linelabel!')
+      if (allocated(this%linelabel)) call program_error("global curve options mustnt have a linelabel!")
     else
       call write_line(iounit, gl_cstr//"linelabel", this%linelabel)
     end if
@@ -360,7 +359,7 @@ contains
     character(*), intent(in)              :: name
     character(:), intent(in), allocatable :: value
 
-    if (allocated(value)) write (iounit, '(A)') '% ' // name // ' = "' // value // '"'
+    if (allocated(value)) write (iounit, "(A)") "% " // name // ' = "' // value // '"'
   end subroutine
 
   subroutine write_line_int(iounit, name, value)
@@ -368,7 +367,7 @@ contains
     character(*), intent(in)              :: name
     integer,      intent(in), allocatable :: value
 
-    if (allocated(value)) write (iounit, '(A, I10)') '% ' // name // ' = ', value
+    if (allocated(value)) write (iounit, "(A,I0)") "% " // name // " = ", value
   end subroutine
 
   subroutine write_line_log(iounit, name, value)
@@ -376,7 +375,7 @@ contains
     character(*), intent(in)              :: name
     logical,      intent(in), allocatable :: value
 
-    if (allocated(value)) write (iounit, '(A)') '% ' // name // ' = ' // merge('True ', 'False', value)
+    if (allocated(value)) write (iounit, "(A)") "% " // name // " = " // merge("True ", "False", value)
   end subroutine
 
   subroutine write_line_real(iounit, name, value)
@@ -384,7 +383,7 @@ contains
     character(*), intent(in)              :: name
     real,         intent(in), allocatable :: value
 
-    if (allocated(value)) write (iounit, '(A, E15.5)') '% ' // name // ' = ', value
+    if (allocated(value)) write (iounit, "(A,ES24.16)") "% " // name // " = ", value
   end subroutine
 
 end module

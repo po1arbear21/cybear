@@ -5,24 +5,13 @@
 #define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
 #define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
 
-#define ARRAY_TYPE           CONCAT(array,T)
 #define VECTOR_TYPE          CONCAT(vector,T)
 
-#define BAND_TYPE            CONCAT(band,T)
-#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
-#define BLOCK_TYPE           CONCAT(block,T)
-#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
 #define MATRIX_TYPE          CONCAT(matrix,T)
 #define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
 #define SPARSE_TYPE          CONCAT(sparse,T)
 #define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
 #define SPBUILD_TYPE         CONCAT(spbuild,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
-#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
 
 #define SPARSE_INIT          CONCAT3(sparse,T,init)
 #define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
@@ -1381,24 +1370,13 @@ end subroutine
 #undef CONCATHELP3
 #undef CONCAT3
 
-#undef ARRAY_TYPE
 #undef VECTOR_TYPE
 
-#undef BAND_TYPE
-#undef BAND_PTR_TYPE
-#undef BLOCK_TYPE
-#undef BLOCK_PTR_TYPE
-#undef DENSE_TYPE
-#undef DENSE_PTR_TYPE
-#undef HESSENBERG_TYPE
-#undef HESSENBERG_PTR_TYPE
 #undef MATRIX_TYPE
 #undef MATRIX_PTR_TYPE
 #undef SPARSE_TYPE
 #undef SPARSE_PTR_TYPE
 #undef SPBUILD_TYPE
-#undef TRIANG_TYPE
-#undef TRIANG_PTR_TYPE
 
 #undef SPARSE_INIT
 #undef SPARSE_INIT_SOLVER

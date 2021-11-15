@@ -1,7 +1,6 @@
 program test
 
   use test_analysis_m
-  use test_arnoldi_m
   use test_bin_search_m
   use test_deque_m
   use test_distributions_m
@@ -28,8 +27,6 @@ program test
   use test_qsort_m
   use test_radau5_m
   use test_random_m
-  use test_schur_m
-  use test_sqrtm_m
   use test_string_m
   use test_util_m
   use test_vector_m
@@ -50,7 +47,6 @@ program test
   implicit none
 
   call test_analysis()
-  call test_arnoldi()
   call test_bin_search()
   call test_deque()
   call test_distributions()
@@ -77,8 +73,6 @@ program test
   call test_qsort()
   call test_radau5()
   call test_random()
-  call test_schur()
-  call test_sqrtm()
   call test_string()
   call test_util()
   call test_vector()

@@ -109,7 +109,7 @@ end subroutine
 #undef PASTE2
 #undef CONCATHELP
 #undef CONCAT
-#undef CONCATHELP3EXPM
+#undef CONCATHELP3
 #undef CONCAT3
 
 #undef DENSE_TYPE

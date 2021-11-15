@@ -1,48 +1,41 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
+#define PASTE(X)          X
+#define PASTE2(X)         PASTE(X)_
+#define CONCATHELP(X, Y)  PASTE2(X)Y
+#define CONCAT(X, Y)      CONCATHELP(X,Y)
 
-#define ARRAY_TYPE           CONCAT(array,T)
-#define VECTOR_TYPE          CONCAT(vector,T)
+#define BAND_TYPE         CONCAT(band,T)
+#define BAND_PTR_TYPE     CONCAT(band_ptr,T)
+#define BLOCK_TYPE        CONCAT(block,T)
+#define BLOCK_PTR_TYPE    CONCAT(block_ptr,T)
+#define DENSE_TYPE        CONCAT(dense,T)
+#define DENSE_PTR_TYPE    CONCAT(dense_ptr,T)
+#define MATRIX_TYPE       CONCAT(matrix,T)
+#define MATRIX_PTR_TYPE   CONCAT(matrix_ptr,T)
+#define SPARSE_TYPE       CONCAT(sparse,T)
+#define SPARSE_PTR_TYPE   CONCAT(sparse_ptr,T)
+#define SPBUILD_TYPE      CONCAT(spbuild,T)
 
-#define BAND_TYPE            CONCAT(band,T)
-#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
-#define BLOCK_TYPE           CONCAT(block,T)
-#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
-#define HESSENBERG_TYPE      CONCAT(hessenberg,T)
-#define HESSENBERG_PTR_TYPE  CONCAT(hessenberg_ptr,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
-#define TRIANG_TYPE          CONCAT(triang,T)
-#define TRIANG_PTR_TYPE      CONCAT(triang_ptr,T)
+#define ADD_BAND2         CONCAT(add_band2,T)
+#define ADD_BAND3         CONCAT(add_band3,T)
+#define ADD_BAND_DENSE    CONCAT(add_band_dense,T)
+#define ADD_BAND_DENSE2   CONCAT(add_band_dense2,T)
+#define ADD_BAND_SPARSE   CONCAT(add_band_sparse,T)
+#define ADD_BAND_SPARSE2  CONCAT(add_band_sparse2,T)
+#define ADD_DENSE2        CONCAT(add_dense2,T)
+#define ADD_DENSE3        CONCAT(add_dense3,T)
+#define ADD_SPARSE_DENSE  CONCAT(add_sparse_dense,T)
+#define ADD_SPARSE_DENSE2 CONCAT(add_sparse_dense2,T)
+#define ADD_SPARSE2       CONCAT(add_sparse2,T)
+#define ADD_SPARSE3       CONCAT(add_sparse3,T)
 
-#define ADD_BAND2            CONCAT(add_band2,T)
-#define ADD_BAND3            CONCAT(add_band3,T)
-#define ADD_BAND_DENSE       CONCAT(add_band_dense,T)
-#define ADD_BAND_DENSE2      CONCAT(add_band_dense2,T)
-#define ADD_BAND_SPARSE      CONCAT(add_band_sparse,T)
-#define ADD_BAND_SPARSE2     CONCAT(add_band_sparse2,T)
-#define ADD_DENSE2           CONCAT(add_dense2,T)
-#define ADD_DENSE3           CONCAT(add_dense3,T)
-#define ADD_SPARSE_DENSE     CONCAT(add_sparse_dense,T)
-#define ADD_SPARSE_DENSE2    CONCAT(add_sparse_dense2,T)
-#define ADD_SPARSE2          CONCAT(add_sparse2,T)
-#define ADD_SPARSE3          CONCAT(add_sparse3,T)
+#define DIAG_ARR_BAND     CONCAT(diag_arr_band,T)
+#define DIAG_ARR_DENSE    CONCAT(diag_arr_dense,T)
+#define DIAG_ARR_SPARSE   CONCAT(diag_arr_sparse,T)
+#define DIAG_BAND_ARR     CONCAT(diag_band_arr,T)
+#define DIAG_DENSE_ARR    CONCAT(diag_dense_arr,T)
+#define DIAG_SPARSE_ARR   CONCAT(diag_sparse_arr,T)
 
-#define DIAG_ARR_BAND        CONCAT(diag_arr_band,T)
-#define DIAG_ARR_DENSE       CONCAT(diag_arr_dense,T)
-#define DIAG_ARR_SPARSE      CONCAT(diag_arr_sparse,T)
-#define DIAG_BAND_ARR        CONCAT(diag_band_arr,T)
-#define DIAG_DENSE_ARR       CONCAT(diag_dense_arr,T)
-#define DIAG_SPARSE_ARR      CONCAT(diag_sparse_arr,T)
-
-#define APPROX_SPARSE        CONCAT(approx_sparse,T)
+#define APPROX_SPARSE     CONCAT(approx_sparse,T)
 
 interface matrix_add
   module subroutine ADD_BAND2(b1, b2, fact)
@@ -179,24 +172,17 @@ end interface
 #undef CONCATHELP
 #undef CONCAT
 
-#undef ARRAY_TYPE
-#undef VECTOR_TYPE
-
 #undef BAND_TYPE
 #undef BAND_PTR_TYPE
 #undef BLOCK_TYPE
 #undef BLOCK_PTR_TYPE
 #undef DENSE_TYPE
 #undef DENSE_PTR_TYPE
-#undef HESSENBERG_TYPE
-#undef HESSENBERG_PTR_TYPE
 #undef MATRIX_TYPE
 #undef MATRIX_PTR_TYPE
 #undef SPARSE_TYPE
 #undef SPARSE_PTR_TYPE
 #undef SPBUILD_TYPE
-#undef TRIANG_TYPE
-#undef TRIANG_PTR_TYPE
 
 #undef ADD_BAND2
 #undef ADD_BAND3

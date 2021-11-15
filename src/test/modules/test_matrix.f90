@@ -2,7 +2,7 @@ module test_matrix_m
 
   use example_matrices_m
   use matrix_m
-  use test_case_m,        only: test_case
+  use test_case_m
 
   implicit none
 
@@ -27,9 +27,6 @@ module test_matrix_m
 
     module subroutine test_sparse()
     end subroutine
-
-    module subroutine test_triang()
-    end subroutine
   end interface
 
 contains
@@ -41,7 +38,6 @@ contains
     call test_conv()
     call test_dense()
     call test_sparse()
-    call test_triang()
   end subroutine
 
 end module

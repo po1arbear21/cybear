@@ -59,14 +59,6 @@ module matrix_m
   public band_ptr_cmplx
   public band_eye_real
   public band_eye_cmplx
-  public hessenberg_real
-  public hessenberg_cmplx
-  public hessenberg_ptr_real
-  public hessenberg_ptr_cmplx
-  public triang_real
-  public triang_cmplx
-  public triang_ptr_real
-  public triang_ptr_cmplx
   public block_real
   public block_cmplx
   public block_ptr_real
@@ -117,30 +109,12 @@ module matrix_m
 
 #define T real
 #define TT real
-#include "hessenberg_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "hessenberg_def.f90.inc"
-
-#define T real
-#define TT real
 #include "sparse_def.f90.inc"
 
 #define T cmplx
 #define TT complex
 #define TCMPLX
 #include "sparse_def.f90.inc"
-
-#define T real
-#define TT real
-#include "triang_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "triang_def.f90.inc"
 
 #define T real
 #define TT real

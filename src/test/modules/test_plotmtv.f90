@@ -1,6 +1,5 @@
 module test_plotmtv_m
 
-  use filesystem_m, only: create_tmp_file, remove_file
   use plotmtv_m,    only: curve_options, plotmtv, plotmtv_write, plotset_options, view3d_options
   use string_m,     only: string
   use test_case_m,  only: test_case
@@ -22,8 +21,8 @@ contains
       character(:), allocatable :: fname
       real,         allocatable :: x(:), y(:)
 
-      allocate (character(0) :: fname)      ! remove gfortran warning
-      fname = create_tmp_file()
+      allocate (fname, source = "/tmp/plotmtv_test.asc")
+      ! fname = "/tmp/plotmtv_test.asc"
       x     = [-1,   0,   2,  4]
       y     = [-5, -10, -15, 20]
 
@@ -33,13 +32,13 @@ contains
       block
         type(string) :: header(2)
 
-        header(1)%s = '$ DATA=CURVE2D'
-        header(2)%s = ''
+        header(1)%s = "$ DATA=CURVE2D"
+        header(2)%s = ""
 
         call compare_file(tc, "test1", fname, header, x, y)
       end block
 
-      call remove_file(fname)
+      call execute_command_line("rm -f " // fname)
     end block
 
     ! test2: simple 2D write and plotset options altered
@@ -48,8 +47,7 @@ contains
       real,         allocatable :: x(:), y(:)
       type(plotset_options)     :: opts
 
-      allocate (character(0) :: fname)      ! remove gfortran warning
-      fname = create_tmp_file()
+      allocate (fname, source = "/tmp/plotmtv_test.asc")
       x     = [-1,   0,   2,  4]
       y     = [-5, -10, -15, 20]
 
@@ -64,17 +62,17 @@ contains
       block
         type(string) :: header(6)
 
-        header(1)%s = '$ DATA=CURVE2D'
-        header(2)%s = ''
+        header(1)%s = "$ DATA=CURVE2D"
+        header(2)%s = ""
         header(3)%s = '% xlabel = "my x data"'
         header(4)%s = '% ylabel = "my y data"'
         header(5)%s = '% toplabel = "my plot"'
-        header(6)%s = '% grid = True'
+        header(6)%s = "% grid = True"
 
         call compare_file(tc, "test2", fname, header, x, y)
       end block
 
-      call remove_file(fname)
+      call execute_command_line("rm -f " // fname)
     end block
 
     ! test3: write and plotset+curve options altered
@@ -84,8 +82,7 @@ contains
       type(plotset_options)     :: ps_opts
       type(curve_options)       :: c_opts
 
-      allocate (character(0) :: fname)      ! remove gfortran warning
-      fname = create_tmp_file()
+      allocate (fname, source = "/tmp/plotmtv_test.asc")
       x     = [-1,   0,   2,  4]
       y     = [-5, -10, -15, 20]
 
@@ -108,26 +105,26 @@ contains
         character(10) :: c
         type(string)  :: header(11)
 
-        header( 1)%s = '$ DATA=CURVE2D'
-        header( 2)%s = ''
+        header( 1)%s = "$ DATA=CURVE2D"
+        header( 2)%s = ""
         header( 3)%s = '% xlabel = "my x data"'
         header( 4)%s = '% ylabel = "my y data"'
         header( 5)%s = '% toplabel = "my plot"'
-        header( 6)%s = '% grid = True'
-        header( 7)%s = ''
-        write (c, '(I10)') 4
-        header( 8)%s = '% linetype = '   // c
-        write (c, '(I10)') 5
-        header( 9)%s = '% markertype = ' // c
-        write (c, '(I10)') 3
-        header(10)%s = '% markersize = ' // c
-        write (c, '(I10)') 6
-        header(11)%s = '% filltype = '   // c
+        header( 6)%s = "% grid = True"
+        header( 7)%s = ""
+        write (c, "(I0)") 4
+        header( 8)%s = "% linetype = "   // c
+        write (c, "(I0)") 5
+        header( 9)%s = "% markertype = " // c
+        write (c, "(I0)") 3
+        header(10)%s = "% markersize = " // c
+        write (c, "(I0)") 6
+        header(11)%s = "% filltype = "   // c
 
         call compare_file(tc, "test3", fname, header, x, y)
       end block
 
-      call remove_file(fname)
+      call execute_command_line("rm -f " // fname)
     end block
 
     ! test4: write3d. create pyramid (possible for grid visualization)
@@ -160,8 +157,7 @@ contains
       v3_opts%yaxisscale = 3.0
       v3_opts%hiddenline = .true.
 
-      allocate (character(0) :: fname)      ! remove gfortran warning
-      fname = create_tmp_file()
+      allocate (fname, source = "/tmp/plotmtv_test.asc")
 
       call pmtv%init(fname)
       call pmtv%write_header(three_dim=.true., plotset_opts=ps_opts, view3d_opts=v3_opts, gl_curve_opts=gl_c_opts)
@@ -211,35 +207,35 @@ contains
       ! compare data
       block
         character(10) :: c_int
-        character(15) :: c_real
+        character(32) :: c_real
         type(string)  :: header(15)
 
-        header( 1)%s = '$ DATA=CURVE3D'
-        header( 2)%s = ''
+        header( 1)%s = "$ DATA=CURVE3D"
+        header( 2)%s = ""
         header( 3)%s = '% xlabel = "my x data"'
         header( 4)%s = '% ylabel = "my y data"'
         header( 5)%s = '% toplabel = "my plot"'
-        header( 6)%s = '% grid = True'
-        header( 7)%s = ''
-        write (c_real, '(E15.5)') 2.0
-        header( 8)%s = '% eyepos.x = '   // c_real
-        write (c_real, '(E15.5)') 3.0
-        header( 9)%s = '% yaxisscale = ' // c_real
-        header(10)%s = '% hiddenline = True'
-        header(11)%s = ''
-        write (c_int, '(I10)') 4
-        header(12)%s = '% dlinetype = '   // c_int
-        write (c_int, '(I10)') 5
-        header(13)%s = '% dmarkertype = ' // c_int
-        write (c_int, '(I10)') 3
-        header(14)%s = '% dmarkersize = ' // c_int
-        write (c_int, '(I10)') 6
-        header(15)%s = '% dfilltype = '   // c_int
+        header( 6)%s = "% grid = True"
+        header( 7)%s = ""
+        write (c_real, "(ES24.16)") 2.0
+        header( 8)%s = "% eyepos.x = "   // c_real
+        write (c_real, "(ES24.16)") 3.0
+        header( 9)%s = "% yaxisscale = " // c_real
+        header(10)%s = "% hiddenline = True"
+        header(11)%s = ""
+        write (c_int, "(I0)") 4
+        header(12)%s = "% dlinetype = "   // c_int
+        write (c_int, "(I0)") 5
+        header(13)%s = "% dmarkertype = " // c_int
+        write (c_int, "(I0)") 3
+        header(14)%s = "% dmarkersize = " // c_int
+        write (c_int, "(I0)") 6
+        header(15)%s = "% dfilltype = "   // c_int
 
         call compare_file_3d(tc, "test4", fname, header, xyz_tot, c_opts_tot)
       end block
 
-      call remove_file(fname)
+      call execute_command_line("rm -f " // fname)
     end block
 
     call tc%finish
@@ -261,11 +257,11 @@ contains
     real            :: xi, yi
     type(string)    :: str_line
 
-    open (newunit=iounit, file=fname, iostat=ios, status="old", action='read')
+    open (newunit=iounit, file=fname, iostat=ios, status="old", action="read")
     call tc%assert_eq(0, ios, "opening file")
 
     do i = 1, size(header)
-      read (iounit, '(A)') char_line
+      read (iounit, "(A)") char_line
 
       str_line%s = trim(char_line)
       call tc%assert_eq(header(i), str_line, tc_msg // ": header wrong")
@@ -307,7 +303,7 @@ contains
     real            :: xi, yi, zi
     type(string)    :: str_line, new_line, fillcolor_line_exp, fillcolor_line_val
 
-    open (newunit=iounit, file=fname, iostat=ios, action='read')
+    open (newunit=iounit, file=fname, iostat=ios, action="read")
     call tc%assert_eq(0, ios, "opening file")
 
     do i = 1, size(header)
@@ -318,7 +314,7 @@ contains
 
     call tc%assert_eq(size(c_opts), size(xyz, dim=3), tc_msg // ": wrong number of curves")
 
-    new_line%s = ''
+    new_line%s = ""
 
     do ic = 1, size(c_opts)
       ! always starts with a newline
@@ -327,8 +323,8 @@ contains
       call tc%assert_eq(new_line, str_line, tc_msg // ": curve's newline missing")
 
       ! check that curve option (fillcolor) is correct
-      write (c_int, '(I10)') ic
-      fillcolor_line_exp%s = '% fillcolor = '   // c_int
+      write (c_int, "(I0)") ic
+      fillcolor_line_exp%s = "% fillcolor = "   // c_int
       read (iounit, "(A)") char_line
       fillcolor_line_val%s = trim(char_line)
       call tc%assert_eq(fillcolor_line_exp, fillcolor_line_val, tc_msg // ": curve's fillcolor")
