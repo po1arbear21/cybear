@@ -92,25 +92,29 @@ contains
     end if
 
     ! fvar
-    do i = 1, size(this%fvar)
-      if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
-    end do
-    deallocate (this%fvar)
+    if (allocated(this%fvar)) then
+      do i = 1, size(this%fvar)
+        if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
+      end do
+      deallocate (this%fvar)
+    end if
 
     ! jaco_f
-    deallocate (this%jaco_f)
+    if (allocated(this%jaco_f)) deallocate (this%jaco_f)
 
     ! jaco_fp
     if (allocated(this%jaco_fp)) deallocate (this%jaco_fp)
 
     ! jaco_ft
-    do i = 1, size(this%jaco_ft)
-      if (associated(this%jaco_ft(i)%p)) then
-        call this%jaco_ft(i)%p%destruct()
-        deallocate (this%jaco_ft(i)%p)
-      end if
-    end do
-    deallocate (this%jaco_ft)
+    if (allocated(this%jaco_ft)) then
+      do i = 1, size(this%jaco_ft)
+        if (associated(this%jaco_ft(i)%p)) then
+          call this%jaco_ft(i)%p%destruct()
+          deallocate (this%jaco_ft(i)%p)
+        end if
+      end do
+      deallocate (this%jaco_ft)
+    end if
 
     ! destruct base
     call equation_destruct(this)

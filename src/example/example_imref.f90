@@ -1,5 +1,3 @@
-#include "../util/macro.f90.inc"
-
 module example_imref_m
 
   use equation_m,          only: equation
@@ -89,14 +87,10 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_imref_eval(this, t)
+  subroutine calc_imref_eval(this)
     class(calc_imref), intent(inout) :: this
-    real, optional,    intent(in)    :: t
-      !! optional time; default = 0
 
     integer :: i
-
-    IGNORE(t)
 
     do i = 1, size(grd%x)
       ! calculate imref
@@ -129,15 +123,11 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_density_eval(this, t)
+  subroutine calc_density_eval(this)
     class(calc_density), intent(inout) :: this
-    real, optional,      intent(in)    :: t
-      !! optional time; default = 0
 
     integer :: i
     real    :: n
-
-    IGNORE(t)
 
     do i = 1, size(grd%x)
       ! calculate and set density

@@ -81,12 +81,10 @@ module equation_m
   end type
 
   abstract interface
-    subroutine equation_eval(this, t)
+    subroutine equation_eval(this)
       !! evaluate equation (implement in child classes)
       import equation
       class(equation), intent(inout) :: this
-      real, optional,  intent(in)    :: t
-        !! optional time; default = 0
     end subroutine
   end interface
 
@@ -152,12 +150,16 @@ contains
 
     if (allocated(this%name)) deallocate (this%name)
 
-    do i = 1, this%vprov_alc%n
-      deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
-    end do
-    do i = 1, this%vdep_alc%n
-      deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
-    end do
+    if (allocated(this%vprov_alc%d)) then
+      do i = 1, this%vprov_alc%n
+        deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
+      end do
+    end if
+    if (allocated(this%vdep_alc%d)) then
+      do i = 1, this%vdep_alc%n
+        deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
+      end do
+    end if
 
     call this%vprov%destruct()
     call this%vdep%destruct()
@@ -165,22 +167,28 @@ contains
     call this%vdep_alc%destruct()
 
     ! destruct jacobians
-    do j = 1, size(this%jaco, dim = 2)
-      do i = 1, size(this%jaco, dim = 1)
-        if (associated(this%jaco(i,j)%p)) then
-          call this%jaco(i,j)%p%destruct()
-          deallocate (this%jaco(i,j)%p)
-        end if
-        if (allocated(this%jaco_p)) then
+    if (allocated(this%jaco)) then
+      do j = 1, size(this%jaco, dim = 2)
+        do i = 1, size(this%jaco, dim = 1)
+          if (associated(this%jaco(i,j)%p)) then
+            call this%jaco(i,j)%p%destruct()
+            deallocate (this%jaco(i,j)%p)
+          end if
+        end do
+      end do
+      deallocate (this%jaco)
+    end if
+    if (allocated(this%jaco_p)) then
+      do j = 1, size(this%jaco_p, dim = 2)
+        do i = 1, size(this%jaco_p, dim = 1)
           if (associated(this%jaco_p(i,j)%p)) then
             call this%jaco_p(i,j)%p%destruct()
             deallocate (this%jaco_p(i,j)%p)
           end if
-        end if
+        end do
       end do
-    end do
-    deallocate (this%jaco)
-    if (allocated(this%jaco_p)) deallocate (this%jaco_p)
+      deallocate (this%jaco_p)
+    end if
   end subroutine
 
   subroutine equation_reset(this, const, nonconst)

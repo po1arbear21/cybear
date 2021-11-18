@@ -182,15 +182,12 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine dummy_equation_eval(this, t)
+  subroutine dummy_equation_eval(this)
     !! evaluate dummy equation
     class(dummy_equation), intent(inout) :: this
-    real, optional,        intent(in)    :: t
-      !! optional time; default = 0
 
     ! do nothing
     IGNORE(this)
-    IGNORE(t)
   end subroutine
 
   subroutine selector_equation_init(this, v1, v2, status)
@@ -310,15 +307,12 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine selector_equation_eval(this, t)
+  subroutine selector_equation_eval(this)
     !! evaluate selector equation
     class(selector_equation), intent(inout) :: this
-    real, optional,           intent(in)    :: t
-      !! optional time; default = 0
 
     ! do nothing
     IGNORE(this)
-    IGNORE(t)
   end subroutine
 
   subroutine input_equation_init_vsel(this, v)
@@ -462,13 +456,9 @@ contains
     this%appl = appl
   end subroutine
 
-  subroutine input_equation_eval(this, t)
+  subroutine input_equation_eval(this)
     !! evaluate input equation (f = v - appl == 0)
     class(input_equation), intent(inout) :: this
-    real, optional,        intent(in)    :: t
-      !! optional time; default = 0
-
-    IGNORE(t)
 
     call this%f%set(this%mvar%get() - this%appl)
   end subroutine

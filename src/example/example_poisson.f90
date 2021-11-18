@@ -1,5 +1,3 @@
-#include "../util/macro.f90.inc"
-
 module example_poisson_m
 
   use example_charge_density_m, only: charge_dens
@@ -118,15 +116,11 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine poisson_eval(this, t)
+  subroutine poisson_eval(this)
     class(poisson), intent(inout) :: this
-    real, optional, intent(in)    :: t
-      !! optional time; default = 0
 
     real, allocatable :: tmp(:)
     integer           :: i, j, idx(1)
-
-    IGNORE(t)
 
     allocate(tmp(this%pot%n))
 

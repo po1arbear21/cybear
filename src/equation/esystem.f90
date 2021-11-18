@@ -582,11 +582,9 @@ contains
     end select
   end subroutine
 
-  subroutine esystem_eval(this, t, f, df, dfp)
+  subroutine esystem_eval(this, f, df, dfp)
     !! evaluate equations, get residuals, jacobians, and preconditioner
     class(esystem),              intent(inout) :: this ! equation system
-    real,              optional, intent(in)    :: t
-      !! optional time; default = 0
     real,              optional, intent(out)   :: f(:)
       !! output residuals
     type(sparse_real), optional, intent(out)   :: df
@@ -606,7 +604,7 @@ contains
         call e%e%reset(const = .false., nonconst = .true.)
 
         ! evaluate equation
-        call e%e%eval(t = t)
+        call e%e%eval()
         call e%e%set_jaco_matr(const = .false., nonconst = .true.)
 
         ! perform non-const jacobian chain operations for provided vars

@@ -1,5 +1,3 @@
-#include "../util/macro.f90.inc"
-
 module example_mobility_m
 
   use dual_m
@@ -76,16 +74,12 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_mobility_eval(this, t)
+  subroutine calc_mobility_eval(this)
     class(calc_mobility), intent(inout) :: this
-    real, optional,       intent(in)    :: t
-      !! optional time; default = 0
 
     integer      :: i, idx1(1), idx2(1)
     real         :: mob0
     type(dual_1) :: mob, delta_iref
-
-    IGNORE(t)
 
     call delta_iref%init(1.0, 1)
     do i = 1, size(grd%x)-1

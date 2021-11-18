@@ -277,7 +277,7 @@ contains
           ! evaluate equation system
           call sys%set_x(xi)
           call sys%set_input(input%get(t(it)))
-          call sys%eval(t = t(it) / freq(ifreq), f = fi, df = dfi)
+          call sys%eval(f = fi, df = dfi)
 
           ! update residual fourier coefficients
           call ger(ff, fi, w(0:2*nH,it), alpha = 1.0 / it1)

@@ -1,5 +1,3 @@
-#include "../util/macro.f90.inc"
-
 module example_continuity_m
 
   use matrix_m,                  only: matrix_convert, sparse_real
@@ -85,15 +83,11 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine continuity_eval(this, t)
+  subroutine continuity_eval(this)
     class(continuity), intent(inout) :: this
-    real, optional,    intent(in)    :: t
-      !! optional time; default = 0
 
     real, allocatable :: tmp(:)
     integer           :: i, j, idx(1)
-
-    IGNORE(t)
 
     allocate(tmp(this%dens%n))
 
