@@ -1,11 +1,11 @@
 module example_contact_m
 
-  use bin_search_m,      only: bin_search
-  use example_current_m, only: current
-  use example_device_m,  only: dop, dop_v, grd, n_intrin
-  use example_voltage_m, only: voltage
-  use grid_m,            only: grid_data1_int, grid_table, IDX_CELL, IDX_VERTEX
-  use input_m,           only: input_file
+  use bin_search_m,     only: bin_search
+  use current_m,        only: current
+  use example_device_m, only: dop, dop_v, grd, n_intrin
+  use voltage_m,        only: voltage
+  use grid_m,           only: grid_data1_int, grid_table, IDX_CELL, IDX_VERTEX
+  use input_m,          only: input_file
 
   implicit none
 
@@ -67,8 +67,8 @@ subroutine contact_init(this, f, sid)
   call f%get(sid, "name", this%name)
 
   ! initialise voltage and current
-  call this%volt%init(this%name)
-  call this%curr%init(this%name)
+  call this%volt%init("V_"//this%name)
+  call this%curr%init("I_"//this%name)
 
   ! set voltage
   call f%get(sid, "V", v)

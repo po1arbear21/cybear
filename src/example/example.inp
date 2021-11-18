@@ -1,5 +1,6 @@
 temperature = 300.0 : K
 n_intrin    = 1e10 : 1/cm^3
+area        = 1 : um^2
 
 [grid]
   x0 = -250 : nm

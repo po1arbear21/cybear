@@ -4,7 +4,7 @@ module example_ramo_m
   use example_charge_density_m,  only: charge_dens
   use example_contact_m,         only: contacts, grd_contacts, uncontacted
   use example_current_density_m, only: current_dens
-  use example_device_m,          only: eps, grd
+  use example_device_m,          only: area, eps, grd
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
   use grid_m,                    only: grid_data1_real, IDX_VERTEX
@@ -157,7 +157,7 @@ contains
 
       ! setting jaco_curr_dens
       do j = 1, size(contacts)
-        d_curr_dens(j,1) = ramo_nu(j)%get(idx2) - ramo_nu(j)%get(idx1)
+        d_curr_dens(j,1) = area * (ramo_nu(j)%get(idx2) - ramo_nu(j)%get(idx1))
       end do
       call this%jaco_curr_dens%set(dum, idx1, d_curr_dens)
 
