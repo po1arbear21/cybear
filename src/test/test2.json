@@ -1,0 +1,18 @@
+{
+  "property_name\"1": [
+    1,
+    2,
+    {
+      "pr\\operty_name2": "bs\"df",
+      "ddd":  5.0000000000000000E-01
+    },
+    [
+       1.2500000000000000E-01,
+      "stri\ng1",
+      true,
+      null
+    ],
+    "string2"
+  ],
+  "property_name3": 7
+}
