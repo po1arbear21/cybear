@@ -8,14 +8,14 @@ module example_mobility_m
   use grid_m,            only: grid_data1_real, IDX_EDGE, IDX_VERTEX
   use jacobian_m,        only: jacobian, jacobian_ptr
   use stencil_m,         only: near_neighb_stencil
-  use variable_m,        only: variable
+  use variable_m,        only: variable_real
 
   implicit none
 
   private
   public calc_mobil, mobil
 
-  type, extends(variable) :: mobility
+  type, extends(variable_real) :: mobility
     !! electron mobility
     real, pointer :: x(:) => null()
   contains

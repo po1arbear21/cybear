@@ -11,7 +11,7 @@ module test_esystem_prec_m
   use stencil_m,      only: dirichlet_stencil
   use test_case_m,    only: test_case
   use util_m,         only: int2str
-  use variable_m,     only: variable
+  use variable_m,     only: variable_real
   use vselector_m,    only: vselector
 
   implicit none
@@ -19,7 +19,7 @@ module test_esystem_prec_m
   private
   public test_esystem_prec
 
-  type, extends(variable) :: var
+  type, extends(variable_real) :: var
     type(grid_data1_real), pointer :: d => null()
   contains
     procedure :: init => var_init

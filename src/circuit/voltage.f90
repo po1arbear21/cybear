@@ -1,14 +1,14 @@
 module voltage_m
 
   use grid_m,     only: grid_data0_real
-  use variable_m, only: variable
+  use variable_m, only: variable_real
 
   implicit none
 
   private
   public voltage
 
-  type, extends(variable) :: voltage
+  type, extends(variable_real) :: voltage
     !! node voltage (potential)
     real, pointer :: x => null()
       !! pointer to value

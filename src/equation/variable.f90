@@ -3,18 +3,17 @@
 module variable_m
 
   use error_m,         only: assert_failed
-  use grid_m,          only: allocate_grid_data, grid, grid_data_real, grid_table, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_m,          only: allocate_grid_data, grid, grid_data_real, grid_data_cmplx, grid_table, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use grid0D_m,        only: get_dummy_grid
   use normalization_m, only: denorm, norm
 
   implicit none
 
   private
-  public variable, variable_ptr
+  public variable, variable_ptr, variable_real, variable_cmplx
 
   type, abstract :: variable
     !! base variable
-    !! derive for specific variable, e.g. potential...
 
     character(:), allocatable :: name
       !! name of variable
@@ -28,22 +27,41 @@ module variable_m
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer :: idx_dir
       !! index direction for edges and faces
-
-    class(grid_data_real), allocatable :: data
-      !! values
   contains
     procedure :: variable_init
-    procedure :: get_ptr     => variable_get_ptr
-    generic   :: get         => variable_get_point, variable_get_all
-    generic   :: set         => variable_set_point, variable_set_all
-    procedure :: output_data => variable_output_data
-
-    procedure, private :: variable_get_point, variable_get_all
-    procedure, private :: variable_set_point, variable_set_all
+    procedure :: get_ptr => variable_get_ptr
   end type
 
   type variable_ptr
     class(variable), pointer :: p => null()
+  end type
+
+  type, abstract, extends(variable) :: variable_real
+    !! real valued variable
+
+    class(grid_data_real), allocatable :: data
+      !! real values
+  contains
+    generic :: get => variable_real_get_point, variable_real_get_all
+    generic :: set => variable_real_set_point, variable_real_set_all
+
+    procedure :: output_data => variable_real_output_data
+
+    procedure, private :: variable_real_get_point, variable_real_get_all
+    procedure, private :: variable_real_set_point, variable_real_set_all
+  end type
+
+  type, abstract, extends(variable) :: variable_cmplx
+    !! complex valued variable
+
+    class(grid_data_cmplx), allocatable :: data
+      !! complex values
+  contains
+    generic :: get => variable_cmplx_get_point, variable_cmplx_get_all
+    generic :: set => variable_cmplx_set_point, variable_cmplx_set_all
+
+    procedure, private :: variable_cmplx_get_point, variable_cmplx_get_all
+    procedure, private :: variable_cmplx_set_point, variable_cmplx_set_all
   end type
 
 contains
@@ -82,8 +100,14 @@ contains
     end if
 
     ! allocate data
-    call allocate_grid_data(this%data, this%g%idx_dim)
-    call this%data%init(this%g, this%idx_type, this%idx_dir)
+    select type (this)
+    class is (variable_real)
+      call allocate_grid_data(this%data, this%g%idx_dim)
+      call this%data%init(this%g, this%idx_type, this%idx_dir)
+    class is (variable_cmplx)
+      call allocate_grid_data(this%data, this%g%idx_dim)
+      call this%data%init(this%g, this%idx_type, this%idx_dir)
+    end select
   end subroutine
 
   function variable_get_ptr(this) result(ptr)
@@ -94,49 +118,49 @@ contains
     ptr%p => this
   end function
 
-  function variable_get_point(this, idx) result(d)
+  function variable_real_get_point(this, idx) result(d)
     !! get data for single point with bounds check (out of bounds: return default value)
-    class(variable), intent(in) :: this
-    integer,         intent(in) :: idx(:)
+    class(variable_real), intent(in) :: this
+    integer,              intent(in) :: idx(:)
       !! grid indices
-    real                        :: d
+    real                             :: d
       !! return data
 
     d = this%data%get(idx)
   end function
 
-  function variable_get_all(this) result(d)
+  function variable_real_get_all(this) result(d)
     !! get data for all points in flat array
-    class(variable), intent(in) :: this
-    real                        :: d(this%data%n)
+    class(variable_real), intent(in) :: this
+    real                             :: d(this%data%n)
       !! return all data
 
     d = this%data%get()
   end function
 
-  subroutine variable_set_point(this, idx, d)
+  subroutine variable_real_set_point(this, idx, d)
     !! set data for single point with bounds check (do nothing if out of bounds)
-    class(variable), intent(inout) :: this
-    integer,         intent(in)    :: idx(:)
+    class(variable_real), intent(inout) :: this
+    integer,              intent(in)    :: idx(:)
       !! grid indices (idx_dim)
-    real,            intent(in)    :: d
+    real,                 intent(in)    :: d
       !! new value
 
     call this%data%set(idx, d)
   end subroutine
 
-  subroutine variable_set_all(this, d)
+  subroutine variable_real_set_all(this, d)
     !! set data for all points
-    class(variable), intent(inout) :: this
-    real,            intent(in)    :: d(:)
+    class(variable_real), intent(inout) :: this
+    real,                 intent(in)    :: d(:)
       !! new values
 
     call this%data%set(d)
   end subroutine
 
-  subroutine variable_output_data(this, fname, grd_unit, tab)
-    !! save variable's data into file as denormalized values.
-    class(variable), target,            intent(in) :: this
+  subroutine variable_real_output_data(this, fname, grd_unit, tab)
+    !! save variable data into file as denormalized values.
+    class(variable_real), target,       intent(in) :: this
     character(*),                       intent(in) :: fname
       !! file name, e.g. "output/tmp/pot.csv"
     character(*),             optional, intent(in) :: grd_unit
@@ -191,6 +215,46 @@ contains
       write (iounit, '(ES24.16)') denorm(this%get(idx), this%unit)
     end do
     close (unit = iounit)
+  end subroutine
+
+  function variable_cmplx_get_point(this, idx) result(d)
+    !! get data for single point with bounds check (out of bounds: return default value)
+    class(variable_cmplx), intent(in) :: this
+    integer,               intent(in) :: idx(:)
+      !! grid indices
+    complex                           :: d
+      !! return data
+
+    d = this%data%get(idx)
+  end function
+
+  function variable_cmplx_get_all(this) result(d)
+    !! get data for all points in flat array
+    class(variable_cmplx), intent(in) :: this
+    complex                           :: d(this%data%n)
+      !! return all data
+
+    d = this%data%get()
+  end function
+
+  subroutine variable_cmplx_set_point(this, idx, d)
+    !! set data for single point with bounds check (do nothing if out of bounds)
+    class(variable_cmplx), intent(inout) :: this
+    integer,               intent(in)    :: idx(:)
+      !! grid indices (idx_dim)
+    complex,               intent(in)    :: d
+      !! new value
+
+    call this%data%set(idx, d)
+  end subroutine
+
+  subroutine variable_cmplx_set_all(this, d)
+    !! set data for all points
+    class(variable_cmplx), intent(inout) :: this
+    complex,               intent(in)    :: d(:)
+      !! new values
+
+    call this%data%set(d)
   end subroutine
 
 end module

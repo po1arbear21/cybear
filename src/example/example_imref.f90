@@ -8,14 +8,14 @@ module example_imref_m
   use grid_m,              only: grid_data1_real, IDX_VERTEX
   use jacobian_m,          only: jacobian, jacobian_ptr
   use stencil_m,           only: dirichlet_stencil
-  use variable_m,          only: variable
+  use variable_m,          only: variable_real
 
   implicit none
 
   private
   public calc_dens, calc_iref, iref
 
-  type, extends(variable) :: imref
+  type, extends(variable_real) :: imref
     !! quasi-fermi-potential
     real, pointer :: x(:) => null()
   contains

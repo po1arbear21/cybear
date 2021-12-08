@@ -1,14 +1,14 @@
 module current_m
 
   use grid_m,     only: grid_data0_real
-  use variable_m, only: variable
+  use variable_m, only: variable_real
 
   implicit none
 
   private
   public current
 
-  type, extends(variable) :: current
+  type, extends(variable_real) :: current
     !! current through component
     real, pointer :: x => null()
       !! pointer to value

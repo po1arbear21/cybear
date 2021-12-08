@@ -8,21 +8,21 @@ module test_analysis_m
   use res_equation_m, only: res_equation
   use small_signal_m, only: small_signal
   use stencil_m,      only: dirichlet_stencil
-  use variable_m,     only: variable
+  use variable_m,     only: variable_real
 
   implicit none
 
   private
   public test_analysis
 
-  type, extends(variable) :: phi
+  type, extends(variable_real) :: phi
     !! pendulum angle
     real, pointer :: x => null()
   contains
     procedure :: init => phi_init
   end type
 
-  type, extends(variable) :: omega
+  type, extends(variable_real) :: omega
     !! pendulum angular velocity
     real, pointer :: x => null()
   contains

@@ -2,14 +2,14 @@ module example_potential_m
 
   use example_device_m,  only: grd
   use grid_m,            only: grid_data1_real, IDX_VERTEX
-  use variable_m,        only: variable
+  use variable_m,        only: variable_real
 
   implicit none
 
   private
   public pot, potential
 
-  type, extends(variable) :: potential
+  type, extends(variable_real) :: potential
     !! electric potential
     real, pointer :: x(:) => null()
   contains

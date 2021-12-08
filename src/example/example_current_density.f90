@@ -10,14 +10,14 @@ module example_current_density_m
   use jacobian_m,          only: jacobian, jacobian_ptr
   use math_m,              only: ber, dberdx
   use stencil_m,           only: dirichlet_stencil ,near_neighb_stencil
-  use variable_m,          only: variable
+  use variable_m,          only: variable_real
 
   implicit none
 
   private
   public current_dens, calc_current_dens
 
-  type, extends(variable) :: current_density
+  type, extends(variable_real) :: current_density
     !! electric current_density
     real, pointer :: x(:) => null()
   contains

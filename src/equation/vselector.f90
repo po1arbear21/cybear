@@ -6,7 +6,7 @@ module vselector_m
   use grid_m,          only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
   use iso_fortran_env, only: int64, int32
   use util_m,          only: hash
-  use variable_m,      only: variable, variable_ptr
+  use variable_m,      only: variable, variable_ptr, variable_real, variable_cmplx
 
   implicit none
 
@@ -32,8 +32,10 @@ module vselector_m
     type(grid_table_ptr), allocatable :: tab(:)
       !! pointers to selected grid tables
 
+    integer              :: nvar
+      !! number of variables: nvar = size(v)
     integer              :: nval
-      !! number of values per grid point: nval = size(v)
+      !! number of values per grid point
     integer              :: ntab
       !! number of tables/blocks: ntab = size(tab)
     integer, allocatable :: nvals(:)
@@ -110,13 +112,30 @@ contains
     end do
 #endif
 
-    ! get number of selected values
-    this%nval = size(v)
+    ! number of variables
+    this%nvar = size(v)
+
+    ! number of values per grid point
+    this%nval = 0
+    do i = 1, this%nvar
+      select type (v => v(i)%p)
+      class is (variable_real)
+        this%nval = this%nval + 1
+      class is (variable_cmplx)
+        this%nval = this%nval + 2 ! real + imag part
+      end select
+    end do
+
+    ! number of tables
     this%ntab = size(tab)
+
+    ! number of values per table
     allocate (this%nvals(size(tab)), source = 0)
     do itab = 1, this%ntab
       this%nvals(itab) = tab(itab)%p%n * this%nval
     end do
+
+    ! total number of values
     this%n = sum(this%nvals)
 
     ! initialize table index data
@@ -224,8 +243,13 @@ contains
       associate (tab => this%tab(itab_)%p)
         do i = 1, tab%n
           idx = tab%get_idx(i)
-          do j = 1, this%nval
-            call this%v(j)%p%data%set(idx, 0.0)
+          do j = 1, this%nvar
+            select type (v => this%v(j)%p)
+            class is (variable_real)
+              call v%data%set(idx, 0.0)
+            class is (variable_cmplx)
+              call v%data%set(idx, (0.0, 0.0))
+            end select
           end do
         end do
       end associate
@@ -246,8 +270,9 @@ contains
     if (.not. associated(this%g, other%g)) return
     if (this%idx_type /= other%idx_type) return
     if (this%idx_dir /= other%idx_dir) return
+    if (this%nvar /= other%nvar) return
     if (this%nval /= other%nval) return
-    do i = 1, this%nval
+    do i = 1, this%nvar
       if (.not. associated(this%v(i)%p, other%v(i)%p)) return
     end do
     if (this%ntab /= other%ntab) return
@@ -333,10 +358,21 @@ contains
     real                         :: x(this%nval)
       !! return variable data at idx
 
-    integer :: i
+    integer :: i, j
+    complex :: c
 
-    do i = 1, this%nval
-      x(i) = this%v(i)%p%get(idx)
+    j = 1
+    do i = 1, this%nvar
+      select type (v => this%v(i)%p)
+      class is (variable_real)
+        x(j) = v%get(idx)
+        j = j + 1
+      class is (variable_cmplx)
+        c      = v%get(idx)
+        x(j  ) = real(c)
+        x(j+1) = aimag(c)
+        j = j + 2
+      end select
     end do
   end function
 
@@ -385,12 +421,20 @@ contains
     real,             intent(in)    :: x(:)
       !! new variable data (nval)
 
-    integer :: i
+    integer :: i, j
 
     ASSERT(size(x) == this%nval)
 
-    do i = 1, this%nval
-      call this%v(i)%p%set(idx, x(i))
+    j = 1
+    do i = 1, this%nvar
+      select type (v => this%v(i)%p)
+      class is (variable_real)
+        call v%set(idx, x(j))
+        j = j + 1
+      class is (variable_cmplx)
+        call v%set(idx, complex(x(j), x(j+1)))
+        j = j + 2
+      end select
     end do
   end subroutine
 
@@ -445,12 +489,20 @@ contains
     real,             intent(in)    :: dx(:)
       !! delta variable data (nval)
 
-    integer :: i
+    integer :: i, j
 
     ASSERT(size(dx) == this%nval)
 
+    j = 1
     do i = 1, this%nval
-      call this%v(i)%p%data%update(idx, dx(i))
+      select type (v => this%v(i)%p)
+      class is (variable_real)
+        call v%data%update(idx, dx(j))
+        j = j + 1
+      class is (variable_cmplx)
+        call v%data%update(idx, complex(dx(j), dx(j+1)))
+        j = j + 2
+      end select
     end do
   end subroutine
 

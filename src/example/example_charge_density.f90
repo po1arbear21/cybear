@@ -8,14 +8,14 @@ module example_charge_density_m
   use grid_m,            only: grid_data1_real, IDX_VERTEX
   use jacobian_m,        only: jacobian, jacobian_ptr
   use stencil_m,         only: dirichlet_stencil
-  use variable_m,        only: variable
+  use variable_m,        only: variable_real
 
   implicit none
 
   private
   public calc_charge_dens, charge_dens
 
-  type, extends(variable) :: charge_density
+  type, extends(variable_real) :: charge_density
     !! charge density
     real, pointer :: x(:) => null()
   contains

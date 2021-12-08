@@ -9,7 +9,7 @@ module test_esystem_m
   use res_equation_m, only: res_equation
   use stencil_m,      only: dirichlet_stencil
   use test_case_m,    only: test_case
-  use variable_m,     only: variable
+  use variable_m,     only: variable_real
   use vselector_m,    only: vselector
 
   implicit none
@@ -17,7 +17,7 @@ module test_esystem_m
   private
   public test_esystem
 
-  type, extends(variable) :: var
+  type, extends(variable_real) :: var
     type(grid_data1_real), pointer :: d => null()
   contains
     procedure :: init => var_init

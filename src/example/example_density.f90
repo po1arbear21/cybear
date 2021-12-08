@@ -3,14 +3,14 @@ module example_density_m
   use example_device_m,    only: grd
   use example_potential_m, only: pot
   use grid_m,              only: grid_data1_real, IDX_VERTEX
-  use variable_m,          only: variable
+  use variable_m,          only: variable_real
 
   implicit none
 
   private
   public dens
 
-  type, extends(variable) :: density
+  type, extends(variable_real) :: density
     !! density
     real, pointer :: x(:) => null()
   contains
