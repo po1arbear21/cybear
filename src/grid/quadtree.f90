@@ -128,7 +128,7 @@ contains
     real    :: vert(2,3), c(2)
     logical :: overlap
 
-    ! check if any of the triangle’s vertices are within the node
+    ! check if any of the triangle's vertices are within the node
     res = .true.
     do i=1, 3
       ivert = this%cell2vert(i, itriang)
