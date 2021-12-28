@@ -13,24 +13,24 @@ submodule(triang_grid_m) quadtree_sm
 
 contains
 
-  module subroutine node_contain_pnt(this, pnt, res, wEDGE)
+  module subroutine node_contain_pnt(this, pnt, res, with_edge)
     !! check if pnt lies within bnds of node
     class(node), intent(in)  :: this
     real,        intent(in)  :: pnt(2)
     logical,     intent(out) :: res
-    logical,     intent(in), optional :: wEDGE
+    logical,     intent(in), optional :: with_edge
       !! return res=true if pnt lies on a edge of node
       !! default: false  
 
     integer :: i
-    logical :: wEDGE_
+    logical :: with_edge_
 
-    wEDGE_ = .false.
-    if (present(wEDGE)) wEDGE_ = wEDGE
+    with_edge_ = .false.
+    if (present(with_edge)) with_edge_ = with_edge
 
     res = .false.
     do i=1, 2
-      if (wEDGE_) then
+      if (with_edge_) then
         if (pnt(i) < this%bnds(i, LOWER)) return
         if (pnt(i) > this%bnds(i, UPPER)) return
       else 
@@ -43,27 +43,27 @@ contains
 
   module subroutine quadtree_init(this, g)
     !! int quadtree
-
     class(quadtree),   intent(out) :: this
     type(triang_grid), intent(in)  :: g
 
-    integer    :: i
+    integer    :: i, Ntri
     type(node) :: n1
 
-    allocate (this%itr(size(g%cell2vert(1,:))))
-    this%itr       = [(i, i=1, size(this%itr))]
+    ! store grid data
     this%cell2vert = g%cell2vert
     this%vert      = g%vert
-
+    Ntri           = size(g%cell2vert(1,:))
+    call this%itr_vec%init(Ntri, c=5*Ntri, x=[(i, i=1, Ntri)])
+    
     call this%nodes%init(0, c=128)
-
+    
     ! init first node
     do i=1, 2
       n1%bnds(i,:) = [minval(g%vert(i,:)), maxval(g%vert(i,:))]
     end do
     n1%ichild = 0
-    allocate (n1%itr(size(this%itr)))
-    n1%itr    = this%itr
+    n1%ilower = 1
+    n1%iupper = Ntri
     call this%nodes%push(n1)
 
     ! subdivide first node
@@ -80,34 +80,37 @@ contains
     integer          :: i, ix, iy
     real             :: dr(2)
     type(node)       :: nchild(2,2)
-    type(vector_int) :: itr_vec
+    type(vector_int) :: itr_vec_
 
-    if (size(n%itr) <= Nmax) then
+    if (n%iupper-n%ilower+1 <= Nmax) then
       !! leaf found
       n%ichild = 0
       return
     end if
 
+    ! create children
     n%ichild = this%nodes%n + 1
 
-    ! create children
     dr = 0.5*(n%bnds(:,2)-n%bnds(:,1))
     do ix=1, 2; do iy=1, 2
       nchild(ix,iy)%bnds(:,1) = n%bnds(:,1) + [ix-1, iy-1]*dr ! lower, left corner
       nchild(ix,iy)%bnds(:,2) = nchild(ix,iy)%bnds(:,1) + dr
       
-      ! nchild%itr <- n%itr
-      call itr_vec%init(0, c=size(n%itr))
-      do i=1, size(n%itr)
-        if (this%overlap(nchild(ix,iy), n%itr(i))) call itr_vec%push(n%itr(i)) ! push triangles overlapping with the node nchild
+      ! determine which triangles are within bnds of nchild(ix,iy)
+      call itr_vec_%init(0, c=n%iupper-n%ilower+1)
+      do i=n%ilower, n%iupper
+        if (this%overlap(nchild(ix,iy), this%itr_vec%d(i))) call itr_vec_%push(this%itr_vec%d(i)) 
+          !! push triangles overlapping with bnds of nchild
       end do
-      nchild(ix,iy)%itr = itr_vec%to_array()    
-      call itr_vec%destruct()
-      call this%nodes%push(nchild(ix,iy))
-    end do; end do
 
-    ! only leafs should have itr
-    deallocate (n%itr)
+      ! store indices of overlapping triangles in this%itr_vec 
+      nchild(ix,iy)%ilower = this%itr_vec%n + 1
+      nchild(ix,iy)%iupper = this%itr_vec%n + itr_vec_%n
+      call this%itr_vec%push(itr_vec_%to_array())
+      
+      call this%nodes%push(nchild(ix,iy))
+      call itr_vec_%destruct()
+    end do; end do
 
     ! subdivide children if possible
     do ix=1, 2; do iy=1, 2
@@ -211,18 +214,16 @@ contains
 
     icell = 0 ! not found
 
-    i = 1
-    k = 0
-
+    i = 1; k = 0
     do while(i <= this%nodes%n)
-      call this%nodes%d(i)%contain_pnt(pnt, within_node, wEDGE=.true.)
+      call this%nodes%d(i)%contain_pnt(pnt, within_node, with_edge=.true.)
       if (within_node) then
         if (this%nodes%d(i)%ichild == 0) then
           !! leaf found
 
           ! iterate through triangles of node and find the correct one
-          do j=1, size(this%nodes%d(i)%itr)
-            itr = this%nodes%d(i)%itr(j)
+          do j=this%nodes%d(i)%ilower, this%nodes%d(i)%iupper
+            itr = this%itr_vec%d(j)
             do l=1, 3
               vert(:,l) = this%vert(:,this%cell2vert(l, itr))
             end do
@@ -255,7 +256,7 @@ contains
       if (this%nodes%d(i)%ichild == 0) then
         print '(F6.2, x, F6.2, x, F6.2, x, F6.2, I3)', this%nodes%d(i)%bnds(1,1), this%nodes%d(i)%bnds(1,2), &
                                                       &this%nodes%d(i)%bnds(2,1), this%nodes%d(i)%bnds(2,2), &
-                                                      &size(this%nodes%d(i)%itr)
+                                                      &(this%nodes%d(i)%iupper - this%nodes%d(i)%ilower + 1)
       end if
     end do
   end subroutine

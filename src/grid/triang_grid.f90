@@ -2,7 +2,7 @@
 
 module triang_grid_m
 
-  use error_m,         only: assert_failed
+  use error_m,         only: assert_failed, program_error
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use math_m,          only: cross_product_2d
   use normalization_m, only: denorm
@@ -43,9 +43,6 @@ module triang_grid_m
 
     type(quadtree), allocatable :: qtree
       !! quadtree, purpose: searching for triangles
-    logical                     :: qtree_init
-      !! has qtree been intialized?
-      !! default: .false.
   contains
     procedure :: init           => triang_grid_init
     procedure :: get_icell      => triang_grid_get_icell
@@ -65,13 +62,14 @@ module triang_grid_m
   end type
 
   type node
-    integer, allocatable :: itr(:)
-      !! idx of triangles that are within the node
-    integer              :: ichild
+    integer :: ilower, iupper
+      !! vars give indices of all triangles that are within the node,
+      !!  i.e. quadtree%itr_vec%d(ilower:iupper) == all triangle indices
+    integer :: ichild
       !! index of childrens in quadtree%n(:)
       !! ichild = 0 (no children)
       !!        = i (nodes i, i+1, i+2, i+3 are children)
-    real                 :: bnds(2,2)
+    real    :: bnds(2,2)
       !! axis-aligned boundaries
       !! 1st index: x-  (=: 1) or y-range   (=: 2)
       !! 2nd index: min (=: 1) or max value (=: 2)
@@ -91,8 +89,10 @@ module triang_grid_m
       !! size(3,ncell)
     real,    allocatable :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
-    type(vector_node) :: nodes
+    type(vector_node)    :: nodes
       !! nodes of quadtree
+    type(vector_int)     :: itr_vec
+      !! vector containing the triangle indices of all nodes 
   contains
     procedure :: init       => quadtree_init
     procedure :: subdivide  => quadtree_subdivide
@@ -103,14 +103,14 @@ module triang_grid_m
 
   ! interface to submodule routines in grid/quadtree.f90
   interface
-    module subroutine node_contain_pnt(this, pnt, res, wEDGE)
+    module subroutine node_contain_pnt(this, pnt, res, with_edge)
       !! check if pnt lies within bnds of node
       class(node), intent(in)  :: this
       real,        intent(in)  :: pnt(2)
       logical,     intent(out) :: res
-      logical,     intent(in), optional :: wEDGE
+      logical,     intent(in), optional :: with_edge
     end subroutine
-    
+
     module subroutine quadtree_init(this, g)
       !! int quadtree
 
@@ -172,8 +172,6 @@ contains
 
     ASSERT(2 == size(vert,  dim=1))
     ASSERT(3 == size(icell, dim=1))
-
-    this%qtree_init = .false.
 
     ! init base
     call this%grid_init(2, 1, [2], 3)
@@ -314,13 +312,13 @@ contains
     integer,            intent(out)   :: icell
       !! idx of triangle
 
-    if (.not. this%qtree_init) then
+    if (.not. allocated(this%qtree)) then
       allocate (this%qtree)
       call this%qtree%init(this)
-      this%qtree_init = .true.
     end if
 
-    icell =  this%qtree%lookup_pnt(pnt)
+    icell = this%qtree%lookup_pnt(pnt)
+    if (icell == 0) call program_error('Error! Subroutine get_icell in type triang_grid was not able to find icell.')
   end subroutine
 
   subroutine triang_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
