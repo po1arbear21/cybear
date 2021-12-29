@@ -89,8 +89,8 @@ module triang_grid_m
       !! size(3,ncell)
     real,    allocatable :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
-    integer              :: Nnodes
-      !! maximum #nodes in quadtree. default: 256
+    integer              :: Ntri_max
+      !! maximum #triangles associated with a node. default: 4
     type(vector_node)    :: nodes
       !! nodes of quadtree
     type(vector_int)     :: itr_vec
@@ -113,12 +113,14 @@ module triang_grid_m
       logical,     intent(in), optional :: with_edge
     end subroutine
 
-    module subroutine quadtree_init(this, g, Nnodes)
+    module subroutine quadtree_init(this, g, Ntri_max, Nnodes)
       !! int quadtree
       class(quadtree),   intent(out) :: this
       type(triang_grid), intent(in)  :: g
+      integer,           intent(in)  :: Ntri_max
+        !! maximum #triangles associated with a node
       integer,           intent(in)  :: Nnodes
-      !! maximum #nodes in quadtree
+        !! maximum #nodes in quadtree
     end subroutine
 
     module subroutine quadtree_subdivide(this, n)
@@ -307,23 +309,28 @@ contains
     end function
   end subroutine
 
-  subroutine triang_grid_get_icell(this, pnt, icell, Nnodes)
+  subroutine triang_grid_get_icell(this, pnt, icell, Nnodes, Ntri_max)
     !! get cell idx of triangle that contains point pnt
     class(triang_grid), intent(inout) :: this
     real,               intent(in)    :: pnt(2)
       !! pnt = [x, y]
     integer,            intent(out)   :: icell
       !! idx of triangle
+    integer,            intent(in), optional :: Ntri_max
+      !! maximum #triangles associated with a node. default: 4
     integer,            intent(in), optional :: Nnodes
       !! maximum #nodes in quadtree. default: 256
 
-    integer :: Nnodes_
+    integer :: Nnodes_, Ntri_max_
 
     if (.not. allocated(this%qtree)) then
+      Ntri_max_ = 4
+      Nnodes_   = 256
+      if (present(Ntri_max)) Ntri_max_ = Ntri_max
+      if (present(Nnodes  )) Nnodes_   = Nnodes
+      
       allocate (this%qtree)
-      Nnodes_ = 256
-      if (present(Nnodes)) Nnodes_ = Nnodes
-      call this%qtree%init(this, Nnodes_)
+      call this%qtree%init(this, Nnodes_, Ntri_max_)
     end if
 
     icell = this%qtree%lookup_pnt(pnt)

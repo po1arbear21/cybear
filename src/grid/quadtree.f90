@@ -41,10 +41,12 @@ contains
     res = .true.
   end subroutine
 
-  module subroutine quadtree_init(this, g, Nnodes)
+  module subroutine quadtree_init(this, g, Ntri_max, Nnodes)
     !! int quadtree
     class(quadtree),   intent(out) :: this
     type(triang_grid), intent(in)  :: g
+    integer,           intent(in)  :: Ntri_max
+      !! maximum #triangles associated with a node
     integer,           intent(in)  :: Nnodes
       !! maximum #nodes in quadtree
 
@@ -57,6 +59,8 @@ contains
     Ntri           = size(g%cell2vert(1,:))
     call this%itr_vec%init(Ntri, c=5*Ntri, x=[(i, i=1, Ntri)])
     
+    ! init quadtree
+    this%Ntri_max = Ntri_max
     call this%nodes%init(0, c=Nnodes)
     
     ! init first node
@@ -88,7 +92,7 @@ contains
     type(node)       :: nchild(2,2)
     type(vector_int) :: itr_vec_
 
-    if (n%iupper-n%ilower+1 <= Nmax) then
+    if (n%iupper-n%ilower+1 <= this%Ntri_max) then
       !! leaf found
       n%ichild = 0
       return
