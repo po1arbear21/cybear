@@ -8,7 +8,7 @@ submodule(triang_grid_m) quadtree_sm
   ! for better readability:
   integer, parameter :: LOWER = 1, UPPER = 2
   integer, parameter :: X_IDX = 1, Y_IDX = 2
-  integer, parameter :: Nmax = 4
+  integer, parameter :: Nmax  = 4
     !! maximum #triangles associated with a node
 
 contains
@@ -41,10 +41,12 @@ contains
     res = .true.
   end subroutine
 
-  module subroutine quadtree_init(this, g)
+  module subroutine quadtree_init(this, g, Nnodes)
     !! int quadtree
     class(quadtree),   intent(out) :: this
     type(triang_grid), intent(in)  :: g
+    integer,           intent(in)  :: Nnodes
+      !! maximum #nodes in quadtree
 
     integer    :: i, Ntri
     type(node) :: n1
@@ -55,7 +57,7 @@ contains
     Ntri           = size(g%cell2vert(1,:))
     call this%itr_vec%init(Ntri, c=5*Ntri, x=[(i, i=1, Ntri)])
     
-    call this%nodes%init(0, c=128)
+    call this%nodes%init(0, c=Nnodes)
     
     ! init first node
     do i=1, 2
@@ -66,11 +68,15 @@ contains
     n1%iupper = Ntri
     call this%nodes%push(n1)
 
-    ! subdivide first node
-    call this%subdivide(this%nodes%d(1))
+    ! create quadtree
+    do i=1, Nnodes
+      if (i > this%nodes%n) exit
+      call this%subdivide(this%nodes%d(i))
+      if (this%nodes%n > Nnodes) call program_error('The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.')
+    end do 
   end subroutine
 
-  module recursive subroutine quadtree_subdivide(this, n)
+  module subroutine quadtree_subdivide(this, n)
     !! subdivide node into its 4 children if necessary
 
     class(quadtree), intent(inout) :: this
@@ -111,14 +117,8 @@ contains
       call this%nodes%push(nchild(ix,iy))
       call itr_vec_%destruct()
     end do; end do
-
-    ! subdivide children if possible
-    do ix=1, 2; do iy=1, 2
-      i = n%ichild-1 + ix + 2*(iy-1)
-      call this%subdivide(this%nodes%d(i))
-    end do; end do
   end subroutine
-
+ 
   module function quadtree_overlap(this, n, itriang) result(res)
     class(quadtree), intent(in) :: this
     type(node),      intent(in) :: n

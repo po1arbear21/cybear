@@ -473,7 +473,7 @@ contains
         call g%get_icell([0.5, 0.8], itr)
         call tc%assert_eq(4, itr, "triang_grid: get_icell 4")
         call g%get_icell([0.5, 1.2], itr)
-        call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
+        call tc%assert_eq(6, itr, "triang_grid: get_icell 6") 
       end block 
 
       ! testing get_idx_bnd

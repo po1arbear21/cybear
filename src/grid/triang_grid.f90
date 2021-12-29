@@ -89,6 +89,8 @@ module triang_grid_m
       !! size(3,ncell)
     real,    allocatable :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
+    integer              :: Nnodes
+      !! maximum #nodes in quadtree. default: 256
     type(vector_node)    :: nodes
       !! nodes of quadtree
     type(vector_int)     :: itr_vec
@@ -111,14 +113,15 @@ module triang_grid_m
       logical,     intent(in), optional :: with_edge
     end subroutine
 
-    module subroutine quadtree_init(this, g)
+    module subroutine quadtree_init(this, g, Nnodes)
       !! int quadtree
-
       class(quadtree),   intent(out) :: this
       type(triang_grid), intent(in)  :: g
+      integer,           intent(in)  :: Nnodes
+      !! maximum #nodes in quadtree
     end subroutine
 
-    module recursive subroutine quadtree_subdivide(this, n)
+    module subroutine quadtree_subdivide(this, n)
       !! subdivide node into its 4 children
 
       class(quadtree), intent(inout) :: this
@@ -304,17 +307,23 @@ contains
     end function
   end subroutine
 
-  subroutine triang_grid_get_icell(this, pnt, icell)
+  subroutine triang_grid_get_icell(this, pnt, icell, Nnodes)
     !! get cell idx of triangle that contains point pnt
     class(triang_grid), intent(inout) :: this
     real,               intent(in)    :: pnt(2)
       !! pnt = [x, y]
     integer,            intent(out)   :: icell
       !! idx of triangle
+    integer,            intent(in), optional :: Nnodes
+      !! maximum #nodes in quadtree. default: 256
+
+    integer :: Nnodes_
 
     if (.not. allocated(this%qtree)) then
       allocate (this%qtree)
-      call this%qtree%init(this)
+      Nnodes_ = 256
+      if (present(Nnodes)) Nnodes_ = Nnodes
+      call this%qtree%init(this, Nnodes_)
     end if
 
     icell = this%qtree%lookup_pnt(pnt)
