@@ -74,7 +74,7 @@ contains
         ! setting contacted const jacobian entries
         call this%jaco_current_dens%add( idx1, idx0, -1.0)
         call this%jaco_current_dens%add( idx1, idx1,  1.0)
-        call this%jaco_dens_t%set(       idx1, idx1, adj_v%get(idx1))
+        call this%jaco_dens_t%set(       idx1, idx1,  adj_v%get(idx1))
       else
         ! setting uncontacted const jacobian entries
         call this%jaco_dens%set(idx1, idx1, 1.0)
