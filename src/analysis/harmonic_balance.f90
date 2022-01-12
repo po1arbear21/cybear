@@ -44,17 +44,18 @@ contains
       !! number of harmonics
     real,                          intent(in)    :: freq(:)
       !! frequencies to analyze
-    class(periodic_src),           intent(inout) :: input
-      !! periodic input source (input%freq may get changed)
+    class(periodic_src),           intent(in)    :: input
+      !! periodic input source (input%freq is ignored)
     type(newton_opt),    optional, intent(in)    :: nopt
       !! options for the newton solver (size must be sys%n)
     integer,             optional, intent(in)    :: nt
       !! number of time steps for numerical integration (default: 0 => adaptive integration)
 
-    integer           :: ifreq, nfreq, it, it0, it1, nt0, nt1, k, l
-    real              :: dum(0)
-    real, allocatable :: t(:), w(:,:), sol(:), sol0(:), xi(:), fi(:), ff(:,:), ff_old(:,:)
-    type(newton_opt)  :: nopt_
+    integer                          :: ifreq, nfreq, it, it0, it1, nt0, nt1, k, l
+    real                             :: dum(0)
+    real, allocatable                :: t(:), w(:,:), sol(:), sol0(:), xi(:), fi(:), ff(:,:), ff_old(:,:)
+    type(newton_opt)                 :: nopt_
+    class(periodic_src), allocatable :: input_
 
     type(sparse_real), target              :: dft, dfi, dg
     type(sparse_real), target, allocatable :: dff(:)
@@ -84,7 +85,8 @@ contains
     end if
 
     ! normalize input source frequency
-    input%freq = 1.0
+    input_ = input
+    input_%freq = 1.0
 
     ! set members
     this%sys  => sys
@@ -276,7 +278,7 @@ contains
 
           ! evaluate equation system
           call sys%set_x(xi)
-          call sys%set_input(input%get(t(it)))
+          call sys%set_input(input_%get(t(it)))
           call sys%eval(f = fi, df = dfi)
 
           ! update residual fourier coefficients

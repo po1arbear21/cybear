@@ -113,8 +113,8 @@ contains
         cap = 0
         ! sum over the grid
         do k = 1, size(grd%x)-1
-          cap = cap + (ramo_nu(i)%get([k]) - ramo_nu(i)%get([k+1])) * (ramo_nu(j)%get([k]) - ramo_nu(j)%get([k+1])) &
-            & * grd%get_len([k], idx_dir = 1) * eps%get([k])
+          cap = cap + (ramo_nu(i)%get([k+1]) - ramo_nu(i)%get([k])) * (ramo_nu(j)%get([k+1]) - ramo_nu(j)%get([k])) &
+            &  * area * eps%get([k]) / grd%get_len([k], idx_dir = 1)
         end do
         ramo_cap(i, j) = cap
         ramo_cap(j, i) = cap
@@ -157,11 +157,11 @@ contains
 
       ! setting jaco_curr_dens
       do j = 1, size(contacts)
-        d_curr_dens(j,1) = area * (ramo_nu(j)%get(idx2) - ramo_nu(j)%get(idx1))
+        d_curr_dens(j,1) = - area * (ramo_nu(j)%get(idx2) - ramo_nu(j)%get(idx1))
       end do
       call this%jaco_curr_dens%set(dum, idx1, d_curr_dens)
-
     end do
+
     ! setting jaco_volt
     call this%jaco_volt%set(dum, dum, -ramo_cap)
 

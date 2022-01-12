@@ -12,14 +12,15 @@ module example_steady_state_m
   use example_mobility_m,        only: calc_mobil, mobil
   use example_poisson_m,         only: pois
   use example_potential_m,       only: pot
-  use example_ramo_m,            only: ramo_init
+  use example_ramo_m,            only: ramo_init, ramo_eq
   use harmonic_balance_m,        only: harmonic_balance
   use input_m,                   only: input_file
-  use input_src_m,               only: const_src, harmonic_src
-  use math_m,                    only: logspace
+  use input_src_m,               only: const_src, harmonic_src, input_src, periodic_src
+  use math_m,                    only: interp1, logspace, linspace
   use newton_m,                  only: newton_opt
   use normalization_m,           only: denorm, norm
   use steady_state_m,            only: steady_state
+  use transient_m,               only: transient
 
   implicit none
 
@@ -27,17 +28,22 @@ module example_steady_state_m
   public init_configuration
   public init_dd, init_full, init_nlpe
   public solve_full_newton, solve_gummel, solve_nlpe, solve_harmonic_balance
+  public solve_transient_full_newton
+  public sys_dd, sys_full, sys_nlpe
   public output
 
-  type(esystem)      :: sys_dd, sys_full, sys_nlpe
-  type(input_file)   :: f
-  type(newton_opt)   :: opt_dd, opt_full, opt_nlpe, opt_hb
-  type(steady_state) :: steady_dd, steady_full, steady_nlpe
+  type(esystem)          :: sys_dd, sys_full, sys_nlpe
+  type(input_file)       :: f
+  type(newton_opt)       :: opt_dd, opt_full, opt_nlpe, opt_hb
+  type(steady_state)     :: steady_dd, steady_full, steady_nlpe
+  type(harmonic_balance) :: hb
 
 contains
 
   subroutine init_configuration(file_src)
     character(*), intent(in) :: file_src
+    integer                  :: i
+    real, allocatable        :: volt(:)
 
     ! init input file
     call f%init(file_src)
@@ -66,7 +72,15 @@ contains
     call calc_mobil%init()
 
     ! init fundamental solution
+    allocate (volt(size(contacts)))
+    volt = [(contacts(i)%volt%x, i = 1, size(contacts))]
     call ramo_init()
+    do i = 1, size(contacts)
+      contacts(i)%volt%x = volt(i)
+    end do
+
+    ! init ramo_eq
+    call ramo_eq%init()
   end subroutine
 
   subroutine init_dd()
@@ -158,6 +172,7 @@ contains
     call sys_full%add_equation(calc_current_dens)
     call sys_full%add_equation(calc_mobil)
     call sys_full%add_equation(calc_iref)
+    call sys_full%add_equation(ramo_eq)
 
     ! provide variables
     do i = 1, size(contacts)
@@ -177,13 +192,17 @@ contains
     opt_full%rtol = rtol
   end subroutine
 
-  subroutine solve_nlpe()
+  subroutine solve_nlpe(input)
     !! solve the non-linear poisson system
-    call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe)
+    class(input_src), optional, intent(in) :: input
+      !! optional input
+
+    call steady_nlpe%run(sys_nlpe, nopt = opt_nlpe, input = input)
   end subroutine
 
   subroutine solve_gummel()
     !! solve the gummel system
+
     integer           :: max_it, i
     real              :: error, atol
     real, allocatable :: iref0(:), pot0(:)
@@ -211,36 +230,99 @@ contains
     if (i > max_it .and. error > atol) call program_error("max number of iterations reached")
   end subroutine
 
-  subroutine solve_full_newton()
+  subroutine solve_full_newton(input)
     !! solve the full newton system
-    integer         :: i
-    type(const_src) :: input
-
-    ! init constant input source (voltages)
-    call input%init([(contacts(i)%volt%x, i = 1, size(contacts))])
+    class(input_src), optional, intent(in) :: input
+      !! optional input
 
     ! solve steady-state
     call steady_full%run(sys_full, nopt = opt_full, input = input)
   end subroutine
 
-  subroutine solve_harmonic_balance()
-    integer                :: i, nH
-    real                   :: c(2,0:1), s(2,1)
-    real, allocatable      :: freq(:)
-    type(harmonic_src)     :: input
-    type(harmonic_balance) :: hb
+  subroutine solve_transient_full_newton(trans, input, t_0, t_1, delta_t)
+    class(transient),           intent(inout) :: trans
+      !! transient method
+    class(input_src), optional, intent(in)    :: input
+      !! optional input
+    real,                       intent(in)    :: t_0
+      !! starting time
+    real,                       intent(in)    :: t_1
+      !! endig time
+    real,                       intent(in)    :: delta_t
+      !! time steps
 
-    ! init sine input source (voltages)
-    c(:,0) = [(contacts(i)%volt%x, i = 1, size(contacts))]
-    c(:,1) = 0
-    s(:,1) = norm([0.0, 0.05], "V")
-    call input%init(norm(1.0, "THz"), c, s)
+    call trans%init(sys_full, t_0, t_1, delta_t = delta_t, nopt = opt_full, adaptive = .true.)
+    call trans%run( input = input)
+    print *, "done "//trans%name
+    call transient_full_output_current(trans)
+  end subroutine
 
-    ! harmonic balance
-    nH = 2
-    freq = logspace(norm(1e9, "Hz"), norm(1e15, "Hz"), 101)
-    call opt_hb%init(sys_full%n*(1+2*nH), atol = 1e-12, rtol = 1e-10, log = .true., max_it = 20)
+  subroutine transient_full_output_current(trans)
+    !! output drain current for a given time window
+    class(transient), intent(inout) :: trans
+      !! transient method
+
+    integer :: i, iounit, p(0)
+
+    open (newunit = iounit, file = trans%name//"_full.csv", action = "write")
+    do i = lbound(trans%t, dim = 1), ubound(trans%t, dim = 1)
+      call trans%select(i)
+      write (iounit, '(ES24.16)', advance = "no") denorm(trans%t(i), "s")
+      write (iounit, '(ES24.16)') denorm(contacts(2)%curr%get(p), "A")
+    end do
+    close (unit = iounit)
+  end subroutine
+
+  subroutine solve_harmonic_balance(input, t_0, t_1, delta_t)
+    class(periodic_src), intent(in) :: input
+      !! optional input
+    real,                intent(in) :: t_0
+      !! starting time
+    real,                intent(in) :: t_1
+      !! endig time
+    real,                intent(in) :: delta_t
+      !! time step
+
+    integer           :: nH, nfreq
+    real, allocatable :: freq(:)
+
+    ! number of harmonics
+    nH = 3
+
+    ! frequencies
+    nfreq = 1 ! 101
+    allocate (freq(nfreq))
+    ! freq = logspace(norm(1e9, "Hz"), norm(1e15, "Hz"), nfreq)
+    freq = [input%freq]
+
+    ! solve harmonic balance
+    call opt_hb%init(sys_full%n*(1+2*nH), atol = 1e-10, rtol = 1e-10, log = .true., max_it = 20)
     call hb%run(sys_full, nH, freq, input, nopt = opt_hb)
+    call harmonic_balance_output_current(t_0, t_1, delta_t)
+  end subroutine
+
+  subroutine harmonic_balance_output_current(t_0, t_1, delta_t)
+    real, intent(in) :: delta_t
+      !! resolution of the output
+    real, intent(in) :: t_0
+      !! starting time
+    real, intent(in) :: t_1
+      !! ending time
+
+    integer           :: funit, p(0), i, n
+    real, allocatable :: t(:)
+
+    n = int((t_1 - t_0)/delta_t) + 1
+    allocate (t(n))
+    t = linspace(t_0, t_1, n)
+
+    open (newunit = funit, file = "harmonic_balance.csv", action = "write")
+    do i = 1, n
+      call hb%select_time(t(i))
+      write (funit, '(ES24.16)', advance = "no") denorm(t(i), "s")
+      write (funit, '(ES24.16)') denorm(contacts(2)%curr%get(p), "A")
+    end do
+    close (unit = funit)
   end subroutine
 
   subroutine output()
