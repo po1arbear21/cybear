@@ -24,6 +24,7 @@ module math_m
   public norm_inf
   public phi1, dphi1dx, phi2, dphi2dx
   public roots
+  public polyg_area_2d
 
   real, parameter :: PI = 3.141592653589793238462643
 
@@ -485,5 +486,23 @@ contains
     r = r(perm)
   end function
 
+  function polyg_area_2d(p) result(A)
+    !! calculate the area of an arbitrary polygon in 2D
+    real, intent(in) :: p(:,:)
+      !! points of polygon
+    real             :: A
+      !! area of polygon
+
+    integer :: i, n
+
+    ASSERT(size(p, 1) == 2)
+    n = size(p, 2) 
+
+    A = 0.0
+    do i=1, n-1
+      A = A + cross_product_2d(p(:,i), p(:,i+1))
+    end do
+    A = 0.5*abs(A + cross_product_2d(p(:,n), p(:,1)))
+  end function
 
 end module
