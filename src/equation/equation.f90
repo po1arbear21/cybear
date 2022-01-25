@@ -254,7 +254,7 @@ contains
     end if
   end subroutine
 
-  function equation_init_jaco(this, iprov, idep, st, const, zero, valmsk, precon) result(jaco)
+  function equation_init_jaco(this, iprov, idep, st, const, zero, valmsk, valmsk_tab, precon) result(jaco)
     !! allocate and initialize jacobian
     class(equation),             intent(inout) :: this
     integer,                     intent(in)    :: iprov
@@ -269,6 +269,8 @@ contains
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
     logical,           optional, intent(in)    :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
+    logical,           optional, intent(in)    :: valmsk_tab(:,:,:,:)
+      !! value mask per block (v1%nval x v2%nval x v1%ntab x v2%ntab)
     logical,           optional, intent(in)    :: precon
       !! create preconditioner jacobian; default = false
     type(jacobian),    pointer                 :: jaco
@@ -284,7 +286,7 @@ contains
 
       ! allocate and init jacobian
       allocate (jaco)
-      call jaco%init(vprov, vdep, st = st, const = const, zero = zero, valmsk = valmsk)
+      call jaco%init(vprov, vdep, st = st, const = const, zero = zero, valmsk = valmsk, valmsk_tab = valmsk_tab)
 
       ! save pointer to jacobian
       if (precon_) then

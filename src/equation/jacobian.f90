@@ -122,7 +122,7 @@ contains
     call this%hmap%destruct()
   end subroutine
 
-  subroutine jacobian_init(this, v1, v2, st, const, zero, valmsk)
+  subroutine jacobian_init(this, v1, v2, st, const, zero, valmsk, valmsk_tab)
     !! initialize jacobian
     class(jacobian),   target,   intent(out) :: this
     type(vselector),   target,   intent(in)  :: v1
@@ -137,6 +137,8 @@ contains
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
     logical,           optional, intent(in)  :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
+    logical,           optional, intent(in)  :: valmsk_tab(:,:,:,:)
+      !! value mask for each block separately (v1%nval x v2%nval x v1%ntab x v2%ntab); default: use valmsk instead
 
     integer :: i, j, itab1, itab2
     logical :: const_(v1%ntab,v2%ntab), zero_(v1%ntab,v2%ntab), valmsk_(v1%nval,v2%nval,v1%ntab,v2%ntab), status
@@ -171,48 +173,52 @@ contains
         if (.not. associated(this%st(itab1)%p)) cycle
 
         select type (st_ptr => this%st(itab1)%p)
-          class is (static_stencil)
-            block
-              integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
+        class is (static_stencil)
+          block
+            integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
 
-              ! loop over result points
-              do i = 1, v1%tab(itab1)%p%n
-                ! get result grid indices
-                idx1 = v1%tab(itab1)%p%get_idx(i)
+            ! loop over result points
+            do i = 1, v1%tab(itab1)%p%n
+              ! get result grid indices
+              idx1 = v1%tab(itab1)%p%get_idx(i)
 
-                ! loop over dependency grid indices
-                do j = 1, st_ptr%nmax
-                  ! get dependency grid indices
-                  call st_ptr%get(idx1, j, idx2, status)
-                  if (.not. status) exit
+              ! loop over dependency grid indices
+              do j = 1, st_ptr%nmax
+                ! get dependency grid indices
+                call st_ptr%get(idx1, j, idx2, status)
+                if (.not. status) exit
 
-                  ! get dependency grid table
-                  itab2 = v2%itab%get(idx2)
-                  if (itab2 <= 0) cycle
+                ! get dependency grid table
+                itab2 = v2%itab%get(idx2)
+                if (itab2 <= 0) cycle
 
-                  ! stencil connects itab1 to itab2 => not zero
-                  zero_(itab1,itab2) = .false.
-                end do
+                ! stencil connects itab1 to itab2 => not zero
+                zero_(itab1,itab2) = .false.
               end do
-            end block
+            end do
+          end block
 
-          class is (dynamic_stencil)
-            zero_(itab1,:) = .false.
+        class is (dynamic_stencil)
+          zero_(itab1,:) = .false.
 
-          class default
-            call program_error("stencil type not supported; derive from static or dynamic stencil!")
+        class default
+          call program_error("stencil type not supported; derive from static or dynamic stencil!")
         end select
       end do
     end if
     const_  = (const_ .or. zero_) ! zero blocks are also constant
 
     ! value mask
+    ASSERT(.not. (present(valmsk) .and. present(valmsk_tab)))
     valmsk_ = .true.
     if (present(valmsk)) then
       ASSERT(all(shape(valmsk) == [v1%nval, v2%nval]))
       do itab2 = 1, v2%ntab; do itab1 = 1, v1%ntab
         valmsk_(:,:,itab1,itab2) = valmsk
       end do; end do
+    elseif (present(valmsk_tab)) then
+      ASSERT(all(shape(valmsk_tab) == [v1%nval, v2%nval, v1%ntab, v2%ntab]))
+      valmsk_ = valmsk_tab
     end if
 
     ! init matrix
@@ -222,8 +228,8 @@ contains
     allocate (this%sd(v1%ntab))
     do itab1 = 1, v1%ntab
       select type (st_ptr => this%st(itab1)%p)
-        class is (static_stencil)
-          call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
+      class is (static_stencil)
+        call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
       end select
     end do
   end subroutine
@@ -270,39 +276,39 @@ contains
         if (all(.not. reset(itab1,:))) cycle
 
         select type (st => this%st(itab1)%p)
-          class is (static_stencil)
-            if (all(reset(itab1,:))) then
-              this%sd(itab1)%d = 0
-              cycle
+        class is (static_stencil)
+          if (all(reset(itab1,:))) then
+            this%sd(itab1)%d = 0
+            cycle
+          end if
+
+          ! loop over result points
+          do i = 1, v1%tab(itab1)%p%n
+            ! get result grid indices
+            idx1 = v1%tab(itab1)%p%get_idx(i)
+
+            ! loop over dependency grid indices
+            do j = 1, st%nmax
+              ! get dependency grid indices
+              call st%get(idx1, j, idx2, status)
+              if (.not. status) exit
+
+              ! get dependency table index
+              itab2 = v2%itab%get(idx2)
+              if (itab2 <= 0) cycle
+
+              ! reset only if flag is set
+              if (reset(itab1,itab2)) this%sd(itab1)%d(:,:,j,i) = 0
+            end do
+          end do
+
+        class is (dynamic_stencil)
+          do itab2 = 1, v2%ntab
+            if (reset(itab1,itab2)) then
+              call this%matr%s( itab1,itab2)%p%reset()
+              call this%matr%sb(itab1,itab2)%reset()
             end if
-
-            ! loop over result points
-            do i = 1, v1%tab(itab1)%p%n
-              ! get result grid indices
-              idx1 = v1%tab(itab1)%p%get_idx(i)
-
-              ! loop over dependency grid indices
-              do j = 1, st%nmax
-                ! get dependency grid indices
-                call st%get(idx1, j, idx2, status)
-                if (.not. status) exit
-
-                ! get dependency table index
-                itab2 = v2%itab%get(idx2)
-                if (itab2 <= 0) cycle
-
-                ! reset only if flag is set
-                if (reset(itab1,itab2)) this%sd(itab1)%d(:,:,j,i) = 0
-              end do
-            end do
-
-          class is (dynamic_stencil)
-            do itab2 = 1, v2%ntab
-              if (reset(itab1,itab2)) then
-                call this%matr%s( itab1,itab2)%p%reset()
-                call this%matr%sb(itab1,itab2)%reset()
-              end if
-            end do
+          end do
         end select
       end do
     end associate
@@ -337,52 +343,52 @@ contains
 
         ! insert data into spbuilders for static stencils
         select type (st => this%st(itab1)%p)
-          class is (static_stencil)
-            ! reset blocks before saving values
-            do itab2 = 1, v2%ntab
-              if (set(itab1,itab2)) then
-                call this%matr%s( itab1,itab2)%p%reset()
-                call this%matr%sb(itab1,itab2)%reset()
-              end if
-            end do
+        class is (static_stencil)
+          ! reset blocks before saving values
+          do itab2 = 1, v2%ntab
+            if (set(itab1,itab2)) then
+              call this%matr%s( itab1,itab2)%p%reset()
+              call this%matr%sb(itab1,itab2)%reset()
+            end if
+          end do
 
-            if (.not. all(this%matr%zero(itab1,:))) then
-              ! loop over points in result table
-              do i = 1, v1%tab(itab1)%p%n
-                ! get result grid indices
-                idx1 = v1%tab(itab1)%p%get_idx(i)
+          if (.not. all(this%matr%zero(itab1,:))) then
+            ! loop over points in result table
+            do i = 1, v1%tab(itab1)%p%n
+              ! get result grid indices
+              idx1 = v1%tab(itab1)%p%get_idx(i)
 
-                ! get row base index
-                row0 = (i - 1) * v1%nval
+              ! get row base index
+              row0 = (i - 1) * v1%nval
 
-                ! loop over dependency points
-                do j = 1, st%nmax
-                  ! get dependency points
-                  call st%get(idx1, j, idx2, status)
-                  if (.not. status) exit
+              ! loop over dependency points
+              do j = 1, st%nmax
+                ! get dependency points
+                call st%get(idx1, j, idx2, status)
+                if (.not. status) exit
 
-                  ! get dependency table index
-                  itab2 = v2%itab%get(idx2)
-                  if (itab2 <= 0) cycle
+                ! get dependency table index
+                itab2 = v2%itab%get(idx2)
+                if (itab2 <= 0) cycle
 
-                  ! do nothing if dependency matrix is not used (const or zero flag prevents it)
-                  if ((.not. set(itab1,itab2)) .or. (this%matr%zero(itab1,itab2))) cycle
+                ! do nothing if dependency matrix is not used (const or zero flag prevents it)
+                if ((.not. set(itab1,itab2)) .or. (this%matr%zero(itab1,itab2))) cycle
 
-                  ! get column base index
-                  col0 = (v2%tab(itab2)%p%get_flat(idx2) - 1) * v2%nval
+                ! get column base index
+                col0 = (v2%tab(itab2)%p%get_flat(idx2) - 1) * v2%nval
 
-                  ! set derivatives
-                  do ival1 = 1, v1%nval
-                    row = row0 + ival1
-                    do ival2 = 1, v2%nval
-                      if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
-                      col = col0 + ival2
-                      call this%matr%sb(itab1,itab2)%set(row, col, this%sd(itab1)%d(ival1,ival2,j,i), search = .false.)
-                    end do
+                ! set derivatives
+                do ival1 = 1, v1%nval
+                  row = row0 + ival1
+                  do ival2 = 1, v2%nval
+                    if (.not. this%matr%valmsk(ival1,ival2,itab1,itab2)) cycle
+                    col = col0 + ival2
+                    call this%matr%sb(itab1,itab2)%set(row, col, this%sd(itab1)%d(ival1,ival2,j,i), search = .false.)
                   end do
                 end do
               end do
-            end if
+            end do
+          end if
         end select
 
         ! save data in sparse_matrix
@@ -422,36 +428,36 @@ contains
     i2    = this%matr%v2%tab(itab2)%p%get_flat(idx2)
 
     select type (st => this%st(itab1)%p)
-      class is (static_stencil)
-        ! get stencil dependency index
-        call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+    class is (static_stencil)
+      ! get stencil dependency index
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
 
-        ! edit derivatives
-        if (add_) then
-          this%sd(itab1)%d(:,:,j,i1) = this%sd(itab1)%d(:,:,j,i1) + d
-        else
-          this%sd(itab1)%d(:,:,j,i1) = d
-        end if
+      ! edit derivatives
+      if (add_) then
+        this%sd(itab1)%d(:,:,j,i1) = this%sd(itab1)%d(:,:,j,i1) + d
+      else
+        this%sd(itab1)%d(:,:,j,i1) = d
+      end if
 
-      class is (dynamic_stencil)
-        ! get row base index
-        row0 = (i1 - 1) * this%matr%v1%nval
+    class is (dynamic_stencil)
+      ! get row base index
+      row0 = (i1 - 1) * this%matr%v1%nval
 
-        ! get column base index
-        col0 = (i2 - 1) * this%matr%v2%nval
+      ! get column base index
+      col0 = (i2 - 1) * this%matr%v2%nval
 
-        ! edit derivatives
-        do ival1 = 1, this%matr%v1%nval
-          row = row0 + ival1
-          do ival2 = 1, this%matr%v2%nval
-            col = col0 + ival2
-            if (add_) then
-              call this%matr%sb(itab1,itab2)%add(row, col, d(ival1, ival2))
-            else
-              call this%matr%sb(itab1,itab2)%set(row, col, d(ival1, ival2))
-            end if
-          end do
+      ! edit derivatives
+      do ival1 = 1, this%matr%v1%nval
+        row = row0 + ival1
+        do ival2 = 1, this%matr%v2%nval
+          col = col0 + ival2
+          if (add_) then
+            call this%matr%sb(itab1,itab2)%add(row, col, d(ival1, ival2))
+          else
+            call this%matr%sb(itab1,itab2)%set(row, col, d(ival1, ival2))
+          end if
         end do
+      end do
     end select
   end subroutine
 
@@ -485,30 +491,30 @@ contains
     i2    = this%matr%v2%tab(itab2)%p%get_flat(idx2)
 
     select type (st => this%st(itab1)%p)
-      class is (static_stencil)
-        ! get stencil dependency index
-        call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+    class is (static_stencil)
+      ! get stencil dependency index
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
 
-        ! edit derivatives
-        if (add_) then
-          this%sd(itab1)%d(ival1,ival2,j,i1) = this%sd(itab1)%d(ival1,ival2,j,i1) + d
-        else
-          this%sd(itab1)%d(ival1,ival2,j,i1) = d
-        end if
+      ! edit derivatives
+      if (add_) then
+        this%sd(itab1)%d(ival1,ival2,j,i1) = this%sd(itab1)%d(ival1,ival2,j,i1) + d
+      else
+        this%sd(itab1)%d(ival1,ival2,j,i1) = d
+      end if
 
-      class is (dynamic_stencil)
-        ! get row index
-        row = (i1 - 1) * this%matr%v1%nval + ival1
+    class is (dynamic_stencil)
+      ! get row index
+      row = (i1 - 1) * this%matr%v1%nval + ival1
 
-        ! get column index
-        col = (i2 - 1) * this%matr%v2%nval + ival2
+      ! get column index
+      col = (i2 - 1) * this%matr%v2%nval + ival2
 
-        ! edit derivative
-        if (add_) then
-          call this%matr%sb(itab1,itab2)%add(row, col, d)
-        else
-          call this%matr%sb(itab1,itab2)%set(row, col, d)
-        end if
+      ! edit derivative
+      if (add_) then
+        call this%matr%sb(itab1,itab2)%add(row, col, d)
+      else
+        call this%matr%sb(itab1,itab2)%set(row, col, d)
+      end if
     end select
   end subroutine
 

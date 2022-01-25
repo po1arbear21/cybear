@@ -153,7 +153,7 @@ contains
     end if
   end subroutine
 
-  function res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, dtime, precon) result(jaco)
+  function res_equation_init_jaco_f(this, idep, st, const, zero, valmsk, valmsk_tab, dtime, precon) result(jaco)
     !! allocate and initialize f/ft jacobian
     class(res_equation),         intent(inout) :: this
     integer,                     intent(in)    :: idep
@@ -166,6 +166,8 @@ contains
       !! zero flags (v1%ntab x v2%ntab); default: set automatically by checking stencils
     logical,           optional, intent(in)    :: valmsk(:,:)
       !! value mask (v1%nval x v2%nval); default = true; the same for all blocks
+    logical,           optional, intent(in)    :: valmsk_tab(:,:,:,:)
+      !! value mask per block (v1%nval x v2%nval x v1%ntab x v2%ntab)
     logical,           optional, intent(in)    :: dtime
       !! false: init f; true: init ft; default = false
     logical,           optional, intent(in)    :: precon
@@ -188,10 +190,10 @@ contains
       ASSERT(const_)
 
       allocate (jaco)
-      call jaco%init(this%f, this%vdep%d(idep)%p, st = st, const = const_, zero = zero, valmsk = valmsk)
+      call jaco%init(this%f, this%vdep%d(idep)%p, st = st, const = const_, zero = zero, valmsk = valmsk, valmsk_tab = valmsk_tab)
       this%jaco_ft(idep)%p => jaco
     else
-      jaco => this%init_jaco(this%iprov_f, idep, st = st, const = const, zero = zero, valmsk = valmsk, precon = precon)
+      jaco => this%init_jaco(this%iprov_f, idep, st = st, const = const, zero = zero, valmsk = valmsk, valmsk_tab = valmsk_tab, precon = precon)
       if (precon_) then
         this%jaco_fp(idep)%p => jaco
       else
