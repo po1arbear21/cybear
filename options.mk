@@ -2,7 +2,7 @@
 BUILD = debug
 
 # compiler (intel or gnu)
-COMPILER = gnu
+COMPILER = intel
 
 # default integer size (32 or 64)
 INTSIZE = 32

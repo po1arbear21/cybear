@@ -14,7 +14,7 @@ module json_m
 
   character(*), parameter :: INDENT_INC = "  "
   character(*), parameter :: REAL_FMT   = "(ES23.16)"
-  integer,      parameter :: REAL_LEN   = 23
+  integer,      parameter :: REAL_LEN   = 24
 
   type, abstract :: json
   contains
@@ -347,7 +347,7 @@ contains
       integer,              intent(in)  :: i0
       integer,              intent(in)  :: i1
 
-      integer                   :: i, j, k, iostat
+      integer                   :: i, j, k, l, iostat
       logical                   :: first, lname
       character(:), allocatable :: name
       real                      :: r
@@ -380,8 +380,11 @@ contains
         end select
 
       case ('-', '0':'9')
-        read (str(i0:i1), *, iostat = iostat) i
-        if (iostat == 0) then
+        l = scan(str(i0:i1), '.') + scan(str(i0:i1), 'd') + scan(str(i0:i1), 'e')
+
+        if (l == 0) then
+          read (str(i0:i1), *, iostat = iostat) i
+          if (iostat /= 0) call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
           allocate (json_int :: p)
           select type (p)
           type is (json_int)
@@ -557,6 +560,7 @@ contains
       allocate (character(32) :: tmp)
       write (tmp, "(I0)") js%value
       str = trim(tmp)
+      print *, 'int', js%value
     type is (json_real)
       allocate (character(REAL_LEN) :: tmp)
       write (tmp, REAL_FMT) js%value

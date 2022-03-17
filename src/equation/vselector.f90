@@ -432,7 +432,7 @@ contains
         call v%set(idx, x(j))
         j = j + 1
       class is (variable_cmplx)
-        call v%set(idx, complex(x(j), x(j+1)))
+        call v%set(idx, cmplx(x(j), x(j+1)))
         j = j + 2
       end select
     end do
@@ -500,7 +500,7 @@ contains
         call v%data%update(idx, dx(j))
         j = j + 1
       class is (variable_cmplx)
-        call v%data%update(idx, complex(dx(j), dx(j+1)))
+        call v%data%update(idx, cmplx(dx(j), dx(j+1)))
         j = j + 2
       end select
     end do

@@ -49,7 +49,7 @@ contains
     L1  => new_inductor( crt, "L1", 2.5)
     call tc%assert_eq(8, crt%comps%n, "circuit add components")
 
-    ! connect
+    ! ! connect
     call crt%connect(GND%terms(1), V1%terms(1))
     call crt%connect(V1%terms(2), R1%terms(1))
     call crt%connect(C1%terms(1), R1%terms(2))

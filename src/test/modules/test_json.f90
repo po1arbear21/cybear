@@ -186,12 +186,12 @@ contains
       type(string)          :: s1, s2
 
       call json_load(js, "src/test/test1.json")
-      call json_save(js, "/tmp/test.json")
+      call json_save(js, "src/test/test3.json")
       call js%destruct()
       deallocate (js)
 
       ! try to open saved file
-      open (newunit = funit1, file = "/tmp/test.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
+      open (newunit = funit1, file = "src/test/test3.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
       call tc%assert_eq(0, iostat, "json_save 1")
       if (.not. tc%last_passed) goto 100
 
@@ -200,7 +200,7 @@ contains
       if (.not. tc%last_passed) goto 100
 
       ! compare file sizes
-      inquire (file = "/tmp/test.json", size = n1)
+      inquire (file = "src/test/test3.json", size = n1)
       inquire (file = "src/test/test2.json", size = n2)
       call tc%assert_eq(n2, n1, "json_save 3")
       if (.not. tc%last_passed) goto 100

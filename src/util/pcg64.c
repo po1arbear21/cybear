@@ -1,6 +1,5 @@
 #include <inttypes.h>
 #include <math.h>
-#include <stdio.h>
 
 typedef __uint128_t pcg128_t;
 

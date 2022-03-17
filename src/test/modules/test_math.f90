@@ -373,7 +373,7 @@ contains
       end do 
 
       A = polyg_area_2d(p)
-      call tc%assert_eq(4.0729, A, 1e-4, "poly_area_2d")
+      call tc%assert_eq(4.0729, A, 1e-4, "polyg_area_2d")
     end block 
 
     call tc%finish()
