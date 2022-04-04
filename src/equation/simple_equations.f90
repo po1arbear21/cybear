@@ -296,6 +296,7 @@ contains
           if (all(get_v2(itab1,ival1)%d /= j)) cycle
           do i = 1, v1%tab(itab1)%p%n
             idx = v1%tab(itab1)%p%get_idx(i)
+            if (v2(j)%p%itab%get(idx) == 0) cycle
             call jaco%set(itab1, i, idx, ival1, get_ival2(itab1,ival1)%d(i), 1.0)
           end do
         end do
