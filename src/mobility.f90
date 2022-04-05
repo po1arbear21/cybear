@@ -106,7 +106,7 @@ contains
       idx2 = idx1 + eye(:,this%mob%idx_dir)
 
       ! parameters
-      mob0  = this%par%mob0( this%mob%idx_dir,this%mob%ci)%get(idx1)
+      mob0  = this%par%mob0(IDX_EDGE,this%mob%idx_dir,this%mob%ci)%get(idx1)
       v_sat = this%par%v_sat(this%mob%ci)
       beta  = this%par%beta( this%mob%ci)
       len   = this%par%g%get_len(idx1, this%mob%idx_dir)

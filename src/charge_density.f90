@@ -56,7 +56,7 @@ contains
     class(calc_charge_density),   intent(out) :: this
     type(device_params),  target, intent(in)  :: par
       !! device parameters
-    type(density),        target, intent(in)  :: dens(2)
+    type(density),        target, intent(in)  :: dens(:)
       !! electron/hole density
     type(charge_density), target, intent(in)  :: rho
       !! charge density
@@ -94,29 +94,19 @@ contains
     !! evaluate charge density calculation equation
     class(calc_charge_density), intent(inout) :: this
 
-    integer :: i, idx(2)
-    real    :: acon, dcon, n, p
-
-    acon = 0
-    dcon = 0
-    n    = 0
-    p    = 0
+    integer :: i, idx(2), ci
+    real    :: rho
 
     ! calculate charge density at each vertex in the transport region
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! get doping concentrations and electron/hole density
-      if (this%par%ci0 == CR_ELEC) then
-        dcon = this%par%dcon(IDX_VERTEX,0)%get(idx)
-        n    = this%dens(CR_ELEC)%get(idx)
-      end if
-      if (this%par%ci1 == CR_HOLE) then
-        acon = this%par%acon(IDX_VERTEX,0)%get(idx)
-        p    = this%dens(CR_HOLE)%get(idx)
-      end if
-
-      call this%rho%set(idx, dcon - acon - n + p)
+      ! get charge density
+      rho = 0
+      do ci = this%par%ci0, this%par%ci1
+        rho = rho + CR_CHARGE(ci) * (this%dens(ci)%get(idx) - this%par%dop(IDX_VERTEX,0,ci)%get(idx))
+      end do
+      call this%rho%set(idx, rho)
     end do
   end subroutine
 

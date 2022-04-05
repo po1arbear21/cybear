@@ -1,5 +1,8 @@
 program main
+
 use grid_m
+
+  use approx_m,        only: approx_imref, approx_potential
   use device_m,        only: dev
   use error_m,         only: program_error
   use input_m,         only: input_file
@@ -31,21 +34,13 @@ use grid_m
 
   ! get iteration options
   call load_iteration_params("nlpe params",        dev%sys_nlpe%n,  opt_nlpe)
+  opt_nlpe%dx_lim = norm(0.1, "V")
   call load_iteration_params("dd params",          dev%sys_dd(1)%n, opt_dd  )
   call load_iteration_params("gummel params",      1,               opt_gum )
   call load_iteration_params("full newton params", dev%sys_full%n,  opt_full)
 
   ! steady-state
   call solve_steady_state()
-
-  ! call ss_nlpe%run(dev%sys_nlpe, nopt = opt_nlpe)
-  ! call ss_dd%run(dev%sys_dd, nopt = opt_dd)
-
-  ! opt_full%error_if_not_converged = .false.
-  ! opt_full%max_it = 4
-  ! call ss_full%run(dev%sys_full, nopt = opt_full)
-
-  ! call dev%ramo_curr%test()
 
 contains
 
@@ -108,9 +103,8 @@ contains
       end do
       call input%init([(dev%volt(ict)%x, ict = 1, size(dev%par%contacts))])
 
+      ! solve steady-state
       call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
-
-      call dev%dens(1)%output_data("n.csv", tab = dev%par%transport(IDX_VERTEX,0))
     end do
   end subroutine
 
@@ -124,6 +118,15 @@ contains
 
     allocate (pot0(dev%pot%data%n), iref0(dev%iref(1)%data%n,2))
 
+    ! approximate imrefs
+    do ci = dev%par%ci0, dev%par%ci1
+      call approx_imref(dev%par, dev%iref(ci), dev%volt)
+    end do
+
+    ! approximate potential
+    call approx_potential(dev%par, dev%pot, dev%iref)
+
+    ! gummel iteration
     i = 0
     error = huge(1.0)
     do while ((error > opt_gum%atol(1)) .and. (i < opt_gum%max_it))

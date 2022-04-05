@@ -102,7 +102,7 @@ contains
     this%jaco_pot => this%init_jaco(iprov, this%depend(pot, par%transport(IDX_VERTEX,0)), const = .true.)
 
     ! depend on density
-    this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%transport(IDX_VERTEX,0)), const = .true.)
+    this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%transport(IDX_VERTEX,0)), const = .false.)
 
     ! set jaco_pot entries (constant)
     do i = 1, par%transport(IDX_VERTEX,0)%n

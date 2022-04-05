@@ -166,7 +166,7 @@ contains
       end do
       call this%sys_full%add_equation(this%calc_iref(ci))
     end do
-    ! call this%sys_full%add_equation(this%ramo_curr)
+    call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, size(this%par%contacts)
       call this%sys_full%provide(this%volt(ict), input = .true.)
     end do

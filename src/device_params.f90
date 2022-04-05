@@ -68,11 +68,11 @@ module device_params_m
     type(grid_table) :: transport(4,0:2)
       !! transport grid tables (idx_type, idx_dir)
 
-    type(grid_data2_real) :: acon(4,0:2), dcon(4,0:2)
-      !! acceptor/donator concentration (idx_type, idx_dir)
+    type(grid_data2_real) :: dop(4,0:2,2)
+      !! acceptor/donator concentration (idx_type, idx_dir, carrier index)
 
-    type(grid_data2_real) :: mob0(2,2)
-      !! zero-field mobility on edges (direction, carrier index)
+    type(grid_data2_real) :: mob0(4,0:2,2)
+      !! zero-field mobility (idx_type, idx_dir, carrier index)
 
     type(contact),    allocatable :: contacts(:)
       !! device contacts
@@ -153,18 +153,38 @@ contains
     end subroutine
 
     subroutine init_grid()
-      ! find grid section id
-      call file%get_section("grid", si)
+      integer           :: si_gen, si_load, status_gen, status_load
+      real, allocatable :: x(:), y(:)
 
-      ! load grid parameters
-      call file%get(si, "nx", nx)
-      call file%get(si, "xbounds", xbounds)
-      call file%get(si, "ny", ny)
-      call file%get(si, "ybounds", ybounds)
+      ! find generate/load grid section ids
+      call file%get_section("generate grid", si_gen, status = status_gen)
+      call file%get_section("load grid", si_load, status = status_load)
+
+      ! error checking
+      if ((status_gen >= 0) .and. (status_load >= 0)) call program_error("found both generate grid and load grid sections")
+      if ((status_gen <  0) .and. (status_load <  0)) call program_error("found neither generate nor load grid section")
+      if (status_gen  > 0) call program_error("found multiple generate grid sections")
+      if (status_load > 0) call program_error("found multiple load grid sections")
+
+      if (status_gen == 0) then
+        ! load grid parameters
+        call file%get(si_gen, "nx", nx)
+        call file%get(si_gen, "xbounds", xbounds)
+        call file%get(si_gen, "ny", ny)
+        call file%get(si_gen, "ybounds", ybounds)
+
+        ! generate x, y values
+        x = linspace(xbounds(1), xbounds(2), nx)
+        y = linspace(ybounds(1), ybounds(2), ny)
+      elseif (status_load == 0) then
+        ! load grid values directly
+        call file%get(si_load, "x", x)
+        call file%get(si_load, "y", y)
+      end if
 
       ! init x, y, xy grids
-      call this%gx%init(linspace(xbounds(1), xbounds(2), nx))
-      call this%gy%init(linspace(ybounds(1), ybounds(2), ny))
+      call this%gx%init(x)
+      call this%gy%init(y)
       call this%g%init([this%gx%get_ptr(), this%gy%get_ptr()])
     end subroutine
 
@@ -323,62 +343,104 @@ contains
     end subroutine
 
     subroutine init_doping()
-      real :: acon, dcon, tr_vol, tr_surf, mob_min, mob_max, N_ref, alpha
+      integer           :: si_load, status
+      real              :: dop(2), dcon, acon, tr_vol, tr_surf, mob_min, mob_max, N_ref, alpha
+      real, allocatable :: dop_ar(:)
 
       ! allocate grid data
-      do idx_type = 1, 4
-        do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
-          call this%acon(idx_type,idx_dir)%init(this%g, idx_type, idx_dir)
-          call this%dcon(idx_type,idx_dir)%init(this%g, idx_type, idx_dir)
+      do ci = this%ci0, this%ci1
+        do idx_type = 1, 4
+          do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
+            call this%dop(idx_type,idx_dir,ci)%init(this%g, idx_type, idx_dir)
+          end do
         end do
       end do
 
-      ! get doping sections
+      ! get load doping and doping region sections
+      call file%get_section("load doping", si_load, status = status)
       call file%get_sections("doping", sids)
 
-      ! process all sections
-      do si = 1, size(sids)
-        call file%get(sids(si), "xbounds", xbounds)
-        call file%get(sids(si), "ybounds", ybounds)
-        if (this%ci1 == CR_HOLE) call file%get(sids(si), "acon", acon)
-        if (this%ci0 == CR_ELEC) call file%get(sids(si), "dcon", dcon)
+      ! error checking
+      if (status > 0) call program_error("found multiple load doping sections")
+      if ((status == 0) .and. (size(sids) > 0)) call program_error("found both load and regular doping sections")
 
-        ! search bounds
-        i0 = bin_search(this%gx%x, xbounds(1))
-        i1 = bin_search(this%gx%x, xbounds(2)) - 1
-        j0 = bin_search(this%gy%x, ybounds(1))
-        j1 = bin_search(this%gy%x, ybounds(2)) - 1
+      if (status == 0) then
+        ! load doping (on vertices)
+        if (this%ci0 == CR_ELEC) then
+          call file%get(si_load, "dcon", dop_ar)
+          call this%dop(IDX_VERTEX,0,CR_ELEC)%set(dop_ar)
+        end if
+        if (this%ci1 == CR_HOLE) then
+          call file%get(si_load, "acon", dop_ar)
+          call this%dop(IDX_VERTEX,0,CR_HOLE)%set(dop_ar)
+        end if
 
-        ! set doping in region
-        do j = j0, j1; do i = i0, i1
-          vol = this%g%get_vol([i,j])
+        ! set doping for edges and cells
+        do ci = this%ci0, this%ci1
+          do i = 1, this%transport(IDX_CELL,0)%n
+            idx = this%transport(IDX_CELL,0)%get_idx(i)
 
-          ! set doping on vertices
-          do jj = j, j+1; do ii = i, i+1
-            tr_vol = this%tr_vol%get([ii,jj])
-            if (this%ci1 == CR_HOLE) call this%acon(IDX_VERTEX,0)%update([ii,jj], 0.25*vol/tr_vol*acon)
-            if (this%ci1 == CR_ELEC) call this%dcon(IDX_VERTEX,0)%update([ii,jj], 0.25*vol/tr_vol*dcon)
-          end do; end do
+            ! cell doping
+            dop(ci) = 0.25 * (this%dop(IDX_VERTEX,0,ci)%get(idx         ) &
+              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [1, 0]) &
+              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [0, 1]) &
+              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [1, 1]))
 
-          ! set doping for edges
-          do idx_dir = 1, 2
-            surf    = this%g%get_surf([i,j], idx_dir)
-            tr_surf = this%tr_surf(idx_dir)%get([i,j])
-            if (this%ci1 == CR_HOLE) then
-              call this%acon(IDX_EDGE,idx_dir)%update([i,j],                  0.5*surf/tr_surf*acon)
-              call this%acon(IDX_EDGE,idx_dir)%update([i,j]+eye(:,3-idx_dir), 0.5*surf/tr_surf*acon)
-            end if
-            if (this%ci0 == CR_ELEC) then
-              call this%dcon(IDX_EDGE,idx_dir)%update([i,j],                  0.5*surf/tr_surf*dcon)
-              call this%dcon(IDX_EDGE,idx_dir)%update([i,j]+eye(:,3-idx_dir), 0.5*surf/tr_surf*dcon)
-            end if
+            ! edges
+            do idx_dir = 1, 2
+              surf    = this%g%get_surf(idx, idx_dir)
+              tr_surf = this%tr_surf(idx_dir)%get(idx)
+              call this%dop(IDX_EDGE,idx_dir,ci)%update(idx,                  0.5*surf/tr_surf*dop(ci))
+              call this%dop(IDX_EDGE,idx_dir,ci)%update(idx+eye(:,3-idx_dir), 0.5*surf/tr_surf*dop(ci))
+            end do
+
+            ! save cell doping
+            call this%dop(IDX_CELL,0,ci)%set(idx, dop(ci))
           end do
+        end do
+      else
+        ! process all doping sections
+        do si = 1, size(sids)
+          call file%get(sids(si), "xbounds", xbounds)
+          call file%get(sids(si), "ybounds", ybounds)
+          if (this%ci0 == CR_ELEC) call file%get(sids(si), "dcon", dop(CR_ELEC))
+          if (this%ci1 == CR_HOLE) call file%get(sids(si), "acon", dop(CR_HOLE))
 
-          ! set doping in cells
-          if (this%ci1 == CR_HOLE) call this%acon(IDX_CELL,0)%set([i,j], acon)
-          if (this%ci0 == CR_ELEC) call this%dcon(IDX_CELL,0)%set([i,j], dcon)
-        end do; end do
-      end do
+          ! search bounds
+          i0 = bin_search(this%gx%x, xbounds(1))
+          i1 = bin_search(this%gx%x, xbounds(2)) - 1
+          j0 = bin_search(this%gy%x, ybounds(1))
+          j1 = bin_search(this%gy%x, ybounds(2)) - 1
+
+          ! set doping in region
+          do j = j0, j1; do i = i0, i1
+            vol = this%g%get_vol([i,j])
+
+            ! set doping on vertices
+            do jj = j, j+1; do ii = i, i+1
+              tr_vol = this%tr_vol%get([ii,jj])
+              do ci = this%ci0, this%ci1
+                call this%dop(IDX_VERTEX,0,ci)%update([ii,jj], 0.25*vol/tr_vol*dop(ci))
+              end do
+            end do; end do
+
+            ! set doping for edges
+            do idx_dir = 1, 2
+              surf    = this%g%get_surf([i,j], idx_dir)
+              tr_surf = this%tr_surf(idx_dir)%get([i,j])
+              do ci = this%ci0, this%ci1
+                call this%dop(IDX_EDGE,idx_dir,ci)%update([i,j],                  0.5*surf/tr_surf*dop(ci))
+                call this%dop(IDX_EDGE,idx_dir,ci)%update([i,j]+eye(:,3-idx_dir), 0.5*surf/tr_surf*dop(ci))
+              end do
+            end do
+
+            ! set doping in cells
+            do ci = this%ci0, this%ci1
+              call this%dop(IDX_CELL,0,ci)%set([i,j], dop(ci))
+            end do
+          end do; end do
+        end do
+      end if
 
       ! init zero-field mobility
       acon = 0
@@ -389,14 +451,24 @@ contains
         N_ref   = this%N_ref(ci)
         alpha   = this%alpha(ci)
 
+        ! mobility in cells
+        call this%mob0(IDX_CELL,0,ci)%init(this%g, IDX_CELL, 0)
+        do i = 1, this%transport(IDX_CELL,0)%n
+          idx = this%transport(IDX_CELL,0)%get_idx(i)
+          if (this%ci0 == CR_ELEC) dcon = this%dop(IDX_CELL,0,CR_ELEC)%get(idx)
+          if (this%ci1 == CR_HOLE) acon = this%dop(IDX_CELL,0,CR_HOLE)%get(idx)
+          call this%mob0(IDX_CELL,0,ci)%set(idx, mob_min + (mob_max - mob_min)/(1 + ((acon + dcon)/N_ref)**alpha))
+        end do
+
+        ! mobility on edges
         do idx_dir = 1, 2
-          call this%mob0(idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
+          call this%mob0(IDX_EDGE,idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
 
           do i = 1, this%transport(IDX_EDGE,idx_dir)%n
             idx  = this%transport(IDX_EDGE,idx_dir)%get_idx(i)
-            if (this%ci1 == CR_HOLE) acon = this%acon(IDX_EDGE,idx_dir)%get(idx)
-            if (this%ci0 == CR_ELEC) dcon = this%dcon(IDX_EDGE,idx_dir)%get(idx)
-            call this%mob0(idx_dir,ci)%set(idx, mob_min + (mob_max - mob_min)/(1 + ((acon + dcon)/N_ref)**alpha))
+            if (this%ci0 == CR_ELEC) dcon = this%dop(IDX_EDGE,idx_dir,CR_ELEC)%get(idx)
+            if (this%ci1 == CR_HOLE) acon = this%dop(IDX_EDGE,idx_dir,CR_HOLE)%get(idx)
+            call this%mob0(IDX_EDGE,idx_dir,ci)%set(idx, mob_min + (mob_max - mob_min)/(1 + ((acon + dcon)/N_ref)**alpha))
           end do
         end do
       end do
@@ -469,11 +541,11 @@ contains
           end do; end do outer
           if ((i > i1) .or. (j > j1)) call program_error("Ohmic contact "//name%s//" not in transport region")
           if ((this%ci0 == CR_ELEC) .and. (this%ci1 == CR_HOLE)) then
-            phims = asinh(0.5 * (this%dcon(IDX_VERTEX,0)%get([i,j]) - this%acon(IDX_VERTEX,0)%get([i,j])) / this%n_intrin)
+            phims = asinh(0.5 * (this%dop(IDX_VERTEX,0,CR_ELEC)%get([i,j]) - this%dop(IDX_VERTEX,0,CR_HOLE)%get([i,j])) / this%n_intrin)
           elseif (this%ci0 == CR_ELEC) then
-            phims = log(this%dcon(IDX_VERTEX,0)%get([i,j]) / this%n_intrin)
+            phims = log(this%dop(IDX_VERTEX,0,CR_ELEC)%get([i,j]) / this%n_intrin)
           elseif (this%ci0 == CR_HOLE) then
-            phims = -log(this%acon(IDX_VERTEX,0)%get([i,j]) / this%n_intrin)
+            phims = -log(this%dop(IDX_VERTEX,0,CR_HOLE)%get([i,j]) / this%n_intrin)
           end if
         else
           call file%get(sids(si), "phims", phims)

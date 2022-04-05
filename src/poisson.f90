@@ -148,6 +148,7 @@ contains
   end subroutine
 
   subroutine poisson_eval(this)
+    !! evaluate poisson equation
     class(poisson), intent(inout) :: this
 
     real, allocatable :: tmp(:)
