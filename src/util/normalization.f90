@@ -292,6 +292,13 @@ contains
       call this%unit_const%insert(new_string("C/nm^2"), coulomb / (NANO *meter)**2 )
       call this%unit_const%insert(new_string("C/pm^2"), coulomb / (PICO *meter)**2 )
       call this%unit_const%insert(new_string("C/fm^2"), coulomb / (FEMTO*meter)**2 )
+      call this%unit_const%insert(new_string("C/m^3" ), coulomb / (      meter)**3 )
+      call this%unit_const%insert(new_string("C/cm^3"), coulomb / (CENTI*meter)**3 )
+      call this%unit_const%insert(new_string("C/mm^3"), coulomb / (MILLI*meter)**3 )
+      call this%unit_const%insert(new_string("C/um^3"), coulomb / (MICRO*meter)**3 )
+      call this%unit_const%insert(new_string("C/nm^3"), coulomb / (NANO *meter)**3 )
+      call this%unit_const%insert(new_string("C/pm^3"), coulomb / (PICO *meter)**3 )
+      call this%unit_const%insert(new_string("C/fm^3"), coulomb / (FEMTO*meter)**3 )
     end associate
 
     associate (ohm => volt / ampere)
