@@ -18,6 +18,7 @@
 
 #define GRID_DATA_INIT         CONCAT3(grid_data,T,init)
 #define GRID_DATA_DESTRUCT     CONCAT3(grid_data,T,destruct)
+#define GRID_DATA_RESET        CONCAT3(grid_data,T,reset)
 #define GRID_DATA_GET_PTR0     CONCAT3(grid_data,T,get_ptr0)
 #define GRID_DATA_GET_PTR1     CONCAT3(grid_data,T,get_ptr1)
 #define GRID_DATA_GET_PTR2     CONCAT3(grid_data,T,get_ptr2)
@@ -60,6 +61,7 @@ contains
   procedure :: get_ptr7 => GRID_DATA_GET_PTR7
   procedure :: get_ptr8 => GRID_DATA_GET_PTR8
   procedure :: destruct => GRID_DATA_DESTRUCT
+  procedure :: reset    => GRID_DATA_RESET
   generic   :: get      => GRID_DATA_GET_POINT,    GRID_DATA_GET_ALL
   generic   :: set      => GRID_DATA_SET_POINT,    GRID_DATA_SET_ALL
 #ifndef TLOG
@@ -160,6 +162,11 @@ interface
 
   module subroutine GRID_DATA_DESTRUCT(this)
     class(GRID_DATA_TYPE), intent(inout) :: this
+  end subroutine
+
+  module subroutine GRID_DATA_RESET(this, d0)
+    class(GRID_DATA_TYPE), intent(inout) :: this
+    TT, optional,          intent(in)    :: d0
   end subroutine
 
   module function GRID_DATA_GET_PTR0(this) result(p)
@@ -267,6 +274,7 @@ end interface
 
 #undef GRID_DATA_INIT
 #undef GRID_DATA_DESTRUCT
+#undef GRID_DATA_RESET
 #undef GRID_DATA_GET_PTR0
 #undef GRID_DATA_GET_PTR1
 #undef GRID_DATA_GET_PTR2

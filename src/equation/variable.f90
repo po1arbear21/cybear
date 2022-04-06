@@ -29,6 +29,7 @@ module variable_m
       !! index direction for edges and faces
   contains
     procedure :: variable_init
+    procedure :: reset   => variable_reset
     procedure :: get_ptr => variable_get_ptr
   end type
 
@@ -107,6 +108,18 @@ contains
     class is (variable_cmplx)
       call allocate_grid_data(this%data, this%g%idx_dim)
       call this%data%init(this%g, this%idx_type, this%idx_dir)
+    end select
+  end subroutine
+
+  subroutine variable_reset(this)
+    !! reset variable data
+    class(variable), intent(inout) :: this
+
+    select type (this)
+    class is (variable_real)
+      call this%data%reset()
+    class is (variable_cmplx)
+      call this%data%reset()
     end select
   end subroutine
 
