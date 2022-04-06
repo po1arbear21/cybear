@@ -276,10 +276,25 @@ contains
     call this%unit_const%insert(new_string("A/nm"   ),        ampere  / (NANO *meter)        )
     call this%unit_const%insert(new_string("A/pm"   ),        ampere  / (PICO *meter)        )
     call this%unit_const%insert(new_string("A/fm"   ),        ampere  / (FEMTO*meter)        )
-    call this%unit_const%insert(new_string("A/cm/V" ),        ampere  / (CENTI*meter) / volt )
     call this%unit_const%insert(new_string("A/cm^2" ),        ampere  / (CENTI*meter)**2     )
     call this%unit_const%insert(new_string("A/um^2" ),        ampere  / (MICRO*meter)**2     )
     call this%unit_const%insert(new_string("mA/um^2"), (MILLI*ampere) / (MICRO*meter)**2     )
+
+    call this%unit_const%insert(new_string("A/V/m"  ), ampere / volt / (      meter))
+    call this%unit_const%insert(new_string("A/V/cm" ), ampere / volt / (CENTI*meter))
+    call this%unit_const%insert(new_string("A/V/mm" ), ampere / volt / (MILLI*meter))
+    call this%unit_const%insert(new_string("A/V/um" ), ampere / volt / (MICRO*meter))
+    call this%unit_const%insert(new_string("A/V/nm" ), ampere / volt / (NANO *meter))
+    call this%unit_const%insert(new_string("A/V/pm" ), ampere / volt / (PICO *meter))
+    call this%unit_const%insert(new_string("A/V/fm" ), ampere / volt / (FEMTO*meter))
+
+    call this%unit_const%insert(new_string("A/V/m^2" ), ampere / volt / (      meter)**2 )
+    call this%unit_const%insert(new_string("A/V/cm^2"), ampere / volt / (CENTI*meter)**2 )
+    call this%unit_const%insert(new_string("A/V/mm^2"), ampere / volt / (MILLI*meter)**2 )
+    call this%unit_const%insert(new_string("A/V/um^2"), ampere / volt / (MICRO*meter)**2 )
+    call this%unit_const%insert(new_string("A/V/nm^2"), ampere / volt / (NANO *meter)**2 )
+    call this%unit_const%insert(new_string("A/V/pm^2"), ampere / volt / (PICO *meter)**2 )
+    call this%unit_const%insert(new_string("A/V/fm^2"), ampere / volt / (FEMTO*meter)**2 )
 
     associate (coulomb => ampere * second)
       call this%unit_const%insert(new_string("C"     ), coulomb                    )
@@ -308,12 +323,6 @@ contains
 
     associate (ohm => volt / ampere)
       call this%unit_const%insert(new_string("A/V" ), 1 / ohm )
-
-      call this%unit_const%insert(new_string("A/V/m^2" ), 1 / ohm / (      meter)**2 )
-      call this%unit_const%insert(new_string("A/V/cm^2"), 1 / ohm / (CENTI*meter)**2 )
-      call this%unit_const%insert(new_string("A/V/mm^2"), 1 / ohm / (MILLI*meter)**2 )
-      call this%unit_const%insert(new_string("A/V/um^2"), 1 / ohm / (MICRO*meter)**2 )
-      call this%unit_const%insert(new_string("A/V/nm^2"), 1 / ohm / (NANO *meter)**2 )
 
       call this%unit_const%insert(new_string("MOhm"), MEGA *ohm )
       call this%unit_const%insert(new_string("kOhm"), KILO *ohm )
