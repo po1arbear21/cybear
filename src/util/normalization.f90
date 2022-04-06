@@ -336,7 +336,7 @@ contains
     end associate
 
     associate (farad => ampere * second / volt)
-      call this%unit_const%insert(new_string("F" ),       farad  )
+      call this%unit_const%insert(new_string("F" ),       farad )
       call this%unit_const%insert(new_string("mF"), MILLI*farad )
       call this%unit_const%insert(new_string("uF"), MICRO*farad )
       call this%unit_const%insert(new_string("nF"), NANO *farad )
@@ -351,6 +351,25 @@ contains
       call this%unit_const%insert(new_string("nH"), NANO *henry )
       call this%unit_const%insert(new_string("pH"), PICO *henry )
       call this%unit_const%insert(new_string("fH"), FEMTO*henry )
+    end associate
+
+    associate (watt => volt * ampere)
+      call this%unit_const%insert(new_string("W" ),       watt )
+      call this%unit_const%insert(new_string("mW"), MILLI*watt )
+      call this%unit_const%insert(new_string("uW"), MICRO*watt )
+      call this%unit_const%insert(new_string("nW"), NANO *watt )
+      call this%unit_const%insert(new_string("pW"), PICO *watt )
+      call this%unit_const%insert(new_string("fW"), FEMTO*watt )
+
+      call this%unit_const%insert(new_string("W/m" ), watt / (        meter) )
+      call this%unit_const%insert(new_string("W/cm"), watt / (CENTI * meter) )
+      call this%unit_const%insert(new_string("W/mm"), watt / (MILLI * meter) )
+      call this%unit_const%insert(new_string("W/um"), watt / (MICRO * meter) )
+      call this%unit_const%insert(new_string("W/nm"), watt / (NANO  * meter) )
+      call this%unit_const%insert(new_string("W/pm"), watt / (PICO  * meter) )
+      call this%unit_const%insert(new_string("W/fm"), watt / (FEMTO * meter) )
+
+      call this%unit_const%insert(new_string("A/W"), ampere / watt)
     end associate
 
     call this%unit_const%insert(new_string("eps0"), diel)
