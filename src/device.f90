@@ -108,7 +108,7 @@ contains
     allocate (this%curr(size(this%par%contacts)))
     do ict = 1, size(this%par%contacts)
       call this%volt(ict)%init("V_"//this%par%contacts(ict)%name)
-      call this%curr(ict)%init("V_"//this%par%contacts(ict)%name)
+      call this%curr(ict)%init("I_"//this%par%contacts(ict)%name)
     end do
 
     ! init equations

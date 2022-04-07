@@ -65,7 +65,7 @@ contains
       !! device parameters
     type(potential),      intent(inout) :: pot
       !! potential
-    type(charge_density), intent(in)    :: rho
+    type(charge_density), intent(inout) :: rho
       !! charge density variable
     type(voltage),        intent(in)    :: volt(:)
       !! voltage variables
@@ -87,6 +87,7 @@ contains
     call sys%add_equation(poiss)
 
     ! provide variables
+    call rho%reset()
     call sys%provide(rho, input = .false.)
     nct = size(par%contacts)
     do i = 1, nct
@@ -118,7 +119,7 @@ contains
     call df%solve_mat(rhs, x)
     call df%destruct()
 
-    ! save fundamental solution
+    ! save fundamental solutions
     allocate (this%x(nct))
     do i = 1, nct
       call this%x(i)%init(par%g, IDX_VERTEX, 0)
@@ -156,7 +157,7 @@ contains
 
               ! fundamental solution delta
               dxi = this%x(i)%get(idx2) - this%x(i)%get(idx1)
-              dxj = this%x(j)%get(idx2) - this%x(i)%get(idx1)
+              dxj = this%x(j)%get(idx2) - this%x(j)%get(idx1)
 
               ! update capacitance matrix
               this%cap(i,j) = this%cap(i,j) + dxi * dxj * cap
