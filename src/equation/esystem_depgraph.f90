@@ -334,9 +334,9 @@ contains
       end do
 
       ! add jacobian chains for parents
-      call init_jchains(this%parents,   this%partial_jaco,   this%total_jaco,   this%jchain,   .false., .false.)
-      call init_jchains(this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t, .true.,  .false.)
-      if (g%precon) call init_jchains(this%parents, this%partial_jaco_p, this%total_jaco_p, this%jchain_p, .false., .true. )
+      call init_jchains(this%parents,   this%partial_jaco,   this%total_jaco,   this%jchain,    .false.)
+      call init_jchains(this%parents_t, this%partial_jaco_t, this%total_jaco_t, this%jchain_t,  .false.)
+      if (g%precon) call init_jchains(this%parents, this%partial_jaco_p, this%total_jaco_p, this%jchain_p, .true. )
     end if
 
     ! set analyzed flag
@@ -360,7 +360,7 @@ contains
 
   contains
 
-    subroutine init_jchains(parents, partial_jaco, total_jaco, jchain, time, prec)
+    subroutine init_jchains(parents, partial_jaco, total_jaco, jchain, prec)
       type(vector_int),                 intent(in)    :: parents
         !! parents or parents_t
       type(vector_jacobian_matrix_ptr), intent(in)    :: partial_jaco
@@ -369,8 +369,6 @@ contains
         !! total_jaco or total_jaco_t
       type(vector_jacobian_chain_ptr),  intent(inout) :: jchain(:)
         !! jchain or jchain_t
-      logical,                          intent(in)    :: time
-        !! time derivative flag
       logical,                          intent(in)    :: prec
         !! preconditioner flag
 
@@ -392,16 +390,9 @@ contains
           else
             ! chain rule for all main vars
             do j = 1, g%imvar%n
-              if      (time) then
-                n_total_jaco => n%total_jaco_t(j)%p
-              else if (prec) then
-                if (associated(n%total_jaco_p(j)%p)) then
-                  n_total_jaco => n%total_jaco_p(j)%p
-                else
-                  n_total_jaco => n%total_jaco(j)%p
-                end if
-              else
-                n_total_jaco => n%total_jaco(j)%p
+              n_total_jaco => n%total_jaco(j)%p
+              if (prec) then
+                if (associated(n%total_jaco_p(j)%p)) n_total_jaco => n%total_jaco_p(j)%p
               end if
 
               ! do nothing if no dependency on this main var
