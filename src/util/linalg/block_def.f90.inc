@@ -1,43 +1,4 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define BAND_TYPE            CONCAT(band,T)
-#define BLOCK_TYPE           CONCAT(block,T)
-#define BLOCK_PTR_TYPE       CONCAT(block_ptr,T)
-#define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-
-#define BLOCK_INIT           CONCAT3(block,T,init)
-#define BLOCK_DESTRUCT       CONCAT3(block,T,destruct)
-#define BLOCK_RESET          CONCAT3(block,T,reset)
-#define BLOCK_DELETE_BLOCK   CONCAT3(block,T,delete_block)
-#define BLOCK_SCALE          CONCAT3(block,T,scale)
-#define BLOCK_MUL_VEC        CONCAT3(block,T,mul_vec)
-#define BLOCK_MUL_MAT        CONCAT3(block,T,mul_mat)
-#define BLOCK_FACTORIZE      CONCAT3(block,T,factorize)
-#define BLOCK_SOLVE_VEC      CONCAT3(block,T,solve_vec)
-#define BLOCK_SOLVE_MAT      CONCAT3(block,T,solve_mat)
-#define BLOCK_GET_GLOBAL_IDX CONCAT3(block,T,get_global_idx)
-#define BLOCK_GET_LOCAL_IDX  CONCAT3(block,T,get_local_idx)
-#define BLOCK_SET_BLOCK_TYPE CONCAT3(block,T,set_block_type)
-#define BLOCK_GET_DENSE      CONCAT3(block,T,get_dense)
-#define BLOCK_GET_SPARSE     CONCAT3(block,T,get_sparse)
-#define BLOCK_GET_BAND       CONCAT3(block,T,get_band)
-#define BLOCK_GET_BLOCK      CONCAT3(block,T,get_block)
-#define BLOCK_SET            CONCAT3(block,T,set)
-#define BLOCK_SET_PTR        CONCAT3(block,T,set_ptr)
-#define BLOCK_COPY           CONCAT3(block,T,copy)
-#define BLOCK_BLOCK_ALLOWED  CONCAT3(block,T,block_allowed)
-#define BLOCK_CHECK_SIZES    CONCAT3(block,T,check_sizes)
-
-type, extends(MATRIX_TYPE) :: BLOCK_TYPE
+type, extends(matrix_{}T) :: block_{}T
   !! Block matrix
   !!
   !! Example
@@ -62,228 +23,188 @@ type, extends(MATRIX_TYPE) :: BLOCK_TYPE
     !! block col stop  indices
 
   ! blocks
-  type(MATRIX_PTR_TYPE), allocatable :: b(:,:)
-  logical,               allocatable :: alc(:,:)
+  type(matrix_ptr_{}T), allocatable :: b(:,:)
+  logical,              allocatable :: alc(:,:)
     !! internal flags to keep track of allocations of b(i,j)%p (delete b(i,j)%p in destruct if alc(i,j) == true)
 
   ! flags
   logical :: diag
   logical :: tridiag
 contains
-  procedure :: BLOCK_INIT
-  generic   :: init           => BLOCK_INIT
-  procedure :: destruct       => BLOCK_DESTRUCT
-  procedure :: reset          => BLOCK_RESET
-  procedure :: delete_block   => BLOCK_DELETE_BLOCK
-  procedure :: scale          => BLOCK_SCALE
-  procedure :: mul_vec        => BLOCK_MUL_VEC
-  procedure :: mul_mat        => BLOCK_MUL_MAT
-  procedure :: factorize      => BLOCK_FACTORIZE
-  procedure :: solve_vec      => BLOCK_SOLVE_VEC
-  procedure :: solve_mat      => BLOCK_SOLVE_MAT
-  procedure :: get_global_idx => BLOCK_GET_GLOBAL_IDX
-  procedure :: get_local_idx  => BLOCK_GET_LOCAL_IDX
-  procedure :: BLOCK_GET_DENSE
-  procedure :: BLOCK_GET_SPARSE
-  procedure :: BLOCK_GET_BAND
-  procedure :: BLOCK_GET_BLOCK
-  generic   :: get            => BLOCK_GET_DENSE, BLOCK_GET_SPARSE, BLOCK_GET_BAND, BLOCK_GET_BLOCK
-  procedure :: set            => BLOCK_SET
-  procedure :: set_ptr        => BLOCK_SET_PTR
-  procedure :: copy           => BLOCK_COPY
+  procedure :: block_{}T{}_init
+  generic   :: init           => block_{}T{}_init
+  procedure :: destruct       => block_{}T{}_destruct
+  procedure :: reset          => block_{}T{}_reset
+  procedure :: delete_block   => block_{}T{}_delete_block
+  procedure :: scale          => block_{}T{}_scale
+  procedure :: mul_vec        => block_{}T{}_mul_vec
+  procedure :: mul_mat        => block_{}T{}_mul_mat
+  procedure :: factorize      => block_{}T{}_factorize
+  procedure :: solve_vec      => block_{}T{}_solve_vec
+  procedure :: solve_mat      => block_{}T{}_solve_mat
+  procedure :: get_global_idx => block_{}T{}_get_global_idx
+  procedure :: get_local_idx  => block_{}T{}_get_local_idx
+  procedure :: block_{}T{}_get_dense
+  procedure :: block_{}T{}_get_sparse
+  procedure :: block_{}T{}_get_band
+  procedure :: block_{}T{}_get_block
+  generic   :: get            => block_{}T{}_get_dense, &
+    &                            block_{}T{}_get_sparse, &
+    &                            block_{}T{}_get_band, &
+    &                            block_{}T{}_get_block
+  procedure :: set            => block_{}T{}_set
+  procedure :: set_ptr        => block_{}T{}_set_ptr
+  procedure :: copy           => block_{}T{}_copy
 
-  procedure, private :: block_allowed => BLOCK_BLOCK_ALLOWED
-  procedure, private :: check_sizes   => BLOCK_CHECK_SIZES
+  procedure, private :: block_allowed => block_{}T{}_block_allowed
+  procedure, private :: check_sizes   => block_{}T{}_check_sizes
 end type
 
-type BLOCK_PTR_TYPE
-  type(BLOCK_TYPE), pointer :: p => null()
+type block_ptr_{}T
+  type(block_{}T), pointer :: p => null()
 end type
 
 interface
-  module subroutine BLOCK_INIT(this, row_dim, col_dim, diag, tridiag)
-    class(BLOCK_TYPE), intent(out) :: this
+  module subroutine block_{}T{}_init(this, row_dim, col_dim, diag, tridiag)
+    class(block_{}T),  intent(out) :: this
     integer,           intent(in)  :: row_dim(:)
     integer, optional, intent(in)  :: col_dim(:)
     logical, optional, intent(in)  :: diag
     logical, optional, intent(in)  :: tridiag
   end subroutine
 
-  module subroutine BLOCK_DESTRUCT(this)
-    class(BLOCK_TYPE), intent(inout) :: this
+  module subroutine block_{}T{}_destruct(this)
+    class(block_{}T), intent(inout) :: this
   end subroutine
 
-  module subroutine BLOCK_DELETE_BLOCK(this, ib, jb)
-    class(BLOCK_TYPE), intent(inout) :: this
-    integer,           intent(in)    :: ib, jb
+  module subroutine block_{}T{}_delete_block(this, ib, jb)
+    class(block_{}T), intent(inout) :: this
+    integer,          intent(in)    :: ib, jb
   end subroutine
 
-  module subroutine BLOCK_RESET(this, only_factorization)
-    class(BLOCK_TYPE), intent(inout) :: this
+  module subroutine block_{}T{}_reset(this, only_factorization)
+    class(block_{}T),  intent(inout) :: this
     logical, optional, intent(in)    :: only_factorization
   end subroutine
 
-  module subroutine BLOCK_SCALE(this, fact)
-    class(BLOCK_TYPE), intent(inout) :: this
-    TT,                intent(in)    :: fact
+  module subroutine block_{}T{}_scale(this, fact)
+    class(block_{}T), intent(inout) :: this
+    m4_type(T),       intent(in)    :: fact
   end subroutine
 
-  module subroutine BLOCK_MUL_VEC(this, x, y, fact_y, trans)
-    class(BLOCK_TYPE),   intent(in)    :: this
-    TT,                  intent(in)    :: x(:)
-    TT,                  intent(inout) :: y(:)
-    TT,        optional, intent(in)    :: fact_y
-    character, optional, intent(in)    :: trans
+  module subroutine block_{}T{}_mul_vec(this, x, y, fact_y, trans)
+    class(block_{}T),     intent(in)    :: this
+    m4_type(T),           intent(in)    :: x(:)
+    m4_type(T),           intent(inout) :: y(:)
+    m4_type(T), optional, intent(in)    :: fact_y
+    character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine BLOCK_MUL_MAT(this, x, y, fact_y, trans)
-    class(BLOCK_TYPE),   intent(in)    :: this
-    TT,                  intent(in)    :: x(:,:)
-    TT,                  intent(inout) :: y(:,:)
-    TT,        optional, intent(in)    :: fact_y
-    character, optional, intent(in)    :: trans
+  module subroutine block_{}T{}_mul_mat(this, x, y, fact_y, trans)
+    class(block_{}T),     intent(in)    :: this
+    m4_type(T),           intent(in)    :: x(:,:)
+    m4_type(T),           intent(inout) :: y(:,:)
+    m4_type(T), optional, intent(in)    :: fact_y
+    character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine BLOCK_FACTORIZE(this)
-    class(BLOCK_TYPE), intent(inout) :: this
+  module subroutine block_{}T{}_factorize(this)
+    class(block_{}T), intent(inout) :: this
   end subroutine
 
-  module subroutine BLOCK_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-    class(BLOCK_TYPE),   intent(in)  :: this
-    TT,                  intent(in)  :: rhs(:)
-    TT,                  intent(out) :: x(:)
+  module subroutine block_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
+    class(block_{}T),    intent(in)  :: this
+    m4_type(T),          intent(in)  :: rhs(:)
+    m4_type(T),          intent(out) :: x(:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
   end subroutine
 
-  module subroutine BLOCK_SOLVE_MAT(this, rhs, x, trans, iter_refine)
-    class(BLOCK_TYPE),   intent(in)  :: this
-    TT,                  intent(in)  :: rhs(:,:)
-    TT,                  intent(out) :: x(:,:)
+  module subroutine block_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
+    class(block_{}T),    intent(in)  :: this
+    m4_type(T),          intent(in)  :: rhs(:,:)
+    m4_type(T),          intent(out) :: x(:,:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
   end subroutine
 
-  module subroutine BLOCK_GET_GLOBAL_IDX(this, ib, jb, il, jl, ig, jg)
-    class(BLOCK_TYPE), intent(in)  :: this
-    integer,           intent(in)  :: ib
-    integer,           intent(in)  :: jb
-    integer,           intent(in)  :: il
-    integer,           intent(in)  :: jl
-    integer,           intent(out) :: ig
-    integer,           intent(out) :: jg
+  module subroutine block_{}T{}_get_global_idx(this, ib, jb, il, jl, ig, jg)
+    class(block_{}T), intent(in)  :: this
+    integer,          intent(in)  :: ib
+    integer,          intent(in)  :: jb
+    integer,          intent(in)  :: il
+    integer,          intent(in)  :: jl
+    integer,          intent(out) :: ig
+    integer,          intent(out) :: jg
   end subroutine
 
-  module subroutine BLOCK_GET_LOCAL_IDX(this, ig, jg, ib, jb, il, jl)
-    class(BLOCK_TYPE), intent(in)  :: this
-    integer,           intent(in)  :: ig
-    integer,           intent(in)  :: jg
-    integer,           intent(out) :: ib
-    integer,           intent(out) :: jb
-    integer,           intent(out) :: il
-    integer,           intent(out) :: jl
+  module subroutine block_{}T{}_get_local_idx(this, ig, jg, ib, jb, il, jl)
+    class(block_{}T), intent(in)  :: this
+    integer,          intent(in)  :: ig
+    integer,          intent(in)  :: jg
+    integer,          intent(out) :: ib
+    integer,          intent(out) :: jb
+    integer,          intent(out) :: il
+    integer,          intent(out) :: jl
   end subroutine
 
-  module subroutine BLOCK_GET_DENSE(this, ib, jb, p)
-    class(BLOCK_TYPE),         intent(inout) :: this
+  module subroutine block_{}T{}_get_dense(this, ib, jb, p)
+    class(block_{}T),         intent(inout) :: this
+    integer,                  intent(in)    :: ib
+    integer,                  intent(in)    :: jb
+    type(dense_{}T), pointer, intent(out)   :: p
+  end subroutine
+
+  module subroutine block_{}T{}_get_sparse(this, ib, jb, p)
+    class(block_{}T),          intent(inout) :: this
     integer,                   intent(in)    :: ib
     integer,                   intent(in)    :: jb
-    type(DENSE_TYPE), pointer, intent(out)   :: p
+    type(sparse_{}T), pointer, intent(out)   :: p
   end subroutine
 
-  module subroutine BLOCK_GET_SPARSE(this, ib, jb, p)
-    class(BLOCK_TYPE),          intent(inout) :: this
-    integer,                    intent(in)    :: ib
-    integer,                    intent(in)    :: jb
-    type(SPARSE_TYPE), pointer, intent(out)   :: p
+  module subroutine block_{}T{}_get_band(this, ib, jb, p)
+    class(block_{}T),         intent(inout) :: this
+    integer,                  intent(in)    :: ib
+    integer,                  intent(in)    :: jb
+    type(band_{}T), pointer,  intent(out)   :: p
   end subroutine
 
-  module subroutine BLOCK_GET_BAND(this, ib, jb, p)
-    class(BLOCK_TYPE),         intent(inout) :: this
+  module subroutine block_{}T{}_get_block(this, ib, jb, p)
+    class(block_{}T),         intent(inout) :: this
+    integer,                  intent(in)    :: ib
+    integer,                  intent(in)    :: jb
+    type(block_{}T), pointer, intent(out)   :: p
+  end subroutine
+
+  module subroutine block_{}T{}_set(this, ib, jb, b, fact)
+    class(block_{}T),     intent(inout) :: this
+    integer,              intent(in)    :: ib
+    integer,              intent(in)    :: jb
+    class(matrix_{}T),    intent(in)    :: b
+    m4_type(T), optional, intent(in)    :: fact
+  end subroutine
+
+  module subroutine block_{}T{}_set_ptr(this, ib, jb, b)
+    class(block_{}T),          intent(inout) :: this
     integer,                   intent(in)    :: ib
     integer,                   intent(in)    :: jb
-    type(BAND_TYPE), pointer,  intent(out)   :: p
+    class(matrix_{}T), target, intent(in)    :: b
   end subroutine
 
-  module subroutine BLOCK_GET_BLOCK(this, ib, jb, p)
-    class(BLOCK_TYPE),         intent(inout) :: this
-    integer,                   intent(in)    :: ib
-    integer,                   intent(in)    :: jb
-    type(BLOCK_TYPE), pointer, intent(out)   :: p
+  module subroutine block_{}T{}_copy(this, copy)
+    class(block_{}T), intent(in)  :: this
+    type(block_{}T),  intent(out) :: copy
   end subroutine
 
-  module subroutine BLOCK_SET(this, ib, jb, b, fact)
-    class(BLOCK_TYPE),  intent(inout) :: this
-    integer,            intent(in)    :: ib
-    integer,            intent(in)    :: jb
-    class(MATRIX_TYPE), intent(in)    :: b
-    TT, optional,       intent(in)    :: fact
-  end subroutine
-
-  module subroutine BLOCK_SET_PTR(this, ib, jb, b)
-    class(BLOCK_TYPE),          intent(inout) :: this
-    integer,                    intent(in)    :: ib
-    integer,                    intent(in)    :: jb
-    class(MATRIX_TYPE), target, intent(in)    :: b
-  end subroutine
-
-  module subroutine BLOCK_COPY(this, copy)
-    class(BLOCK_TYPE), intent(in)  :: this
-    type(BLOCK_TYPE),  intent(out) :: copy
-  end subroutine
-
-  module function BLOCK_BLOCK_ALLOWED(this, ib, jb) result(tf)
-    class(BLOCK_TYPE), intent(in) :: this
-    integer,           intent(in) :: ib
-    integer,           intent(in) :: jb
-    logical                       :: tf
+  module function block_{}T{}_block_allowed(this, ib, jb) result(tf)
+    class(block_{}T), intent(in) :: this
+    integer,          intent(in) :: ib
+    integer,          intent(in) :: jb
+    logical                      :: tf
   end function
 
-  module function BLOCK_CHECK_SIZES(this) result(tf)
-    class(BLOCK_TYPE), intent(in) :: this
-    logical                       :: tf
+  module function block_{}T{}_check_sizes(this) result(tf)
+    class(block_{}T), intent(in) :: this
+    logical                      :: tf
   end function
 end interface
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef BAND_TYPE
-#undef BLOCK_TYPE
-#undef BLOCK_PTR_TYPE
-#undef DENSE_TYPE
-#undef DENSE_PTR_TYPE
-#undef MATRIX_TYPE
-#undef MATRIX_PTR_TYPE
-#undef SPARSE_TYPE
-
-#undef BLOCK_INIT
-#undef BLOCK_DESTRUCT
-#undef BLOCK_RESET
-#undef BLOCK_DELETE_BLOCK
-#undef BLOCK_SCALE
-#undef BLOCK_MUL_VEC
-#undef BLOCK_MUL_MAT
-#undef BLOCK_FACTORIZE
-#undef BLOCK_SOLVE_VEC
-#undef BLOCK_SOLVE_MAT
-#undef BLOCK_GET_GLOBAL_IDX
-#undef BLOCK_GET_LOCAL_IDX
-#undef BLOCK_SET_BLOCK_TYPE
-#undef BLOCK_GET_DENSE
-#undef BLOCK_GET_SPARSE
-#undef BLOCK_GET_BAND
-#undef BLOCK_GET_BLOCK
-#undef BLOCK_SET
-#undef BLOCK_SET_PTR
-#undef BLOCK_COPY
-#undef BLOCK_BLOCK_ALLOWED
-#undef BLOCK_CHECK_SIZES

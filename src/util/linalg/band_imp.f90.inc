@@ -1,55 +1,26 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define BAND_TYPE            CONCAT(band,T)
-#define BAND_PTR_TYPE        CONCAT(band_ptr,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-
-#define BAND_INIT            CONCAT3(band,T,init)
-#define BAND_DESTRUCT        CONCAT3(band,T,destruct)
-#define BAND_RESET           CONCAT3(band,T,reset)
-#define BAND_RESET_ROW       CONCAT3(band,T,reset_row)
-#define BAND_SCALE           CONCAT3(band,T,scale)
-#define BAND_MUL_VEC         CONCAT3(band,T,mul_vec)
-#define BAND_MUL_MAT         CONCAT3(band,T,mul_mat)
-#define BAND_FACTORIZE       CONCAT3(band,T,factorize)
-#define BAND_SOLVE_VEC       CONCAT3(band,T,solve_vec)
-#define BAND_SOLVE_MAT       CONCAT3(band,T,solve_mat)
-#define BAND_ADD_ELEM        CONCAT3(band,T,add_elem)
-#define BAND_GET_ELEM        CONCAT3(band,T,get_elem)
-#define BAND_SET_ELEM        CONCAT3(band,T,set_elem)
-#define BAND_SET_DIAG_ARR    CONCAT3(band,T,set_diag_arr)
-#define BAND_SET_DIAG_VAL    CONCAT3(band,T,set_diag_val)
-#define BAND_OUTPUT          CONCAT3(band,T,output)
-#define BAND_EYE             CONCAT3(band,eye,T)
-
-module subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
+module subroutine band_{}T{}_init(this, nrows, nlower, nupper, d0)
   !! Initialize band matrix
 
-  class(BAND_TYPE),  intent(out) :: this
+  class(band_{}T),      intent(out) :: this
     !! Band matrix
-  integer,           intent(in)  :: nrows
+  integer,              intent(in)  :: nrows
     !! Number of columns = Number of rows
-  integer,           intent(in)  :: nlower
+  integer,              intent(in)  :: nlower
     !! Number of lower subdiagonals. >= 0
-  integer, optional, intent(in)  :: nupper
+  integer,    optional, intent(in)  :: nupper
     !! Number of upper superdiagonals. >= 0
     !! (default: nlower)
-  TT,      optional, intent(in)  :: d0(:,:)
+  m4_type(T), optional, intent(in)  :: d0(:,:)
     !! Initial data.
 
   integer :: nupper_
 
   ! check input data
-  ASSERT(nlower >= 0)
+  m4_assert(nlower >= 0)
   nupper_ = nlower
   if (present(nupper)) nupper_ = nupper
-  ASSERT(nupper_ >= 0)
-  ASSERT(nlower+nupper_+1 <= 2*nrows-1)
+  m4_assert(nupper_ >= 0)
+  m4_assert(nlower+nupper_+1 <= 2*nrows-1)
 
   ! init base
   call this%init("", nrows, ncols=nrows)
@@ -59,8 +30,8 @@ module subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
 
   ! allocate data
   if (present(d0)) then
-    ASSERT(size(d0, 1) == nlower+nupper_+1)
-    ASSERT(size(d0, 2) == nrows)
+    m4_assert(size(d0, 1) == nlower+nupper_+1)
+    m4_assert(size(d0, 2) == nrows)
     allocate (this%d(-nupper_:nlower,nrows), source=d0)
   else
     allocate (this%d(-nupper_:nlower,nrows))
@@ -68,10 +39,10 @@ module subroutine BAND_INIT(this, nrows, nlower, nupper, d0)
   end if
 end subroutine
 
-module subroutine BAND_DESTRUCT(this)
+module subroutine band_{}T{}_destruct(this)
   !! Destruct band matrix by deallocating its memory.
 
-  class(BAND_TYPE), intent(inout) :: this
+  class(band_{}T), intent(inout) :: this
     !! Band matrix
 
   if (allocated(this%d   )) deallocate (this%d   )
@@ -81,12 +52,12 @@ module subroutine BAND_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-module subroutine BAND_RESET(this, only_factorization)
+module subroutine band_{}T{}_reset(this, only_factorization)
   !! Reset band matrix to zero (optionally only the factorization).
 
-  class(BAND_TYPE),  intent(inout) :: this
+  class(band_{}T),  intent(inout) :: this
     !! Band matrix
-  logical, optional, intent(in)    :: only_factorization
+  logical, optional, intent(in)   :: only_factorization
     !! Reset only factorization data (default: false)
 
   logical :: only_fact
@@ -105,20 +76,16 @@ module subroutine BAND_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-module subroutine BAND_RESET_ROW(this, i)
+module subroutine band_{}T{}_reset_row(this, i)
   !! Reset i-th row to zero and its factorization.
 
-  class(BAND_TYPE),  intent(inout) :: this
+  class(band_{}T),  intent(inout) :: this
     !! Band matrix
-  integer,           intent(in)    :: i
+  integer,          intent(in)    :: i
     !! i-th row
 
   integer :: j, j0, j1
-#ifdef TCMPLX
-  complex :: zero
-#else
-  real    :: zero
-#endif
+  m4_ifelse(T,cmplx,{complex},{real}) :: zero
 
   zero = 0
 
@@ -136,33 +103,33 @@ module subroutine BAND_RESET_ROW(this, i)
   this%factorized = .false.
 end subroutine
 
-module subroutine BAND_SCALE(this, fact)
+module subroutine band_{}T{}_scale(this, fact)
   !! Scale band matrix by a factor.
 
-  class(BAND_TYPE), intent(inout) :: this
+  class(band_{}T), intent(inout) :: this
     !! Band matrix
-  TT,               intent(in)    :: fact
+  m4_type(T),      intent(in)    :: fact
     !! Scaling factor
 
-  ASSERT(.not. allocated(this%f   ))
-  ASSERT(.not. allocated(this%ipiv))
+  m4_assert(.not. allocated(this%f   ))
+  m4_assert(.not. allocated(this%ipiv))
 
   this%d = this%d * fact
 end subroutine
 
-module subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine band_{}T{}_mul_vec(this, x, y, fact_y, trans)
   !! Multiply band matrix by a raw vector.
   !! Operation: y <- this * x + fact_y * y
 
-  class(BAND_TYPE),    intent(in)    :: this
+  class(band_{}T),      intent(in)    :: this
     !! Band matrix
-  TT,                  intent(in)    :: x(:)
+  m4_type(T),           intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                  intent(inout) :: y(:)
+  m4_type(T),           intent(inout) :: y(:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character, optional, intent(in)    :: trans
+  character,  optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   if (this%nupper + this%nlower == 0) then    ! diagonal
@@ -176,19 +143,19 @@ module subroutine BAND_MUL_VEC(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-module subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine band_{}T{}_mul_mat(this, x, y, fact_y, trans)
   !! Multiply band matrix by a raw matrix.
   !! Operation: y <- this * x + fact_y * y
 
-  class(BAND_TYPE),    intent(in)    :: this
+  class(band_{}T),      intent(in)    :: this
     !! Band matrix
-  TT,                  intent(in)    :: x(:,:)
+  m4_type(T),           intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                  intent(inout) :: y(:,:)
+  m4_type(T),           intent(inout) :: y(:,:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character, optional, intent(in)    :: trans
+  character,  optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   integer :: i
@@ -210,10 +177,10 @@ module subroutine BAND_MUL_MAT(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-module subroutine BAND_FACTORIZE(this)
+module subroutine band_{}T{}_factorize(this)
   !! Factorize band matrix. Call this before solving!
 
-  class(BAND_TYPE), intent(inout) :: this
+  class(band_{}T), intent(inout) :: this
     !! Band matrix
 
   integer :: info
@@ -252,21 +219,21 @@ module subroutine BAND_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-module subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine band_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first!
 
-  class(BAND_TYPE),    intent(in)  :: this
+  class(band_{}T),     intent(in)  :: this
     !! Band matrix.
-  TT,                  intent(in)  :: rhs(:)
+  m4_type(T),          intent(in)  :: rhs(:)
     !! Right hand side of equation system
-  TT,                  intent(out) :: x(:)
+  m4_type(T),          intent(out) :: x(:)
     !! Store result in x
   character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
-  TT :: rhs_(size(rhs),1), x_(size(x),1)
+  m4_type(T) :: rhs_(size(rhs),1), x_(size(x),1)
 
   ! solve with matrix routine
   rhs_(:,1) = rhs
@@ -274,14 +241,14 @@ module subroutine BAND_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   x = x_(:,1)
 end subroutine
 
-module subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine band_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   !! Solve system: this * x = rhs. Call this%factorize() first.
 
-  class(BAND_TYPE),    intent(in)  :: this
+  class(band_{}T),     intent(in)  :: this
     !! Band matrix
-  TT,                  intent(in)  :: rhs(:,:)
+  m4_type(T),          intent(in)  :: rhs(:,:)
     !! Right hand sides of equation system
-  TT,                  intent(out) :: x(:,:)
+  m4_type(T),          intent(out) :: x(:,:)
     !! Store results in x
   character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
@@ -300,7 +267,7 @@ module subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     end do
 
   else if ((this%nupper == 1) .and. (this%nlower == 1)) then      ! tridiagonal
-    ASSERT(this%factorized)
+    m4_assert(this%factorized)
 
     associate(n   => this%ncols,                &
       &       du  => this%d(-1,2:this%ncols  ), &
@@ -322,7 +289,7 @@ module subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
     end associate
 
   else                                                            ! general band matrix
-    ASSERT(this%factorized)
+    m4_assert(this%factorized)
 
     x = rhs
     call gbtrs(this%f, x, this%ipiv, kl=this%nlower, trans=trans, info=info)
@@ -335,10 +302,10 @@ module subroutine BAND_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-module subroutine BAND_OUTPUT(this, file, funit, fmt)
+module subroutine band_{}T{}_output(this, file, funit, fmt)
   !! Write band matrix to file or stream.
 
-  class(BAND_TYPE),       intent(in) :: this
+  class(band_{}T),        intent(in) :: this
     !! Band matrix
   character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
@@ -355,16 +322,12 @@ module subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(fmt)) then
     fmt_ = fmt
   else
-#ifdef TCMPLX
-    fmt_ = '(ES24.16,SP,ES24.16,"i")'
-#else
-    fmt_ = '(ES24.16)'
-#endif
+    fmt_ = m4_ifelse(T,cmplx,{'(ES24.16,SP,ES24.16,"i")'},{'(ES24.16)'})
   end if
 
   ! open file if needed
-  ASSERT(.not. (present(file) .and. present(funit)))
-  ASSERT(present(file) .or. present(funit))
+  m4_assert(.not. (present(file) .and. present(funit)))
+  m4_assert(present(file) .or. present(funit))
   if (present(file)) then
     open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
     if (status /= 0) call program_error("File could not be opened")
@@ -390,61 +353,61 @@ module subroutine BAND_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-module subroutine BAND_ADD_ELEM(this, i, j, x)
-  class(BAND_TYPE), intent(inout) :: this
-  integer,          intent(in)    :: i
+module subroutine band_{}T{}_add_elem(this, i, j, x)
+  class(band_{}T), intent(inout) :: this
+  integer,         intent(in)    :: i
     !! row index of full matrix to represent
-  integer,          intent(in)    :: j
+  integer,         intent(in)    :: j
     !! col index of full matrix to represent
-  TT,               intent(in)    :: x
+  m4_type(T),      intent(in)    :: x
     !! matrix element to add
 
-  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
-  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
+  m4_assert((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  m4_assert((           1 <= j  ) .and. (  j <= this%ncols ))
 
   this%d(i-j,j) = this%get_elem(i,j) + x
 end subroutine
 
-module function BAND_GET_ELEM(this, i, j) result(x)
-  class(BAND_TYPE), intent(in) :: this
-  integer,          intent(in) :: i
+module function band_{}T{}_get_elem(this, i, j) result(x)
+  class(band_{}T), intent(in) :: this
+  integer,         intent(in) :: i
     !! row index of full matrix to represent
-  integer,          intent(in) :: j
+  integer,         intent(in) :: j
     !! col index of full matrix to represent
-  TT                           :: x
+  m4_type(T)                  :: x
     !! matrix element
 
-  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
-  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
+  m4_assert((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  m4_assert((           1 <= j  ) .and. (  j <= this%ncols ))
 
   x = this%d(i-j,j)
 end function
 
-module subroutine BAND_SET_ELEM(this, i, j, x)
-  class(BAND_TYPE), intent(inout) :: this
-  integer,          intent(in)    :: i
+module subroutine band_{}T{}_set_elem(this, i, j, x)
+  class(band_{}T), intent(inout) :: this
+  integer,         intent(in)    :: i
     !! row index of full matrix to represent
-  integer,          intent(in)    :: j
+  integer,         intent(in)    :: j
     !! col index of full matrix to represent
-  TT,               intent(in)    :: x
+  m4_type(T),      intent(in)    :: x
     !! matrix element to set
 
-  ASSERT((-this%nupper <= i-j) .and. (i-j <= this%nlower))
-  ASSERT((           1 <= j  ) .and. (  j <= this%ncols ))
+  m4_assert((-this%nupper <= i-j) .and. (i-j <= this%nlower))
+  m4_assert((           1 <= j  ) .and. (  j <= this%ncols ))
 
   this%d(i-j,j) = x
 end subroutine
 
-module subroutine BAND_SET_DIAG_VAL(this, val, k)
+module subroutine band_{}T{}_set_diag_val(this, val, k)
   !! inserts same value on the k-th diagonal.
 
-  class(BAND_TYPE), intent(inout)        :: this
-  TT,               intent(in)           :: val
+  class(band_{}T),   intent(inout) :: this
+  m4_type(T),        intent(in)    :: val
     !! value
-  integer,          intent(in), optional :: k
+  integer, optional, intent(in)    :: k
     !! k-th diagonal.
     !! k>0 lower diagonal, k<0 upper diagonal.
-    !! ATTENTION: opposite to numbering in matlab!
+    !! Am4_type(T)ENTION: opposite to numbering in matlab!
     !! default: 0 == main diagonal
 
   integer :: k_, i
@@ -456,16 +419,16 @@ module subroutine BAND_SET_DIAG_VAL(this, val, k)
   call this%set_diag([(val, i=1,this%nrows-abs(k_))], k=k_)
 end subroutine
 
-module subroutine BAND_SET_DIAG_ARR(this, vals, k)
+module subroutine band_{}T{}_set_diag_arr(this, vals, k)
   !! inserts values on the k-th diagonal.
 
-  class(BAND_TYPE), intent(inout)        :: this
-  TT,               intent(in)           :: vals(:)
+  class(band_{}T),   intent(inout) :: this
+  m4_type(T),        intent(in)    :: vals(:)
     !! values
-  integer,          intent(in), optional :: k
+  integer, optional, intent(in)    :: k
     !! k-th diagonal.
     !! k>0 lower diagonal, k<0 upper diagonal.
-    !! ATTENTION: opposite to numbering in matlab!
+    !! Am4_type(T)ENTION: opposite to numbering in matlab!
     !! default: 0 == main diagonal
 
   integer :: k_, i1, i2, n
@@ -473,7 +436,7 @@ module subroutine BAND_SET_DIAG_ARR(this, vals, k)
   k_ = 0
   if (present(k)) k_ = k
 
-  ASSERT((-k_ <= this%nupper) .and. (k_ <= this%nlower))
+  m4_assert((-k_ <= this%nupper) .and. (k_ <= this%nlower))
 
   n  = this%nrows
   i1 = merge(1, 1-k_, k_>=0)
@@ -482,46 +445,13 @@ module subroutine BAND_SET_DIAG_ARR(this, vals, k)
   this%d(k_,i1:i2) = vals
 end subroutine
 
-module function BAND_EYE(nrows) result(eye)
+module function band_eye_{}T{}(nrows) result(eye)
   !! band identity matrix
 
   integer, intent(in) :: nrows
     !! Number of rows
-  type(BAND_TYPE)     :: eye
+  type(band_{}T)      :: eye
 
   call eye%init(nrows, 0)
   eye%d = 1
 end function
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef BAND_TYPE
-#undef BAND_PTR_TYPE
-#undef MATRIX_TYPE
-
-#undef BAND_INIT
-#undef BAND_DESTRUCT
-#undef BAND_RESET
-#undef BAND_RESET_ROW
-#undef BAND_SCALE
-#undef BAND_MUL_VEC
-#undef BAND_MUL_MAT
-#undef BAND_FACTORIZE
-#undef BAND_SOLVE_VEC
-#undef BAND_SOLVE_MAT
-#undef BAND_ADD_ELEM
-#undef BAND_GET_ELEM
-#undef BAND_SET_ELEM
-#undef BAND_SET_DIAG_ARR
-#undef BAND_SET_DIAG_VAL
-#undef BAND_OUTPUT
-#undef BAND_EYE

@@ -111,13 +111,13 @@ contains
 
     ! strings
     block
-      character(:), allocatable :: c_arr
+      type(string)              :: s
       type(string), allocatable :: s_arr(:)
       integer,      allocatable :: sid(:)
 
       ! get_name_string
-      call f%get("contact", "name", c_arr)
-      call tc%assert_eq(string("GAT"), string(c_arr), "get_name_string")
+      call f%get("contact", "name", s)
+      call tc%assert_eq(string("GAT"), s, "get_name_string")
 
       ! get_name_string_arr
       call f%get("contact", "names", s_arr)
@@ -125,8 +125,8 @@ contains
 
       ! get_string
       call f%get_sections("contact", sid)
-      call f%get(sid(1), "name", c_arr)
-      call tc%assert_eq(string("GAT"), string(c_arr), "get_string")
+      call f%get(sid(1), "name", s)
+      call tc%assert_eq(string("GAT"), s, "get_string")
 
       ! get_string_arr
       call f%get_sections("contact", sid)

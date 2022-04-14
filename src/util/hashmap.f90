@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module hashmap_m
 
@@ -10,52 +10,34 @@ module hashmap_m
   implicit none
 
   private
-  public hashmap_cmplx
-  public hashmap_int
-  public hashmap_log
-  public hashmap_real
-  public hashmap_string
 
-#define T int
-#define TT integer
-#include "hashmap_def.f90.inc"
+  ! list of built-in types
+  m4_define({m4_list},{
+    m4_X(int)
+    m4_X(log)
+    m4_X(real)
+    m4_X(cmplx)
+    m4_X(string)
+  })
 
-#define T log
-#define TT logical
-#include "hashmap_def.f90.inc"
+  ! make defined types public
+  m4_define({m4_X},{public hashmap_$1})
+  m4_list
 
-#define T string
-#define TT type(string)
-#include "hashmap_def.f90.inc"
-
-#define T real
-#define TT real
-#include "hashmap_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "hashmap_def.f90.inc"
+  ! include type definitions
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(hashmap_def.f90.inc)
+  })
+  m4_list
 
 contains
 
-#define T int
-#define TT integer
-#include "hashmap_imp.f90.inc"
-
-#define T log
-#define TT logical
-#include "hashmap_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#include "hashmap_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "hashmap_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "hashmap_imp.f90.inc"
+  ! include type procedure implementations
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(hashmap_imp.f90.inc)
+  })
+  m4_list
 
 end module

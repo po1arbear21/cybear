@@ -1,11 +1,14 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module tensor_grid_m
 
-  use array_m,  only: array2_int
-  use error_m,  only: assert_failed
-  use grid_m,   only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr, grid_data_int, allocate_grid_data
-  use vector_m, only: vector_int
+  use array_m,       only: array2_int
+  use error_m,       only: assert_failed
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr
+  use grid_data_m,   only: allocate_grid_data, grid_data_int
+  use json_m,        only: json_array, json_object
+  use output_file_m, only: output_file
+  use vector_m,      only: vector_int
 
   implicit none
 
@@ -37,6 +40,7 @@ module tensor_grid_m
     procedure :: get_vol        => tensor_grid_get_vol
     procedure :: get_max_neighb => tensor_grid_get_max_neighb
     procedure :: get_neighb     => tensor_grid_get_neighb
+    procedure :: output         => tensor_grid_output
 
     procedure, private :: init_neighb      => tensor_grid_init_neighb
     procedure, private :: init_neighb_loop => tensor_grid_init_neighb_loop
@@ -44,9 +48,11 @@ module tensor_grid_m
 
 contains
 
-  subroutine tensor_grid_init(this, g)
+  subroutine tensor_grid_init(this, name, g)
     !! initialize tensor grid
     class(tensor_grid), intent(out) :: this
+    character(*),       intent(in)  :: name
+      !! grid name
     type(grid_ptr),     intent(in)  :: g(:)
       !! sub-grids
 
@@ -83,16 +89,13 @@ contains
     end do
 
     ! init base
-    call this%grid_init(dim, idx_dim, face_dim, cell_dim)
+    call this%grid_init(name, dim, idx_dim, face_dim, cell_dim)
 
     ! save sub-grid pointers
     this%g = g
 
     ! init neighbour data
     call this%init_neighb()
-
-    ! init tables
-    call this%init_tab_all()
   end subroutine
 
   subroutine tensor_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
@@ -107,8 +110,8 @@ contains
 
     integer :: i, j0, j1, rdir
 
-    ASSERT(this%idx_allowed(idx_type, idx_dir))
-    ASSERT(size(idx_bnd) == this%idx_dim)
+    m4_assert(this%idx_allowed(idx_type, idx_dir))
+    m4_assert(size(idx_bnd) == this%idx_dim)
 
     j1 = 0
     do i = 1, size(this%g)
@@ -142,8 +145,8 @@ contains
 
     integer :: i, i0, i1, j0, j1
 
-    ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
-    ASSERT(size(p) == this%dim)
+    m4_assert(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
+    m4_assert(size(p) == this%dim)
 
     i1 = 0
     j1 = 0
@@ -168,8 +171,8 @@ contains
 
     integer :: i, i0, i1, j0, j1, rdir
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, 2]))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, 2]))
 
     i1 = 0
     j1 = 0
@@ -205,8 +208,8 @@ contains
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1, rdir
     real    :: tmp(this%dim,this%face_dim(idx_dir))
 
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
+    m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
     ! tensor product point counter
     c = 1
@@ -258,8 +261,8 @@ contains
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1
     real    :: tmp(this%dim,this%cell_dim)
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
 
     ! tensor product point counter
     c = 1
@@ -304,7 +307,7 @@ contains
 
     integer :: i, j0, j1, rdir
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
 
     j1 = 0
     do i = 1, size(this%g)
@@ -334,7 +337,7 @@ contains
 
     integer :: i, j0, j1, rdir
 
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
 
     surf = 1.0
     j1   = 0
@@ -364,7 +367,7 @@ contains
 
     integer :: i, j0, j1
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
 
     vol = 1.0
     j1  = 0
@@ -389,8 +392,8 @@ contains
     integer                        :: max_neighb
       !! return maximal number of nearest neighbours
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
 
     max_neighb = this%max_neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)
   end function
@@ -421,9 +424,9 @@ contains
 
     integer :: i0, i1, i
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
-    ASSERT(size(idx2) == this%idx_dim)
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(size(idx2) == this%idx_dim)
 
     ! lookup neighbour index
     i0 = this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%get(idx1)
@@ -440,6 +443,31 @@ contains
     ! extract j-th neighbour indices from precomputed table
     idx2   = idx1 + this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(:,i)
     status = .true.
+  end subroutine
+
+  subroutine tensor_grid_output(this, of, unit)
+    !! output tensor grid
+    class(tensor_grid),     intent(in)    :: this
+    type(output_file),      intent(inout) :: of
+      !! output file handle
+    character(*), optional, intent(in)    :: unit
+      !! physical unit of coordinates (ignored)
+
+    integer                    :: i
+    type(json_array),  pointer :: subgrids
+    type(json_object), pointer :: obj
+
+    m4_ignore(unit)
+
+    obj => of%new_object("Grids")
+    call obj%add("Name", this%name)
+    call obj%add("Type", "Tensor")
+    allocate (subgrids)
+    call subgrids%init()
+    do i = 1, size(this%g)
+      call subgrids%add(this%g(i)%p%name)
+    end do
+    call obj%add("Subgrids", subgrids)
   end subroutine
 
   subroutine tensor_grid_init_neighb(this)

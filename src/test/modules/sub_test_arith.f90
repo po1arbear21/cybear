@@ -8,7 +8,7 @@ contains
     type(test_case) :: tc
     call tc%init("arith")
 
-    ! fixme test interface `add` here. currently it is included in matrix tests: sub_test_dense, etc.
+    ! fixme test interface "add" here. currently it is included in matrix tests: sub_test_dense, etc.
     call test_diag(tc)
     call test_approx(tc)
 

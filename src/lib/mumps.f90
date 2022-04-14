@@ -1,4 +1,6 @@
-#ifdef USE_MUMPS
+m4_include(../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_mumps},0,-1))
 
 module mumps_m
 
@@ -292,4 +294,4 @@ contains
 
 end module
 
-#endif
+m4_divert(0)

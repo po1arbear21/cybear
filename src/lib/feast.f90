@@ -1,5 +1,6 @@
-#ifdef USE_FEAST
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_feast},0,-1))
 
 module feast_m
 
@@ -231,8 +232,8 @@ contains
     integer,             intent(in)  :: M0
       !! overestimate for number of evals in contour
 
-    ASSERT(N  >= M0)
-    ASSERT(M0 >   0)
+    m4_assert(N  >= M0)
+    m4_assert(M0 >   0)
 
     this%N  = N
     this%M0 = M0
@@ -313,4 +314,4 @@ contains
 
 end module
 
-#endif
+m4_divert(0)

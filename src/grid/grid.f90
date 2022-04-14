@@ -1,17 +1,15 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module grid_m
 
-  use error_m, only: assert_failed, program_error
+  use error_m,       only: assert_failed, program_error
+  use output_file_m, only: output_file
 
   implicit none
 
   private
   public IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   public grid, grid_ptr
-  public allocate_grid_data
-  ! public (see grid_data_def.f90.inc)
-  public grid_table, grid_table_ptr, vector_grid_table
 
   ! grid index types
   integer, parameter :: IDX_VERTEX = 1
@@ -25,23 +23,22 @@ module grid_m
   type, abstract :: grid
     !! Base grid
 
-    integer              :: dim
+    character(:), allocatable :: name
+      !! grid name
+    integer                   :: dim
       !! grid dimension = number of coordinates per point
-    integer              :: idx_dim
+    integer                   :: idx_dim
       !! index dimension = number of indices per point
-    integer, allocatable :: face_dim(:)
+    integer,      allocatable :: face_dim(:)
       !! number of points per face depending on direction (1:idx_dim)
-    integer              :: cell_dim
+    integer                   :: cell_dim
       !! number of points per cell
-
-    type(grid_table), allocatable :: tab_all(:,:)
-      !! select all grid indices (idx_type, idx_dir)
   contains
-    procedure                                :: grid_init
-    procedure                                :: init_tab_all => grid_init_tab_all
-    procedure                                :: get_ptr      => grid_get_ptr
-    procedure                                :: idx_allowed  => grid_idx_allowed
-    generic                                  :: get_idx_bnd  => get_idx_bnd_n
+    procedure :: grid_init
+    procedure :: get_ptr     => grid_get_ptr
+    procedure :: idx_allowed => grid_idx_allowed
+    generic   :: get_idx_bnd => get_idx_bnd_n
+
     procedure(grid_get_idx_bnd_n),  deferred :: get_idx_bnd_n
     procedure(grid_get_vertex),     deferred :: get_vertex
     procedure(grid_get_edge),       deferred :: get_edge
@@ -52,6 +49,7 @@ module grid_m
     procedure(grid_get_vol),        deferred :: get_vol
     procedure(grid_get_max_neighb), deferred :: get_max_neighb
     procedure(grid_get_neighb),     deferred :: get_neighb
+    procedure(grid_output),         deferred :: output
   end type
 
   type grid_ptr
@@ -190,147 +188,45 @@ module grid_m
       logical,     intent(out) :: status
         !! does j-th neighbor exist?
     end subroutine
-  end interface
 
-#define T int
-#define TT integer
-#include "grid_data_def.f90.inc"
-
-#define T log
-#define TT logical
-#define TLOG
-#include "grid_data_def.f90.inc"
-
-#define T real
-#define TT real
-#include "grid_data_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "grid_data_def.f90.inc"
-
-  type grid_table
-    !! table to select points from grid
-
-    character(:), allocatable :: name
-      !! grid table name
-
-    class(grid), pointer :: g => null()
-      !! pointer to grid
-
-    integer             :: idx_type
-      !! index type
-    integer             :: idx_dir
-      !! index direction for edges and faces
-    class(grid_data_log), allocatable :: flags
-      !! include/exclude point (product idx_bnd)
-
-    integer                           :: n
-      !! number of entries
-    integer,              allocatable :: flat2idx(:,:)
-      !! flat index to grid indices (idx_dim x n)
-    class(grid_data_int), allocatable :: idx2flat
-      !! grid indices to flat index
-  contains
-    procedure :: init       => grid_table_init
-    procedure :: init_final => grid_table_init_final
-    procedure :: get_ptr    => grid_table_get_ptr
-    procedure :: get_idx    => grid_table_get_idx
-    procedure :: get_flat   => grid_table_get_flat
-  end type
-
-  type grid_table_ptr
-    type(grid_table), pointer :: p => null()
-  end type
-
-  interface
-    module subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
-      class(grid_table),   intent(out) :: this
-      character(*),        intent(in)  :: name
-      class(grid), target, intent(in)  :: g
-      integer,             intent(in)  :: idx_type
-      integer,             intent(in)  :: idx_dir
-      logical, optional,   intent(in)  :: initial_flags
+    subroutine grid_output(this, of, unit)
+      !! output grid
+      import grid, output_file
+      class(grid),            intent(in)    :: this
+      type(output_file),      intent(inout) :: of
+        !! output file handle
+      character(*), optional, intent(in)    :: unit
+        !! physical unit of coordinates
     end subroutine
-
-    module subroutine grid_table_init_final(this)
-      class(grid_table), intent(inout) :: this
-    end subroutine
-
-    module function grid_table_get_idx(this, i) result(idx)
-      class(grid_table), intent(in)  :: this
-      integer,           intent(in)  :: i
-      integer                        :: idx(this%g%idx_dim)
-    end function
-
-    module function grid_table_get_flat(this, idx) result(i)
-      class(grid_table), intent(in)  :: this
-      integer,           intent(in)  :: idx(:)
-      integer                        :: i
-    end function
-
-    module function grid_table_get_ptr(this) result(ptr)
-      class(grid_table), target, intent(in) :: this
-      type(grid_table_ptr)                  :: ptr
-    end function
   end interface
-
-#define T grid_table
-#define TT type(grid_table)
-#include "../util/vector_def.f90.inc"
 
 contains
 
-#define T grid_table
-#define TT type(grid_table)
-#include "../util/vector_imp.f90.inc"
-
-  subroutine grid_init(this, dim, idx_dim, face_dim, cell_dim)
+  subroutine grid_init(this, name, dim, idx_dim, face_dim, cell_dim)
     !! initialize grid
-    class(grid), intent(out) :: this
-    integer,     intent(in)  :: dim
+    class(grid),  intent(out) :: this
+    character(*), intent(in) :: name
+      !! grid name
+    integer,      intent(in)  :: dim
       !! grid dimension = number of coordinates per point
-    integer,     intent(in)  :: idx_dim
+    integer,      intent(in)  :: idx_dim
       !! index dimension = number of indices per point
-    integer,     intent(in)  :: face_dim(:)
+    integer,      intent(in)  :: face_dim(:)
       !! number of points per face depending on direction (idx_dim)
-    integer,     intent(in)  :: cell_dim
+    integer,      intent(in)  :: cell_dim
       !! number of points per cell
 
-    ASSERT(          dim  >= 0      )
-    ASSERT(      idx_dim  >= 0      )
-    ASSERT(size(face_dim) == idx_dim)
-    ASSERT(all( face_dim  >= 0)     )
-    ASSERT(     cell_dim  >= 0      )
+    m4_assert(          dim  >= 0      )
+    m4_assert(      idx_dim  >= 0      )
+    m4_assert(size(face_dim) == idx_dim)
+    m4_assert(all( face_dim  >= 0)     )
+    m4_assert(     cell_dim  >= 0      )
 
+    this%name     =     name
     this%dim      =      dim
     this%idx_dim  =  idx_dim
     this%face_dim = face_dim
     this%cell_dim = cell_dim
-  end subroutine
-
-  subroutine grid_init_tab_all(this)
-    !! initialize this%tab_all
-    class(grid), intent(inout) :: this
-
-    integer       :: idx_type, idx_dir, idir0(4), idir1(4)
-    character(32) :: name
-
-    ! initialize tables
-    allocate (this%tab_all(4,0:this%idx_dim))
-    idir0 = [0,       1,       1, 0]
-    idir1 = [0, this%idx_dim, this%idx_dim, 0]
-    do idx_type = 1, 4
-      do idx_dir = idir0(idx_type), idir1(idx_type)
-        if (idx_dir > 0) then
-          write (name, "(A,A,I0)") "All", trim(IDX_NAME(idx_type)), idx_dir
-        else
-          write (name, "(A,A)") "All", trim(IDX_NAME(idx_type))
-        end if
-        call this%tab_all(idx_type,idx_dir)%init(trim(name), this, idx_type, idx_dir, initial_flags = .true.)
-        call this%tab_all(idx_type,idx_dir)%init_final()
-      end do
-    end do
   end subroutine
 
   function grid_get_ptr(this) result(ptr)

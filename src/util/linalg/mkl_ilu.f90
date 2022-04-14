@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module mkl_ilu_m
 
@@ -308,8 +308,8 @@ contains
 
     integer :: i
 
-    ASSERT(size(x, dim=1) == this%nrows)
-    ASSERT(all(shape(x) == shape(y))   )
+    m4_assert(size(x, dim=1) == this%nrows)
+    m4_assert(all(shape(x) == shape(y))   )
 
     do i = 1, size(x, dim=2)
       call this%exec1(x(:,i), y(:,i))
@@ -432,8 +432,8 @@ contains
 
     integer :: i
 
-    ASSERT(size(x, dim=1) == this%nrows)
-    ASSERT(all(shape(x) == shape(y))   )
+    m4_assert(size(x, dim=1) == this%nrows)
+    m4_assert(all(shape(x) == shape(y))   )
 
     do i = 1, size(x, dim=2)
       call this%exec1(x(:,i), y(:,i))

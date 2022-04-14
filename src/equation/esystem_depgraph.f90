@@ -1,3 +1,5 @@
+m4_include(../util/macro.f90.inc)
+
 module esystem_depgraph_m
 
   use equation_m,        only: equation
@@ -78,9 +80,8 @@ module esystem_depgraph_m
     type(node), pointer :: p => null()
   end type
 
-#define T node_ptr
-#define TT type(node_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{node_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
   type depgraph_equ
     !! equation with additional information
@@ -100,9 +101,8 @@ module esystem_depgraph_m
     procedure :: init => depgraph_equ_init
   end type
 
-#define T depgraph_equ
-#define TT type(depgraph_equ)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{depgraph_equ})
+  m4_include(../util/vector_def.f90.inc)
 
   type depgraph
     !! equation system dependency graph
@@ -131,13 +131,11 @@ module esystem_depgraph_m
 
 contains
 
-#define T node_ptr
-#define TT type(node_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{node_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
-#define T depgraph_equ
-#define TT type(depgraph_equ)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{depgraph_equ})
+  m4_include(../util/vector_imp.f90.inc)
 
   recursive subroutine node_init(this, g, id, e, v, iprov, iimvar, status)
     !! initialize dependency graph node
@@ -683,7 +681,9 @@ contains
 
     ! create file + write header
     open (newunit=iounit, file=fname//'.gv', action='WRITE')
+    m4_changequote([,])
     write (iounit, '(A)') 'digraph mygraph {'
+    m4_changequote({,})
     write (iounit, '(A)') '  rankdir = "LR"'
     write (iounit, '(A)') '  node [shape=box]'
 
@@ -716,7 +716,9 @@ contains
     end do
 
     ! finish
+    m4_changequote([,])
     write (iounit, '(A)') '}'
+    m4_changequote({,})
     close (unit=iounit)
 
     ! create pdf/png/svg files

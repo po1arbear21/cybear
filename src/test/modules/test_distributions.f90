@@ -1,3 +1,5 @@
+m4_include(../../util/macro.f90.inc)
+
 module test_distributions_m
 
   use distributions_m, only: bose_einstein, d_bose_einstein, fermi_dirac, d_fermi_dirac, maxwell_boltzmann, d_maxwell_boltzmann
@@ -26,7 +28,7 @@ contains
     call tc%assert_eq(-0.10499358540350651, d_fermi_dirac(2.0), epsilon(1.0), "FD")
 
     ! FD integral
-#ifdef USE_QUADPACK
+    m4_divert(m4_ifdef({m4_quadpack},0,-1))
     block
       use distributions_m, only: fermi_dirac_integral
       real :: res
@@ -34,7 +36,7 @@ contains
       call fermi_dirac_integral(0.0, res)
       call tc%assert_eq(0.76514702462540794, res, 1e-8, "FD intg")
     end block
-#endif
+    m4_divert(0)
 
     ! MB
     call tc%assert_eq( 1.0,         maxwell_boltzmann(0.0), epsilon(1.0), "MB")

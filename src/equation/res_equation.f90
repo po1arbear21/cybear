@@ -1,14 +1,14 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module res_equation_m
 
-  use equation_m,  only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
-  use error_m,     only: assert_failed
-  use grid_m,      only: grid_table, grid_table_ptr
-  use jacobian_m,  only: jacobian, jacobian_ptr
-  use stencil_m,   only: stencil_ptr
-  use variable_m,  only: variable, variable_ptr
-  use vselector_m, only: vselector
+  use equation_m,   only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
+  use error_m,      only: assert_failed
+  use grid_table_m, only: grid_table, grid_table_ptr
+  use jacobian_m,   only: jacobian, jacobian_ptr
+  use stencil_m,    only: stencil_ptr
+  use variable_m,   only: variable, variable_ptr
+  use vselector_m,  only: vselector
 
   implicit none
 
@@ -60,15 +60,13 @@ module res_equation_m
     class(res_equation), pointer :: p => null()
   end type
 
-#define T res_equation_ptr
-#define TT type(res_equation_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{res_equation_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-#define T res_equation_ptr
-#define TT type(res_equation_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{res_equation_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   function res_equation_get_res_ptr(this) result(ptr)
     !! return pointer to this residual equation
@@ -181,13 +179,13 @@ contains
     if (present(dtime)) dtime_ = dtime
     precon_ = .false.
     if (present(precon)) precon_ = precon
-    ASSERT(.not. (dtime_ .and. precon_))
-    ASSERT((.not. precon_) .or. allocated(this%jaco_fp))
+    m4_assert(.not. (dtime_ .and. precon_))
+    m4_assert((.not. precon_) .or. allocated(this%jaco_fp))
 
     if (dtime_) then
       const_ = .true.
       if (present(const)) const_ = const
-      ASSERT(const_)
+      m4_assert(const_)
 
       allocate (jaco)
       call jaco%init(this%f, this%vdep%d(idep)%p, st = st, const = const_, zero = zero, valmsk = valmsk, valmsk_tab = valmsk_tab)

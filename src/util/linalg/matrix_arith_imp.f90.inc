@@ -1,60 +1,20 @@
-#define PASTE(X)          X
-#define PASTE2(X)         PASTE(X)_
-#define CONCATHELP(X, Y)  PASTE2(X)Y
-#define CONCAT(X, Y)      CONCATHELP(X,Y)
-
-#define BAND_TYPE         CONCAT(band,T)
-#define BAND_PTR_TYPE     CONCAT(band_ptr,T)
-#define BLOCK_TYPE        CONCAT(block,T)
-#define BLOCK_PTR_TYPE    CONCAT(block_ptr,T)
-#define DENSE_TYPE        CONCAT(dense,T)
-#define DENSE_PTR_TYPE    CONCAT(dense_ptr,T)
-#define MATRIX_TYPE       CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE   CONCAT(matrix_ptr,T)
-#define SPARSE_TYPE       CONCAT(sparse,T)
-#define SPARSE_PTR_TYPE   CONCAT(sparse_ptr,T)
-#define SPBUILD_TYPE      CONCAT(spbuild,T)
-
-#define ADD_BAND2         CONCAT(add_band2,T)
-#define ADD_BAND3         CONCAT(add_band3,T)
-#define ADD_BAND_DENSE    CONCAT(add_band_dense,T)
-#define ADD_BAND_DENSE2   CONCAT(add_band_dense2,T)
-#define ADD_BAND_SPARSE   CONCAT(add_band_sparse,T)
-#define ADD_BAND_SPARSE2  CONCAT(add_band_sparse2,T)
-#define ADD_DENSE2        CONCAT(add_dense2,T)
-#define ADD_DENSE3        CONCAT(add_dense3,T)
-#define ADD_SPARSE_DENSE  CONCAT(add_sparse_dense,T)
-#define ADD_SPARSE_DENSE2 CONCAT(add_sparse_dense2,T)
-#define ADD_SPARSE2       CONCAT(add_sparse2,T)
-#define ADD_SPARSE3       CONCAT(add_sparse3,T)
-
-#define DIAG_ARR_BAND     CONCAT(diag_arr_band,T)
-#define DIAG_ARR_DENSE    CONCAT(diag_arr_dense,T)
-#define DIAG_ARR_SPARSE   CONCAT(diag_arr_sparse,T)
-#define DIAG_BAND_ARR     CONCAT(diag_band_arr,T)
-#define DIAG_DENSE_ARR    CONCAT(diag_dense_arr,T)
-#define DIAG_SPARSE_ARR   CONCAT(diag_sparse_arr,T)
-
-#define APPROX_SPARSE     CONCAT(approx_sparse,T)
-
-! fixme needs testing
-module subroutine ADD_BAND2(b1, b2, fact)
+module subroutine add_band2_{}T{}(b1, b2, fact)
   !! Add two band matrices.
   !! Operation: b2 <- fact * b1 + b2
 
-  type(BAND_TYPE), intent(in)    :: b1
+  type(band_{}T),       intent(in)    :: b1
     !! First band matrix (unchanged)
-  type(BAND_TYPE), intent(inout) :: b2
+  type(band_{}T),       intent(inout) :: b2
     !! Second band matrix (updated)
-  TT, optional,    intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! First band matrix' scaling factor (default: 1)
 
-  TT              :: fact_
-  TT, allocatable :: tmp(:,:)
+  m4_type(T)              :: fact_
+  m4_type(T), allocatable :: tmp(:,:)
 
-  ASSERT(.not. allocated(b1%f))
-  ASSERT(.not. allocated(b2%ipiv))
-  ASSERT(b2%nrows == b1%nrows .and. b2%ncols == b1%ncols)
+  m4_assert(.not. allocated(b1%f))
+  m4_assert(.not. allocated(b2%ipiv))
+  m4_assert(b2%nrows == b1%nrows .and. b2%ncols == b1%ncols)
 
   ! optional arguments
   fact_ = 1
@@ -73,23 +33,22 @@ module subroutine ADD_BAND2(b1, b2, fact)
   end if
 end subroutine
 
-! fixme needs testing
-module subroutine ADD_BAND3(b1, b2, b3, fact1, fact2)
+module subroutine add_band3_{}T{}(b1, b2, b3, fact1, fact2)
   !! Add two band matrices, store result in third band matrix.
   !! Operation: b3 <- fact1*b1 + fact2*b2
 
-  type(BAND_TYPE), intent(in)  :: b1
+  type(band_{}T),       intent(in)  :: b1
     !! Band first matrix (unchanged)
-  type(BAND_TYPE), intent(in)  :: b2
+  type(band_{}T),       intent(in)  :: b2
     !! Band second matrix (unchanged)
-  type(BAND_TYPE), intent(out) :: b3
+  type(band_{}T),       intent(out) :: b3
     !! Output band third matrix
-  TT, optional,    intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,    intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  TT :: fact1_, fact2_
+  m4_type(T) :: fact1_, fact2_
 
   ! optional arguments
   fact1_ = 1
@@ -107,25 +66,25 @@ module subroutine ADD_BAND3(b1, b2, b3, fact1, fact2)
   end if
 end subroutine
 
-module subroutine ADD_BAND_DENSE(b, d, fact)
+module subroutine add_band_dense_{}T{}(b, d, fact)
   !! Add dense and band matrix, store result in dense matrix.
   !!
   !! operation:  d <- fact * b + d
 
-  type(BAND_TYPE),  intent(in)    :: b
+  type(band_{}T),       intent(in)    :: b
     !! Band matrix b (unchanged)
-  type(DENSE_TYPE), intent(inout) :: d
+  type(dense_{}T),      intent(inout) :: d
     !! Dense matrix d (updated)
-  TT, optional,     intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Band matrix scaling factor (default: 1)
 
-  integer :: i, j, k
-  TT      :: fact_
+  integer    :: i, j, k
+  m4_type(T) :: fact_
 
-  ASSERT(d%nrows == b%nrows)
-  ASSERT(d%ncols == b%ncols)
-  ASSERT(.not. allocated(d%lu  ))
-  ASSERT(.not. allocated(d%ipiv))
+  m4_assert(d%nrows == b%nrows)
+  m4_assert(d%ncols == b%ncols)
+  m4_assert(.not. allocated(d%lu  ))
+  m4_assert(.not. allocated(d%ipiv))
 
   ! optional arguments
   fact_ = 1
@@ -143,26 +102,26 @@ module subroutine ADD_BAND_DENSE(b, d, fact)
   end do
 end subroutine
 
-module subroutine ADD_BAND_DENSE2(b1, d2, d3, fact1, fact2)
+module subroutine add_band_dense2_{}T{}(b1, d2, d3, fact1, fact2)
   !! Add dense and band matrix, store result in a third dense matrix.
   !!
   !! operation:  d3 <- fact1 * b1 + fact2 * d2
 
-  type(BAND_TYPE),  intent(in)  :: b1
+  type(band_{}T),       intent(in)  :: b1
     !! Band first matrix b1 (unchanged)
-  type(DENSE_TYPE), intent(in)  :: d2
+  type(dense_{}T),      intent(in)  :: d2
     !! Dense second matrix d1 (unchanged)
-  type(DENSE_TYPE), intent(out) :: d3
+  type(dense_{}T),      intent(out) :: d3
     !! Output dense third matrix d3
-  TT, optional,     intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,     intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  TT :: fact2_
+  m4_type(T) :: fact2_
 
-  ASSERT(d2%nrows == b1%nrows)
-  ASSERT(d2%ncols == b1%ncols)
+  m4_assert(d2%nrows == b1%nrows)
+  m4_assert(d2%ncols == b1%ncols)
 
   ! optional arguments
   fact2_ = 1
@@ -175,30 +134,30 @@ module subroutine ADD_BAND_DENSE2(b1, d2, d3, fact1, fact2)
   call matrix_add(b1, d3, fact = fact1)
 end subroutine
 
-module subroutine ADD_BAND_SPARSE(b, s, fact)
+module subroutine add_band_sparse_{}T{}(b, s, fact)
   !! Add sparse and band matrix, store result in sparse matrix.
   !!
   !! operation: s <- fact * b + s
 
-  type(BAND_TYPE),   intent(in)    :: b
+  type(band_{}T),       intent(in)    :: b
     !! Band matrix (unchanged)
-  type(SPARSE_TYPE), intent(inout) :: s
+  type(sparse_{}T),     intent(inout) :: s
     !! Sparse matrix (updated)
-  TT, optional,      intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Band matrix scaling factor (default: 1)
 
   integer                          :: i, j2
   integer,             allocatable :: ja(:)
   integer(SPARSE_IDX)              :: j1, k, b_nrows, b_nlower, b_nupper
   integer(SPARSE_IDX), allocatable :: ia(:)
-  TT                               :: fact_
-  TT,                  allocatable :: a(:)
+  m4_type(T)                       :: fact_
+  m4_type(T),          allocatable :: a(:)
 
-  ASSERT(s%nrows == b%nrows)
-  ASSERT(s%ncols == b%ncols)
+  m4_assert(s%nrows == b%nrows)
+  m4_assert(s%ncols == b%ncols)
 
   ! h == 0 is default value for unfactorized
-  ASSERT(s%solver_handle == 0)
+  m4_assert(s%solver_handle == 0)
 
   ! optional arguments
   fact_ = 1
@@ -269,24 +228,24 @@ module subroutine ADD_BAND_SPARSE(b, s, fact)
   allocate (s%a( k-1), source =  a(1:k-1))
 end subroutine
 
-module subroutine ADD_BAND_SPARSE2(b1, s2, s3, fact1, fact2)
+module subroutine add_band_sparse2_{}T{}(b1, s2, s3, fact1, fact2)
   !! Add sparse and band matrix, store result in sparse third matrix.
   !!
   !! operation: s3 <- fact1 * b1 + fact2 * s2
 
-  type(BAND_TYPE),   intent(in)  :: b1
+  type(band_{}T),       intent(in)  :: b1
     !! Band first matrix (unchanged)
-  type(SPARSE_TYPE), intent(in)  :: s2
+  type(sparse_{}T),     intent(in)  :: s2
     !! Sparse second matrix (unchanged)
-  type(SPARSE_TYPE), intent(out) :: s3
+  type(sparse_{}T),     intent(out) :: s3
     !! Output sparse third matrix
-  TT, optional,      intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,      intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  ASSERT(s2%nrows == b1%nrows)
-  ASSERT(s2%ncols == b1%ncols)
+  m4_assert(s2%nrows == b1%nrows)
+  m4_assert(s2%ncols == b1%ncols)
 
   ! s3 <- fact2 * s2
   call s3%init(s2%nrows, ncols = s2%ncols)
@@ -304,20 +263,20 @@ module subroutine ADD_BAND_SPARSE2(b1, s2, s3, fact1, fact2)
   call matrix_add(b1, s3, fact = fact1)
 end subroutine
 
-module subroutine ADD_DENSE2(d1, d2, fact)
+module subroutine add_dense2_{}T{}(d1, d2, fact)
   !! Add two dense matrices, store the result in second matrix.
   !!
   !! operation:  d2 <- fact * d1 + d2
 
-  type(DENSE_TYPE), intent(in)    :: d1
+  type(dense_{}T),      intent(in)    :: d1
     !! First dense matrix d1 (unchanged)
-  type(DENSE_TYPE), intent(inout) :: d2
+  type(dense_{}T),      intent(inout) :: d2
     !! Second dense matrix d2 (updated)
-  TT, optional,     intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Second dense matrix scaling factor (default: 1)
 
-  ASSERT(.not. allocated(d2%lu))
-  ASSERT(.not. allocated(d2%ipiv))
+  m4_assert(.not. allocated(d2%lu))
+  m4_assert(.not. allocated(d2%ipiv))
 
   if (present(fact)) then
     d2%d = fact * d1%d + d2%d
@@ -326,23 +285,23 @@ module subroutine ADD_DENSE2(d1, d2, fact)
   end if
 end subroutine
 
-module subroutine ADD_DENSE3(d1, d2, d3, fact1, fact2)
+module subroutine add_dense3_{}T{}(d1, d2, d3, fact1, fact2)
   !! Add two dense matrices, store the result in third dense matrix.
   !!
   !! operation:  d3 <- fact1 * d1 + fact2 * d2
 
-  type(DENSE_TYPE), intent(in)  :: d1
+  type(dense_{}T),      intent(in)  :: d1
     !! Dense first matrix d1 (unchanged)
-  type(DENSE_TYPE), intent(in)  :: d2
+  type(dense_{}T),      intent(in)  :: d2
     !! Dense second matrix d2 (unchanged)
-  type(DENSE_TYPE), intent(out) :: d3
+  type(dense_{}T),      intent(out) :: d3
     !! Output dense third matrix d3
-  TT, optional,     intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,     intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  TT :: fact1_, fact2_
+  m4_type(T) :: fact1_, fact2_
 
   ! optional arguments
   fact1_ = 1
@@ -354,26 +313,26 @@ module subroutine ADD_DENSE3(d1, d2, d3, fact1, fact2)
   call d3%init(fact1_ * d1%d + fact2_ * d2%d)
 end subroutine
 
-module subroutine ADD_SPARSE_DENSE(s, d, fact)
+module subroutine add_sparse_dense_{}T{}(s, d, fact)
   !! Add dense and sparse matrix, store result in dense matrix.
   !!
   !! operation:  D <- fact * S + D
 
-  type(SPARSE_TYPE), intent(in)    :: s
+  type(sparse_{}T),     intent(in)    :: s
     !! Sparse matrix S (unchanged)
-  type(DENSE_TYPE),  intent(inout) :: d
+  type(dense_{}T),      intent(inout) :: d
     !! Dense matrix D (updated)
-  TT, optional,      intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Sparse matrix scaling factor (default: 1)
 
   integer             :: i
   integer(SPARSE_IDX) :: j
-  TT                  :: fact_
+  m4_type(T)          :: fact_
 
-  ASSERT(d%nrows == s%nrows)
-  ASSERT(d%ncols == s%ncols)
-  ASSERT(.not. allocated(d%lu))
-  ASSERT(.not. allocated(d%ipiv))
+  m4_assert(d%nrows == s%nrows)
+  m4_assert(d%ncols == s%ncols)
+  m4_assert(.not. allocated(d%lu))
+  m4_assert(.not. allocated(d%ipiv))
 
   ! do nothing if s is empty
   if (s%is_empty()) return
@@ -390,26 +349,26 @@ module subroutine ADD_SPARSE_DENSE(s, d, fact)
   end do
 end subroutine
 
-module subroutine ADD_SPARSE_DENSE2(s1, d2, d3, fact1, fact2)
+module subroutine add_sparse_dense2_{}T{}(s1, d2, d3, fact1, fact2)
   !! Add dense and sparse matrix, store result in another dense matrix.
   !!
   !! operation:  d3 <- fact1 * s1 + fact2 * d2
 
-  type(SPARSE_TYPE), intent(in)  :: s1
+  type(sparse_{}T),     intent(in)  :: s1
     !! Sparse first matrix s1 (unchanged)
-  type(DENSE_TYPE),  intent(in)  :: d2
+  type(dense_{}T),      intent(in)  :: d2
     !! Dense second matrix d1 (unchanged)
-  type(DENSE_TYPE),  intent(out) :: d3
+  type(dense_{}T),      intent(out) :: d3
     !! Output dense third matrix
-  TT, optional,      intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,      intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  TT :: fact2_
+  m4_type(T) :: fact2_
 
-  ASSERT(d2%nrows == s1%nrows)
-  ASSERT(d2%ncols == s1%ncols)
+  m4_assert(d2%nrows == s1%nrows)
+  m4_assert(d2%ncols == s1%ncols)
 
   ! optional argument
   fact2_ = 1
@@ -422,30 +381,30 @@ module subroutine ADD_SPARSE_DENSE2(s1, d2, d3, fact1, fact2)
   if (.not. s1%is_empty()) call matrix_add(s1, d3, fact = fact1)
 end subroutine
 
-module subroutine ADD_SPARSE2(s1, s2, fact)
+module subroutine add_sparse2_{}T{}(s1, s2, fact)
   !! Add two sparse matrices, store result in first matrix.
   !!
   !! operation: s2 <- fact * s1 + s2
 
-  type(SPARSE_TYPE), intent(in)    :: s1
+  type(sparse_{}T),     intent(in)    :: s1
     !! First sparse matrix (unchanged)
-  type(SPARSE_TYPE), intent(inout) :: s2
+  type(sparse_{}T),     intent(inout) :: s2
     !! Second sparse matrix (updated)
-  TT, optional,      intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Second sparse matrix scaling factor (default: 1)
 
   integer                          :: i
   integer,             allocatable :: ja(:)
   integer(SPARSE_IDX)              :: j1, j2, k
   integer(SPARSE_IDX), allocatable :: ia(:)
-  TT                               :: fact_
-  TT,                  allocatable :: a(:)
+  m4_type(T)                       :: fact_
+  m4_type(T),          allocatable :: a(:)
 
-  ASSERT(s2%nrows == s1%nrows)
-  ASSERT(s2%ncols == s1%ncols)
+  m4_assert(s2%nrows == s1%nrows)
+  m4_assert(s2%ncols == s1%ncols)
 
   ! h == 0 is default value for unfactorized
-  ASSERT(s2%solver_handle == 0)
+  m4_assert(s2%solver_handle == 0)
 
   ! do nothing if s1 is empty
   if (s1%is_empty()) return
@@ -515,24 +474,24 @@ module subroutine ADD_SPARSE2(s1, s2, fact)
   allocate (s2%a (k-1), source =  a(1:k-1))
 end subroutine
 
-module subroutine ADD_SPARSE3(s1, s2, s3, fact1, fact2)
+module subroutine add_sparse3_{}T{}(s1, s2, s3, fact1, fact2)
   !! Add two sparse matrices, store result in sparse third matrix.
   !!
   !! operation: s3 <- fact1 * s1 + fact2 * s2
 
-  type(SPARSE_TYPE), intent(in)  :: s1
+  type(sparse_{}T),     intent(in)  :: s1
     !! Sparse first matrix (unchanged)
-  type(SPARSE_TYPE), intent(in)  :: s2
+  type(sparse_{}T),     intent(in)  :: s2
     !! Sparse second matrix (unchanged)
-  type(SPARSE_TYPE), intent(out) :: s3
+  type(sparse_{}T),     intent(out) :: s3
     !! Output sparse third matrix
-  TT, optional,      intent(in)  :: fact1
+  m4_type(T), optional, intent(in)  :: fact1
     !! First matrix scaling factor (default: 1)
-  TT, optional,      intent(in)  :: fact2
+  m4_type(T), optional, intent(in)  :: fact2
     !! Second matrix scaling factor (default: 1)
 
-  ASSERT(s1%nrows == s2%nrows)
-  ASSERT(s1%ncols == s2%ncols)
+  m4_assert(s1%nrows == s2%nrows)
+  m4_assert(s1%ncols == s2%ncols)
 
   ! init result matrix
   call s3%init(s1%nrows, ncols = s1%ncols)
@@ -553,23 +512,23 @@ module subroutine ADD_SPARSE3(s1, s2, s3, fact1, fact2)
 end subroutine
 
 ! fixme add testing
-module subroutine DIAG_ARR_BAND(arr_in, b_out)
+module subroutine diag_arr_band_{}T{}(arr_in, b_out)
   !! creates a quadratic diagonal matrix given the diagonals as an array.
 
-  TT,              intent(in)  :: arr_in(:)
+  m4_type(T),     intent(in)  :: arr_in(:)
     !! diagonal elements of matrix
-  type(BAND_TYPE), intent(out) :: b_out
+  type(band_{}T), intent(out) :: b_out
     !! dense output matrix
 
   call b_out%init(size(arr_in), 0, d0=reshape(arr_in, [1, size(arr_in)]))
 end subroutine
 
-module subroutine DIAG_ARR_DENSE(arr_in, d_out)
+module subroutine diag_arr_dense_{}T{}(arr_in, d_out)
   !! creates a quadratic diagonal matrix given the diagonals as an array.
 
-  TT,               intent(in)  :: arr_in(:)
+  m4_type(T),      intent(in)  :: arr_in(:)
     !! diagonal elements of matrix
-  type(DENSE_TYPE), intent(out) :: d_out
+  type(dense_{}T), intent(out) :: d_out
     !! dense output matrix
 
   integer :: i
@@ -580,12 +539,12 @@ module subroutine DIAG_ARR_DENSE(arr_in, d_out)
   end do
 end subroutine
 
-module subroutine DIAG_ARR_SPARSE(arr_in, s_out)
+module subroutine diag_arr_sparse_{}T{}(arr_in, s_out)
   !! creates a quadratic diagonal matrix given the diagonals as an array.
 
-  TT,                intent(in)  :: arr_in(:)
+  m4_type(T),       intent(in)  :: arr_in(:)
     !! diagonal elements of matrix
-  type(SPARSE_TYPE), intent(out) :: s_out
+  type(sparse_{}T), intent(out) :: s_out
     !! sparse output matrix
 
   integer :: i, n
@@ -599,46 +558,46 @@ module subroutine DIAG_ARR_SPARSE(arr_in, s_out)
 end subroutine
 
 ! fixme add testing
-module subroutine DIAG_BAND_ARR(b_in, arr_out)
+module subroutine diag_band_arr_{}T{}(b_in, arr_out)
   !! extract main diagonal of a band matrix
 
-  type(BAND_TYPE), intent(in)  :: b_in
+  type(band_{}T), intent(in)  :: b_in
     !! band input matrix
-  TT,              intent(out) :: arr_out(:)
+  m4_type(T),     intent(out) :: arr_out(:)
     !! diagonal elements of matrix
 
   arr_out = b_in%d(0,:)
 end subroutine
 
-module subroutine DIAG_DENSE_ARR(d_in, arr_out)
+module subroutine diag_dense_arr_{}T{}(d_in, arr_out)
   !! extract main diagonal of a dense matrix
 
-  type(DENSE_TYPE), intent(in)  :: d_in
+  type(dense_{}T), intent(in)  :: d_in
     !! dense input matrix
-  TT,               intent(out) :: arr_out(:)
+  m4_type(T),      intent(out) :: arr_out(:)
     !! diagonal elements of matrix
 
   integer :: i, n
 
   n = min(d_in%nrows, d_in%ncols)
-  ASSERT(n == size(arr_out))
+  m4_assert(n == size(arr_out))
 
   arr_out = [(d_in%d(i,i), i = 1, n)]
 end subroutine
 
-module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
+module subroutine diag_sparse_arr_{}T{}(s_in, arr_out)
   !! extract main diagonal of a sparse matrix
 
-  type(SPARSE_TYPE), intent(in)  :: s_in
+  type(sparse_{}T), intent(in)  :: s_in
     !! sparse input matrix
-  TT,                intent(out) :: arr_out(:)
+  m4_type(T),       intent(out) :: arr_out(:)
     !! diagonal elements of matrix
 
   integer             :: i, n
   integer(SPARSE_IDX) :: j
 
   n = min(s_in%nrows, s_in%ncols)
-  ASSERT(n == size(arr_out))
+  m4_assert(n == size(arr_out))
 
   ! empty matrix => zero diagonal
   if (s_in%is_empty()) then
@@ -665,21 +624,21 @@ module subroutine DIAG_SPARSE_ARR(s_in, arr_out)
 end subroutine
 
 ! fixme needs testing for complex case
-module subroutine APPROX_SPARSE(thres, s1, s2)
+module subroutine approx_sparse_{}T{}(thres, s1, s2)
   !! take row-wise approximation of matrix:
   !!
-  !!      s2_ij = { 0,        if |s1_ij| <  thres * |s1_ii|
-  !!              { s1_ij,    else
+  !!      s2_ij = / 0,        if |s1_ij| <  thres * |s1_ii|
+  !!              \ s1_ij,    else
 
-  real,              intent(in)          :: thres
+  real,             intent(in)          :: thres
     !! relative threshold
-  type(SPARSE_TYPE), intent(in),  target :: s1
+  type(sparse_{}T), intent(in),  target :: s1
     !! sparse input matrix
-  type(SPARSE_TYPE), intent(out), target :: s2
+  type(sparse_{}T), intent(out), target :: s2
     !! sparse output matrix
 
-  integer            :: i, j, j0
-  type(SPBUILD_TYPE) :: sb
+  integer           :: i, j, j0
+  type(spbuild_{}T) :: sb
 
   ! load data from s1
   call sb%init(s1)
@@ -703,48 +662,3 @@ module subroutine APPROX_SPARSE(thres, s1, s2)
   sb%sp => s2
   call sb%save()
 end subroutine
-
-! fixme implement row_approx for band/dense
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-
-#undef BAND_TYPE
-#undef BAND_PTR_TYPE
-#undef BLOCK_TYPE
-#undef BLOCK_PTR_TYPE
-#undef DENSE_TYPE
-#undef DENSE_PTR_TYPE
-#undef MATRIX_TYPE
-#undef MATRIX_PTR_TYPE
-#undef SPARSE_TYPE
-#undef SPARSE_PTR_TYPE
-#undef SPBUILD_TYPE
-
-#undef ADD_BAND2
-#undef ADD_BAND3
-#undef ADD_BAND_DENSE
-#undef ADD_BAND_DENSE2
-#undef ADD_BAND_SPARSE
-#undef ADD_BAND_SPARSE2
-#undef ADD_DENSE2
-#undef ADD_DENSE3
-#undef ADD_SPARSE_DENSE
-#undef ADD_SPARSE_DENSE2
-#undef ADD_SPARSE2
-#undef ADD_SPARSE3
-
-#undef DIAG_ARR_BAND
-#undef DIAG_ARR_DENSE
-#undef DIAG_ARR_SPARSE
-#undef DIAG_BAND_ARR
-#undef DIAG_DENSE_ARR
-#undef DIAG_SPARSE_ARR
-
-#undef APPROX_SPARSE

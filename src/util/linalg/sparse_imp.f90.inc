@@ -1,58 +1,11 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define VECTOR_TYPE          CONCAT(vector,T)
-
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-#define SPARSE_TYPE          CONCAT(sparse,T)
-#define SPARSE_PTR_TYPE      CONCAT(sparse_ptr,T)
-#define SPBUILD_TYPE         CONCAT(spbuild,T)
-
-#define SPARSE_INIT          CONCAT3(sparse,T,init)
-#define SPARSE_INIT_SOLVER   CONCAT3(sparse,T,init_solver)
-#define SPARSE_DESTRUCT      CONCAT3(sparse,T,destruct)
-#define SPARSE_RESET         CONCAT3(sparse,T,reset)
-#define SPARSE_SCALE         CONCAT3(sparse,T,scale)
-#define SPARSE_MUL_VEC       CONCAT3(sparse,T,mul_vec)
-#define SPARSE_MUL_VEC_SLICE CONCAT3(sparse,T,mul_vec_slice)
-#define SPARSE_MUL_MAT       CONCAT3(sparse,T,mul_mat)
-#define SPARSE_FACTORIZE     CONCAT3(sparse,T,factorize)
-#define SPARSE_SOLVE_VEC     CONCAT3(sparse,T,solve_vec)
-#define SPARSE_SOLVE_MAT     CONCAT3(sparse,T,solve_mat)
-#define SPARSE_TRANSPOSE     CONCAT3(sparse,T,transpose)
-#define SPARSE_TRANSPOSE2    CONCAT3(sparse,T,transpose2)
-#define SPARSE_MUL_SPARSE    CONCAT3(sparse,T,mul_sparse)
-#define SPARSE_INPUT         CONCAT3(sparse,T,input)
-#define SPARSE_OUTPUT        CONCAT3(sparse,T,output)
-#define SPARSE_NNZ           CONCAT3(sparse,T,nnz)
-#define SPARSE_IS_EMPTY      CONCAT3(sparse,T,is_empty)
-#define SPARSE_EYE           CONCAT3(sparse,eye,T)
-#define SPARSE_ZERO          CONCAT3(sparse,zero,T)
-
-#define SPBUILD_INIT         CONCAT3(spbuild,T,init)
-#define SPBUILD_DESTRUCT     CONCAT3(spbuild,T,destruct)
-#define SPBUILD_RESET        CONCAT3(spbuild,T,reset)
-#define SPBUILD_RESET_ROW    CONCAT3(spbuild,T,reset_row)
-#define SPBUILD_SET          CONCAT3(spbuild,T,set)
-#define SPBUILD_SET_ROW      CONCAT3(spbuild,T,set_row)
-#define SPBUILD_ADD          CONCAT3(spbuild,T,add)
-#define SPBUILD_SORT         CONCAT3(spbuild,T,sort)
-#define SPBUILD_LOAD         CONCAT3(spbuild,T,load)
-#define SPBUILD_SAVE         CONCAT3(spbuild,T,save)
-
-module subroutine SPARSE_INIT(this, nrows, ncols)
+module subroutine sparse_{}T{}_init(this, nrows, ncols)
   !! Initialize sparse matrix.
 
-  class(SPARSE_TYPE), intent(out) :: this
+  class(sparse_{}T), intent(out) :: this
     !! Sparse matrix
-  integer,            intent(in)  :: nrows
+  integer,           intent(in)  :: nrows
     !! Number of rows
-  integer, optional,  intent(in)  :: ncols
+  integer, optional, intent(in)  :: ncols
     !! Optional: Number of columns (default: ncols = nrows)
 
   ! init base
@@ -60,21 +13,21 @@ module subroutine SPARSE_INIT(this, nrows, ncols)
   this%solver = default_solver
 end subroutine
 
-module subroutine SPARSE_DESTRUCT(this)
+module subroutine sparse_{}T{}_destruct(this)
   !! Destruct sparse matrix by deallocating memory and deleting factorization.
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
 
   call this%reset()
 end subroutine
 
-module subroutine SPARSE_RESET(this, only_factorization)
+module subroutine sparse_{}T{}_reset(this, only_factorization)
   !! Reset sparse matrix to empty state (optionally only the factorization).
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
-  logical, optional,  intent(in)    :: only_factorization
+  logical, optional, intent(in)    :: only_factorization
     !! Reset only factorization data (default: false)
 
   logical :: only_fact
@@ -92,58 +45,51 @@ module subroutine SPARSE_RESET(this, only_factorization)
   ! destruct factorization
   if (this%solver_handle > 0) then
     select case (this%solver)
-      case (SOLVER_PARDISO)
-        call destruct_pardiso_handle(this%solver_handle)
-
-#ifdef USE_MUMPS
-      case (SOLVER_MUMPS)
-#ifdef TCMPLX
-        call destruct_mumps_handle_c(this%solver_handle)
-#else
-        call destruct_mumps_handle_r(this%solver_handle)
-#endif
-#endif
-
-#ifdef USE_ILUPACK
-      case (SOLVER_ILUPACK)
-        call destruct_ilupack_handle(this%solver_handle)
-#endif
+    case (SOLVER_PARDISO)
+      call destruct_pardiso_handle(this%solver_handle)
+    m4_divert(m4_ifdef({m4_mumps},0,-1))
+    case (SOLVER_MUMPS)
+      call destruct_mumps_handle_{}m4_ifelse(T,cmplx,{c},{r}){}(this%solver_handle)
+    m4_divert(m4_ifdef({m4_ilupack},0,-1))
+    case (SOLVER_ILUPACK)
+      call destruct_ilupack_handle(this%solver_handle)
+    m4_divert(0)
     end select
   end if
 
   this%factorized = .false.
 end subroutine
 
-module subroutine SPARSE_SCALE(this, fact)
+module subroutine sparse_{}T{}_scale(this, fact)
   !! Scale sparse matrix by a factor.
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
-  TT,                 intent(in)    :: fact
+  m4_type(T),        intent(in)    :: fact
     !! Scaling factor
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%solver_handle == 0)
+  m4_assert(this%solver_handle == 0)
 
   ! scale values
   if (.not. this%is_empty()) this%a = fact * this%a
 end subroutine
 
-module subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
+module subroutine sparse_{}T{}_mul_vec_slice(this, x, y, fact_y, i0, i1)
   !! Multiply sparse matrix by a raw vector where only some rows of y are computed.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(SPARSE_TYPE), intent(in)    :: this
+  class(sparse_{}T),    intent(in)    :: this
     !! Sparse matrix
-  TT,                 intent(in)    :: x(:)
+  m4_type(T),           intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                 intent(inout) :: y(:)
+  m4_type(T),           intent(inout) :: y(:)
     !! Store result in y
-  TT,      optional,  intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  integer, optional,  intent(in)    :: i0
+  integer,    optional, intent(in)    :: i0
     !! first row index. default: 1
-  integer, optional,  intent(in)    :: i1
+  integer,    optional, intent(in)    :: i1
     !! last row index. default: this%nrows
 
   integer             :: i0_, i1_, i
@@ -154,10 +100,10 @@ module subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
   i1_ = this%nrows
   if (present(i1)) i1_ = i1
 
-  ASSERT(size(y) == i1_-i0_+1)
-  ASSERT((i0_ >= 1) .and. (i0_ <= this%nrows))
-  ASSERT((i1_ >= 1) .and. (i1_ <= this%nrows))
-  ASSERT(i0_ <= i1_)
+  m4_assert(size(y) == i1_-i0_+1)
+  m4_assert((i0_ >= 1) .and. (i0_ <= this%nrows))
+  m4_assert((i1_ >= 1) .and. (i1_ <= this%nrows))
+  m4_assert(i0_ <= i1_)
 
   ! y scaling factor
   if (present(fact_y)) then
@@ -179,22 +125,22 @@ module subroutine SPARSE_MUL_VEC_SLICE(this, x, y, fact_y, i0, i1)
   !$omp end parallel do
 end subroutine
 
-module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine sparse_{}T{}_mul_vec(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(SPARSE_TYPE),  intent(in)    :: this
+  class(sparse_{}T),    intent(in)    :: this
     !! Sparse matrix
-  TT,                  intent(in)    :: x(:)
+  m4_type(T),           intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                  intent(inout) :: y(:)
+  m4_type(T),           intent(inout) :: y(:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character, optional, intent(in)    :: trans
-    !! Transpose flag, must be 'N', 'T' or 'C' (default: 'N')
+  character,  optional, intent(in)    :: trans
+    !! Transpose flag, must be 'N', '{T}' or 'C' (default: 'N')
     !! 'N':   y =                     this  * x + fact_y * y
-    !! 'T':   y =           transpose(this) * x + fact_y * y
+    !! '{T}':   y =           transpose(this) * x + fact_y * y
     !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
   character           :: trans_
@@ -212,17 +158,13 @@ module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   if (this%is_empty()) return
 
   ! check sizes
-  ASSERT(size(x) == this%ncols)
-  ASSERT(size(y) == this%nrows)
+  m4_assert(size(x) == this%ncols)
+  m4_assert(size(y) == this%nrows)
 
   ! transpose flag
   trans_ = 'N'
   if (present(trans)) trans_ = trans
-#ifdef TCMPLX
-  ASSERT((trans_ == 'N') .or. (trans_ == 'T') .or. (trans_ == 'C'))
-#else
-  ASSERT((trans_ == 'N') .or. (trans_ == 'T'))
-#endif
+  m4_assert((trans_ == 'N') .or. (trans_ == '{{T}}')m4_ifelse(T,cmplx,{ .or. (trans_ == 'C')},))
 
   if (trans_ == 'N') then
     ! matrix vector multiplication
@@ -237,24 +179,24 @@ module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
   else
     ! fixme y_tmp is unnecessary! use directly y whereever there is y_tmp now. (in reduction and assignments). yields catastrophic compiler error for ifort ...
     block
-      TT, allocatable :: y_tmp(:)
+      m4_type(T), allocatable :: y_tmp(:)
 
       allocate (y_tmp(size(y)))
       y_tmp = 0
 
-#ifdef TCMPLX
-      if (trans_ == 'C') then
-        ! matrix vector multiplication with complex conjugated transposed matrix
-        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
-        do i = 1, this%nrows
-          do j = this%ia(i), this%ia(i+1)-1
-            y_tmp(this%ja(j)) = y_tmp(this%ja(j)) + conjg(this%a(j)) * x(i)
+      m4_divert(m4_ifelse(T,cmplx,0,-1))
+        if (trans_ == 'C') then
+          ! matrix vector multiplication with complex conjugated transposed matrix
+          !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+          do i = 1, this%nrows
+            do j = this%ia(i), this%ia(i+1)-1
+              y_tmp(this%ja(j)) = y_tmp(this%ja(j)) + conjg(this%a(j)) * x(i)
+            end do
           end do
-        end do
-        !$omp end parallel do
-
-      else
-#endif
+          !$omp end parallel do
+        end if
+      m4_divert(0)
+      if (trans_ == '{T}') then
         ! matrix vector multiplication with transposed matrix
         !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
         do i = 1, this%nrows
@@ -263,30 +205,29 @@ module subroutine SPARSE_MUL_VEC(this, x, y, fact_y, trans)
           end do
         end do
         !$omp end parallel do
-#ifdef TCMPLX
       end if
-#endif
+
       y = y + y_tmp
     end block
   end if
 end subroutine
 
-module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine sparse_{}T{}_mul_mat(this, x, y, fact_y, trans)
   !! Multiply sparse matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(SPARSE_TYPE),  intent(in)    :: this
+  class(sparse_{}T),    intent(in)    :: this
     !! Sparse matrix
-  TT,                  intent(in)    :: x(:,:)
+  m4_type(T),           intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                  intent(inout) :: y(:,:)
+  m4_type(T),           intent(inout) :: y(:,:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character, optional, intent(in)    :: trans
-    !! Transpose flag for this matrix, must be 'N', 'T' or 'C' (default: 'N')
+  character,  optional, intent(in)    :: trans
+    !! Transpose flag for this matrix, must be 'N', '{T}' or 'C' (default: 'N')
     !! 'N':   y =                     this  * x + fact_y * y
-    !! 'T':   y =           transpose(this) * x + fact_y * y
+    !! '{T}':   y =           transpose(this) * x + fact_y * y
     !! 'C':   y = conjugate_transpose(this) * x + fact_y * y
 
   character           :: trans_
@@ -304,18 +245,14 @@ module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   if (this%is_empty()) return
 
   ! check sizes
-  ASSERT(size(x, dim=1) == this%ncols)
-  ASSERT(size(x, dim=2) == size(y, dim=2))
-  ASSERT(size(y, dim=1) == this%nrows)
+  m4_assert(size(x, dim=1) == this%ncols)
+  m4_assert(size(x, dim=2) == size(y, dim=2))
+  m4_assert(size(y, dim=1) == this%nrows)
 
   ! transpose flag
   trans_ = 'N'
   if (present(trans)) trans_ = trans
-#ifdef TCMPLX
-  ASSERT((trans_ == 'N') .or. (trans_ == 'T') .or. (trans_ == 'C'))
-#else
-  ASSERT((trans_ == 'N') .or. (trans_ == 'T'))
-#endif
+  m4_assert((trans_ == 'N') .or. (trans_ == '{{T}}')m4_ifelse(T,cmplx,{ .or. (trans_ == 'C')},))
 
   if (trans_ == 'N') then
     ! matrix matrix multiplication
@@ -330,24 +267,24 @@ module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
   else
     ! fixme y_tmp is unnecessary! use directly y whereever there is y_tmp now. (in reduction and assignments). yields catastrophic compiler error for ifort ...
     block
-      TT, allocatable :: y_tmp(:,:)
+      m4_type(T), allocatable :: y_tmp(:,:)
 
       allocate (y_tmp(size(y, dim=1), size(y, dim=2)))
       y_tmp = 0
 
-#ifdef TCMPLX
-      if (trans_ == 'C') then
-        ! matrix matrix multiplication with complex conjugated transposed matrix
-        !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
-        do i = 1, this%nrows
-          do j = this%ia(i), this%ia(i+1)-1
-            y_tmp(this%ja(j),:) = y_tmp(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
+      m4_divert(m4_ifelse(T,cmplx,0,-1))
+        if (trans_ == 'C') then
+          ! matrix matrix multiplication with complex conjugated transposed matrix
+          !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
+          do i = 1, this%nrows
+            do j = this%ia(i), this%ia(i+1)-1
+              y_tmp(this%ja(j),:) = y_tmp(this%ja(j),:) + conjg(this%a(j)) * x(i,:)
+            end do
           end do
-        end do
-        !$omp end parallel do
-
-      else
-#endif
+          !$omp end parallel do
+        end if
+      m4_divert(0)
+      if (trans_ == '{T}') then
         ! matrix matrix multiplication with transposed matrix
         !$omp parallel do default(none) private(i, j) shared(this, x) reduction(+: y_tmp) schedule(dynamic)
         do i = 1, this%nrows
@@ -356,97 +293,81 @@ module subroutine SPARSE_MUL_MAT(this, x, y, fact_y, trans)
           end do
         end do
         !$omp end parallel do
-#ifdef TCMPLX
       end if
-#endif
       y = y + y_tmp
     end block
   end if
 end subroutine
 
-module subroutine SPARSE_INIT_SOLVER(this)
+module subroutine sparse_{}T{}_init_solver(this)
   !! creates solver handle
   !!
   !! this routine exists s.t. one can init ilupack, then get its handler and change parameters.
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
 
   ! make sure matrix is unfactorized and not empty
-  ASSERT(this%solver_handle == 0)
-  ASSERT(.not. this%is_empty())
+  m4_assert(this%solver_handle == 0)
+  m4_assert(.not. this%is_empty())
 
   select case (this%solver)
-    case (SOLVER_PARDISO)
-#ifdef TCMPLX
-      this%solver_handle = create_pardiso_handle(this%nrows, .true. )
-#else
-      this%solver_handle = create_pardiso_handle(this%nrows, .false.)
-#endif
-
-#ifdef USE_MUMPS
-    case (SOLVER_MUMPS)
-#ifdef TCMPLX
-      this%solver_handle = create_mumps_handle_c()
-#else
-      this%solver_handle = create_mumps_handle_r()
-#endif
-#endif
-
-#ifdef USE_ILUPACK
-    case (SOLVER_ILUPACK)
-      this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
-#endif
+  case (SOLVER_PARDISO)
+    this%solver_handle = create_pardiso_handle(this%nrows, m4_ifelse(T,cmplx,{.true.},{.false.}))
+  m4_divert(m4_ifdef({m4_mumps},0,-1))
+  case (SOLVER_MUMPS)
+    this%solver_handle = create_mumps_handle_{}m4_ifelse(T,cmplx,{c},{r}){}()
+  m4_divert(m4_ifdef({m4_ilupack},0,-1))
+  case (SOLVER_ILUPACK)
+    this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
+  m4_divert(0)
   end select
 end subroutine
 
-module subroutine SPARSE_FACTORIZE(this)
+module subroutine sparse_{}T{}_factorize(this)
   !! Factorize Matrix using PARDISO or ILUPACK.
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
 
   if (this%solver_handle == 0) call this%init_solver
 
   select case (this%solver)
-    case (SOLVER_PARDISO)
-      call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
-
-#ifdef USE_MUMPS
-    case (SOLVER_MUMPS)
-      call mumps_factorize(this%solver_handle, this%ia, this%ja, this%a)
-#endif
-
-#ifdef USE_ILUPACK
-    case (SOLVER_ILUPACK)
-      call ilupack_factorize(this%solver_handle)
-#endif
+  case (SOLVER_PARDISO)
+    call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
+  m4_divert(m4_ifdef({m4_mumps},0,-1))
+  case (SOLVER_MUMPS)
+    call mumps_factorize(this%solver_handle, this%ia, this%ja, this%a)
+  m4_divert(m4_ifdef({m4_ilupack},0,-1))
+  case (SOLVER_ILUPACK)
+    call ilupack_factorize(this%solver_handle)
+  m4_divert(0)
   end select
 
   this%factorized = .true.
 end subroutine
 
-module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine sparse_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
   !! Solve Linear equation system this * x = rhs using the chosen solver.
   !!
   !! Call this%factorize() first!
 
-  class(SPARSE_TYPE),  intent(in)  :: this
+  class(sparse_{}T),   intent(in)  :: this
     !! Sparse matrix
-  TT,                  intent(in)  :: rhs(:)
+  m4_type(T),          intent(in)  :: rhs(:)
     !! Right hand side
-  TT,                  intent(out) :: x(:)
+  m4_type(T),          intent(out) :: x(:)
     !! Solution vector
   character, optional, intent(in)  :: trans
-    !! Not implemented for 'T' or 'C' (default: 'N')
+    !! Not implemented for '{T}' or 'C' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
   ! matrix must be factorized before solving
-  ASSERT(this%factorized)
+  m4_assert(this%factorized)
 
   ! check sizes
-  ASSERT(size(x)   == this%ncols)
-  ASSERT(size(rhs) == this%nrows)
+  m4_assert(size(x)   == this%ncols)
+  m4_assert(size(rhs) == this%nrows)
 
   ! optional arguments
   if (present(trans)) then
@@ -458,46 +379,43 @@ module subroutine SPARSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
 
   ! solve system with pardiso/ilupack
   select case (this%solver)
-    case (SOLVER_PARDISO)
-      call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
-
-#ifdef USE_MUMPS
-    case (SOLVER_MUMPS)
-      call mumps_solve(this%solver_handle, rhs, x)
-#endif
-
-#ifdef USE_ILUPACK
-    case (SOLVER_ILUPACK)
-      call ilupack_solve(this%solver_handle, rhs, x)
-#endif
+  case (SOLVER_PARDISO)
+    call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
+  m4_divert(m4_ifdef({m4_mumps},0,-1))
+  case (SOLVER_MUMPS)
+    call mumps_solve(this%solver_handle, rhs, x)
+  m4_divert(m4_ifdef({m4_ilupack},0,-1))
+  case (SOLVER_ILUPACK)
+    call ilupack_solve(this%solver_handle, rhs, x)
+  m4_divert(0)
   end select
 end subroutine
 
-module subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine sparse_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   !! Solve Linear equation system this * x = rhs using the chosen solver.
   !!
   !! Call this%factorize() first.
 
-  class(SPARSE_TYPE),  intent(in)  :: this
+  class(sparse_{}T),   intent(in)  :: this
     !! Sparse matrix
-  TT,                  intent(in)  :: rhs(:,:)
+  m4_type(T),          intent(in)  :: rhs(:,:)
     !! Right hand side
-  TT,                  intent(out) :: x(:,:)
+  m4_type(T),          intent(out) :: x(:,:)
     !! Solution vector
   character, optional, intent(in)  :: trans
-    !! Not implemented for 'T' or 'C' (default: 'N')
+    !! Not implemented for '{T}' or 'C' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
     !! Not implemented for false (default: true)
 
-  TT, allocatable :: rhs_(:), x_(:)
+  m4_type(T), allocatable :: rhs_(:), x_(:)
 
   ! matrix must be factorized before solving
-  ASSERT(this%factorized)
+  m4_assert(this%factorized)
 
   ! check sizes
-  ASSERT(size(x,   dim=1) == this%ncols)
-  ASSERT(size(x,   dim=2) == size(rhs, dim=2))
-  ASSERT(size(rhs, dim=1) == this%nrows)
+  m4_assert(size(x,   dim=1) == this%ncols)
+  m4_assert(size(x,   dim=2) == size(rhs, dim=2))
+  m4_assert(size(rhs, dim=1) == this%nrows)
 
   ! optional arguments
   if (present(trans)) then
@@ -514,32 +432,29 @@ module subroutine SPARSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   ! solve with pardiso/ilupack, pass right-hand sides one after another in 1D array
   rhs_ = reshape(rhs, [size(rhs,1) * size(rhs,2)])
   select case (this%solver)
-    case (SOLVER_PARDISO)
-      call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
-
-#ifdef USE_MUMPS
-    case (SOLVER_MUMPS)
-      call mumps_solve(this%solver_handle, rhs_, x_)
-#endif
-
-#ifdef USE_ILUPACK
-    case (SOLVER_ILUPACK)
-      call ilupack_solve(this%solver_handle, rhs_, x_)
-#endif
+  case (SOLVER_PARDISO)
+    call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
+  m4_divert(m4_ifdef({m4_mumps},0,-1))
+  case (SOLVER_MUMPS)
+    call mumps_solve(this%solver_handle, rhs_, x_)
+  m4_divert(m4_ifdef({m4_ilupack},0,-1))
+  case (SOLVER_ILUPACK)
+    call ilupack_solve(this%solver_handle, rhs_, x_)
+  m4_divert(0)
   end select
   x = reshape(x_, [size(x,1), size(x,2)])
 end subroutine
 
-module subroutine SPARSE_TRANSPOSE(this)
+module subroutine sparse_{}T{}_transpose(this)
   !! Transpose sparse matrix.
 
-  class(SPARSE_TYPE), intent(inout) :: this
+  class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
 
-  type(SPARSE_TYPE) :: s2
+  type(sparse_{}T) :: s2
 
   ! h == 0 is default value for unfactorized
-  ASSERT(this%solver_handle == 0)
+  m4_assert(this%solver_handle == 0)
 
   ! transpose matrix
   call this%transpose(s2)
@@ -554,18 +469,18 @@ module subroutine SPARSE_TRANSPOSE(this)
   end if
 end subroutine
 
-module subroutine SPARSE_TRANSPOSE2(this, s2)
+module subroutine sparse_{}T{}_transpose2(this, s2)
   !! Transpose sparse matrix, store result in second matrix.
 
-  class(SPARSE_TYPE), intent(in)  :: this
+  class(sparse_{}T), intent(in)  :: this
     !! First sparse matrix
-  type(SPARSE_TYPE),  intent(out) :: s2
+  type(sparse_{}T),  intent(out) :: s2
     !! Output transposed sparse matrix
 
-  integer                        :: i
-  integer(SPARSE_IDX)            :: j, k
-  type(vector_int),  allocatable :: col(:)
-  type(VECTOR_TYPE), allocatable :: val(:)
+  integer                       :: i
+  integer(SPARSE_IDX)           :: j, k
+  type(vector_int), allocatable :: col(:)
+  type(vector_{}T), allocatable :: val(:)
 
   ! init s2
   call s2%init(this%ncols, ncols = this%nrows)
@@ -607,16 +522,16 @@ module subroutine SPARSE_TRANSPOSE2(this, s2)
   end do
 end subroutine
 
-module subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
+module subroutine sparse_{}T{}_mul_sparse(this, s2, s3, sort)
   !! Multiply two sparse matrices, store result in sparse third matrix.
   !!
   !! operation: s3 <- this * s2
 
-  class(SPARSE_TYPE), intent(in)  :: this
+  class(sparse_{}T), intent(in)  :: this
     !! Sparse first matrix (unchanged)
-  type(SPARSE_TYPE),  intent(in)  :: s2
+  type(sparse_{}T),  intent(in)  :: s2
     !! Sparse second matrix (unchanged)
-  type(SPARSE_TYPE),  intent(out) :: s3
+  type(sparse_{}T),  intent(out) :: s3
     !! Output sparse third matrix
   logical, optional,  intent(in)  :: sort
     !! Optional: sort column indices (default: true)
@@ -627,11 +542,11 @@ module subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   integer,             allocatable :: i1(:), col(:)
   logical                          :: sort_
   logical,             allocatable :: fil(:)
-  TT                               :: next_val
-  TT,                  allocatable :: val(:), val1(:)
+  m4_type(T)                       :: next_val
+  m4_type(T),          allocatable :: val(:), val1(:)
 
   ! check dimensions
-  ASSERT(this%ncols == s2%nrows)
+  m4_assert(this%ncols == s2%nrows)
 
   ! init s3
   call s3%init(this%nrows, ncols = s2%ncols)
@@ -769,10 +684,10 @@ module subroutine SPARSE_MUL_SPARSE(this, s2, s3, sort)
   !$omp end parallel
 end subroutine
 
-module subroutine SPARSE_INPUT(this, file, funit)
+module subroutine sparse_{}T{}_input(this, file, funit)
   !! Read sparse matrix from file or stream (does not work for large matrices with more than 2^31 non-zero entries)
 
-  class(SPARSE_TYPE),     intent(out) :: this
+  class(sparse_{}T),     intent(out) :: this
     !! Sparse matrix
   character(*), optional, intent(in)  :: file
     !! File name (alternative: provide funit)
@@ -781,19 +696,16 @@ module subroutine SPARSE_INPUT(this, file, funit)
 
   integer                   :: i, row, col, nrows, ncols, status, funit_
   character(:), allocatable :: fmt_
-  real                      :: rval
-#ifdef TCMPLX
-  real                      :: ival
-#endif
+  real                      :: rval{}m4_ifelse(T,cmplx,{, ival},)
   type(vector_int)          :: rows, cols
-  type(VECTOR_TYPE)         :: vals
-  type(SPBUILD_TYPE)        :: sb
+  type(vector_{}T)          :: vals
+  type(spbuild_{}T)         :: sb
 
   allocate (character(0) :: fmt_) ! remove gfortran warning
 
   ! open file if needed
-  ASSERT(.not. (present(file) .and. present(funit)))
-  ASSERT(present(file) .or. present(funit))
+  m4_assert(.not. (present(file) .and. present(funit)))
+  m4_assert(present(file) .or. present(funit))
   if (present(file)) then
     open (newunit = funit_, file = file, status = "old", action = "read", iostat = status)
     if (status /= 0) call program_error("File could not be opened for reading")
@@ -806,11 +718,7 @@ module subroutine SPARSE_INPUT(this, file, funit)
   call cols%init(0, c = 1024)
   call vals%init(0, c = 1024)
   do
-#ifdef TCMPLX
-    read (funit_, *, iostat = status) row, col, rval, ival ! FIXME
-#else
-    read (funit_, *, iostat = status) row, col, rval
-#endif
+    read (funit_, *, iostat = status) row, col, rval{}m4_ifelse(T,cmplx,{, ival},)
 
     if (status < 0) then
       ! end of file reached
@@ -824,11 +732,7 @@ module subroutine SPARSE_INPUT(this, file, funit)
 
     call rows%push(row)
     call cols%push(col)
-#ifdef TCMPLX
-    call vals%push(cmplx(rval, ival))
-#else
-    call vals%push(rval)
-#endif
+    m4_ifelse(T,cmplx,{call vals%push(cmplx(rval, ival))},{call vals%push(rval)})
   end do
 
   ! close file if openend here
@@ -847,10 +751,10 @@ module subroutine SPARSE_INPUT(this, file, funit)
   call sb%save()
 end subroutine
 
-module subroutine SPARSE_OUTPUT(this, file, funit, fmt)
+module subroutine sparse_{}T{}_output(this, file, funit, fmt)
   !! Write sparse matrix to file or stream
 
-  class(SPARSE_TYPE),     intent(in) :: this
+  class(sparse_{}T),      intent(in) :: this
     !! Sparse matrix
   character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
@@ -867,16 +771,12 @@ module subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(fmt)) then
     fmt_ = fmt
   else
-#ifdef TCMPLX
-    fmt_ = '(ES24.16,SP,ES24.16,"i")'
-#else
-    fmt_ = '(ES24.16)'
-#endif
+    fmt_ = m4_ifelse(T,cmplx,{'(ES24.16,SP,ES24.16,"i")'},{'(ES24.16)'})
   end if
 
   ! open file if needed
-  ASSERT(.not. (present(file) .and. present(funit)))
-  ASSERT(present(file) .or. present(funit))
+  m4_assert(.not. (present(file) .and. present(funit)))
+  m4_assert(present(file) .or. present(funit))
   if (present(file)) then
     open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
     if (status /= 0) call program_error("File could not be opened")
@@ -901,14 +801,14 @@ module subroutine SPARSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-module function SPARSE_NNZ(this, only_nonzeros) result(nnz)
+module function sparse_{}T{}_nnz(this, only_nonzeros) result(nnz)
   !! computes number of non-zero elements
 
-  class(SPARSE_TYPE), intent(in) :: this
-  logical, optional,  intent(in) :: only_nonzeros
+  class(sparse_{}T), intent(in) :: this
+  logical, optional, intent(in) :: only_nonzeros
     !! assume that all entries of sparse matrix are non-zero. thus, is much faster.
     !! default: false
-  integer(SPARSE_IDX)            :: nnz
+  integer(SPARSE_IDX)           :: nnz
 
   logical :: only_nonzeros_
 
@@ -926,11 +826,11 @@ module function SPARSE_NNZ(this, only_nonzeros) result(nnz)
   end if
 end function
 
-module function SPARSE_IS_EMPTY(this) result(empty)
+module function sparse_{}T{}_is_empty(this) result(empty)
   !! check if sparse matrix is empty (CSR not allocated)
 
-  class(SPARSE_TYPE), intent(in) :: this
-  logical                        :: empty
+  class(sparse_{}T), intent(in) :: this
+  logical                       :: empty
     !! return true if CSR is not allocated, false otherwise
 
   if ((this%nrows == 0) .or. &
@@ -944,14 +844,14 @@ module function SPARSE_IS_EMPTY(this) result(empty)
   end if
 end function
 
-module function SPARSE_EYE(nrows, ncols) result(eye)
+module function sparse_eye_{}T{}(nrows, ncols) result(eye)
   !! sparse identity matrix
 
-  integer,            intent(in)  :: nrows
+  integer,           intent(in)  :: nrows
     !! Number of rows
-  integer, optional,  intent(in)  :: ncols
+  integer, optional, intent(in)  :: ncols
     !! Optional number of columns (default: ncols = nrows)
-  type(SPARSE_TYPE)               :: eye
+  type(sparse_{}T)               :: eye
     !! return sparse identity matrix
 
   integer :: i, n
@@ -968,41 +868,41 @@ module function SPARSE_EYE(nrows, ncols) result(eye)
   do i = 1, n
     eye%ja(i  ) = i
     eye%a( i  ) = 1
-    eye%ia(i+1) = int(i+1, kind=SPARSE_IDX)
+    eye%ia(i+1) = int(i+1, kind = SPARSE_IDX)
   end do
   do i = n + 1, eye%nrows
     eye%ia(i+1) = eye%ia(n+1)
   end do
 end function
 
-module function SPARSE_ZERO(nrows, ncols) result(zero)
+module function sparse_zero_{}T{}(nrows, ncols) result(zero)
   !! create empty sparse matrix
 
   integer,           intent(in) :: nrows
     !! Number of rows
   integer, optional, intent(in) :: ncols
     !! Optional number of columns (default: ncols = nrows)
-  type(SPARSE_TYPE)             :: zero
+  type(sparse_{}T)              :: zero
     !! return empty sparse matrix
 
   call zero%init(nrows, ncols = ncols)
 
   ! allocate csr memory
-  allocate (zero%ia(nrows+1), source = int(1, kind=SPARSE_IDX))
+  allocate (zero%ia(nrows+1), source = int(1, kind = SPARSE_IDX))
   allocate (zero%ja(0))
   allocate (zero%a( 0))
 end function
 
-module subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
+module subroutine spbuild_{}T{}_init(this, s, n_per_row, assume_unique)
   !! Initialize sparse matrix builder.
 
-  class(SPBUILD_TYPE),       intent(out) :: this
+  class(spbuild_{}T),       intent(out) :: this
     !! Sparse matrix builder
-  type(SPARSE_TYPE), target, intent(in)  :: s
+  type(sparse_{}T), target, intent(in)  :: s
     !! Sparse matrix this builder is tied to
-  integer, optional,         intent(in)  :: n_per_row
+  integer, optional,        intent(in)  :: n_per_row
     !! Optional: provide hint for number of elements per row (default: 8)
-  logical, optional,         intent(in)  :: assume_unique
+  logical, optional,        intent(in)  :: assume_unique
     !! Optional: user ensures no duplicate entries (default: .false.)
 
   integer :: i, c
@@ -1036,10 +936,10 @@ module subroutine SPBUILD_INIT(this, s, n_per_row, assume_unique)
   call this%load()
 end subroutine
 
-module subroutine SPBUILD_DESTRUCT(this)
+module subroutine spbuild_{}T{}_destruct(this)
   !! Deallocate memory.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
 
   nullify (this%sp)
@@ -1050,10 +950,10 @@ module subroutine SPBUILD_DESTRUCT(this)
   if (allocated(this%keep_struct)) deallocate (this%keep_struct)
 end subroutine
 
-module subroutine SPBUILD_RESET(this)
+module subroutine spbuild_{}T{}_reset(this)
   !! Delete all values of each row
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
 
   integer :: i
@@ -1063,12 +963,12 @@ module subroutine SPBUILD_RESET(this)
   end do
 end subroutine
 
-module subroutine SPBUILD_RESET_ROW(this, row)
+module subroutine spbuild_{}T{}_reset_row(this, row)
   !! Delete all values of a row
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
-  integer,             intent(in)    :: row
+  integer,            intent(in)    :: row
     !! row index
 
   if (this%keep_struct(row)) then
@@ -1086,30 +986,30 @@ module subroutine SPBUILD_RESET_ROW(this, row)
   end if
 end subroutine
 
-module subroutine SPBUILD_SET(this, row, col, val, fact, search)
+module subroutine spbuild_{}T{}_set(this, row, col, val, fact, search)
   !! Insert/Update value.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T),   intent(inout) :: this
     !! Sparse matrix builder
-  integer,             intent(in)    :: row
+  integer,              intent(in)    :: row
     !! Row index
-  integer,             intent(in)    :: col
+  integer,              intent(in)    :: col
     !! Column index
-  TT,                  intent(in)    :: val
+  m4_type(T),           intent(in)    :: val
     !! New value
-  TT,      optional,   intent(in)    :: fact
+  m4_type(T), optional, intent(in)    :: fact
     !! Scale existing element before adding new value (default: 0)
-  logical, optional,   intent(in)    :: search
+  logical,    optional, intent(in)    :: search
     !! Search for existing value instead of appending to end of row (default: true)
 
-  TT      :: fact_
-  logical :: search_
-  integer :: i, l, r, m
+  m4_type(T) :: fact_
+  logical    :: search_
+  integer    :: i, l, r, m
 
-  ASSERT(row > 0)
-  ASSERT(row <= this%sp%nrows)
-  ASSERT(col > 0)
-  ASSERT(col <= this%sp%ncols)
+  m4_assert(row > 0)
+  m4_assert(row <= this%sp%nrows)
+  m4_assert(col > 0)
+  m4_assert(col <= this%sp%ncols)
 
   ! optional args
   search_ = .true.
@@ -1163,7 +1063,7 @@ module subroutine SPBUILD_SET(this, row, col, val, fact, search)
     ! make sure that appending without searching happens in order
     ! user can disable this check if he ensures no duplicates
     if (.not. this%assume_unique) then
-      ASSERT(search_ .or. this%sorted(row))
+      m4_assert(search_ .or. this%sorted(row))
     end if
 
     ! append new value
@@ -1181,18 +1081,18 @@ module subroutine SPBUILD_SET(this, row, col, val, fact, search)
   end if
 end subroutine
 
-module subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
+module subroutine spbuild_{}T{}_set_row(this, row, vals, j0, j1)
   !! Insert continuous block of values.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
-  integer,             intent(in)    :: row
+  integer,            intent(in)    :: row
     !! Row index
-  TT,                  intent(in)    :: vals(:)
+  m4_type(T),         intent(in)    :: vals(:)
     !! Values to insert (j1 - j0 + 1 elements)
-  integer, optional,   intent(in)    :: j0
+  integer, optional,  intent(in)    :: j0
     !! Start column index (default: 1)
-  integer, optional,   intent(in)    :: j1
+  integer, optional,  intent(in)    :: j1
     !! End column index (default: this%sp%ncols)
 
   integer :: j, j0_, j1_
@@ -1202,10 +1102,10 @@ module subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   if (present(j0)) j0_ = j0
   j1_ = this%sp%ncols
   if (present(j1)) j1_ = j1
-  ASSERT(j0_ > 0)
-  ASSERT(j0_ <= this%sp%ncols)
-  ASSERT(j1_ > 0)
-  ASSERT(j1_ <= this%sp%ncols)
+  m4_assert(j0_ > 0)
+  m4_assert(j0_ <= this%sp%ncols)
+  m4_assert(j1_ > 0)
+  m4_assert(j1_ <= this%sp%ncols)
 
   ! setting whole row -> reset previous data of that row.
   ! thus, making sure row is sorted.
@@ -1223,19 +1123,19 @@ module subroutine SPBUILD_SET_ROW(this, row, vals, j0, j1)
   end do
 end subroutine
 
-module subroutine SPBUILD_ADD(this, row, col, val)
+module subroutine spbuild_{}T{}_add(this, row, col, val)
   !! Insert new element or add to existing value.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
-  integer,             intent(in)    :: row
+  integer,            intent(in)    :: row
     !! Row index
-  integer,             intent(in)    :: col
+  integer,            intent(in)    :: col
     !! Column index
-  TT,                  intent(in)    :: val
+  m4_type(T),         intent(in)    :: val
     !! New value
 
-  TT :: fact
+  m4_type(T) :: fact
 
   ! set scaling factor to 1 both for real and complex values
   fact = 1
@@ -1244,10 +1144,10 @@ module subroutine SPBUILD_ADD(this, row, col, val)
   call this%set(row, col, val, fact = fact)
 end subroutine
 
-module subroutine SPBUILD_SORT(this)
+module subroutine spbuild_{}T{}_sort(this)
   !! Sort column indices.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
 
   integer              :: i, n
@@ -1283,10 +1183,10 @@ module subroutine SPBUILD_SORT(this)
   !$omp end parallel
 end subroutine
 
-module subroutine SPBUILD_LOAD(this)
+module subroutine spbuild_{}T{}_load(this)
   !! Load existing values from sparse matrix into builder.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
 
   integer             :: i
@@ -1314,10 +1214,10 @@ module subroutine SPBUILD_LOAD(this)
   end do
 end subroutine
 
-module subroutine SPBUILD_SAVE(this)
+module subroutine spbuild_{}T{}_save(this)
   !! Save values in sparse matrix.
 
-  class(SPBUILD_TYPE), intent(inout) :: this
+  class(spbuild_{}T), intent(inout) :: this
     !! Sparse matrix builder
 
   integer             :: i, j
@@ -1358,54 +1258,3 @@ module subroutine SPBUILD_SAVE(this)
     this%sp%ia(i+1) = k + 1
   end do
 end subroutine
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef VECTOR_TYPE
-
-#undef MATRIX_TYPE
-#undef MATRIX_PTR_TYPE
-#undef SPARSE_TYPE
-#undef SPARSE_PTR_TYPE
-#undef SPBUILD_TYPE
-
-#undef SPARSE_INIT
-#undef SPARSE_INIT_SOLVER
-#undef SPARSE_DESTRUCT
-#undef SPARSE_RESET
-#undef SPARSE_SCALE
-#undef SPARSE_MUL_VEC
-#undef SPARSE_MUL_VEC_SLICE
-#undef SPARSE_MUL_MAT
-#undef SPARSE_FACTORIZE
-#undef SPARSE_SOLVE_VEC
-#undef SPARSE_SOLVE_MAT
-#undef SPARSE_TRANSPOSE
-#undef SPARSE_TRANSPOSE2
-#undef SPARSE_MUL_SPARSE
-#undef SPARSE_INPUT
-#undef SPARSE_OUTPUT
-#undef SPARSE_NNZ
-#undef SPARSE_IS_EMPTY
-#undef SPARSE_EYE
-#undef SPARSE_ZERO
-
-#undef SPBUILD_INIT
-#undef SPBUILD_DESTRUCT
-#undef SPBUILD_RESET
-#undef SPBUILD_RESET_ROW
-#undef SPBUILD_SET
-#undef SPBUILD_SET_ROW
-#undef SPBUILD_ADD
-#undef SPBUILD_SORT
-#undef SPBUILD_LOAD
-#undef SPBUILD_SAVE

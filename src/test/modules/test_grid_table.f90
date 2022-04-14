@@ -1,12 +1,13 @@
-#include "../../util/macro.f90.inc"
+m4_include(../../util/macro.f90.inc)
 
 module test_grid_table_m
 
-  use grid_m,      only: grid_table, IDX_EDGE, IDX_CELL, IDX_FACE, IDX_VERTEX
-  use grid1D_m,    only: grid1D
-  use math_m,      only: logspace
-  use test_case_m, only: test_case
-  use util_m,      only: int2str
+  use grid_m,       only: IDX_EDGE, IDX_CELL, IDX_FACE, IDX_VERTEX
+  use grid_table_m, only: grid_table
+  use grid1D_m,     only: grid1D
+  use math_m,       only: logspace
+  use test_case_m,  only: test_case
+  use util_m,       only: int2str
 
   implicit none
 
@@ -28,7 +29,7 @@ contains
       integer            :: ncell, ic, idx_bnd(1)
       integer, parameter :: nx=101, ic0(1)=[3]
 
-      call g%init(logspace(1.0, 10.0, nx))
+      call g%init("x", logspace(1.0, 10.0, nx))
       call g_cell%init('cells', g, IDX_CELL, 0)
 
       ! enable each cell

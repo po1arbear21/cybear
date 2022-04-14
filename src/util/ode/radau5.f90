@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module radau5_m
   use lapack95
@@ -110,7 +110,7 @@ contains
     ! local variables
     integer :: nU, nP
 
-    IGNORE(dfkdP)
+    m4_ignore(dfkdP)
 
     ! get system size, number of parameters and number of stages
     nU = size(Uk)

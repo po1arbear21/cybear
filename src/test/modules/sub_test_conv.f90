@@ -1,4 +1,4 @@
-#include "../../util/macro.f90.inc"
+m4_include(../../util/macro.f90.inc)
 
 submodule (test_matrix_m) test_conv_m
 
@@ -344,14 +344,14 @@ contains
     type(test_case), intent(inout) :: tc
 
     ! fixme
-    IGNORE(tc)
+    m4_ignore(tc)
   end subroutine
 
   subroutine test_to_cmplx(tc)
     type(test_case), intent(inout) :: tc
 
     ! fixme
-    IGNORE(tc)
+    m4_ignore(tc)
   end subroutine
 
 end submodule

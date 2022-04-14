@@ -1,53 +1,17 @@
-#define PASTE(X)                X
-#define PASTE2(X)               PASTE(X)_
-#define CONCATHELP(X, Y)        PASTE2(X)Y
-#define CONCAT(X, Y)            CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z)    PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)        CONCATHELP3(X,Y,Z)
-#define CONCATHELP4(X, Y, Z, A) PASTE2(CONCATHELP3(X,Y,Z))A
-#define CONCAT4(X, Y, Z, A)     CONCATHELP4(X,Y,Z,A)
-
-#define RB_RED                  1
-#define RB_BLACK                2
-#define MAPNODE_TYPE            CONCAT3(mapnode,T,U)
-#define MAPNODE_INIT            CONCAT4(mapnode,T,U,init)
-#define MAPNODE_DESTRUCT        CONCAT4(mapnode,T,U,destruct)
-#define MAPNODE_COPY            CONCAT4(mapnode,T,U,copy)
-#define MAPNODE_GRANDPARENT     CONCAT4(mapnode,T,U,grandparent)
-#define MAPNODE_SIBLING         CONCAT4(mapnode,T,U,sibling)
-#define MAPNODE_UNCLE           CONCAT4(mapnode,T,U,uncle)
-#define MAPNODE_NUM_CHILDREN    CONCAT4(mapnode,T,U,num_children)
-#define MAPNODE_NEXT            CONCAT4(mapnode,T,U,next)
-#define MAPNODE_PREVIOUS        CONCAT4(mapnode,T,U,previous)
-#define MAPNODE_ROTATE_LEFT     CONCAT4(mapnode,T,U,rotate_left)
-#define MAPNODE_ROTATE_RIGHT    CONCAT4(mapnode,T,U,rotate_right)
-#define MAP_TYPE                CONCAT3(map,T,U)
-#define MAP_INIT                CONCAT4(map,T,U,init)
-#define MAP_DESTRUCT            CONCAT4(map,T,U,destruct)
-#define MAP_COPY                CONCAT4(map,T,U,copy)
-#define MAP_FIND                CONCAT4(map,T,U,find)
-#define MAP_FIND_POS            CONCAT4(map,T,U,find_pos)
-#define MAP_GET                 CONCAT4(map,T,U,get)
-#define MAP_SET                 CONCAT4(map,T,U,set)
-#define MAP_LEFTMOST            CONCAT4(map,T,U,leftmost)
-#define MAP_RIGHTMOST           CONCAT4(map,T,U,rightmost)
-#define MAP_INSERT              CONCAT4(map,T,U,insert)
-#define MAP_TO_ARRAY            CONCAT4(map,T,U,to_array)
-
-subroutine MAPNODE_INIT(this, key, value, color, left, right, parent)
+subroutine mapnode_{}T{}_{}U{}_init(this, key, value, color, left, right, parent)
   !! initialize map-node
-  class(MAPNODE_TYPE),         intent(out) :: this
-  TT,                          intent(in)  :: key
+  class(mapnode_{}T{}_{}U),         intent(out) :: this
+  m4_type(T),                       intent(in)  :: key
     !! element key
-  UU,                          intent(in)  :: value
+  m4_type(U),                       intent(in)  :: value
     !! element value
-  integer,                     intent(in)  :: color
+  integer,                          intent(in)  :: color
     !! node color
-  type(MAPNODE_TYPE), pointer, intent(in)  :: left
+  type(mapnode_{}T{}_{}U), pointer, intent(in)  :: left
     !! pointer to left child
-  type(MAPNODE_TYPE), pointer, intent(in)  :: right
+  type(mapnode_{}T{}_{}U), pointer, intent(in)  :: right
     !! pointer to right child
-  type(MAPNODE_TYPE), pointer, intent(in)  :: parent
+  type(mapnode_{}T{}_{}U), pointer, intent(in)  :: parent
     !! pointer to parent
 
   this%key    =  key
@@ -58,9 +22,9 @@ subroutine MAPNODE_INIT(this, key, value, color, left, right, parent)
   this%parent => parent
 end subroutine
 
-recursive subroutine MAPNODE_DESTRUCT(this)
+recursive subroutine mapnode_{}T{}_{}U{}_destruct(this)
   !! destruct map-node (and children)
-  class(MAPNODE_TYPE), intent(inout) :: this
+  class(mapnode_{}T{}_{}U), intent(inout) :: this
 
   ! destruct left child
   if (associated(this%left)) then
@@ -75,10 +39,10 @@ recursive subroutine MAPNODE_DESTRUCT(this)
   end if
 end subroutine
 
-recursive subroutine MAPNODE_COPY(this, n)
+recursive subroutine mapnode_{}T{}_{}U{}_copy(this, n)
   !! copy map-node from source
-  class(MAPNODE_TYPE), target, intent(inout) :: this
-  type(MAPNODE_TYPE),          intent(in)    :: n
+  class(mapnode_{}T{}_{}U), target, intent(inout) :: this
+  type(mapnode_{}T{}_{}U),          intent(in)    :: n
     !! source mapnode
 
   ! destruct existing children
@@ -104,10 +68,10 @@ recursive subroutine MAPNODE_COPY(this, n)
   end if
 end subroutine
 
-function MAPNODE_GRANDPARENT(this) result(p)
+function mapnode_{}T{}_{}U{}_grandparent(this) result(p)
   !! get map-node grandparent (parent of parent)
-  class(MAPNODE_TYPE), intent(in) :: this
-  type(MAPNODE_TYPE), pointer     :: p
+  class(mapnode_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer     :: p
     !! return pointer to grandparent
 
   if (.not. associated(this%parent)) then
@@ -117,10 +81,10 @@ function MAPNODE_GRANDPARENT(this) result(p)
   end if
 end function
 
-function MAPNODE_SIBLING(this) result(p)
+function mapnode_{}T{}_{}U{}_sibling(this) result(p)
   !! get map-node sibling (the other child of this%parent)
-  class(MAPNODE_TYPE), target, intent(in) :: this
-  type(MAPNODE_TYPE), pointer             :: p
+  class(mapnode_{}T{}_{}U), target, intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer             :: p
     !! return pointer to sibling
 
   if (.not. associated(this%parent)) then
@@ -134,10 +98,10 @@ function MAPNODE_SIBLING(this) result(p)
   end if
 end function
 
-function MAPNODE_UNCLE(this) result(p)
+function mapnode_{}T{}_{}U{}_uncle(this) result(p)
   !! get map-node uncle (the other child of this%parent%parent)
-  class(MAPNODE_TYPE), intent(in) :: this
-  type(MAPNODE_TYPE), pointer     :: p
+  class(mapnode_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer     :: p
     !! return pointer to uncle
 
   if (.not. associated(this%parent)) then
@@ -147,10 +111,10 @@ function MAPNODE_UNCLE(this) result(p)
   end if
 end function
 
-function MAPNODE_NUM_CHILDREN(this) result(n)
+function mapnode_{}T{}_{}U{}_num_children(this) result(n)
   !! get number of children
-  class(MAPNODE_TYPE), intent(in) :: this
-  integer                         :: n
+  class(mapnode_{}T{}_{}U), intent(in) :: this
+  integer                              :: n
     !! return number of children
 
   n = 0
@@ -162,13 +126,13 @@ function MAPNODE_NUM_CHILDREN(this) result(n)
   end if
 end function
 
-function MAPNODE_NEXT(this) result(next)
+function mapnode_{}T{}_{}U{}_next(this) result(next)
   !! get next map-node
-  class(MAPNODE_TYPE), target, intent(in) :: this
-  type(MAPNODE_TYPE), pointer             :: next
+  class(mapnode_{}T{}_{}U), target, intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer             :: next
     !! return next map-node
 
-  type(MAPNODE_TYPE), pointer :: p
+  type(mapnode_{}T{}_{}U), pointer :: p
 
   if (associated(this%right)) then
     next => this%right
@@ -187,13 +151,13 @@ function MAPNODE_NEXT(this) result(next)
   end if
 end function
 
-function MAPNODE_PREVIOUS(this) result(prev)
+function mapnode_{}T{}_{}U{}_previous(this) result(prev)
   !! get previous map-node
-  class(MAPNODE_TYPE), target, intent(in) :: this
-  type(MAPNODE_TYPE), pointer           :: prev
+  class(mapnode_{}T{}_{}U), target, intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer             :: prev
     !! return previous map-node
 
-  type(MAPNODE_TYPE), pointer :: p
+  type(mapnode_{}T{}_{}U), pointer :: p
 
   if (associated(this%left)) then
     prev => this%left
@@ -212,11 +176,11 @@ function MAPNODE_PREVIOUS(this) result(prev)
   end if
 end function
 
-subroutine MAPNODE_ROTATE_LEFT(this)
+subroutine mapnode_{}T{}_{}U{}_rotate_left(this)
   !! rotate tree left
-  class(MAPNODE_TYPE), target, intent(inout) :: this
+  class(mapnode_{}T{}_{}U), target, intent(inout) :: this
 
-  type(MAPNODE_TYPE), pointer :: n, g
+  type(mapnode_{}T{}_{}U), pointer :: n, g
 
   g => this%parent
   n => this%right ! must be associated!
@@ -237,11 +201,11 @@ subroutine MAPNODE_ROTATE_LEFT(this)
   n%left => this
 end subroutine
 
-subroutine MAPNODE_ROTATE_RIGHT(this)
+subroutine mapnode_{}T{}_{}U{}_rotate_right(this)
   !! rotate tree left
-  class(MAPNODE_TYPE), target, intent(inout) :: this
+  class(mapnode_{}T{}_{}U), target, intent(inout) :: this
 
-  type(MAPNODE_TYPE), pointer :: p, g
+  type(mapnode_{}T{}_{}U), pointer :: p, g
 
   g => this%parent
   p => this%left ! must be associated
@@ -262,17 +226,17 @@ subroutine MAPNODE_ROTATE_RIGHT(this)
   p%right => this
 end subroutine
 
-subroutine MAP_INIT(this)
+subroutine map_{}T{}_{}U{}_init(this)
   !! initialize map
-  class(MAP_TYPE), intent(out) :: this
+  class(map_{}T{}_{}U), intent(out) :: this
 
   ! no elements
   this%n = 0
 end subroutine
 
-subroutine MAP_DESTRUCT(this)
+subroutine map_{}T{}_{}U{}_destruct(this)
   !! destruct map
-  class(MAP_TYPE), intent(inout) :: this
+  class(map_{}T{}_{}U), intent(inout) :: this
 
   ! destruct root node
   if (associated(this%root)) then
@@ -284,11 +248,11 @@ subroutine MAP_DESTRUCT(this)
   this%n = 0
 end subroutine
 
-subroutine MAP_COPY(this, m)
+subroutine map_{}T{}_{}U{}_copy(this, m)
   !! copy map
-  class(MAP_TYPE), intent(inout) :: this
+  class(map_{}T{}_{}U), intent(inout) :: this
     !! target
-  type(MAP_TYPE),  intent(in)    :: m
+  type(map_{}T{}_{}U),  intent(in)    :: m
     !! source
 
   ! delete old data
@@ -304,12 +268,12 @@ subroutine MAP_COPY(this, m)
   this%n = m%n
 end subroutine
 
-function MAP_FIND(this, key) result(node)
+function map_{}T{}_{}U{}_find(this, key) result(node)
   !! find using the key in map
-  class(MAP_TYPE), intent(in) :: this
-  TT,              intent(in) :: key
+  class(map_{}T{}_{}U), intent(in) :: this
+  m4_type(T),           intent(in) :: key
     !! key to lookup
-  type(MAPNODE_TYPE), pointer :: node
+  type(mapnode_{}T{}_{}U), pointer :: node
     !! return found node
     !! (null if not found)
 
@@ -328,15 +292,15 @@ function MAP_FIND(this, key) result(node)
   end do
 end function
 
-function MAP_FIND_POS(this, key) result(node)
+function map_{}T{}_{}U{}_find_pos(this, key) result(node)
   ! find nearest key in map
-  class(MAP_TYPE),    intent(in) :: this
-  TT,                 intent(in) :: key
+  class(map_{}T{}_{}U),    intent(in) :: this
+  m4_type(T),              intent(in) :: key
     !! key to lookup
-  type(MAPNODE_TYPE), pointer    :: node
+  type(mapnode_{}T{}_{}U), pointer    :: node
     !! return node which is nearest to key
 
-  type(MAPNODE_TYPE), pointer :: tmp
+  type(mapnode_{}T{}_{}U), pointer :: tmp
 
   tmp => this%root
   nullify(node)
@@ -355,27 +319,27 @@ function MAP_FIND_POS(this, key) result(node)
   end do
 end function
 
-function MAP_GET(this, key) result(val)
+function map_{}T{}_{}U{}_get(this, key) result(val)
   !! lookup key in map and return value
-  class(MAP_TYPE), intent(in) :: this
-  TT,              intent(in) :: key
+  class(map_{}T{}_{}U), intent(in) :: this
+  m4_type(T),           intent(in) :: key
     !! key to lookup
-  UU                          :: val
+  m4_type(U)                       :: val
     !! return value
 
-  type(MAPNODE_TYPE), pointer :: n
+  type(mapnode_{}T{}_{}U), pointer :: n
 
   n => this%find(key)
   val = n%value
 end function
 
-subroutine MAP_SET(this, key, value)
+subroutine map_{}T{}_{}U{}_set(this, key, value)
   !! insert new key-value-pair into map or update existing one
-  class(MAP_TYPE), intent(inout) :: this
-  TT,              intent(in)    :: key
-  UU,              intent(in)    :: value
+  class(map_{}T{}_{}U), intent(inout) :: this
+  m4_type(T),           intent(in)    :: key
+  m4_type(U),           intent(in)    :: value
 
-  type(MAPNODE_TYPE), pointer :: node
+  type(mapnode_{}T{}_{}U), pointer :: node
   logical                     :: status
 
   call this%insert(key, value, node = node, status = status)
@@ -383,10 +347,10 @@ subroutine MAP_SET(this, key, value)
   if (.not. status) node%value = value
 end subroutine
 
-function MAP_LEFTMOST(this) result(node)
+function map_{}T{}_{}U{}_leftmost(this) result(node)
   !! get leftmost node in map
-  class(MAP_TYPE), intent(in) :: this
-  type(MAPNODE_TYPE), pointer :: node
+  class(map_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer :: node
     !! return leftmost node
 
   node => this%root
@@ -396,10 +360,10 @@ function MAP_LEFTMOST(this) result(node)
   end do
 end function
 
-function MAP_RIGHTMOST(this) result(node)
+function map_{}T{}_{}U{}_rightmost(this) result(node)
   !! get rightmost node in map
-  class(MAP_TYPE), intent(in) :: this
-  type(MAPNODE_TYPE), pointer :: node
+  class(map_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer :: node
     !! return rightmost node
 
   node => this%root
@@ -409,19 +373,21 @@ function MAP_RIGHTMOST(this) result(node)
   end do
 end function
 
-subroutine MAP_INSERT(this, key, value, node, status)
+subroutine map_{}T{}_{}U{}_insert(this, key, value, node, status)
   !! insert key-value-pair into map
-  class(MAP_TYPE),                       intent(inout) :: this
-  TT,                                    intent(in)    :: key
+  class(map_{}T{}_{}U),                       intent(inout) :: this
+  m4_type(T),                                 intent(in)    :: key
     !! key to insert
-  UU,                                    intent(in)    :: value
+  m4_type(U),                                 intent(in)    :: value
     !! value to insert
-  type(MAPNODE_TYPE), optional, pointer, intent(out)   :: node
+  type(mapnode_{}T{}_{}U), optional, pointer, intent(out)   :: node
     !! optional output pointer to newly created node (or to already existing one with the same key)
-  logical,            optional,          intent(out)   :: status
+  logical,                 optional,          intent(out)   :: status
     !! optional output status of insertion: success => true, fail => false
 
-  type(MAPNODE_TYPE), pointer :: n, p, g, u
+  integer, parameter :: RB_RED = 1, RB_BLACK = 2
+
+  type(mapnode_{}T{}_{}U), pointer :: n, p, g, u
 
   ! check for empty map
   if (.not. associated(this%root)) then
@@ -518,23 +484,23 @@ subroutine MAP_INSERT(this, key, value, node, status)
   end if
 end subroutine
 
-subroutine MAP_TO_ARRAY(this, keys, values)
+subroutine map_{}T{}_{}U{}_to_array(this, keys, values)
   !! convert map to array
-  class(MAP_TYPE), intent(in)  :: this
-  TT, optional,    intent(out) :: keys(:)
+  class(map_{}T{}_{}U), intent(in)  :: this
+  m4_type(T), optional, intent(out) :: keys(:)
     !! optional output array with keys
-  UU, optional,    intent(out) :: values(:)
+  m4_type(U), optional, intent(out) :: values(:)
     !! optional output array with values
 
-  type(MAPNODE_TYPE), pointer  :: n
-  integer                      :: i
+  integer :: i
+  type(mapnode_{}T{}_{}U), pointer :: n
 
   if (present(keys)) then
-    ASSERT(size(keys) == this%n)
+    m4_assert(size(keys) == this%n)
   end if
 
   if (present(values)) then
-    ASSERT(size(values) == this%n)
+    m4_assert(size(values) == this%n)
   end if
 
   ! goto leftmost node
@@ -550,43 +516,4 @@ subroutine MAP_TO_ARRAY(this, keys, values)
   end do
 end subroutine
 
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-#undef CONCATHELP4
-#undef CONCAT4
-
-#undef RB_RED
-#undef RB_BLACK
-#undef MAPNODE_TYPE
-#undef MAPNODE_INIT
-#undef MAPNODE_DESTRUCT
-#undef MAPNODE_COPY
-#undef MAPNODE_GRANDPARENT
-#undef MAPNODE_SIBLING
-#undef MAPNODE_UNCLE
-#undef MAPNODE_NUM_CHILDREN
-#undef MAPNODE_NEXT
-#undef MAPNODE_PREVIOUS
-#undef MAPNODE_ROTATE_LEFT
-#undef MAPNODE_ROTATE_RIGHT
-#undef MAP_TYPE
-#undef MAP_INIT
-#undef MAP_DESTRUCT
-#undef MAP_COPY
-#undef MAP_FIND
-#undef MAP_FIND_POS
-#undef MAP_GET
-#undef MAP_SET
-#undef MAP_LEFTMOST
-#undef MAP_RIGHTMOST
-#undef MAP_INSERT
-#undef MAP_TO_ARRAY
-
-#undef T
-#undef TT
-#undef U
-#undef UU
+m4_undefine({T},{U})

@@ -1,9 +1,11 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module variable_m
 
   use error_m,         only: assert_failed
-  use grid_m,          only: allocate_grid_data, grid, grid_data_real, grid_data_cmplx, grid_table, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
+  use grid_data_m,     only: allocate_grid_data, grid_data_real, grid_data_cmplx
+  use grid_table_m,    only: grid_table
   use grid0D_m,        only: get_dummy_grid
   use normalization_m, only: denorm, norm
 
@@ -22,6 +24,9 @@ module variable_m
 
     class(grid), pointer :: g => null()
       !! pointer to grid
+
+    type(grid_table) :: tab_all
+      !! table that selects all possible grid indices
 
     integer :: idx_type
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
@@ -82,19 +87,21 @@ contains
     integer,             optional, intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
 
+    character(32) :: tab_name
+
     this%name = name
     this%unit = unit
 
     ! optional arguments
     if (present(g)) then
-      ASSERT(present(idx_type))
-      ASSERT(present(idx_dir))
+      m4_assert(present(idx_type))
+      m4_assert(present(idx_dir))
       this%g        => g
       this%idx_type =  idx_type
       this%idx_dir  =  idx_dir
     else
-      ASSERT(.not. present(idx_type))
-      ASSERT(.not. present(idx_dir))
+      m4_assert(.not. present(idx_type))
+      m4_assert(.not. present(idx_dir))
       this%g        => get_dummy_grid()
       this%idx_type =  IDX_VERTEX
       this%idx_dir  =  0
@@ -109,6 +116,15 @@ contains
       call allocate_grid_data(this%data, this%g%idx_dim)
       call this%data%init(this%g, this%idx_type, this%idx_dir)
     end select
+
+    ! init tab_all
+    if (this%idx_dir > 0) then
+      write (tab_name, "(A,A,I0)") "All", trim(IDX_NAME(this%idx_type)), this%idx_dir
+    else
+      write (tab_name, "(A,A)") "All", trim(IDX_NAME(this%idx_type))
+    end if
+    call this%tab_all%init(trim(tab_name), this%g, this%idx_type, this%idx_dir, initial_flags = .true.)
+    call this%tab_all%init_final()
   end subroutine
 
   subroutine variable_reset(this)
@@ -190,7 +206,7 @@ contains
     allocate (character(2) :: grd_unit_)
     grd_unit_ = "nm"
     if (present(grd_unit)) grd_unit_ = grd_unit
-    tab_ => this%g%tab_all(this%idx_type, this%idx_dir)
+    tab_ => this%tab_all
     if (present(tab)) tab_ => tab
 
     open (newunit = iounit, file = fname, action = 'write')

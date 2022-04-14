@@ -1,13 +1,13 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module esystem_m
 
-  use array_m,            only: array_int
+  use array_m,            only: array1_int
   use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use gmres_m,            only: gmres_options
-  use grid_m,             only: grid_table, grid_table_ptr
+  use grid_table_m,       only: grid_table, grid_table_ptr
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, matrix_convert
   use newton_m,           only: newton_opt, newton
   use res_equation_m,     only: res_equation
@@ -33,17 +33,17 @@ module esystem_m
     type(vector_equation_ptr) :: ealloc
       !! automatically allocated equations
 
-    integer                      :: nbl
+    integer                       :: nbl
       !! number of blocks
-    integer                      :: n
+    integer                       :: n
       !! total number of values
-    type(array_int), allocatable :: res2block(:)
+    type(array1_int), allocatable :: res2block(:)
       !! (iimvar, main var table index) -> block index;  (ntab) x (size(requs))
-    integer,         allocatable :: block2res(:,:)
+    integer,          allocatable :: block2res(:,:)
       !! block index -> (iimvar, main var table index); (2, nbl)
-    integer,         allocatable :: i0(:)
+    integer,          allocatable :: i0(:)
       !! start rows for flat residuals (= cols of main vars)
-    integer,         allocatable :: i1(:)
+    integer,          allocatable :: i1(:)
       !! end   rows for flat residuals (= cols of main vars)
 
     type(vector_int)     :: input_equs
@@ -556,7 +556,7 @@ contains
 
     integer :: i, i0, i1
 
-    ASSERT(size(x) == this%ninput)
+    m4_assert(size(x) == this%ninput)
 
     i1 = 0
     do i = 1, this%input_equs%n
@@ -574,7 +574,7 @@ contains
     real,           intent(in)    :: x(:)
       !! new values for i-th input variable
 
-    ASSERT(size(x) == this%input_i1(i)-this%input_i0(i)+1)
+    m4_assert(size(x) == this%input_i1(i)-this%input_i0(i)+1)
 
     select type (e => this%g%equs%d(this%input_equs%d(i))%e)
       class is (input_equation)
@@ -619,7 +619,7 @@ contains
 
     ! set residuals flat array
     if (present(f)) then
-      ASSERT(size(f) == this%n)
+      m4_assert(size(f) == this%n)
       do i = 1, this%g%ires%n
         associate (fn => this%g%nodes%d(this%g%equs%d(this%g%ires%d(i))%ires)%p)
           ! get block indices
@@ -710,7 +710,7 @@ contains
 
     ! parse optional newton options
     if (present(nopt)) then
-      ASSERT(size(nopt%atol) == this%n)
+      m4_assert(size(nopt%atol) == this%n)
       nopt_ = nopt
     else
       call nopt_%init(this%n)
@@ -747,22 +747,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_assert(size(p) == 0)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! save input variable
       call this%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (nopt_%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%eval(f = f, df = df, dfp = dfp)
         dfdx_prec => dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%eval(f = f, df = df)
       end if
       dfdx => df
@@ -813,7 +813,7 @@ contains
 
     integer :: ibl
 
-    ASSERT(size(x) == this%n)
+    m4_assert(size(x) == this%n)
 
     ! set values for all blocks
     do ibl = 1, this%nbl
@@ -831,7 +831,7 @@ contains
 
     integer :: itab, imvar
 
-    ASSERT(size(x) == this%i1(ibl)-this%i0(ibl)+1)
+    m4_assert(size(x) == this%i1(ibl)-this%i0(ibl)+1)
 
     ! set values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
@@ -852,7 +852,7 @@ contains
 
     integer :: ibl
 
-    ASSERT(size(dx) == this%n)
+    m4_assert(size(dx) == this%n)
 
     ! update values for all blocks
     do ibl = 1, this%nbl
@@ -870,7 +870,7 @@ contains
 
     integer :: itab, imvar
 
-    ASSERT(size(dx) == this%i1(ibl)-this%i0(ibl)+1)
+    m4_assert(size(dx) == this%i1(ibl)-this%i0(ibl)+1)
 
     ! update values
     imvar = this%g%imvar%d(this%block2res(1,ibl))
@@ -910,7 +910,7 @@ contains
     type(sparse_real), intent(out) :: dfp
       !! output sparse matrix
 
-    ASSERT(allocated(this%dfp))
+    m4_assert(allocated(this%dfp))
 
     call matrix_convert(this%dfp, dfp)        ! sparse_real <- block_real
   end subroutine
@@ -923,7 +923,7 @@ contains
 
     type(sparse_real)  :: dfp_real
 
-    ASSERT(allocated(this%dfp))
+    m4_assert(allocated(this%dfp))
 
     call matrix_convert(this%dfp, dfp_real)   ! sparse_real  <- block_real
     call matrix_convert(dfp_real, dfp     )   ! sparse_cmplx <- sparse_real

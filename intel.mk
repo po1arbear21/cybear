@@ -1,6 +1,6 @@
 # intel fortran compiler flags
 FC     := ifort
-FFLAGS := -march=native -fpp -warn all -qopenmp -fp-model precise -real-size 64
+FFLAGS := -march=native -warn all -qopenmp -fp-model precise -real-size 64
 ifeq ($(BUILD),debug)
   FFLAGS += -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
 endif

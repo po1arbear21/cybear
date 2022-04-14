@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module normalization_m
 
@@ -25,23 +25,33 @@ module normalization_m
   type(normalization) :: normconst
     !! global normalization object
 
-  interface norm
-    module procedure :: norm_scalar_r
-    module procedure :: norm_array_r
-    module procedure :: norm_matrix_r
-    module procedure :: norm_scalar_c
-    module procedure :: norm_array_c
-    module procedure :: norm_matrix_c
-  end interface
+  ! maximum supported array dimension
+  m4_define({m4_max_dim},{8})
 
-  interface denorm
-    module procedure :: denorm_scalar_r
-    module procedure :: denorm_array_r
-    module procedure :: denorm_matrix_r
-    module procedure :: denorm_scalar_c
-    module procedure :: denorm_array_c
-    module procedure :: denorm_matrix_c
-  end interface
+  ! get actual type
+  m4_define({m4_norm_type},{m4_ifelse($1,r,real,{m4_ifelse($1,c,complex,)})})
+
+  ! get operation
+  m4_define({m4_norm_op},{m4_ifelse($1,norm,/,{m4_ifelse($1,denorm,*,)})})
+
+  ! combine dimensions 1 to max_dim with norm/denorm and r/c to get a full list
+  m4_define({m4_list_help},{
+    m4_ifelse($2,0,,{m4_list_help($1,m4_decr($2),$3)})
+    m4_X($1,$2,$3)
+  })
+  m4_define({m4_list},{
+    m4_list_help(norm,m4_max_dim,r)
+    m4_list_help(denorm,m4_max_dim,r)
+    m4_list_help(norm,m4_max_dim,c)
+    m4_list_help(denorm,m4_max_dim,c)
+  })
+
+  m4_define({m4_X},{
+    interface $1
+      module procedure :: $1_$2_$3
+    end interface
+  })
+  m4_list
 
 contains
 
@@ -60,25 +70,21 @@ contains
     call normconst%destruct()
   end subroutine
 
-#define T r
-#define TT real
-#define NORM
-#include "normalization_imp.f90.inc"
+  m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
+  m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
+  m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
+    m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
+      !! value to (de-)normalize
+    character(*),                  intent(in) :: unit
+      !! physical unit token
+    type(normalization), optional, intent(in) :: n
+      !! optional normalization object (default: use global normconst)
+    m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
+      !! return normalized value
 
-#define T c
-#define TT complex
-#define NORM
-#include "normalization_imp.f90.inc"
-
-#define T r
-#define TT real
-#define DENORM
-#include "normalization_imp.f90.inc"
-
-#define T c
-#define TT complex
-#define DENORM
-#include "normalization_imp.f90.inc"
+    nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
+  end function})
+  m4_list
 
   function get_norm_value(unit, n) result(val)
     !! usage:

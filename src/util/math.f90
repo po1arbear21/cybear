@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module math_m
 
@@ -256,8 +256,8 @@ contains
     integer :: i
     real    :: e0, e1, de
 
-    ASSERT(x0 > 0.0)
-    ASSERT(x1 > 0.0)
+    m4_assert(x0 > 0.0)
+    m4_assert(x1 > 0.0)
 
     e0 = log(x0)
     e1 = log(x1)
@@ -397,7 +397,7 @@ contains
 
     integer :: i
 
-    ASSERT(size(x) == size(v))
+    m4_assert(size(x) == size(v))
 
     if      (xq <= x(1      )) then
       vq = v(1)
@@ -423,7 +423,7 @@ contains
 
     ! get degree
     n = size(p)
-    ASSERT(n > 0)
+    m4_assert(n > 0)
 
     ! every leading zero in p is a zero in r
     do nz = 0, n-1
@@ -495,8 +495,8 @@ contains
 
     integer :: i, n
 
-    ASSERT(size(p, 1) == 2)
-    n = size(p, 2) 
+    m4_assert(size(p, 1) == 2)
+    n = size(p, 2)
 
     A = 0.0
     do i=1, n-1

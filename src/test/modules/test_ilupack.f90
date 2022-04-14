@@ -1,8 +1,10 @@
-#ifdef USE_ILUPACK
+m4_include(../../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_ilupack},0,-1))
 
 module test_ilupack_m
 
-  use ilupack_m,    only: ilupack_handle
+  use ilupack_m,    only: create_ilupack_handle, destruct_ilupack_handle, get_ilupack_handle_ptr, ilupack_factorize, ilupack_handle, ilupack_solve
   use sparse_idx_m, only: SPARSE_IDX
   use test_case_m,  only: test_case
 
@@ -131,4 +133,4 @@ contains
 
 end module
 
-#endif
+m4_divert(0)

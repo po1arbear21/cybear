@@ -1,9 +1,11 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module grid0D_m
 
-  use error_m, only: assert_failed
-  use grid_m,  only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use error_m,       only: assert_failed
+  use grid_m,        only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use json_m,        only: json_object
+  use output_file_m, only: output_file
 
   implicit none
 
@@ -25,6 +27,7 @@ module grid0D_m
     procedure :: get_vol        => grid0D_get_vol
     procedure :: get_max_neighb => grid0D_get_max_neighb
     procedure :: get_neighb     => grid0D_get_neighb
+    procedure :: output         => grid0D_output
   end type
 
   type(grid0D), target :: dum_grid
@@ -36,21 +39,20 @@ contains
     !! used in variable(grid=optional).
     type(grid0D), pointer :: ptr
 
-    if (.not. allocated(dum_grid%face_dim)) call dum_grid%init()
+    if (.not. allocated(dum_grid%face_dim)) call dum_grid%init("dummy")
     ptr => dum_grid
   end function
 
-  subroutine grid0D_init(this)
+  subroutine grid0D_init(this, name)
     !! initialize 0D pseudo grid
     class(grid0D), intent(out) :: this
+    character(*),  intent(in)  :: name
+      !! grid name
 
     integer :: face_dim(0)
 
     ! init base
-    call this%grid_init(0, 0, face_dim, 0)
-
-    ! init tables
-    call this%init_tab_all()
+    call this%grid_init(name, 0, 0, face_dim, 0)
   end subroutine
 
   subroutine grid0D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
@@ -63,12 +65,12 @@ contains
     integer,       intent(out) :: idx_bnd(:)
       !! output upper bound for each index (0)
 
-    ASSERT(this%idx_allowed(idx_type, idx_dir))
-    ASSERT(size(idx_bnd) == 0)
+    m4_assert(this%idx_allowed(idx_type, idx_dir))
+    m4_assert(size(idx_bnd) == 0)
 
-    IGNORE(this    )
-    IGNORE(idx_type)
-    IGNORE(idx_dir )
+    m4_ignore(this    )
+    m4_ignore(idx_type)
+    m4_ignore(idx_dir )
     idx_bnd(:) = 0
   end subroutine
 
@@ -80,11 +82,11 @@ contains
     real,          intent(out) :: p(:)
       !! output vertex coordinates (dim)
 
-    ASSERT(size(idx) == 0)
-    ASSERT(size(  p) == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(size(  p) == 0)
 
-    IGNORE(this)
-    IGNORE(idx )
+    m4_ignore(this)
+    m4_ignore(idx )
     p(:) = 0.0
   end subroutine
 
@@ -98,12 +100,12 @@ contains
     real,          intent(out) :: p(:,:)
       !! output edge coordinates (dim x 2)
 
-    ASSERT(size(idx) == 0)
-    ASSERT(size(p,1) == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(size(p,1) == 0)
 
-    IGNORE(this   )
-    IGNORE(idx    )
-    IGNORE(idx_dir)
+    m4_ignore(this   )
+    m4_ignore(idx    )
+    m4_ignore(idx_dir)
     p(:,:) = 0.0
   end subroutine
 
@@ -117,12 +119,12 @@ contains
     real,          intent(out) :: p(:,:)
       !! output face coordinates (dim x face_dim(idx_dir))
 
-    ASSERT(size(idx) == 0)
-    ASSERT(size(p,1) == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(size(p,1) == 0)
 
-    IGNORE(this   )
-    IGNORE(idx    )
-    IGNORE(idx_dir)
+    m4_ignore(this   )
+    m4_ignore(idx    )
+    m4_ignore(idx_dir)
     p(:,:) = 0.0
   end subroutine
 
@@ -134,11 +136,11 @@ contains
     real,          intent(out) :: p(:,:)
       !! output cell coordinates (dim x cell_dim)
 
-    ASSERT(size(idx) == 0)
-    ASSERT(size(p,1) == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(size(p,1) == 0)
 
-    IGNORE(this)
-    IGNORE(idx )
+    m4_ignore(this)
+    m4_ignore(idx )
     p(:,:) = 0.0
   end subroutine
 
@@ -152,12 +154,12 @@ contains
     real                      :: len
       !! return edge length
 
-    ASSERT(size(idx) == 0)
-    ASSERT(idx_dir   == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(idx_dir   == 0)
 
-    IGNORE(this)
-    IGNORE(idx)
-    IGNORE(idx_dir)
+    m4_ignore(this)
+    m4_ignore(idx)
+    m4_ignore(idx_dir)
 
     len = 0
   end function
@@ -172,12 +174,12 @@ contains
     real                      :: surf
       !! return size of face
 
-    ASSERT(size(idx) == 0)
-    ASSERT(idx_dir   == 0)
+    m4_assert(size(idx) == 0)
+    m4_assert(idx_dir   == 0)
 
-    IGNORE(this)
-    IGNORE(idx)
-    IGNORE(idx_dir)
+    m4_ignore(this)
+    m4_ignore(idx)
+    m4_ignore(idx_dir)
 
     surf = 0
   end function
@@ -190,10 +192,10 @@ contains
     real                      :: vol
       !! return cell volume
 
-    ASSERT(size(idx) == 0)
+    m4_assert(size(idx) == 0)
 
-    IGNORE(this)
-    IGNORE(idx )
+    m4_ignore(this)
+    m4_ignore(idx )
 
     vol = 0
   end function
@@ -212,14 +214,14 @@ contains
     integer                   :: max_neighb
       !! return maximal number of nearest neighbours
 
-    ASSERT(idx1_dir == 0)
-    ASSERT(idx2_dir == 0)
+    m4_assert(idx1_dir == 0)
+    m4_assert(idx2_dir == 0)
 
-    IGNORE(this     )
-    IGNORE(idx1_type)
-    IGNORE(idx1_dir )
-    IGNORE(idx2_type)
-    IGNORE(idx2_dir )
+    m4_ignore(this     )
+    m4_ignore(idx1_type)
+    m4_ignore(idx1_dir )
+    m4_ignore(idx2_type)
+    m4_ignore(idx2_dir )
 
     max_neighb = 0
   end function
@@ -244,21 +246,38 @@ contains
     logical,       intent(out) :: status
       !! does j-th neighb exist?
 
-    ASSERT(idx1_dir   == 0)
-    ASSERT(idx2_dir   == 0)
-    ASSERT(size(idx1) == 0)
-    ASSERT(size(idx2) == 0)
+    m4_assert(idx1_dir   == 0)
+    m4_assert(idx2_dir   == 0)
+    m4_assert(size(idx1) == 0)
+    m4_assert(size(idx2) == 0)
 
-    IGNORE(this     )
-    IGNORE(idx1_type)
-    IGNORE(idx1_dir )
-    IGNORE(idx2_type)
-    IGNORE(idx2_dir )
-    IGNORE(idx1     )
-    IGNORE(j        )
+    m4_ignore(this     )
+    m4_ignore(idx1_type)
+    m4_ignore(idx1_dir )
+    m4_ignore(idx2_type)
+    m4_ignore(idx2_dir )
+    m4_ignore(idx1     )
+    m4_ignore(j        )
 
     idx2(:) = 0
     status  = .false.
+  end subroutine
+
+  subroutine grid0D_output(this, of, unit)
+    !! output 0D grid
+    class(grid0D),          intent(in)    :: this
+    type(output_file),      intent(inout) :: of
+      !! output file handle
+    character(*), optional, intent(in)    :: unit
+      !! physical unit of coordinates (ignored)
+
+    type(json_object), pointer :: obj
+
+    m4_ignore(unit)
+
+    obj => of%new_object("Grids")
+    call obj%add("Name", this%name)
+    call obj%add("Type", "0D")
   end subroutine
 
 end module

@@ -1,34 +1,11 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define DEQUE_TYPE           CONCAT(deque,T)
-#define DEQUE_INIT           CONCAT3(deque,T,init)
-#define DEQUE_DESTRUCT       CONCAT3(deque,T,destruct)
-#define DEQUE_RESET          CONCAT3(deque,T,reset)
-#define DEQUE_RESERVE        CONCAT3(deque,T,reserve)
-#define DEQUE_RESIZE         CONCAT3(deque,T,resize)
-#define DEQUE_FRONT          CONCAT3(deque,T,first)
-#define DEQUE_BACK           CONCAT3(deque,T,last)
-#define DEQUE_PUSH_FRONT     CONCAT3(deque,T,push_front)
-#define DEQUE_PUSH_BACK      CONCAT3(deque,T,push_back)
-#define DEQUE_POP_FRONT      CONCAT3(deque,T,pop_front)
-#define DEQUE_POP_BACK       CONCAT3(deque,T,pop_back)
-#define DEQUE_SHRINK         CONCAT3(deque,T,shrink)
-#define DEQUE_TO_ARRAY       CONCAT3(deque,T,to_array)
-#define DEQUE_FROM_ARRAY     CONCAT3(deque,T,from_array)
-
-subroutine DEQUE_INIT(this, n, c, x)
+subroutine deque_{}T{}_init(this, n, c, x)
   !! initialize deque
-  class(DEQUE_TYPE), intent(out) :: this
-  integer,           intent(in)  :: n
+  class(deque_{}T),     intent(out) :: this
+  integer,              intent(in)  :: n
     !! initial size
-  integer, optional, intent(in)  :: c
+  integer,    optional, intent(in)  :: c
     !! initial capacity (default: c = 1)
-  TT,      optional, intent(in)  :: x(n)
+  m4_type(T), optional, intent(in)  :: x(n)
     !! initial values
 
   ! local variables
@@ -54,30 +31,29 @@ subroutine DEQUE_INIT(this, n, c, x)
   end if
 end subroutine
 
-subroutine DEQUE_DESTRUCT(this)
+subroutine deque_{}T{}_destruct(this)
   !! destruct deque (deallocate memory)
-  class(DEQUE_TYPE), intent(inout) :: this
+  class(deque_{}T), intent(inout) :: this
 
   if (allocated(this%d)) deallocate (this%d)
 end subroutine
 
-subroutine DEQUE_RESET(this)
+subroutine deque_{}T{}_reset(this)
   !! reset deque size to zero
-  class(DEQUE_TYPE), intent(inout) :: this
+  class(deque_{}T), intent(inout) :: this
 
   this%n      = 0
   this%ifront = 1
   this%iback  = 0
 end subroutine
 
-subroutine DEQUE_RESERVE(this, c)
+subroutine deque_{}T{}_reserve(this, c)
   !! reserve memory (reallocate)
-  class(DEQUE_TYPE), intent(inout) :: this
-  integer,           intent(in)    :: c
+  class(deque_{}T), intent(inout) :: this
+  integer,          intent(in)    :: c
     !! new capacity
 
-  ! local variables
-  TT, allocatable :: tmp(:)
+  m4_type(T), allocatable :: tmp(:)
 
   if (allocated(this%d)) then
     ! only reallocate if new capacity is actually larger than old
@@ -98,10 +74,10 @@ subroutine DEQUE_RESERVE(this, c)
   end if
 end subroutine
 
-subroutine DEQUE_RESIZE(this, n)
+subroutine deque_{}T{}_resize(this, n)
   !! resize deque
-  class(DEQUE_TYPE), intent(inout) :: this
-  integer,           intent(in)    :: n
+  class(deque_{}T), intent(inout) :: this
+  integer,          intent(in)    :: n
     !! new size
 
   ! reserve memory
@@ -114,28 +90,28 @@ subroutine DEQUE_RESIZE(this, n)
   if (this%iback > size(this%d)) this%iback = this%iback - size(this%d)
 end subroutine
 
-function DEQUE_FRONT(this) result(x)
+function deque_{}T{}_front(this) result(x)
   !! get first element
-  class(DEQUE_TYPE), intent(in) :: this
-  TT                            :: x
+  class(deque_{}T), intent(in) :: this
+  m4_type(T)                   :: x
     !! return first element
 
   x = this%d(this%ifront)
 end function
 
-function DEQUE_BACK(this) result(x)
+function deque_{}T{}_back(this) result(x)
   !! get last element
-  class(DEQUE_TYPE), intent(in) :: this
-  TT                            :: x
+  class(deque_{}T), intent(in) :: this
+  m4_type(T)                   :: x
     !! return last element
 
   x = this%d(this%iback)
 end function
 
-subroutine DEQUE_PUSH_FRONT(this, x)
+subroutine deque_{}T{}_push_front(this, x)
   !! prepend element to front of deque
-  class(DEQUE_TYPE), intent(inout) :: this
-  TT,                intent(in)    :: x
+  class(deque_{}T), intent(inout) :: this
+  m4_type(T),       intent(in)    :: x
     !! element to add
 
   ! double capacity if necessary
@@ -155,10 +131,10 @@ subroutine DEQUE_PUSH_FRONT(this, x)
   this%d(this%ifront) = x
 end subroutine
 
-subroutine DEQUE_PUSH_BACK(this, x)
+subroutine deque_{}T{}_push_back(this, x)
   !! append element to back of deque
-  class(DEQUE_TYPE), intent(inout) :: this
-  TT,                intent(in)    :: x
+  class(deque_{}T), intent(inout) :: this
+  m4_type(T),       intent(in)    :: x
     !! element to add
 
   ! double capacity if necessary
@@ -178,9 +154,9 @@ subroutine DEQUE_PUSH_BACK(this, x)
   this%d(this%iback) = x
 end subroutine
 
-subroutine DEQUE_POP_FRONT(this)
+subroutine deque_{}T{}_pop_front(this)
   !! remove first element from deque
-  class(DEQUE_TYPE), intent(inout) :: this
+  class(deque_{}T), intent(inout) :: this
 
   if (this%n > 0) then
     this%n = this%n - 1
@@ -189,9 +165,9 @@ subroutine DEQUE_POP_FRONT(this)
   end if
 end subroutine
 
-subroutine DEQUE_POP_BACK(this)
+subroutine deque_{}T{}_pop_back(this)
   !! remove last element from deque
-  class(DEQUE_TYPE), intent(inout) :: this
+  class(deque_{}T), intent(inout) :: this
 
   if (this%n > 0) then
     this%n = this%n - 1
@@ -200,13 +176,12 @@ subroutine DEQUE_POP_BACK(this)
   end if
 end subroutine
 
-subroutine DEQUE_SHRINK(this)
+subroutine deque_{}T{}_shrink(this)
   !! remove excess capacity
-  class(DEQUE_TYPE), intent(inout) :: this
+  class(deque_{}T), intent(inout) :: this
 
-  ! local variables
-  TT, allocatable :: tmp(:)
-  integer         :: c
+  integer                 :: c
+  m4_type(T), allocatable :: tmp(:)
 
   c = this%n
   if (this%n == 0) c = 1
@@ -223,10 +198,10 @@ subroutine DEQUE_SHRINK(this)
   end if
 end subroutine
 
-function DEQUE_TO_ARRAY(this) result(x)
+function deque_{}T{}_to_array(this) result(x)
   !! convert deque to array
-  class(DEQUE_TYPE), intent(in) :: this
-  TT                            :: x(this%n)
+  class(deque_{}T), intent(in) :: this
+  m4_type(T)                   :: x(this%n)
     !! return elements in deque
 
   if (this%n > 0) then
@@ -241,10 +216,10 @@ function DEQUE_TO_ARRAY(this) result(x)
   end if
 end function
 
-subroutine DEQUE_FROM_ARRAY(this, x)
+subroutine deque_{}T{}_from_array(this, x)
   !! convert array to deque (old contents are overridden)
-  class(DEQUE_TYPE), intent(inout) :: this
-  TT               , intent(in)    :: x(:)
+  class(deque_{}T), intent(inout) :: this
+  m4_type(T),       intent(in)    :: x(:)
     !! new elements
 
   if (allocated(this%d)) then
@@ -263,28 +238,4 @@ subroutine DEQUE_FROM_ARRAY(this, x)
   this%iback  = this%n
 end subroutine
 
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef DEQUE_TYPE
-#undef DEQUE_INIT
-#undef DEQUE_DESTRUCT
-#undef DEQUE_RESET
-#undef DEQUE_RESERVE
-#undef DEQUE_RESIZE
-#undef DEQUE_FRONT
-#undef DEQUE_BACK
-#undef DEQUE_PUSH_FRONT
-#undef DEQUE_PUSH_BACK
-#undef DEQUE_POP_FRONT
-#undef DEQUE_POP_BACK
-#undef DEQUE_SHRINK
-#undef DEQUE_TO_ARRAY
-#undef DEQUE_FROM_ARRAY
+m4_undefine({T})

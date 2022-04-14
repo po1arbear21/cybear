@@ -1,4 +1,5 @@
-LIBS :=
+LIBS     :=
+FINCLUDE :=
 
 ifeq ($(INTSIZE),32)
   ARCH := lp64
@@ -12,8 +13,7 @@ ifeq ($(USE_FEAST),true)
   ifndef FEASTROOT
     $(error FEASTROOT is not set)
   endif
-  FFLAGS += -D USE_FEAST
-  LIBS   += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
+  LIBS += $(FEASTROOT)/lib/$(COMPILER)_$(ARCH)/libfeast.a
 endif
 
 # BLAS95 and LAPACK95
@@ -58,8 +58,7 @@ ifeq ($(USE_ARPACK),true)
   ifndef ARPACKROOT
     $(error ARPACKROOT is not set)
   endif
-  FFLAGS += -D USE_ARPACK
-  LIBS   += $(ARPACKROOT)/lib/$(COMPILER)_$(ARCH)/libarpack.a
+  LIBS += $(ARPACKROOT)/lib/$(COMPILER)_$(ARCH)/libarpack.a
 endif
 
 # EXPOKIT
@@ -67,8 +66,7 @@ ifeq ($(USE_EXPOKIT),true)
   ifndef EXPOKITROOT
     $(error EXPOKITROOT is not set)
   endif
-  FFLAGS += -D USE_EXPOKIT
-  LIBS   += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
+  LIBS += $(EXPOKITROOT)/lib/$(COMPILER)_$(ARCH)/expokit.a
 endif
 
 # ILUPACK
@@ -84,8 +82,7 @@ ifeq ($(USE_ILUPACK),true)
     ARCH_ILUPACK := lp64
   endif
 
-  FFLAGS += -D USE_ILUPACK
-  LIBS   +=                                                                 \
+  LIBS +=                                                                   \
     -Wl,--start-group                                                       \
       $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libilupack_mumps.a     \
       $(ILUPACKROOT)/lib/$(COMPILER)_$(ARCH_ILUPACK)/libamd.a               \
@@ -115,8 +112,7 @@ ifeq ($(USE_MUMPS),true)
   ifndef SCOTCHROOT
     $(error SCOTCHROOT is not set)
   endif
-  FFLAGS += -D USE_MUMPS
-  LIBS   +=                                                  \
+  LIBS +=                                                    \
     -Wl,--start-group                                        \
       $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libdmumps.a       \
       $(MUMPSROOT)/lib/$(COMPILER)_$(ARCH)/libzmumps.a       \
@@ -139,8 +135,7 @@ ifeq ($(USE_QUADPACK),true)
   ifndef QUADPACKROOT
     $(error QUADPACKROOT is not set)
   endif
-  FFLAGS += -D USE_QUADPACK
-  LIBS   += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
+  LIBS += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
 endif
 
 # additional libraries

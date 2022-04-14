@@ -1,9 +1,11 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module vselector_m
 
   use error_m,         only: assert_failed, program_error
-  use grid_m,          only: grid, grid_data_int, grid_table, grid_table_ptr, allocate_grid_data
+  use grid_m,          only: grid
+  use grid_data_m,     only: allocate_grid_data, grid_data_int
+  use grid_table_m,    only: grid_table, grid_table_ptr
   use iso_fortran_env, only: int64, int32
   use util_m,          only: hash
   use variable_m,      only: variable, variable_ptr, variable_real, variable_cmplx
@@ -70,15 +72,13 @@ module vselector_m
     type(vselector), pointer :: p => null()
   end type
 
-#define T vselector_ptr
-#define TT type(vselector_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{vselector_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-#define T vselector_ptr
-#define TT type(vselector_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{vselector_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine vselector_init_nvar_ntab(this, v, tab, name)
     !! initialize variable selector given multiple variables and multiple tables.
@@ -99,18 +99,18 @@ contains
     this%v        =  v
     this%tab      =  tab
 
-#ifdef DEBUG
-    do i = 2, size(v)
-      if (.not. associated(v(i)%p%g, this%g)) call program_error("variables defined on different grids")
-      if (v(i)%p%idx_type /= this%idx_type  ) call program_error("different variable index types"      )
-      if (v(i)%p%idx_dir  /= this%idx_dir   ) call program_error("different variable index directions" )
-    end do
-    do i = 1, size(tab)
-      if (.not. associated(tab(i)%p%g, this%g)) call program_error("grid table defined on wrong grid"     )
-      if (tab(i)%p%idx_type /= this%idx_type  ) call program_error("grid table has wrong index type"      )
-      if (tab(i)%p%idx_dir  /= this%idx_dir   ) call program_error("grid table has wrong index direction" )
-    end do
-#endif
+    m4_divert(m4_ifdef(m4_debug,-1,0))
+      do i = 2, size(v)
+        if (.not. associated(v(i)%p%g, this%g)) call program_error("variables defined on different grids")
+        if (v(i)%p%idx_type /= this%idx_type  ) call program_error("different variable index types"      )
+        if (v(i)%p%idx_dir  /= this%idx_dir   ) call program_error("different variable index directions" )
+      end do
+      do i = 1, size(tab)
+        if (.not. associated(tab(i)%p%g, this%g)) call program_error("grid table defined on wrong grid"     )
+        if (tab(i)%p%idx_type /= this%idx_type  ) call program_error("grid table has wrong index type"      )
+        if (tab(i)%p%idx_dir  /= this%idx_dir   ) call program_error("grid table has wrong index direction" )
+      end do
+    m4_divert(0)
 
     ! number of variables
     this%nvar = size(v)
@@ -144,7 +144,7 @@ contains
     do itab = 1, this%ntab
       do i = 1, tab(itab)%p%n
         idx = tab(itab)%p%get_idx(i)
-        ASSERT(this%itab%get(idx) == 0)
+        m4_assert(this%itab%get(idx) == 0)
         call this%itab%set(idx, itab)
       end do
     end do
@@ -180,12 +180,12 @@ contains
     character(*),               intent(in)  :: name
       !! selector name
     type(grid_table), optional, intent(in)  :: tab
-      !! grid table (default: variables' whole grids via v(1)%g%tab_all)
+      !! grid table (default: variables' whole grids via v(1)%tab_all)
 
     if (present(tab)) then
       call this%init(v, [tab%get_ptr()], name)
     else
-      call this%init(v, [v(1)%p%g%tab_all(v(1)%p%idx_type,v(1)%p%idx_dir)%get_ptr()], name)
+      call this%init(v, [v(1)%p%tab_all%get_ptr()], name)
     end if
   end subroutine
 
@@ -195,7 +195,7 @@ contains
     class(variable),            intent(in)  :: v
       !! variable
     type(grid_table), optional, intent(in)  :: tab
-      !! grid table (default: variable's whole grid via v%g%tab_all)
+      !! grid table (default: variable's whole grid via v%tab_all)
     character(*),     optional, intent(in)  :: name
       !! selector name (default: variable%name)
 
@@ -211,7 +211,7 @@ contains
     if (present(tab)) then
       call this%init([v%get_ptr()], [tab%get_ptr()], name_)
     else
-      call this%init([v%get_ptr()], [v%g%tab_all(v%idx_type,v%idx_dir)%get_ptr()], name_)
+      call this%init([v%get_ptr()], [v%tab_all%get_ptr()], name_)
     end if
   end subroutine
 
@@ -288,12 +288,14 @@ contains
     class(vselector), intent(in) :: this
     integer                      :: n
 
-#ifdef INTSIZE32
-    n = 2 + 2*(1 + size(this%v) + size(this%tab))
-#endif
-#ifdef INTSIZE64
-    n = 3 + size(this%v) + size(this%tab)
-#endif
+    ! pointers (grid, variables, tables)
+    n = 1 + size(this%v) + size(this%tab)
+
+    ! each pointer is 64 bit => multiply size by 2 if integers are only 32 bit
+    m4_ifelse(m4_intsize,32,{n = 2 * n})
+
+    ! idx_type, idx_dir
+    n = n + 2
   end function
 
   function vselector_hashkey(this) result(hkey)
@@ -313,40 +315,39 @@ contains
     hkey(2) = this%idx_dir
     gptr => this%g
     iptr =  loc(gptr)
-#ifdef INTSIZE32
-    hkey(3) = int(iptr, kind = int32)
-    hkey(4) = int(ishft(iptr, -32), kind = int32)
-    n = 4
-#endif
-#ifdef INTSIZE64
-    hkey(3) = iptr
-    n = 3
-#endif
+    m4_ifelse(m4_intsize,32,{
+      hkey(3) = int(iptr, kind = int32)
+      hkey(4) = int(ishft(iptr, -32), kind = int32)
+      n = 4
+    },{
+      hkey(3) = iptr
+      n = 3
+    })
+
     do i = 1, size(this%v)
       vptr => this%v(i)%p
       iptr =  loc(vptr)
-#ifdef INTSIZE32
-      hkey(n+1) = int(iptr, kind = int32)
-      hkey(n+2) = int(ishft(iptr, -32), kind = int32)
-      n = n + 2
-#endif
-#ifdef INTSIZE64
-      hkey(n+1) = iptr
-      n = n + 1
-#endif
+
+      m4_ifelse(m4_intsize,32,{
+        hkey(n+1) = int(iptr, kind = int32)
+        hkey(n+2) = int(ishft(iptr, -32), kind = int32)
+        n = n + 2
+      },{
+        hkey(n+1) = iptr
+        n = n + 1
+      })
     end do
     do i = 1, size(this%tab)
       tptr => this%tab(i)%p
       iptr =  loc(tptr)
-#ifdef INTSIZE32
-      hkey(n+1) = int(iptr, kind = int32)
-      hkey(n+2) = int(ishft(iptr, -32), kind = int32)
-      n = n + 2
-#endif
-#ifdef INTSIZE64
-      hkey(n+1) = iptr
-      n = n + 1
-#endif
+      m4_ifelse(m4_intsize,32,{
+        hkey(n+1) = int(iptr, kind = int32)
+        hkey(n+2) = int(ishft(iptr, -32), kind = int32)
+        n = n + 2
+      },{
+        hkey(n+1) = iptr
+        n = n + 1
+      })
     end do
   end function
 
@@ -423,7 +424,7 @@ contains
 
     integer :: i, j
 
-    ASSERT(size(x) == this%nval)
+    m4_assert(size(x) == this%nval)
 
     j = 1
     do i = 1, this%nvar
@@ -448,7 +449,7 @@ contains
 
     integer :: i, i0, i1, idx(this%g%idx_dim)
 
-    ASSERT(size(x) == this%nvals(itab))
+    m4_assert(size(x) == this%nvals(itab))
 
     associate (tab => this%tab(itab)%p)
       i1 = 0
@@ -470,7 +471,7 @@ contains
 
     integer :: itab, i0, i1
 
-    ASSERT(size(x) == this%n)
+    m4_assert(size(x) == this%n)
 
     i1 = 0
     do itab = 1, this%ntab
@@ -491,7 +492,7 @@ contains
 
     integer :: i, j
 
-    ASSERT(size(dx) == this%nval)
+    m4_assert(size(dx) == this%nval)
 
     j = 1
     do i = 1, this%nval
@@ -516,7 +517,7 @@ contains
 
     integer :: i, i0, i1, idx(this%g%idx_dim)
 
-    ASSERT(size(dx) == this%nvals(itab))
+    m4_assert(size(dx) == this%nvals(itab))
 
     associate (tab => this%tab(itab)%p)
       i1 = 0
@@ -538,7 +539,7 @@ contains
 
     integer :: itab, i0, i1
 
-    ASSERT(size(dx) == this%n)
+    m4_assert(size(dx) == this%n)
 
     i1 = 0
     do itab = 1, this%ntab

@@ -1,3 +1,5 @@
+m4_include(../util/macro.f90.inc)
+
 module jacobian_chain_m
   use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr
 
@@ -36,15 +38,13 @@ module jacobian_chain_m
     class(jacobian_chain), pointer :: p
   end type
 
-#define T jacobian_chain_ptr
-#define TT type(jacobian_chain_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{jacobian_chain_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-#define T jacobian_chain_ptr
-#define TT type(jacobian_chain_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{jacobian_chain_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine jacobian_chain_init(this, jaco)
     !! initialize jacobian chain

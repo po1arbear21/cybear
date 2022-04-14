@@ -1,10 +1,10 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module simple_equations_m
 
-  use array_m,        only: array_int, array2_log
+  use array_m,        only: array1_int, array2_log
   use equation_m,     only: equation
-  use grid_m,         only: grid_table, grid_table_ptr
+  use grid_table_m,   only: grid_table, grid_table_ptr
   use jacobian_m,     only: jacobian, jacobian_ptr
   use qsort_m,        only: qsort
   use res_equation_m, only: res_equation
@@ -187,7 +187,7 @@ contains
     class(dummy_equation), intent(inout) :: this
 
     ! do nothing
-    IGNORE(this)
+    m4_ignore(this)
   end subroutine
 
   subroutine selector_equation_init(this, v1, v2, status)
@@ -202,7 +202,7 @@ contains
 
     integer                 :: i, j, ival1, ival2, itab1, itab2, idx(v1%g%idx_dim), iprov, idep
     logical                 :: v2_used(size(v2))
-    type(array_int)         :: get_v2(v1%ntab,v1%nval), get_ival2(v1%ntab,v1%nval)
+    type(array1_int)        :: get_v2(v1%ntab,v1%nval), get_ival2(v1%ntab,v1%nval)
     type(array2_log)        :: valmsk(size(v2))
     type(jacobian), pointer :: jaco
     type(stencil_ptr)       :: st(v1%ntab)
@@ -313,7 +313,7 @@ contains
     class(selector_equation), intent(inout) :: this
 
     ! do nothing
-    IGNORE(this)
+    m4_ignore(this)
   end subroutine
 
   subroutine input_equation_init_vsel(this, v)

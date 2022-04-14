@@ -1,12 +1,5 @@
-#define PASTE(X)         X
-#define PASTE2(X)        PASTE(X)_
-#define CONCATHELP(X, Y) PASTE2(X)Y
-#define CONCAT(X, Y)     CONCATHELP(X,Y)
-
-#define QSORT CONCAT(qsort,T)
-
-subroutine QSORT(x, perm)
-  TT,                intent(inout) :: x(:)
+subroutine qsort_{}T{}(x, perm)
+  m4_type(T),        intent(inout) :: x(:)
     !! array which should be sorted
   integer, optional, intent(out)   :: perm(:)
     !! permutation array
@@ -15,7 +8,7 @@ subroutine QSORT(x, perm)
 
   ! init permutation array
   if (present(perm)) then
-    ASSERT(size(x) == size(perm))
+    m4_assert(size(x) == size(perm))
     perm = [(i, i=1,size(x))]
   end if
 
@@ -28,8 +21,8 @@ contains
     integer, intent(in) :: i0
     integer, intent(in) :: i1
 
-    integer :: mid, l, r
-    TT      :: pivot
+    integer    :: mid, l, r
+    m4_type(T) :: pivot
 
     ! 0 or 1 element
     if (i0 >= i1) return
@@ -112,8 +105,8 @@ contains
     integer, intent(in) :: i0
     integer, intent(in) :: i1
 
-    integer :: itmp
-    TT      :: tmp
+    integer    :: itmp
+    m4_type(T) :: tmp
 
     tmp   = x(i0)
     x(i0) = x(i1)
@@ -127,12 +120,4 @@ contains
 
 end subroutine
 
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-
-#undef QSORT
+m4_undefine({T})
