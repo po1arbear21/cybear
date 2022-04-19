@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module harmonic_balance_m
 
@@ -63,13 +63,13 @@ contains
     type(block_real)                       :: dg_block
 
     ! check for errors
-    ASSERT(nH > 0)
-    ASSERT(input%n == sys%ninput)
+    m4_assert(nH > 0)
+    m4_assert(input%n == sys%ninput)
 
     ! parse optional newton options
     if (present(nopt)) then
-      ASSERT(size(nopt%atol) == sys%n*(1+2*nH))
-      ASSERT(.not. nopt%it_solver)
+      m4_assert(size(nopt%atol) == sys%n*(1+2*nH))
+      m4_assert(.not. nopt%it_solver)
       nopt_ = nopt
     else
       call nopt_%init(sys%n*(1+2*nH))
@@ -79,7 +79,7 @@ contains
     nt0 = 8
     nt1 = 128
     if (present(nt)) then
-      ASSERT(nt > 0)
+      m4_assert(nt > 0)
       nt0 = nt
       nt1 = nt
     end if
@@ -163,9 +163,9 @@ contains
 
       integer :: i0, i1, j0, j1
 
-      IGNORE(p)
-      IGNORE(dfdx_prec)
-      IGNORE(dfdp)
+      m4_ignore(p)
+      m4_ignore(dfdx_prec)
+      m4_ignore(dfdp)
 
       ! set fourier coefficients for f and df
       call eval_fourier(reshape(x, [sys%n, 1+2*nH]))
@@ -318,11 +318,11 @@ contains
     if (present(sine)) sine_ = sine
 
     ! error checks
-    ASSERT((k >= 0) .and. (k <= this%nH))
-    ASSERT((ifreq_ >= 1) .and. (ifreq_ <= size(this%freq)))
-    ASSERT(.not. (sine_ .and. cosine_))
-    ASSERT((k > 0) .or. .not. (sine_ .or. cosine_))
-    ASSERT((k == 0) .or. cosine_ .or. sine_)
+    m4_assert((k >= 0) .and. (k <= this%nH))
+    m4_assert((ifreq_ >= 1) .and. (ifreq_ <= size(this%freq)))
+    m4_assert(.not. (sine_ .and. cosine_))
+    m4_assert((k > 0) .or. .not. (sine_ .or. cosine_))
+    m4_assert((k == 0) .or. cosine_ .or. sine_)
 
     ! select harmonic and save in esystem
     n = this%sys%n
@@ -349,7 +349,7 @@ contains
     if (present(ifreq)) ifreq_ = ifreq
 
     ! error checks
-    ASSERT((ifreq_ >= 1) .and. (ifreq_ <= size(this%freq)))
+    m4_assert((ifreq_ >= 1) .and. (ifreq_ <= size(this%freq)))
 
     ! normalize time to one period
     t_ = t * this%freq(ifreq_)

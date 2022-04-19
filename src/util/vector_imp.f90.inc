@@ -1,33 +1,11 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define VECTOR_TYPE          CONCAT(vector,T)
-#define VECTOR_INIT          CONCAT3(vector,T,init)
-#define VECTOR_DESTRUCT      CONCAT3(vector,T,destruct)
-#define VECTOR_RESET         CONCAT3(vector,T,reset)
-#define VECTOR_RESERVE       CONCAT3(vector,T,reserve)
-#define VECTOR_RESIZE        CONCAT3(vector,T,resize)
-#define VECTOR_FRONT         CONCAT3(vector,T,front)
-#define VECTOR_BACK          CONCAT3(vector,T,back)
-#define VECTOR_PUSH_ELEM     CONCAT3(vector,T,push_elem)
-#define VECTOR_PUSH_ELEMS    CONCAT3(vector,T,push_elems)
-#define VECTOR_POP           CONCAT3(vector,T,pop)
-#define VECTOR_SHRINK        CONCAT3(vector,T,shrink)
-#define VECTOR_TO_ARRAY      CONCAT3(vector,T,to_array)
-#define VECTOR_FROM_ARRAY    CONCAT3(vector,T,from_array)
-
-subroutine VECTOR_INIT(this, n, c, x)
+subroutine vector_{}T{}_init(this, n, c, x)
   !! initialize vector
-  class(VECTOR_TYPE), intent(out) :: this
-  integer,            intent(in)  :: n
+  class(vector_{}T),    intent(out) :: this
+  integer,              intent(in)  :: n
     !! initial size
-  integer, optional,  intent(in)  :: c
+  integer,    optional, intent(in)  :: c
     !! initial capacity (default: c = 1)
-  TT,      optional,  intent(in)  :: x(n)
+  m4_type(T), optional, intent(in)  :: x(n)
     !! initial values
 
   ! local variables
@@ -53,28 +31,27 @@ subroutine VECTOR_INIT(this, n, c, x)
   end if
 end subroutine
 
-subroutine VECTOR_DESTRUCT(this)
+subroutine vector_{}T{}_destruct(this)
   !! destruct vector (deallocate memory)
-  class(VECTOR_TYPE), intent(inout) :: this
+  class(vector_{}T), intent(inout) :: this
 
   if (allocated(this%d)) deallocate (this%d)
 end subroutine
 
-subroutine VECTOR_RESET(this)
+subroutine vector_{}T{}_reset(this)
   !! reset vector to size zero
-  class(VECTOR_TYPE), intent(inout) :: this
+  class(vector_{}T), intent(inout) :: this
 
   this%n = 0
 end subroutine
 
-subroutine VECTOR_RESERVE(this, c)
+subroutine vector_{}T{}_reserve(this, c)
   !! reserve memory (reallocate)
-  class(VECTOR_TYPE), intent(inout) :: this
-  integer,            intent(in)    :: c
+  class(vector_{}T), intent(inout) :: this
+  integer,           intent(in)    :: c
     !! new capacity
 
-  ! local variables
-  TT, allocatable :: tmp(:)
+  m4_type(T), allocatable :: tmp(:)
 
   if (allocated(this%d)) then
     ! only reallocate if new capacity is actually larger than old
@@ -89,10 +66,10 @@ subroutine VECTOR_RESERVE(this, c)
   end if
 end subroutine
 
-subroutine VECTOR_RESIZE(this, n)
+subroutine vector_{}T{}_resize(this, n)
   !! resize vector
-  class(VECTOR_TYPE), intent(inout) :: this
-  integer,            intent(in)    :: n
+  class(vector_{}T), intent(inout) :: this
+  integer,           intent(in)    :: n
     !! new size
 
   ! reserve memory
@@ -103,28 +80,71 @@ subroutine VECTOR_RESIZE(this, n)
   if (this%n < 0) this%n = 0
 end subroutine
 
-function VECTOR_FRONT(this) result(x)
+function vector_{}T{}_front(this) result(x)
   !! get first element
-  class(VECTOR_TYPE), intent(in) :: this
-  TT                             :: x
+  class(vector_{}T), intent(in) :: this
+  m4_type(T)                    :: x
     !! return first element
 
   x = this%d(1)
 end function
 
-function VECTOR_BACK(this) result(x)
+function vector_{}T{}_back(this) result(x)
   !! get last element
-  class(VECTOR_TYPE), intent(in) :: this
-  TT                             :: x
+  class(vector_{}T), intent(in) :: this
+  m4_type(T)                    :: x
     !! return last element
 
   x = this%d(this%n)
 end function
 
-subroutine VECTOR_PUSH_ELEM(this, x)
+subroutine vector_{}T{}_pop(this)
+  !! remove last element from vector
+  class(vector_{}T), intent(inout) :: this
+
+  ! decrease size by 1
+  if (this%n > 0) this%n = this%n - 1
+end subroutine
+
+subroutine vector_{}T{}_shrink(this)
+  !! remove excess capacity
+  class(vector_{}T), intent(inout) :: this
+
+  integer                 :: c
+  m4_type(T), allocatable :: tmp(:)
+
+  c = this%n
+  if (this%n == 0) c = 1
+
+  if (c < size(this%d)) then
+    allocate (tmp(c), source = this%d(1:c))
+    call move_alloc(tmp, this%d)
+  end if
+end subroutine
+
+function vector_{}T{}_to_array(this) result(x)
+  !! convert vector to array
+  class(vector_{}T), intent(in) :: this
+  m4_type(T)                    :: x(this%n)
+    !! return elements
+
+  x = this%d(1:this%n)
+end function
+
+subroutine vector_{}T{}_from_array(this, x)
+  !! convert array to vector (old contents are overridden)
+  class(vector_{}T), intent(inout) :: this
+  m4_type(T),        intent(in)    :: x(:)
+    !! new elements
+
+  call this%resize(size(x))
+  this%d(1:this%n) = x
+end subroutine
+
+subroutine vector_{}T{}_push(this, x)
   !! append element to end of vector
-  class(VECTOR_TYPE), intent(inout) :: this
-  TT,                 intent(in)    :: x
+  class(vector_{}T), intent(inout) :: this
+  m4_type(T),        intent(in)    :: x
     !! element to add
 
   ! double capacity if necessary
@@ -137,10 +157,10 @@ subroutine VECTOR_PUSH_ELEM(this, x)
   this%d(this%n) = x
 end subroutine
 
-subroutine VECTOR_PUSH_ELEMS(this, x)
+subroutine vector_{}T{}_push_n(this, x)
   !! append elements to end of vector
-  class(VECTOR_TYPE), intent(inout) :: this
-  TT,                 intent(in)    :: x(:)
+  class(vector_{}T), intent(inout) :: this
+  m4_type(T),        intent(in)    :: x(:)
     !! elements to add
 
   ! increase size by length of given elements
@@ -153,71 +173,4 @@ subroutine VECTOR_PUSH_ELEMS(this, x)
   this%d(this%n-size(x)+1:this%n) = x
 end subroutine
 
-subroutine VECTOR_POP(this)
-  !! remove last element from vector
-  class(VECTOR_TYPE), intent(inout) :: this
-
-  ! decrease size by 1
-  if (this%n > 0) this%n = this%n - 1
-end subroutine
-
-subroutine VECTOR_SHRINK(this)
-  !! remove excess capacity
-  class(VECTOR_TYPE), intent(inout) :: this
-
-  ! local variables
-  TT, allocatable :: tmp(:)
-  integer         :: c
-
-  c = this%n
-  if (this%n == 0) c = 1
-
-  if (c < size(this%d)) then
-    allocate (tmp(c), source = this%d(1:c))
-    call move_alloc(tmp, this%d)
-  end if
-end subroutine
-
-function VECTOR_TO_ARRAY(this) result(x)
-  !! convert vector to array
-  class(VECTOR_TYPE), intent(in) :: this
-  TT                             :: x(this%n)
-    !! return elements
-
-  x = this%d(1:this%n)
-end function
-
-subroutine VECTOR_FROM_ARRAY(this, x)
-  !! convert array to vector (old contents are overridden)
-  class(VECTOR_TYPE), intent(inout) :: this
-  TT                , intent(in)    :: x(:)
-    !! new elements
-
-  call this%resize(size(x))
-  this%d(1:this%n) = x
-end subroutine
-
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef VECTOR_TYPE
-#undef VECTOR_INIT
-#undef VECTOR_DESTRUCT
-#undef VECTOR_RESET
-#undef VECTOR_RESERVE
-#undef VECTOR_RESIZE
-#undef VECTOR_FRONT
-#undef VECTOR_BACK
-#undef VECTOR_PUSH_ELEM
-#undef VECTOR_PUSH_ELEMS
-#undef VECTOR_POP
-#undef VECTOR_SHRINK
-#undef VECTOR_TO_ARRAY
-#undef VECTOR_FROM_ARRAY
+m4_undefine({T})

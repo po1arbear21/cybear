@@ -1,4 +1,6 @@
-#ifdef USE_QUADPACK
+m4_include(../../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_quadpack},0,-1))
 
 module test_quadpack_m
 
@@ -55,4 +57,4 @@ contains
 
 end module
 
-#endif
+m4_divert(0)

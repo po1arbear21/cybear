@@ -1,3 +1,5 @@
+m4_include(../util/macro.f90.inc)
+
 module circuit_m
 
   use error_m,        only: program_error
@@ -30,17 +32,14 @@ module circuit_m
     class(component), pointer :: p => null()
   end type
 
-#define T node_ptr
-#define TT type(node_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{node_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
-#define T terminal_ptr
-#define TT type(terminal_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{terminal_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
-#define T component_ptr
-#define TT type(component_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{component_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
   type, extends(res_equation) :: kcl_equ
     !! Kirchhoff Current Law equation
@@ -138,17 +137,14 @@ module circuit_m
 
 contains
 
-#define T node_ptr
-#define TT type(node_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{node_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
-#define T terminal_ptr
-#define TT type(terminal_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{terminal_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
-#define T component_ptr
-#define TT type(component_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{component_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine kcl_equ_init(this, nd)
     !! initialize KCL equation

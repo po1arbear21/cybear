@@ -1,24 +1,4 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define MATRIX_TYPE          CONCAT(matrix,T)
-#define MATRIX_PTR_TYPE      CONCAT(matrix_ptr,T)
-
-#define MATRIX_INIT          CONCAT3(matrix,T,init)
-#define MATRIX_DESTRUCT      CONCAT3(matrix,T,destruct)
-#define MATRIX_RESET         CONCAT3(matrix,T,reset)
-#define MATRIX_SCALE         CONCAT3(matrix,T,scale)
-#define MATRIX_MUL_VEC       CONCAT3(matrix,T,mul_vec)
-#define MATRIX_MUL_MAT       CONCAT3(matrix,T,mul_mat)
-#define MATRIX_FACTORIZE     CONCAT3(matrix,T,factorize)
-#define MATRIX_SOLVE_VEC     CONCAT3(matrix,T,solve_vec)
-#define MATRIX_SOLVE_MAT     CONCAT3(matrix,T,solve_mat)
-
-type, abstract :: MATRIX_TYPE
+type, abstract :: matrix_{}T
   !! Base type for matrices.
   !! Can be extended if more specialized matrices are needed besides the built-in types.
   integer :: nrows
@@ -28,95 +8,71 @@ type, abstract :: MATRIX_TYPE
   logical :: factorized
     !! Is matrix factorized and ready to solve?
 contains
-  procedure :: MATRIX_INIT
-  generic   :: init => MATRIX_INIT
+  procedure :: matrix_{}T{}_init
+  generic   :: init => matrix_{}T{}_init
 
-  procedure(MATRIX_DESTRUCT),  deferred :: destruct
-  procedure(MATRIX_RESET),     deferred :: reset
-  procedure(MATRIX_SCALE),     deferred :: scale
-  procedure(MATRIX_MUL_VEC),   deferred :: mul_vec
-  procedure(MATRIX_MUL_MAT),   deferred :: mul_mat
-  procedure(MATRIX_FACTORIZE), deferred :: factorize
-  procedure(MATRIX_SOLVE_VEC), deferred :: solve_vec
-  procedure(MATRIX_SOLVE_MAT), deferred :: solve_mat
+  procedure(matrix_{}T{}_destruct),  deferred :: destruct
+  procedure(matrix_{}T{}_reset),     deferred :: reset
+  procedure(matrix_{}T{}_scale),     deferred :: scale
+  procedure(matrix_{}T{}_mul_vec),   deferred :: mul_vec
+  procedure(matrix_{}T{}_mul_mat),   deferred :: mul_mat
+  procedure(matrix_{}T{}_factorize), deferred :: factorize
+  procedure(matrix_{}T{}_solve_vec), deferred :: solve_vec
+  procedure(matrix_{}T{}_solve_mat), deferred :: solve_mat
 end type
 
-type MATRIX_PTR_TYPE
-  class(MATRIX_TYPE), pointer :: p => null()
+type matrix_ptr_{}T
+  class(matrix_{}T), pointer :: p => null()
 end type
 
 interface
-  module subroutine MATRIX_DESTRUCT(this)
-    class(MATRIX_TYPE), intent(inout) :: this
+  module subroutine matrix_{}T{}_destruct(this)
+    class(matrix_{}T), intent(inout) :: this
   end subroutine
 
-  module subroutine MATRIX_RESET(this, only_factorization)
-    class(MATRIX_TYPE), intent(inout) :: this
-    logical, optional,  intent(in)    :: only_factorization
+  module subroutine matrix_{}T{}_reset(this, only_factorization)
+    class(matrix_{}T), intent(inout) :: this
+    logical, optional, intent(in)    :: only_factorization
   end subroutine
 
-  module subroutine MATRIX_SCALE(this, fact)
-    class(MATRIX_TYPE), intent(inout) :: this
-    TT,                 intent(in)    :: fact
+  module subroutine matrix_{}T{}_scale(this, fact)
+    class(matrix_{}T), intent(inout) :: this
+    m4_type(T),        intent(in)    :: fact
   end subroutine
 
-  module subroutine MATRIX_MUL_VEC(this, x, y, fact_y, trans)
-    class(MATRIX_TYPE),  intent(in)    :: this
-    TT,                  intent(in)    :: x(:)
-    TT,                  intent(inout) :: y(:)
-    TT,        optional, intent(in)    :: fact_y
-    character, optional, intent(in)    :: trans
+  module subroutine matrix_{}T{}_mul_vec(this, x, y, fact_y, trans)
+    class(matrix_{}T),    intent(in)    :: this
+    m4_type(T),           intent(in)    :: x(:)
+    m4_type(T),           intent(inout) :: y(:)
+    m4_type(T), optional, intent(in)    :: fact_y
+    character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine MATRIX_MUL_MAT(this, x, y, fact_y, trans)
-    class(MATRIX_TYPE),  intent(in)    :: this
-    TT,                  intent(in)    :: x(:,:)
-    TT,                  intent(inout) :: y(:,:)
-    TT,        optional, intent(in)    :: fact_y
-    character, optional, intent(in)    :: trans
+  module subroutine matrix_{}T{}_mul_mat(this, x, y, fact_y, trans)
+    class(matrix_{}T),    intent(in)    :: this
+    m4_type(T),           intent(in)    :: x(:,:)
+    m4_type(T),           intent(inout) :: y(:,:)
+    m4_type(T), optional, intent(in)    :: fact_y
+    character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine MATRIX_FACTORIZE(this)
-    class(MATRIX_TYPE), intent(inout) :: this
+  module subroutine matrix_{}T{}_factorize(this)
+    class(matrix_{}T), intent(inout) :: this
   end subroutine
 
-  module subroutine MATRIX_SOLVE_VEC(this, rhs, x, trans, iter_refine)
-    class(MATRIX_TYPE),  intent(in)  :: this
-    TT,                  intent(in)  :: rhs(:)
-    TT,                  intent(out) :: x(:)
+  module subroutine matrix_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
+    class(matrix_{}T),   intent(in)  :: this
+    m4_type(T),          intent(in)  :: rhs(:)
+    m4_type(T),          intent(out) :: x(:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
   end subroutine
 
-  module subroutine MATRIX_SOLVE_MAT(this, rhs, x, trans, iter_refine)
-    class(MATRIX_TYPE),  intent(in)  :: this
-    TT,                  intent(in)  :: rhs(:,:)
-    TT,                  intent(out) :: x(:,:)
+  module subroutine matrix_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
+    class(matrix_{}T),   intent(in)  :: this
+    m4_type(T),          intent(in)  :: rhs(:,:)
+    m4_type(T),          intent(out) :: x(:,:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
   end subroutine
 end interface
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef MATRIX_TYPE
-#undef MATRIX_PTR_TYPE
-
-#undef MATRIX_INIT
-#undef MATRIX_DESTRUCT
-#undef MATRIX_RESET
-#undef MATRIX_SCALE
-#undef MATRIX_MUL_VEC
-#undef MATRIX_MUL_MAT
-#undef MATRIX_FACTORIZE
-#undef MATRIX_SOLVE_VEC
-#undef MATRIX_SOLVE_MAT

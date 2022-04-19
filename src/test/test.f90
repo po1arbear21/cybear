@@ -1,3 +1,5 @@
+m4_include(../util/macro.f90.inc)
+
 program test
 
   use test_analysis_m
@@ -32,19 +34,18 @@ program test
   use test_string_m
   use test_util_m
   use test_vector_m
-
-#ifdef USE_FEAST
+  m4_ifdef({m4_feast},{
   use test_feast_m
-#endif
-#ifdef USE_ILUPACK
+  })
+  m4_ifdef({m4_ilupack},{
   use test_ilupack_m
-#endif
-#ifdef USE_MUMPS
+  })
+  m4_ifdef({m4_mumps},{
   use test_mumps_m
-#endif
-#ifdef USE_QUADPACK
+  })
+  m4_ifdef({m4_quadpack},{
   use test_quadpack_m
-#endif
+  })
 
   implicit none
 
@@ -81,17 +82,9 @@ program test
   call test_util()
   call test_vector()
 
-#ifdef USE_FEAST
-  call test_feast()
-#endif
-#ifdef USE_ILUPACK
-  call test_ilupack()
-#endif
-#ifdef USE_MUMPS
-  call test_mumps()
-#endif
-#ifdef USE_QUADPACK
-  call test_quadpack()
-#endif
+  m4_ifdef({m4_feast},{call test_feast()})
+  m4_ifdef({m4_ilupack},{call test_ilupack()})
+  m4_ifdef({m4_mumps},{call test_mumps()})
+  m4_ifdef({m4_quadpack},{call test_quadpack()})
 
 end program

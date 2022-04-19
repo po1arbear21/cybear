@@ -1,7 +1,7 @@
 module current_m
 
-  use grid_m,     only: grid_data0_real
-  use variable_m, only: variable_real
+  use grid_data_m, only: grid_data0_real
+  use variable_m,  only: variable_real
 
   implicit none
 

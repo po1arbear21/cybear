@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module matrix_m
 
@@ -6,15 +6,15 @@ module matrix_m
   use blas95
   use error_m,          only: assert_failed, program_error
   use high_precision_m, only: hp_dot
-#ifdef USE_ILUPACK
+  m4_ifdef({m4_ilupack},{
   use ilupack_m
-#endif
+  })
   use iso_fortran_env,  only: int32, int64
   use lapack95
-#ifdef USE_MUMPS
+  m4_ifdef({m4_mumps},{
   use mumps_m,          only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, &
     &                         destruct_mumps_handle_r, mumps_factorize, mumps_solve
-#endif
+  })
   use omp_lib,          only: omp_get_thread_num, omp_get_num_threads
   use pardiso_m,        only: create_pardiso_handle, destruct_pardiso_handle, pardiso_factorize, pardiso_solve
   use qsort_m,          only: qsort
@@ -26,12 +26,12 @@ module matrix_m
 
   private
   public SOLVER_PARDISO
-#ifdef USE_MUMPS
+  m4_ifdef({m4_mumps},{
   public SOLVER_MUMPS
-#endif
-#ifdef USE_ILUPACK
+  })
+  m4_ifdef({m4_ilupack},{
   public SOLVER_ILUPACK
-#endif
+  })
   public default_solver
   public matrix_real
   public matrix_cmplx
@@ -71,89 +71,49 @@ module matrix_m
 
   ! sparse solvers
   integer, parameter :: SOLVER_PARDISO = 1
-#ifdef USE_MUMPS
+  m4_ifdef({m4_mumps},{
   integer, parameter :: SOLVER_MUMPS   = 2
-#endif
-#ifdef USE_ILUPACK
+  })
+  m4_ifdef({m4_ilupack},{
   integer, parameter :: SOLVER_ILUPACK = 3
-#endif
+  })
   integer            :: default_solver = SOLVER_PARDISO
 
-  ! matrix types
-#define T real
-#define TT real
-#include "matrix_def.f90.inc"
+  ! type list
+  m4_define({m4_list},{
+    m4_X(real)
+    m4_X(cmplx)
+  })
 
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "matrix_def.f90.inc"
+  ! include matrix type definitions
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(matrix_def.f90.inc)
+    m4_include(band_def.f90.inc)
+    m4_include(dense_def.f90.inc)
+    m4_include(sparse_def.f90.inc)
+    m4_include(block_def.f90.inc)
+    m4_undefine({T})
+  })
+  m4_list
 
-#define T real
-#define TT real
-#include "band_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "band_def.f90.inc"
-
-#define T real
-#define TT real
-#include "dense_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "dense_def.f90.inc"
-
-#define T real
-#define TT real
-#include "sparse_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "sparse_def.f90.inc"
-
-#define T real
-#define TT real
-#include "block_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "block_def.f90.inc"
-
-  ! matrix arithmetics
-#define T real
-#define TT real
-#include "matrix_arith_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "matrix_arith_def.f90.inc"
-
-  ! matrix conversions
-#define T real
-#define TT real
-#include "matrix_conv_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "matrix_conv_def.f90.inc"
+  ! matrix arithmetics and conversions
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(matrix_arith_def.f90.inc)
+    m4_include(matrix_conv_def.f90.inc)
+    m4_undefine({T})
+  })
+  m4_list
 
 contains
 
-#define T real
-#define TT real
-#include "matrix_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#define TCMPLX
-#include "matrix_imp.f90.inc"
+  ! include matrix type procedures (subtypes in submodules)
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(matrix_imp.f90.inc)
+    m4_undefine({T})
+  })
+  m4_list
 
 end module

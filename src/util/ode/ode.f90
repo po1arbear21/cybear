@@ -1,3 +1,5 @@
+m4_include(../macro.f90.inc)
+
 module ode_m
   use error_m
   implicit none
@@ -166,17 +168,17 @@ contains
       ! number of samples
       nsmp = size(xsmp)
 
-#ifdef DEBUG
-      ! check if requested sample points are sorted
-      do ismp = 2, nsmp
-        if (xsmp(ismp) < xsmp(ismp-1)) call program_error("sample points xsmp must be sorted in ascending order")
-      end do
+      m4_divert(m4_ifdef({m4_debug},0,-1))
+        ! check if requested sample points are sorted
+        do ismp = 2, nsmp
+          if (xsmp(ismp) < xsmp(ismp-1)) call program_error("sample points xsmp must be sorted in ascending order")
+        end do
 
-      ! check if requested sample points are inside of interval
-      if ((xsmp(1) < min(x0, x1)) .or. (xsmp(nsmp) > max(x0, x1))) then
-        call program_error("sample points xsmp must lie inside of interval [min(x0, x1), max(x0, x1)]")
-      end if
-#endif
+        ! check if requested sample points are inside of interval
+        if ((xsmp(1) < min(x0, x1)) .or. (xsmp(nsmp) > max(x0, x1))) then
+          call program_error("sample points xsmp must lie inside of interval [min(x0, x1), max(x0, x1)]")
+        end if
+      m4_divert(0)
 
       ! init samples
       allocate(res%Usmp(    nU,   nsmp), source = 0.0)

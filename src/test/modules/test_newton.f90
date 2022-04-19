@@ -1,5 +1,3 @@
-#include "../../util/macro.f90.inc"
-
 module test_newton_m
 
   use matrix_m,    only: dense_real, matrix_real
@@ -10,8 +8,6 @@ module test_newton_m
 
   private
   public test_newton
-
-
 
 contains
 

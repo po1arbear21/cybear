@@ -4,7 +4,9 @@ module test_esystem_m
   use error_m,        only: program_error
   use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian
-  use grid_m,         only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data1_real, grid_table
+  use grid_m,         only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_data_m,    only: grid_data1_real
+  use grid_table_m,   only: grid_table
   use grid1D_m,       only: grid1D
   use res_equation_m, only: res_equation
   use stencil_m,      only: dirichlet_stencil
@@ -95,7 +97,7 @@ contains
     call tc%init("esystem: dir solver")
 
     ! init grid
-    call g%init(real([0, 1, 2, 4]))
+    call g%init("g", real([0, 1, 2, 4]))
 
     ! init vars
     call x%init("x", IDX_VERTEX)

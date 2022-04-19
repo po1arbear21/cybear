@@ -1,3 +1,5 @@
+m4_include(macro.f90.inc)
+
 module deque_m
 
   use string_m, only: string
@@ -5,52 +7,34 @@ module deque_m
   implicit none
 
   private
-  public deque_int
-  public deque_log
-  public deque_string
-  public deque_real
-  public deque_cmplx
 
-#define T int
-#define TT integer
-#include "deque_def.f90.inc"
+  ! list of built-in types
+  m4_define({m4_list},{
+    m4_X(int)
+    m4_X(log)
+    m4_X(real)
+    m4_X(cmplx)
+    m4_X(string)
+  })
 
-#define T log
-#define TT logical
-#include "deque_def.f90.inc"
+  ! make defined types public
+  m4_define({m4_X},{public deque_$1})
+  m4_list
 
-#define T string
-#define TT type(string)
-#include "deque_def.f90.inc"
-
-#define T real
-#define TT real
-#include "deque_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "deque_def.f90.inc"
+  ! include type definitions
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(deque_def.f90.inc)
+  })
+  m4_list
 
 contains
 
-#define T int
-#define TT integer
-#include "deque_imp.f90.inc"
-
-#define T log
-#define TT logical
-#include "deque_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#include "deque_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "deque_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "deque_imp.f90.inc"
+  ! include type procedure implementations
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(deque_imp.f90.inc)
+  })
+  m4_list
 
 end module

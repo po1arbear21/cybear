@@ -1,11 +1,14 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module triang_grid_m
 
+  use color_m,         only: COL_MAGENTA
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use json_m,          only: json_object
   use math_m,          only: cross_product_2d
   use normalization_m, only: denorm
+  use output_file_m,   only: output_file
   use plotmtv_m,       only: plotmtv, plotset_options
   use vector_m,        only: vector_int
 
@@ -59,6 +62,7 @@ module triang_grid_m
     procedure :: get_max_neighb => triang_grid_get_max_neighb
     procedure :: get_neighb     => triang_grid_get_neighb
     procedure :: output         => triang_grid_output
+    procedure :: output_plotmtv => triang_grid_output_plotmtv
   end type
 
   type node
@@ -77,9 +81,8 @@ module triang_grid_m
     procedure :: contain_pnt => node_contain_pnt
   end type
 
-#define T node
-#define TT type(node)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{node})
+  m4_include(../util/vector_def.f90.inc)
 
   type quadtree
     integer, allocatable :: itr(:)
@@ -94,7 +97,7 @@ module triang_grid_m
     type(vector_node)    :: nodes
       !! nodes of quadtree
     type(vector_int)     :: itr_vec
-      !! vector containing the triangle indices of all nodes 
+      !! vector containing the triangle indices of all nodes
   contains
     procedure :: init       => quadtree_init
     procedure :: subdivide  => quadtree_subdivide
@@ -156,13 +159,14 @@ module triang_grid_m
 
 contains
 
-#define T node
-#define TT type(node)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{node})
+  m4_include(../util/vector_imp.f90.inc)
 
-  subroutine triang_grid_init(this, vert, icell)
+  subroutine triang_grid_init(this, name, vert, icell)
     !! initialize 1D grid
     class(triang_grid), intent(out) :: this
+    character(*),       intent(in)  :: name
+      !! grid name
     real,               intent(in)  :: vert(:,:)
       !! vertices:  [x_i, y_i] = vert(1:2,i).
       !! size: (dim=2,nvert)
@@ -175,11 +179,11 @@ contains
       !! edge (iv<->iv2) is only saved at one vertex, either iv or iv2.
     type(vector_int), allocatable :: vert2edge_vec(:), vert2cell_vec(:)
 
-    ASSERT(2 == size(vert,  dim=1))
-    ASSERT(3 == size(icell, dim=1))
+    m4_assert(2 == size(vert,  dim=1))
+    m4_assert(3 == size(icell, dim=1))
 
     ! init base
-    call this%grid_init(2, 1, [2], 3)
+    call this%grid_init(name, 2, 1, [2], 3)
 
     ncell = size(icell, dim=2)
     nvert = size(vert, dim=2)
@@ -294,10 +298,7 @@ contains
       this%max_neighb(IDX_FACE,:) = this%max_neighb(IDX_EDGE,:)
     end block
 
-    ! init tables
-    call this%init_tab_all()
-
-    contains
+  contains
 
     logical function edge_exists(edge, iv0)
       type(vector_int), intent(in) :: edge
@@ -328,7 +329,7 @@ contains
       Nnodes_   = 256
       if (present(Ntri_max)) Ntri_max_ = Ntri_max
       if (present(Nnodes  )) Nnodes_   = Nnodes
-      
+
       allocate (this%qtree)
       call this%qtree%init(this, Nnodes_, Ntri_max_)
     end if
@@ -347,7 +348,7 @@ contains
     integer,            intent(out) :: idx_bnd(:)
       !! output: upper bound for each index. size: (idx_dim=1)
 
-    ASSERT(size(idx_bnd) == this%idx_dim)
+    m4_assert(size(idx_bnd) == this%idx_dim)
 
     call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(1))
   end subroutine
@@ -362,9 +363,9 @@ contains
     integer,            intent(out) :: idx_bnd
       !! output: upper bound for each index.
 
-    ASSERT(this%idx_allowed(idx_type, idx_dir))
+    m4_assert(this%idx_allowed(idx_type, idx_dir))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     select case (idx_type)
       case (IDX_VERTEX)
@@ -386,8 +387,8 @@ contains
     real,               intent(out) :: p(:)
       !! output: vertex' coordinates. size: (dim=2)
 
-    ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
-    ASSERT(size(p) == this%dim)
+    m4_assert(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
+    m4_assert(size(p) == this%dim)
 
     p = this%vert(:,idx(1))
   end subroutine
@@ -404,10 +405,10 @@ contains
 
     integer :: iv
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, 2]))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, 2]))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     do iv = 1, 2
       p(:,iv) = this%vert(:,this%edge2vert(iv,idx(1)))
@@ -424,8 +425,8 @@ contains
     real,               intent(out) :: p(:,:)
       !! output: face's coordinates. size: (dim=2, 2)
 
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%face_dim]))
+    m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%face_dim]))
 
     call this%get_edge(idx, idx_dir, p)
   end subroutine
@@ -440,8 +441,8 @@ contains
 
     integer :: iv
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
 
     do iv = 1, 3
       p(:,iv) = this%vert(:,this%cell2vert(iv,idx(1)))
@@ -460,7 +461,7 @@ contains
 
     real :: p(2,2)
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
 
     call this%get_edge(idx, idx_dir, p)
     len = norm2(p(:,1) - p(:,2))
@@ -490,7 +491,7 @@ contains
     integer :: iv
     real    :: v(2,3)
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
 
     ! vertices
     do iv = 1, 3
@@ -514,12 +515,12 @@ contains
     integer                        :: max_neighb
       !! return maximal number of nearest neighbours
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
 
-    IGNORE(this)
-    IGNORE(idx1_dir)
-    IGNORE(idx2_dir)
+    m4_ignore(this)
+    m4_ignore(idx1_dir)
+    m4_ignore(idx2_dir)
 
     max_neighb = this%max_neighb(idx1_type,idx2_type)
   end function
@@ -550,9 +551,9 @@ contains
 
     integer :: max_neighb
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
-    ASSERT(size(idx2) == size(idx1))
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(size(idx2) == size(idx1))
 
     max_neighb = this%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir)
 
@@ -729,13 +730,37 @@ contains
     end if                ! idx1_type
   end subroutine
 
-  subroutine triang_grid_output(this, fname, unit)
+  subroutine triang_grid_output(this, of, unit)
+    !! output triangle grid
+    class(triang_grid),     intent(in)    :: this
+    type(output_file),      intent(inout) :: of
+      !! output file handle
+    character(*), optional, intent(in)    :: unit
+      !! physical unit of coordinates; default = "um"
+
+    character(:), allocatable  :: unit_
+    type(json_object), pointer :: obj
+
+    unit_ = "um"
+    if (present(unit)) unit_ = unit
+
+    obj => of%new_object("Grids")
+    call obj%add("Name", this%name)
+    call obj%add("Type", "Triangle")
+    call of%write(obj, "Vertices", this%vert, unit_)
+    call of%write(obj, "Cells", this%cell2vert)
+    call of%write(obj, "Edges", this%edge2vert)
+  end subroutine
+
+  subroutine triang_grid_output_plotmtv(this, fname, unit)
     !! writes grid to plotmtv file "<fname>.plt" and a separate csv files "<fname>_vert.csv", "<fname>_icell.csv".
     class(triang_grid), intent(in) :: this
     character(*),       intent(in) :: fname
       !! output base file name, e.g. "output/tmp/triang"
     character(*),       intent(in) :: unit
       !! unit of grid variable, e.g. "cm"
+
+    print "(A)", COL_MAGENTA//"tring_grid_output_plotmtv: Deprecated"
 
     ! write plotmtv file
     block
@@ -773,4 +798,5 @@ contains
       close (unit=iounit)
     end block
   end subroutine
+
 end module

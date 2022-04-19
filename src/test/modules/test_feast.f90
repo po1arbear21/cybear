@@ -1,4 +1,6 @@
-#ifdef USE_FEAST
+m4_include(../../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_feast},0,-1))
 
 module test_feast_m
 
@@ -118,4 +120,4 @@ contains
 
 end module
 
-#endif
+m4_divert(0)

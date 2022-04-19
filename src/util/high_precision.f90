@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module high_precision_m
   !! algorithms taken from:
@@ -381,7 +381,7 @@ contains
     real, allocatable :: q(:)
     type(hp_real)     :: h_tmp
 
-    ASSERT(size(p) >= 0)
+    m4_assert(size(p) >= 0)
 
     ! optional arg
     KK = 2
@@ -484,4 +484,4 @@ contains
     res = SumKvert(r, K_-1)
   end function
 
-end module high_precision_m
+end module

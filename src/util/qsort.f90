@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module qsort_m
 
@@ -16,16 +16,15 @@ module qsort_m
 
 contains
 
-#define T int
-#define TT integer
-#include "qsort_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#include "qsort_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "qsort_imp.f90.inc"
+  m4_define({m4_list},{
+    m4_X(int)
+    m4_X(real)
+    m4_X(string)
+  })
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(qsort_imp.f90.inc)
+  })
+  m4_list
 
 end module

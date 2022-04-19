@@ -1,10 +1,56 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
-submodule (grid_m) grid_table_m
+module grid_table_m
+
+  use error_m,     only: assert_failed, program_error
+  use grid_m,      only: grid
+  use grid_data_m, only: allocate_grid_data, grid_data_log, grid_data_int
+
+  implicit none
+
+  type grid_table
+    !! table to select points from grid
+
+    character(:), allocatable :: name
+      !! grid table name
+
+    class(grid), pointer :: g => null()
+      !! pointer to grid
+
+    integer             :: idx_type
+      !! index type
+    integer             :: idx_dir
+      !! index direction for edges and faces
+    class(grid_data_log), allocatable :: flags
+      !! include/exclude point (product idx_bnd)
+
+    integer                           :: n
+      !! number of entries
+    integer,              allocatable :: flat2idx(:,:)
+      !! flat index to grid indices (idx_dim x n)
+    class(grid_data_int), allocatable :: idx2flat
+      !! grid indices to flat index
+  contains
+    procedure :: init       => grid_table_init
+    procedure :: init_final => grid_table_init_final
+    procedure :: get_ptr    => grid_table_get_ptr
+    procedure :: get_idx    => grid_table_get_idx
+    procedure :: get_flat   => grid_table_get_flat
+  end type
+
+  type grid_table_ptr
+    type(grid_table), pointer :: p => null()
+  end type
+
+  m4_define({T},{grid_table})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-  module subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
+  m4_define({T},{grid_table})
+  m4_include(../util/vector_imp.f90.inc)
+
+  subroutine grid_table_init(this, name, g, idx_type, idx_dir, initial_flags)
     !! initialize grid table
     class(grid_table),   intent(out) :: this
     character(*),        intent(in)  :: name
@@ -28,7 +74,7 @@ contains
     call this%flags%init(g, idx_type, idx_dir, d0 = initial_flags)
   end subroutine
 
-  module subroutine grid_table_init_final(this)
+  subroutine grid_table_init_final(this)
     !! initialize internal tables (call this after flags have been set)
     class(grid_table), intent(inout) :: this
 
@@ -68,7 +114,7 @@ contains
     end associate
   end subroutine
 
-  module function grid_table_get_ptr(this) result(ptr)
+  function grid_table_get_ptr(this) result(ptr)
     !! returns pointer type to this grid_table
     class(grid_table), target, intent(in) :: this
     type(grid_table_ptr)                  :: ptr
@@ -76,7 +122,7 @@ contains
     ptr%p => this
   end function
 
-  module function grid_table_get_idx(this, i) result(idx)
+  function grid_table_get_idx(this, i) result(idx)
     !! convert flat index to grid indices
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: i
@@ -84,12 +130,12 @@ contains
     integer                        :: idx(this%g%idx_dim)
       !! return grid indices
 
-    ASSERT((i > 0 ) .and. (i <= this%n))
+    m4_assert((i > 0 ) .and. (i <= this%n))
 
     idx = this%flat2idx(:,i)
   end function
 
-  module function grid_table_get_flat(this, idx) result(i)
+  function grid_table_get_flat(this, idx) result(i)
     !! convert grid indices to flat index
     class(grid_table), intent(in)  :: this
     integer,           intent(in)  :: idx(:)
@@ -97,9 +143,9 @@ contains
     integer                        :: i
       !! return flat index (0 if grid point is not part of table)
 
-    ASSERT(this%g%idx_allowed(this%idx_type, this%idx_dir, idx=idx))
+    m4_assert(this%g%idx_allowed(this%idx_type, this%idx_dir, idx=idx))
 
     i = this%idx2flat%get(idx)
   end function
 
-end submodule
+end module

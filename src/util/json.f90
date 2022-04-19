@@ -1,3 +1,5 @@
+m4_include(macro.f90.inc)
+
 module json_m
 
   use error_m,  only: program_error
@@ -26,9 +28,8 @@ module json_m
     class(json), pointer :: p => null()
   end type
 
-#define T json_ptr
-#define TT type(json_ptr)
-#include "vector_def.f90.inc"
+  m4_define({T},{json_ptr})
+  m4_include(vector_def.f90.inc)
 
   type, extends(json) :: json_null
     !! null json value
@@ -166,9 +167,9 @@ module json_m
 
 contains
 
-#define T json_ptr
-#define TT type(json_ptr)
-#include "vector_imp.f90.inc"
+  m4_define({T},{json_ptr})
+  m4_include(vector_imp.f90.inc)
+  m4_changequote({{,}})
 
   subroutine json_load(js, file)
     !! load json data object from file

@@ -1,10 +1,10 @@
+m4_include(macro.f90.inc)
+
 module distributions_m
 
   use, intrinsic :: ieee_arithmetic
-  use math_m,     only: expm1, PI
-#ifdef USE_QUADPACK
-  use quadpack_m, only: quadpack_int
-#endif
+  use math_m, only: expm1, PI
+  m4_ifdef({m4_quadpack},{use quadpack_m, only: quadpack_int})
 
   implicit none
 
@@ -13,10 +13,7 @@ module distributions_m
   public fermi_dirac,          d_fermi_dirac
   public maxwell_boltzmann,    d_maxwell_boltzmann
   public fermi_dirac_integral_approx
-
-#ifdef USE_QUADPACK
-  public fermi_dirac_integral
-#endif
+  m4_ifdef({m4_quadpack},{public fermi_dirac_integral})
 
 contains
 
@@ -85,9 +82,7 @@ contains
     end if
   end subroutine
 
-
-#ifdef USE_QUADPACK
-  recursive subroutine fermi_dirac_integral(x, y, j, atol, rtol, dydx)
+  m4_ifdef({m4_quadpack},{recursive subroutine fermi_dirac_integral(x, y, j, atol, rtol, dydx)
     !! Fermi-Dirac integral
     !!  wiki: https://de.wikipedia.org/wiki/Fermi-Dirac-Integral
     !! y = y(x) = int_0^\infty \frac{t}{1+\exp(t-x)} \dd{t}
@@ -130,8 +125,8 @@ contains
       y = t**j_ / (1 + exp(t-x))
     end function
 
-  end subroutine
-#endif
+  end subroutine})
+
 end module
 
 

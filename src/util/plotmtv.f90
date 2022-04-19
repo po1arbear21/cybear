@@ -1,5 +1,3 @@
-#include "macro.f90.inc"
-
 module plotmtv_m
 
   use error_m, only: program_error

@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module stencil_m
 
@@ -154,9 +154,9 @@ contains
     logical, optional,    intent(out) :: status
       !! is j-th dependency used?
 
-    IGNORE(this)
-    IGNORE(idx1)
-    IGNORE(j)
+    m4_ignore(this)
+    m4_ignore(idx1)
+    m4_ignore(j)
 
     idx2(:) = 0
     if (present(status)) status = .false.
@@ -196,8 +196,8 @@ contains
     ! optional off2
     off2_ = off1_
     if (present(off2)) then
-      ASSERT(present(off1))
-      ASSERT(size(off2) == g2_%idx_dim)
+      m4_assert(present(off1))
+      m4_assert(size(off2) == g2_%idx_dim)
       off2_ = off2
     end if
 
@@ -208,13 +208,13 @@ contains
     if (associated(g2_, target=g1)) then
       allocate (this%perm(g1%idx_dim), source=[(i, i=1,g1%idx_dim)])
     else
-      ASSERT(present(perm))
+      m4_assert(present(perm))
     end if
     if (present(perm)) then
-      ASSERT(size(perm) == g2_%idx_dim)
+      m4_assert(size(perm) == g2_%idx_dim)
       if (g2_%idx_dim > 0) then
-        ASSERT(minval(perm) >= -1)
-        ASSERT(maxval(perm) <= g1%idx_dim)
+        m4_assert(minval(perm) >= -1)
+        m4_assert(maxval(perm) <= g1%idx_dim)
       end if
       this%perm = perm
     end if
@@ -238,7 +238,7 @@ contains
 
     integer :: i, k, div, rem
 
-    ASSERT(j > 0)
+    m4_assert(j > 0)
 
     ! status
     if (present(status)) then
@@ -313,7 +313,7 @@ contains
     integer :: shift
     logical :: status_
 
-    ASSERT(j > 0)
+    m4_assert(j > 0)
 
     shift = 0
     if ((this%idx1_type == this%idx2_type) .and. (this%idx1_dir == this%idx2_dir)) shift = 1

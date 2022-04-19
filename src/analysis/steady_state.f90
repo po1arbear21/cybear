@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module steady_state_m
 
@@ -60,7 +60,7 @@ contains
 
     ! parse optional newton options
     if (present(nopt)) then
-      ASSERT(size(nopt%atol) == sys%n)
+      m4_assert(size(nopt%atol) == sys%n)
       nopt_ = nopt
     else
       call nopt_%init(sys%n)
@@ -68,7 +68,7 @@ contains
 
     ! input
     if (present(input)) then
-      ASSERT(input%n == sys%ninput)
+      m4_assert(input%n == sys%ninput)
       if (present(t_input)) then
         t = t_input
       else
@@ -76,8 +76,8 @@ contains
       end if
       nt = size(t)
     else
-      ASSERT(sys%ninput == 0)
-      ASSERT(.not. present(t_input))
+      m4_assert(sys%ninput == 0)
+      m4_assert(.not. present(t_input))
       nt = 1
     end if
 
@@ -118,8 +118,8 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      IGNORE(p)
-      IGNORE(dfdp)
+      m4_ignore(p)
+      m4_ignore(dfdp)
 
       ! set variables
       call sys%set_x(x)

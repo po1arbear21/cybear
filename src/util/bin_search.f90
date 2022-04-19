@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module bin_search_m
 
@@ -18,24 +18,21 @@ module bin_search_m
   ! binary search modes
   integer, parameter :: BS_NEAR  = 1
   integer, parameter :: BS_LESS  = 2
-    !! returned index yields smaller/equal value wrt query point, i.e. x(i0) <= xq
-    !! (as long as xq is within range)
+    !! returned index yields smaller/equal value wrt query point, i.e. x(i0) <= xq (as long as xq is within range)
   integer, parameter :: BS_GREAT = 3
-    !! returned index yields larger/equal value wrt query point, i.e. x(i0) >= xq
-    !! (as long as xq is within range)
+    !! returned index yields larger/equal value wrt query point, i.e. x(i0) >= xq (as long as xq is within range)
 
 contains
 
-#define T int32
-#define TT integer(int32)
-#include "bin_search_imp.f90.inc"
-
-#define T int64
-#define TT integer(int64)
-#include "bin_search_imp.f90.inc"
-
-#define T real
-#define TT real
-#include "bin_search_imp.f90.inc"
+  m4_define({m4_list},{
+    m4_X(int32)
+    m4_X(int64)
+    m4_X(real)
+  })
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(bin_search_imp.f90.inc)
+  })
+  m4_list
 
 end module

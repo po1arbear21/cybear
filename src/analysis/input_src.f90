@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module input_src_m
 
@@ -129,7 +129,7 @@ contains
     real                         :: y(this%n)
       !! return y(t)
 
-    IGNORE(t)
+    m4_ignore(t)
     y = this%const
   end function
 
@@ -141,7 +141,7 @@ contains
     real,               intent(in)  :: y(:,:)
       !! y(t) at nodes; N_val x N_t
 
-    ASSERT(size(y,2) == size(t))
+    m4_assert(size(y,2) == size(t))
 
     ! init base
     call this%input_src_init(size(y,1))
@@ -237,8 +237,8 @@ contains
     real,                intent(in)  :: s(:,:)
       !! sine coefficients
 
-    ASSERT(size(c,1) == size(s,1))
-    ASSERT(ubound(c,2) == ubound(s,2))
+    m4_assert(size(c,1) == size(s,1))
+    m4_assert(ubound(c,2) == ubound(s,2))
 
     ! init base
     call this%periodic_src_init(size(c,1), freq)
@@ -274,18 +274,16 @@ contains
     real,                        intent(in)  :: y(:,:)
       !! y(t) at nodes; N_val x N_t
 
-#ifdef DEBUG
-    integer :: i
-#endif
+    m4_ifdef({m4_debug},{integer :: i})
 
-    ASSERT(size(y,2) == size(tn))
-    ASSERT(tn(1) >= 0.0)
-    ASSERT(tn(size(tn)) <= 1.0)
-#ifdef DEBUG
-    do i = 2, size(tn)
-      ASSERT(tn(i) >= tn(i-1))
-    end do
-#endif
+    m4_assert(size(y,2) == size(tn))
+    m4_assert(tn(1) >= 0.0)
+    m4_assert(tn(size(tn)) <= 1.0)
+    m4_divert(m4_ifdef({m4_debug},0,-1))
+      do i = 2, size(tn)
+        m4_assert(tn(i) >= tn(i-1))
+      end do
+    m4_divert(0)
 
     ! init base
     call this%periodic_src_init(size(y,1), freq)

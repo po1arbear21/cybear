@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module matop_m
 
@@ -17,13 +17,16 @@ module matop_m
   public chain_matop_cmplx
   public matop_c2r
 
-#define T real
-#define TT real
-#include "matop_def.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "matop_def.f90.inc"
+  m4_define({m4_list},{
+    m4_X(real)
+    m4_X(cmplx)
+  })
+  m4_define({m4_X},{
+    m4_define({T},{$1})
+    m4_include(matop_def.f90.inc)
+    m4_undefine({T})
+  })
+  m4_list
 
   type, extends(matop_real) :: matop_c2r
     !! a complex matop which gets its input arguments in the exec calls as real arrays of double length.
@@ -42,13 +45,12 @@ module matop_m
 
 contains
 
-#define T real
-#define TT real
-#include "matop_imp.f90.inc"
-
-#define T cmplx
-#define TT complex
-#include "matop_imp.f90.inc"
+  m4_define({m4_X},{
+    m4_define({T},{$1})
+    m4_include(matop_imp.f90.inc)
+    m4_undefine({T})
+  })
+  m4_list
 
   subroutine matop_c2r_init(this, mop_c)
     ! initialzes by setting pointer to complex matop

@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module transient_m
 
@@ -150,7 +150,7 @@ contains
       this%delta_t = delta_t
       this%n       = int((t_1 - t_0) / delta_t)
     else
-      ASSERT(.false.)
+      m4_assert(.false.)
     end if
 
     ! save pointer to equation system for later use
@@ -158,7 +158,7 @@ contains
 
     ! parse optional newton options
     if (present(nopt)) then
-      ASSERT(size(nopt%atol) == sys%n)
+      m4_assert(size(nopt%atol) == sys%n)
       this%nopt = nopt
     else
       call this%nopt%init(sys%n)
@@ -212,10 +212,10 @@ contains
 
     ! check input parameters
     if (present(input)) then
-      ASSERT(input%n == this%sys%ninput)
+      m4_assert(input%n == this%sys%ninput)
       call this%sys%set_input(input%get(this%t_0))
     else
-      ASSERT(this%sys%ninput == 0)
+      m4_assert(this%sys%ninput == 0)
     end if
 
     ! initialize first iteration step
@@ -347,8 +347,8 @@ contains
     integer,          intent(in) :: i
 
     ! checking if output is in the simulation range
-    ASSERT(i >= lbound(this%x, 2))
-    ASSERT(i <= ubound(this%x, 2))
+    m4_assert(i >= lbound(this%x, 2))
+    m4_assert(i <= ubound(this%x, 2))
 
     call this%sys%set_x(this%x(:,i))
   end subroutine
@@ -362,8 +362,8 @@ contains
     real, allocatable :: x(:)
 
     ! check if output is in the simulation range
-    ASSERT(t >= this%t_0)
-    ASSERT(t <= this%t_1)
+    m4_assert(t >= this%t_0)
+    m4_assert(t <= this%t_1)
 
     ! allocate interpolated input array
     allocate(x(this%sys%n))
@@ -417,21 +417,21 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! set x in sys
       call this%sys%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (this%nopt%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%sys%eval(f = f, df = this%df, dfp = this%dfp)
         dfdx_prec => this%dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%sys%eval(f = f, df = this%df)
       end if
 
@@ -484,22 +484,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_assert(size(p) == 0)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! set x in sys
       call this%sys%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (this%nopt%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%sys%eval(f = this%f_new, df = this%df, dfp = this%dfp)
         dfdx_prec => this%dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%sys%eval(f = this%f_new, df = this%df)
       end if
 
@@ -551,22 +551,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_assert(size(p) == 0)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! save input variable
       call this%sys%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (this%nopt%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%sys%eval(f = f, df = this%df, dfp = this%dfp)
         dfdx_prec => this%dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%sys%eval(f = f, df = this%df)
       end if
 
@@ -627,22 +627,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_assert(size(p) == 0)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! set x in sys
       call this%sys%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (this%nopt%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%sys%eval(f = this%f_gam, df = this%df, dfp = this%dfp)
         dfdx_prec => this%dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%sys%eval(f = this%f_gam, df = this%df)
       end if
 
@@ -671,22 +671,22 @@ contains
         !! optional output jacobian of f wrt p
 
       ! params not needed
-      ASSERT(size(p) == 0)
-      IGNORE(p)
-      ASSERT(present(dfdx))
-      ASSERT(.not. present(dfdp))
-      IGNORE(dfdp)
+      m4_assert(size(p) == 0)
+      m4_ignore(p)
+      m4_assert(present(dfdx))
+      m4_assert(.not. present(dfdp))
+      m4_ignore(dfdp)
 
       ! save input variable
       call this%sys%set_x(x)
 
       ! compute residue, jacobian, and possible preconditioner
       if (this%nopt%it_solver) then
-        ASSERT(present(dfdx_prec))
+        m4_assert(present(dfdx_prec))
         call this%sys%eval(f = this%f_new, df = this%df, dfp = this%dfp)
         dfdx_prec => this%dfp
       else
-        ASSERT(.not. present(dfdx_prec))
+        m4_assert(.not. present(dfdx_prec))
         call this%sys%eval(f = this%f_new, df = this%df)
       end if
 

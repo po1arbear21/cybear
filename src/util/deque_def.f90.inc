@@ -1,29 +1,6 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define DEQUE_TYPE           CONCAT(deque,T)
-#define DEQUE_INIT           CONCAT3(deque,T,init)
-#define DEQUE_DESTRUCT       CONCAT3(deque,T,destruct)
-#define DEQUE_RESET          CONCAT3(deque,T,reset)
-#define DEQUE_RESERVE        CONCAT3(deque,T,reserve)
-#define DEQUE_RESIZE         CONCAT3(deque,T,resize)
-#define DEQUE_FRONT          CONCAT3(deque,T,first)
-#define DEQUE_BACK           CONCAT3(deque,T,last)
-#define DEQUE_PUSH_FRONT     CONCAT3(deque,T,push_front)
-#define DEQUE_PUSH_BACK      CONCAT3(deque,T,push_back)
-#define DEQUE_POP_FRONT      CONCAT3(deque,T,pop_front)
-#define DEQUE_POP_BACK       CONCAT3(deque,T,pop_back)
-#define DEQUE_SHRINK         CONCAT3(deque,T,shrink)
-#define DEQUE_TO_ARRAY       CONCAT3(deque,T,to_array)
-#define DEQUE_FROM_ARRAY     CONCAT3(deque,T,from_array)
-
-type DEQUE_TYPE
+type deque_{}T
   !! double-ended queue
-  TT, allocatable :: d(:)
+  m4_type(T), allocatable :: d(:)
     !! data array
   integer :: n
     !! number of elements
@@ -32,44 +9,20 @@ type DEQUE_TYPE
   integer :: iback
     !! back index
 contains
-  procedure :: init       => DEQUE_INIT
-  procedure :: destruct   => DEQUE_DESTRUCT
-  procedure :: reset      => DEQUE_RESET
-  procedure :: reserve    => DEQUE_RESERVE
-  procedure :: resize     => DEQUE_RESIZE
-  procedure :: front      => DEQUE_FRONT
-  procedure :: back       => DEQUE_BACK
-  procedure :: push_front => DEQUE_PUSH_FRONT
-  procedure :: push_back  => DEQUE_PUSH_BACK
-  procedure :: pop_front  => DEQUE_POP_FRONT
-  procedure :: pop_back   => DEQUE_POP_BACK
-  procedure :: shrink     => DEQUE_SHRINK
-  procedure :: to_array   => DEQUE_TO_ARRAY
-  procedure :: from_array => DEQUE_FROM_ARRAY
+  procedure :: init       => deque_{}T{}_init
+  procedure :: destruct   => deque_{}T{}_destruct
+  procedure :: reset      => deque_{}T{}_reset
+  procedure :: reserve    => deque_{}T{}_reserve
+  procedure :: resize     => deque_{}T{}_resize
+  procedure :: front      => deque_{}T{}_front
+  procedure :: back       => deque_{}T{}_back
+  procedure :: push_front => deque_{}T{}_push_front
+  procedure :: push_back  => deque_{}T{}_push_back
+  procedure :: pop_front  => deque_{}T{}_pop_front
+  procedure :: pop_back   => deque_{}T{}_pop_back
+  procedure :: shrink     => deque_{}T{}_shrink
+  procedure :: to_array   => deque_{}T{}_to_array
+  procedure :: from_array => deque_{}T{}_from_array
 end type
 
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef DEQUE_TYPE
-#undef DEQUE_INIT
-#undef DEQUE_DESTRUCT
-#undef DEQUE_RESET
-#undef DEQUE_RESERVE
-#undef DEQUE_RESIZE
-#undef DEQUE_FRONT
-#undef DEQUE_BACK
-#undef DEQUE_PUSH_FRONT
-#undef DEQUE_PUSH_BACK
-#undef DEQUE_POP_FRONT
-#undef DEQUE_POP_BACK
-#undef DEQUE_SHRINK
-#undef DEQUE_TO_ARRAY
-#undef DEQUE_FROM_ARRAY
+m4_undefine({T})

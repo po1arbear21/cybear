@@ -1,4 +1,4 @@
-#include "../../util/macro.f90.inc"
+m4_include(../../util/macro.f90.inc)
 
 module test_radau5_m
 
@@ -123,7 +123,7 @@ contains
     real, optional,    intent(out) :: dfdP(:,:)
       !! output derivatives of f wrt P (1,1)
 
-    IGNORE(x)
+    m4_ignore(x)
 
     if (present(f   )) f(1) = P(1) * U(1)
     if (present(dfdU)) dfdU(1,1) = P(1)
@@ -144,7 +144,7 @@ contains
     real, optional,    intent(out) :: dfdP(:,:)
       !! output derivatives of f wrt P (2,1)
 
-    IGNORE(x)
+    m4_ignore(x)
 
     if (present(f   )) then
       f(1) =             U(2)

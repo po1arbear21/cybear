@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module newton_m
 
@@ -120,8 +120,8 @@ contains
 
     ! init iteration params
     it   = 0
-    err  = 1e99
-    err0 = 2e99
+    err  = 0.5*huge(err)
+    err0 = huge(err0)
     xmin = opt%xmin
     xmax = opt%xmax
 
@@ -207,7 +207,7 @@ contains
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
-      ASSERT(size(dxdp) == size(p))
+      m4_assert(size(dxdp) == size(p))
       call fun(x, p, f, dfdx=dfdx, dfdp=dfdp)
       dxdp = - dfdp / dfdx
     end if
@@ -238,8 +238,8 @@ contains
     type(gmres_options)             :: gmres_opt_
     type(single_matop_real)         :: mulvec, precon
 
-    ASSERT(size(x0      ) == size(x))
-    ASSERT(size(opt%atol) == size(x))
+    m4_assert(size(x0      ) == size(x))
+    m4_assert(size(opt%atol) == size(x))
 
     ! optional args
     gmres_opt_%atol = minval(opt%atol, dim = 1)
@@ -247,14 +247,14 @@ contains
     if (present(gmres_opt)) gmres_opt_ = gmres_opt
 
     ! allocate memory
-    allocate (f(   size(x)        ), source = 1e99)
+    allocate (f(   size(x)        ), source = huge(err))
     allocate (dfdp(size(x),size(p)), source = 0.0 )
     allocate (dx(  size(x)        ), source = 0.0 )
     nullify (dfdx, dfdx_prec)
 
     ! init iteration params
     it  = 0
-    err = 1e99
+    err = huge(err)
 
     ! start values
     x = x0
@@ -315,7 +315,7 @@ contains
 
     ! calculate derivatives of solution wrt params by implicit differentiation
     if (present(dxdp)) then
-      ASSERT(all(shape(dxdp) == [size(x), size(p)]))
+      m4_assert(all(shape(dxdp) == [size(x), size(p)]))
 
       ! set dxdp by solving: dfdx * dxdp = -dfdp
       call fun(x, p, dfdp = dfdp)

@@ -1,5 +1,6 @@
-#ifdef USE_ILUPACK
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_ilupack},0,-1))
 
 module ilupack_m
 
@@ -95,21 +96,162 @@ module ilupack_m
     procedure :: nnz        => ilupack_nnz
   end type
 
-#define T ilupack_handle
-#define TT type(ilupack_handle)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{ilupack_handle})
+  m4_include(../util/vector_def.f90.inc)
 
   type(vector_ilupack_handle), target :: ilupack_handles
   type(vector_int)                    :: free_ilupack_handles
 
-! external interfaces
-#define T0 D
-#define TT real
-#include "ilupack_def.f90.inc"
+  ! external interfaces
+  interface
+    m4_define({m4_list},{
+      m4_X(D,real)
+      m4_X(Z,complex)
+    })
+    m4_define({m4_X},{
+      subroutine $1gnlamginit(n,              ia,      ja,       a,       matching, &
+        &                     ordering,       droptol, droptolS, condest, restol,   &
+        &                     maxit,          elbow,   lfil,     lfilS,   nrestart, &
+        &                     mixedprecision, ind                                   )
+        !! init default parameters
 
-#define T0 Z
-#define TT complex
-#include "ilupack_def.f90.inc"
+        import :: SPARSE_IDX
+
+        integer(SPARSE_IDX) :: n
+        integer(SPARSE_IDX) :: ia(*)
+        integer(SPARSE_IDX) :: ja(*)
+        $2                  ::  a(*)
+        integer(SPARSE_IDX) :: matching
+        character(20)       :: ordering
+        real                :: droptol
+        real                :: droptolS
+        real                :: condest
+        real                :: restol
+        integer(SPARSE_IDX) :: maxit
+        real                :: elbow
+        integer(SPARSE_IDX) :: lfil
+        integer(SPARSE_IDX) :: lfilS
+        integer(SPARSE_IDX) :: nrestart
+        integer(SPARSE_IDX) :: mixedprecision
+        integer(SPARSE_IDX) :: ind(*)
+      end subroutine
+
+      function $1gnlamgfactor(param,          prec,                                 &
+        &                     n,              ia,      ja,       a,       matching, &
+        &                     ordering,       droptol, droptolS, condest, restol,   &
+        &                     maxit,          elbow,   lfil,     lfilS,   nrestart, &
+        &                     mixedprecision, ind                                   ) result(ierr)
+        !! compute multilevel ILU 'prec'
+        !!
+        !! Note that the initial input matrix A will be rescaled by rows and
+        !! by columns (powers of 2.0) and that the order in the array might have
+        !! been altered
+        !! if you do need the original matrix (ia,ja,a) in for different purposes,
+        !! you should use a copy (ib,jb,b) instead
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64)      :: param
+        integer(int64)      :: prec
+        integer(SPARSE_IDX) :: n
+        integer(SPARSE_IDX) :: ia(*)
+        integer(SPARSE_IDX) :: ja(*)
+        $2                  ::  a(*)
+        integer(SPARSE_IDX) :: matching
+        character(20)       :: ordering
+        real                :: droptol
+        real                :: droptolS
+        real                :: condest
+        real                :: restol
+        integer(SPARSE_IDX) :: maxit
+        real                :: elbow
+        integer(SPARSE_IDX) :: lfil
+        integer(SPARSE_IDX) :: lfilS
+        integer(SPARSE_IDX) :: nrestart
+        integer(SPARSE_IDX) :: mixedprecision
+        integer(SPARSE_IDX) :: ind(*)
+        integer(SPARSE_IDX) :: ierr
+      end function
+
+      subroutine $1gnlamginfo(param, prec, n, ia, ja, a)
+        !! displaying the multilevel structure
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64)      :: param
+        integer(int64)      :: prec
+        integer(SPARSE_IDX) :: n
+        integer(SPARSE_IDX) :: ia(*)
+        integer(SPARSE_IDX) :: ja(*)
+        $2                  ::  a(*)
+      end subroutine
+
+      function $1gnlamgnnz(param, prec) result(nnz)
+        !! the logical number of nonzeros only
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64)      :: param
+        integer(int64)      :: prec
+        integer(SPARSE_IDX) :: nnz
+      end function
+
+      subroutine $1gnlamgsol(param, prec, rhs, sol, n)
+        !! solve a single linear system with `PREC'
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64)      :: param
+        integer(int64)      :: prec
+        $2                  :: rhs(*)
+        $2                  :: sol(*)
+        integer(SPARSE_IDX) :: n
+      end subroutine
+
+      function $1gnlamgsolver(param,          prec,    rhs,      sol,               &
+        &                     n,              ia,      ja,       a,       matching, &
+        &                     ordering,       droptol, droptolS, condest, restol,   &
+        &                     maxit,          elbow,   lfil,     lfilS,   nrestart, &
+        &                     mixedprecision, ind                                   ) result(ierr)
+        !! solve Ax=b iteratively until the desired accuracy is achieved
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64)      :: param
+        integer(int64)      :: prec
+        $2                  :: rhs(*)
+        $2                  :: sol(*)
+        integer(SPARSE_IDX) :: n
+        integer(SPARSE_IDX) :: ia(*)
+        integer(SPARSE_IDX) :: ja(*)
+        $2                  ::  a(*)
+        integer(SPARSE_IDX) :: matching
+        character(20)       :: ordering
+        real                :: droptol
+        real                :: droptolS
+        real                :: condest
+        real                :: restol
+        integer(SPARSE_IDX) :: maxit
+        real                :: elbow
+        integer(SPARSE_IDX) :: lfil
+        integer(SPARSE_IDX) :: lfilS
+        integer(SPARSE_IDX) :: nrestart
+        integer(SPARSE_IDX) :: mixedprecision
+        integer(SPARSE_IDX) :: ind(*)
+        integer(SPARSE_IDX) :: ierr
+      end function
+
+      subroutine $1gnlamgdelete(param, prec)
+        !! Finally release memory
+
+        import :: int64, SPARSE_IDX
+
+        integer(int64) :: param
+        integer(int64) :: prec
+      end subroutine
+    })
+    m4_list
+  end interface
 
   interface create_ilupack_handle
     module procedure :: create_ilupack_handle_r
@@ -137,9 +279,8 @@ module ilupack_m
 
 contains
 
-#define T ilupack_handle
-#define TT type(ilupack_handle)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{ilupack_handle})
+  m4_include(../util/vector_imp.f90.inc)
 
   function create_ilupack_handle_rc() result(h)
     !! get free ilupack integer handle
@@ -171,7 +312,7 @@ contains
     integer                         :: h
       !! return ilupack integer handle
 
-    ASSERT(size(a) == size(ja))
+    m4_assert(size(a) == size(ja))
 
     h = create_ilupack_handle_rc()
 
@@ -202,7 +343,7 @@ contains
     integer                         :: h
       !! return ilupack integer handle
 
-    ASSERT(size(a) == size(ja))
+    m4_assert(size(a) == size(ja))
 
     h = create_ilupack_handle_rc()
 
@@ -290,8 +431,8 @@ contains
     integer :: ierr, nrhs, i, i0, i1
 
     associate (p => ilupack_handles%d(h))
-      ASSERT(size(x) == size(b))
-      ASSERT(mod(size(b), p%n) == 0)
+      m4_assert(size(x) == size(b))
+      m4_assert(mod(size(b), p%n) == 0)
 
       nrhs = size(b) / int(p%n)
 
@@ -332,8 +473,8 @@ contains
     integer :: ierr, nrhs, i, i0, i1
 
     associate (p => ilupack_handles%d(h))
-      ASSERT(size(x) == size(b))
-      ASSERT(mod(size(b), p%n) == 0)
+      m4_assert(size(x) == size(b))
+      m4_assert(mod(size(b), p%n) == 0)
 
       nrhs = size(b) / int(p%n)
 
@@ -417,4 +558,5 @@ contains
   end function
 
 end module
-#endif
+
+m4_divert(0)

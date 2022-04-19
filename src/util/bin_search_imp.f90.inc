@@ -1,15 +1,8 @@
-#define PASTE(X)         X
-#define PASTE2(X)        PASTE(X)_
-#define CONCATHELP(X, Y) PASTE2(X)Y
-#define CONCAT(X, Y)     CONCATHELP(X,Y)
-
-#define BIN_SEARCH CONCAT(bin_search,T)
-
-function BIN_SEARCH(x, x1, mode) result(i)
+function bin_search_{}T{}(x, x1, mode) result(i)
   !! find index of nearest value in sorted array
-  TT,                intent(in) :: x(:)
+  m4_type(T),        intent(in) :: x(:)
     !! sorted array
-  TT,                intent(in) :: x1
+  m4_type(T),        intent(in) :: x1
     !! value to find
   integer, optional, intent(in) :: mode
     !! binary search mode (default: BS_NEAR)
@@ -21,7 +14,7 @@ function BIN_SEARCH(x, x1, mode) result(i)
   ! mode
   mode_ = BS_NEAR
   if (present(mode)) mode_ = mode
-  ASSERT(any(mode_ == [BS_NEAR, BS_LESS, BS_GREAT]))
+  m4_assert(any(mode_ == [BS_NEAR, BS_LESS, BS_GREAT]))
 
   ! starting interval is the whole array
   i0 = 1
@@ -68,12 +61,4 @@ function BIN_SEARCH(x, x1, mode) result(i)
   end select
 end function
 
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-
-#undef BIN_SEARCH
+m4_undefine({T})

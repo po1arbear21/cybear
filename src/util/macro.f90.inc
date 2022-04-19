@@ -1,17 +1,27 @@
-#ifndef MACRO_F90_INC
-#define MACRO_F90_INC
+m4_divert(-1)
 
-! macro for suppressing unused argument warnings
-#define IGNORE(x) associate( x => x ); end associate
+! change m4 quotes to curly brackets
+m4_changequote({,})
 
-#ifdef DEBUG
-#ifdef __GFORTRAN__
-#define ASSERT(expr) if (.not. (expr)) call assert_failed("expr", __FILE__, __LINE__)
-#else
-#define ASSERT(expr) if (.not. (expr)) call assert_failed(#expr, __FILE__, __LINE__)
-#endif
-#else
-#define ASSERT(expr)
-#endif
+! suppress unused argument warnings
+m4_define({m4_ignore}, {associate( $1 => $1 ); end associate})
 
-#endif
+! assert macro for error checking, only executed in debug mode
+m4_define({m4_assert}, m4_ifdef({m4_debug},{if (.not. ($1)) call assert_failed("$1", "{m4___file__}", {m4___line__})}))
+
+! array shape macro (e.g. m4_shape(4) => :,:,:,:)
+m4_define({m4_shape},{m4_ifelse($1,1,:,{m4_shape(m4_decr($1)),:})})
+m4_define({m4_pshape},{m4_ifelse($1,0,,{(m4_shape($1))})})
+
+! get expanded typename (e.g. int => integer; my_type => type(my_type))
+m4_define({m4_type},{m4_dnl
+m4_ifelse($1,int,integer,{m4_dnl
+m4_ifelse($1,int32,integer(int32),{m4_dnl
+m4_ifelse($1,int64,integer(int64),{m4_dnl
+m4_ifelse($1,log,logical,{m4_dnl
+m4_ifelse($1,real,real,{m4_dnl
+m4_ifelse($1,cmplx,complex,{m4_dnl
+type($1)m4_dnl
+})})})})})})})
+
+m4_divert(0)m4_dnl

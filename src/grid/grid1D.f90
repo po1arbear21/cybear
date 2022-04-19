@@ -1,10 +1,12 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module grid1D_m
 
   use error_m,         only: assert_failed
+  use json_m,          only: json_object
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use normalization_m, only: denorm
+  use output_file_m,   only: output_file
 
   implicit none
 
@@ -15,6 +17,8 @@ module grid1D_m
     !! 1D grid
     real, allocatable :: x(:)
       !! grid points
+    integer           :: n
+      !! size of x
   contains
     procedure :: init           => grid1D_init
     procedure :: get_idx_bnd_n  => grid1D_get_idx_bnd_n
@@ -34,20 +38,20 @@ module grid1D_m
 
 contains
 
-  subroutine grid1D_init(this, x)
+  subroutine grid1D_init(this, name, x)
     !! initialize 1D grid
     class(grid1D), intent(out) :: this
+    character(*),  intent(in)  :: name
+      !! grid name
     real,          intent(in)  :: x(:)
       !! grid points
 
     ! init base
-    call this%grid_init(1, 1, [1], 2)
+    call this%grid_init(name, 1, 1, [1], 2)
 
     ! save grid points
     this%x = x
-
-    ! init tables
-    call this%init_tab_all()
+    this%n = size(x)
   end subroutine
 
   subroutine grid1D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
@@ -60,7 +64,7 @@ contains
     integer,       intent(out) :: idx_bnd(:)
       !! output: upper bound for each index. size: (idx_dim=1)
 
-    ASSERT(size(idx_bnd) == 1)
+    m4_assert(size(idx_bnd) == 1)
 
     call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(1))
   end subroutine
@@ -75,9 +79,9 @@ contains
     integer,       intent(out) :: idx_bnd
       !! output: upper bound for each index.
 
-    ASSERT(this%idx_allowed(idx_type, idx_dir))
+    m4_assert(this%idx_allowed(idx_type, idx_dir))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     select case (idx_type)
       case (IDX_VERTEX)
@@ -99,8 +103,8 @@ contains
     real,          intent(out) :: p(:)
       !! output: vertex' coordinates. size: (dim=1)
 
-    ASSERT(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
-    ASSERT(size(p) == this%dim)
+    m4_assert(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
+    m4_assert(size(p) == this%dim)
 
     p(1) = this%x(idx(1))
   end subroutine
@@ -115,10 +119,10 @@ contains
     real,          intent(out) :: p(:,:)
       !! output: edge's coordinates. size: (dim, 2)
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, 2]))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, 2]))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     p(1,1:2) = this%x(idx(1):idx(1)+1)
   end subroutine
@@ -133,10 +137,10 @@ contains
     real,          intent(out) :: p(:,:)
       !! output: face's coordinates. size: (dim=1, face_dim(idx_dir)=1)
 
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
+    m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     p(1,1) = this%x(idx(1))
   end subroutine
@@ -149,8 +153,8 @@ contains
     real,          intent(out) :: p(:,:)
       !! output: cell's coordinates. size: (dim=1, cell_dim=2)
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    ASSERT(all(shape(p) == [this%dim, this%cell_dim]))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
 
     p(1,1:2) = this%x(idx(1):idx(1)+1)
   end subroutine
@@ -165,9 +169,9 @@ contains
     real                      :: len
       !! return edge length
 
-    ASSERT(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
+    m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
 
-    IGNORE(idx_dir)
+    m4_ignore(idx_dir)
 
     len = this%x(idx(1)+1) - this%x(idx(1))
   end function
@@ -182,11 +186,11 @@ contains
     real                      :: surf
       !! output: size of face
 
-    ASSERT(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
+    m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
 
-    IGNORE(this)
-    IGNORE(idx)
-    IGNORE(idx_dir)
+    m4_ignore(this)
+    m4_ignore(idx)
+    m4_ignore(idx_dir)
 
     surf = 1.0
   end function
@@ -199,7 +203,7 @@ contains
     real                      :: vol
       !! return cell volume
 
-    ASSERT(this%idx_allowed(IDX_CELL, 0, idx=idx))
+    m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
 
     vol = this%x(idx(1)+1) - this%x(idx(1))
   end function
@@ -225,12 +229,12 @@ contains
     ! C 2 1 2 2
     integer, parameter :: n(4,4) = reshape([2, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 2], [4, 4])
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
 
-    IGNORE(this)
-    IGNORE(idx1_dir)
-    IGNORE(idx2_dir)
+    m4_ignore(this)
+    m4_ignore(idx1_dir)
+    m4_ignore(idx2_dir)
 
     max_neighb = n(idx1_type,idx2_type)
   end function
@@ -261,12 +265,12 @@ contains
 
     integer :: idx_bnd(1), shift
 
-    ASSERT(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
-    ASSERT(this%idx_allowed(idx2_type, idx2_dir))
-    ASSERT(size(idx2) == this%idx_dim)
+    m4_assert(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
+    m4_assert(this%idx_allowed(idx2_type, idx2_dir))
+    m4_assert(size(idx2) == this%idx_dim)
 
-    IGNORE(idx1_dir)
-    IGNORE(idx2_dir)
+    m4_ignore(idx1_dir)
+    m4_ignore(idx2_dir)
 
     idx2  = 0
     shift = 0
@@ -307,31 +311,24 @@ contains
     status = ((idx2(1) >= 1) .and. (idx2(1) <= idx_bnd(1)))
   end subroutine
 
-  subroutine grid1D_output(this, fname, unit)
-    !! saves direct and adjoint nodes to file.
-    !!    direct nodes:  saves vertices of grid in: e.g. "output/tmp/posGrid.csv"
-    !!    adjoint nodes: saves centers of cells in: e.g. "output/tmp/posGridAdj.csv"
-    class(grid1D), intent(in) :: this
-    character(*),  intent(in) :: fname
-      !! output base file name, e.g. "output/tmp/posGrid"
-    character(*),  intent(in) :: unit
-      !! unit of grid variable, e.g. "cm"
+  subroutine grid1D_output(this, of, unit)
+    !! output 1D grid
+    class(grid1D),          intent(in)    :: this
+    type(output_file),      intent(inout) :: of
+      !! output file handle
+    character(*), optional, intent(in)    :: unit
+      !! physical unit of coordinates; default = "um"
 
-    integer :: iounit, i
+    character(:), allocatable  :: unit_
+    type(json_object), pointer :: obj
 
-    ! direct nodes
-    open (newunit=iounit, file=fname//'.csv', action='write')
-    do i = 1, size(this%x)
-      write (iounit, *) denorm(this%x(i), unit)
-    end do
-    close (unit=iounit)
+    unit_ = "um"
+    if (present(unit)) unit_ = unit
 
-    ! adjoint nodes
-    open (newunit=iounit, file=fname//'Adj.csv', action='write')
-    do i = 1, size(this%x)-1
-      write (iounit, *) denorm(0.5 * (this%x(i) + this%x(i+1)), unit)
-    end do
-    close (unit=iounit)
+    obj => of%new_object("Grids")
+    call obj%add("Name", this%name)
+    call obj%add("Type", "1D")
+    call of%write(obj, "Vertices", this%x, unit_)
   end subroutine
 
 end module

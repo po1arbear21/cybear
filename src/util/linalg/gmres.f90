@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module gmres_m
 
@@ -119,7 +119,7 @@ contains
     real, pointer   :: x_ptr(:), b_ptr(:)
     type(matop_c2r) :: mulvec_c2r, precon_c2r
 
-    ASSERT(size(x) == size(b))
+    m4_assert(size(x) == size(b))
 
     call c_f_pointer(c_loc(x), x_ptr, shape=shape(x)*2)
     call c_f_pointer(c_loc(b), b_ptr, shape=shape(b)*2)
@@ -163,7 +163,7 @@ contains
     type(vector_real)         :: res
 
     n = size(x)
-    ASSERT(n == size(b))
+    m4_assert(n == size(b))
 
     ! init ipar, dpar by default values
     ipar15_default = min(150, n)  ! default value. needs to be set before allocating tmp?

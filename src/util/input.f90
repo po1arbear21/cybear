@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module input_m
 
@@ -9,6 +9,31 @@ module input_m
   use string_m,        only: string
 
   implicit none
+
+  ! list of supported data-types
+  m4_define({m4_list},{
+    m4_X(int32)
+    m4_X(int64)
+    m4_X(log)
+    m4_X(real)
+    m4_X(string)
+  })
+
+  ! get input type based on typename
+  m4_define({m4_get_input_type},{m4_dnl
+  m4_ifelse($1,int32,INPUT_TYPE_INTEGER,{m4_dnl
+  m4_ifelse($1,int64,INPUT_TYPE_INTEGER,{m4_dnl
+  m4_ifelse($1,log,INPUT_TYPE_LOGIC,{m4_dnl
+  m4_ifelse($1,real,INPUT_TYPE_REAL,{m4_dnl
+  m4_ifelse($1,string,INPUT_TYPE_STRING,)})})})})})
+
+  ! get input_var data variable based on typename
+  m4_define({m4_get_data},{m4_dnl
+  m4_ifelse($1,int32,int_data,{m4_dnl
+  m4_ifelse($1,int64,int_data,{m4_dnl
+  m4_ifelse($1,log,logic_data,{m4_dnl
+  m4_ifelse($1,real,real_data,{m4_dnl
+  m4_ifelse($1,string,str_data,)})})})})})
 
   private
   public input_file
@@ -52,9 +77,8 @@ module input_m
     procedure :: init => input_var_init
   end type
 
-#define T input_var
-#define TT type(input_var)
-#include "vector_def.f90.inc"
+  m4_define({T},{input_var})
+  m4_include(vector_def.f90.inc)
 
   type input_section
     character(:), allocatable :: name
@@ -66,9 +90,8 @@ module input_m
     procedure :: add_var => input_section_add_var
   end type
 
-#define T input_section
-#define TT type(input_section)
-#include "vector_def.f90.inc"
+  m4_define({T},{input_section})
+  m4_include(vector_def.f90.inc)
 
   type input_file
     character(:), allocatable  :: name
@@ -89,61 +112,34 @@ module input_m
 
     procedure :: get_var    => input_file_get_var
 
-    procedure :: input_file_get_int32
-    procedure :: input_file_get_int32_arr
-    procedure :: input_file_get_name_int32
-    procedure :: input_file_get_name_int32_arr
-    procedure :: input_file_get_int64
-    procedure :: input_file_get_int64_arr
-    procedure :: input_file_get_name_int64
-    procedure :: input_file_get_name_int64_arr
-    procedure :: input_file_get_real
-    procedure :: input_file_get_real_arr
-    procedure :: input_file_get_name_real
-    procedure :: input_file_get_name_real_arr
-    procedure :: input_file_get_string
-    procedure :: input_file_get_string_arr
-    procedure :: input_file_get_name_string
-    procedure :: input_file_get_name_string_arr
-    procedure :: input_file_get_logical
-    procedure :: input_file_get_logical_arr
-    procedure :: input_file_get_name_logical
-    procedure :: input_file_get_name_logical_arr
+    m4_define({m4_X},{
+      procedure :: input_file_get_$1
+      procedure :: input_file_get_$1_n
+      procedure :: input_file_get_name_$1
+      procedure :: input_file_get_name_$1_n
+    })
+    m4_list
 
     procedure, public :: init         => input_file_init
     procedure, public :: get_section  => input_file_get_section
     procedure, public :: get_sections => input_file_get_sections
-    generic,   public :: get          => input_file_get_int32,           &
-      &                                  input_file_get_int32_arr,       &
-      &                                  input_file_get_name_int32,      &
-      &                                  input_file_get_name_int32_arr,  &
-      &                                  input_file_get_int64,           &
-      &                                  input_file_get_int64_arr,       &
-      &                                  input_file_get_name_int64,      &
-      &                                  input_file_get_name_int64_arr,  &
-      &                                  input_file_get_real,            &
-      &                                  input_file_get_real_arr,        &
-      &                                  input_file_get_name_real,       &
-      &                                  input_file_get_name_real_arr,   &
-      &                                  input_file_get_string,          &
-      &                                  input_file_get_string_arr,      &
-      &                                  input_file_get_name_string,     &
-      &                                  input_file_get_name_string_arr, &
-      &                                  input_file_get_logical,         &
-      &                                  input_file_get_logical_arr,     &
-      &                                  input_file_get_name_logical,    &
-      &                                  input_file_get_name_logical_arr
+
+    m4_define({m4_X},{
+      generic, public :: get => input_file_get_$1
+      generic, public :: get => input_file_get_$1_n
+      generic, public :: get => input_file_get_name_$1
+      generic, public :: get => input_file_get_name_$1_n
+    })
+    m4_list
   end type
 
 contains
 
-#define T input_var
-#define TT type(input_var)
-#include "vector_imp.f90.inc"
+  m4_define({T},{input_var})
+  m4_include(vector_imp.f90.inc)
 
-#define T input_section
-#define TT type(input_section)
-#include "vector_imp.f90.inc"
+  m4_define({T},{input_section})
+  m4_include(vector_imp.f90.inc)
 
   subroutine input_var_init(this, data0, valid, err)
     !! initialize variable from data string
@@ -545,7 +541,7 @@ contains
     type(string)               :: str
     integer                    :: i, j, line_len
 
-    IGNORE(this)
+    m4_ignore(this)
 
     ! assume valid syntax; change later if invalid
     valid = .true.
@@ -762,7 +758,7 @@ contains
     type(vector_real), allocatable :: data(:)
     type(input_var)                :: v
 
-    IGNORE(this)
+    m4_ignore(this)
 
     ! assume valid syntax; change later if invalid
     valid = .true.
@@ -1028,490 +1024,108 @@ contains
     if (.not. present(status)) call program_error("variable '"//name//"' not found")
   end subroutine
 
-  subroutine input_file_get_int32(this, section_id, name, value, status)
-    !! get scalar integer value
+  m4_define({m4_X},{subroutine input_file_get_$1(this, section_id, name, value, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+    !! get scalar value
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
       !! section index
     character(*),      intent(in)  :: name
       !! variable name
-    integer(int32),    intent(out) :: value
+    m4_type($1),       intent(out) :: value
       !! output value
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
+    m4_ifelse($1,real,{
+    logical,             optional, intent(in) :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in) :: norm_object
+      !! optional normalization object (default: use global normconst)
+    },)
 
     integer :: var_idx
+    m4_ifelse($1,real,{logical :: normalize_},)
 
-    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .true., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    value = int(this%sections%d(section_id)%vars%d(var_idx)%int_data(1), kind = int32)
-  end subroutine
-
-  subroutine input_file_get_int32_arr(this, section_id, name, values, status)
-    !! get array of integers
-    class(input_file),           intent(in)  :: this
-    integer,                     intent(in)  :: section_id
-      !! section index
-    character(*),                intent(in)  :: name
-      !! variable name
-    integer(int32), allocatable, intent(out) :: values(:)
-      !! output values
-    logical, optional,           intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .false., var_idx, status = status)
+    call this%get_var(section_id, name, m4_get_input_type($1), .true., var_idx, status = status)
     if (present(status)) then
       if (.not. status) return
     end if
 
     associate (var => this%sections%d(section_id)%vars%d(var_idx))
-      allocate (values(size(var%int_data)), source = int(var%int_data, kind = int32))
+      m4_ifelse($1,int32,{
+        value = int(var%int_data(1), kind = int32)
+      },{
+        value = var%{}m4_get_data($1){}(1)
+      })
+
+      m4_ifelse($1,real,{
+        normalize_ = .true.
+        if (present(normalize)) normalize_ = normalize
+        if (normalize_) value = norm(value, var%unit, n = norm_object)
+      })
     end associate
-  end subroutine
+  end subroutine})
+  m4_list
 
-  subroutine input_file_get_name_int32(this, section_name, name, value, status)
-    !! get scalar integer value, provide section name instead of index
-    class(input_file), intent(in)  :: this
-    character(*),      intent(in)  :: section_name
-      !! section name
-    character(*),      intent(in)  :: name
-      !! variable name
-    integer(int32),    intent(out) :: value
-      !! output value
-    logical, optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, value, status = status)
-  end subroutine
-
-  subroutine input_file_get_name_int32_arr(this, section_name, name, values, status)
-    !! get array of integers, provide section name instead of index
-    class(input_file),           intent(in)  :: this
-    character(*),                intent(in)  :: section_name
-      !! section name
-    character(*),                intent(in)  :: name
-      !! variable name
-    integer(int32), allocatable, intent(out) :: values(:)
-      !! output values
-    logical, optional,           intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, values, status = status)
-  end subroutine
-
-  subroutine input_file_get_int64(this, section_id, name, value, status)
-    !! get scalar integer value
-    class(input_file), intent(in)  :: this
-    integer,           intent(in)  :: section_id
-      !! section index
-    character(*),      intent(in)  :: name
-      !! variable name
-    integer(int64),    intent(out) :: value
-      !! output value
-    logical, optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .true., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    value = this%sections%d(section_id)%vars%d(var_idx)%int_data(1)
-  end subroutine
-
-  subroutine input_file_get_int64_arr(this, section_id, name, values, status)
-    !! get array of integers
-    class(input_file),           intent(in)  :: this
-    integer,                     intent(in)  :: section_id
-      !! section index
-    character(*),                intent(in)  :: name
-      !! variable name
-    integer(int64), allocatable, intent(out) :: values(:)
-      !! output values
-    logical, optional,           intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_INTEGER, .false., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    values = this%sections%d(section_id)%vars%d(var_idx)%int_data
-  end subroutine
-
-  subroutine input_file_get_name_int64(this, section_name, name, value, status)
-    !! get scalar integer value, provide section name instead of index
-    class(input_file), intent(in)  :: this
-    character(*),      intent(in)  :: section_name
-      !! section name
-    character(*),      intent(in)  :: name
-      !! variable name
-    integer(int64),    intent(out) :: value
-      !! output value
-    logical, optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, value, status = status)
-  end subroutine
-
-  subroutine input_file_get_name_int64_arr(this, section_name, name, values, status)
-    !! get array of integers, provide section name instead of index
-    class(input_file),           intent(in)  :: this
-    character(*),                intent(in)  :: section_name
-      !! section name
-    character(*),                intent(in)  :: name
-      !! variable name
-    integer(int64), allocatable, intent(out) :: values(:)
-      !! output values
-    logical, optional,           intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, values, status = status)
-  end subroutine
-
-  subroutine input_file_get_real(this, section_id, name, value, normalize, norm_object, status)
-    !! get scalar real value
+  m4_define({m4_X},{subroutine input_file_get_$1_n(this, section_id, name, values, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+    !! get array of values
     class(input_file),             intent(in)  :: this
     integer,                       intent(in)  :: section_id
       !! section index
     character(*),                  intent(in)  :: name
       !! variable name
-    real,                          intent(out) :: value
-      !! output value
-    logical,             optional, intent(in)  :: normalize
-      !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in)  :: norm_object
-      !! optional normalization object (default: use global normconst)
+    m4_type($1), allocatable,      intent(out) :: values(:)
+      !! output values
     logical,             optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
+    m4_ifelse($1,real,{
+    logical,             optional, intent(in) :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in) :: norm_object
+      !! optional normalization object (default: use global normconst)
+    },)
 
     integer :: var_idx
-    logical :: normalize_
+    m4_ifelse($1,real,{logical :: normalize_},)
 
-    call this%get_var(section_id, name, INPUT_TYPE_REAL, .true., var_idx, status = status)
+    call this%get_var(section_id, name, m4_get_input_type($1), .false., var_idx, status = status)
     if (present(status)) then
       if (.not. status) return
     end if
 
     associate (var => this%sections%d(section_id)%vars%d(var_idx))
-      value = var%real_data(1)
+      m4_ifelse($1,int32,{
+        allocate (values(size(var%int_data)), source = int(var%int_data, kind = int32))
+      },{
+        values = var%{}m4_get_data($1)
+      })
 
-      normalize_ = .true.
-      if (present(normalize)) normalize_ = normalize
-      if (normalize_) value = norm(value, var%unit, n = norm_object)
+      m4_ifelse($1,real,{
+        normalize_ = .true.
+        if (present(normalize)) normalize_ = normalize
+        if (normalize_) values = norm(values, var%unit, n = norm_object)
+      })
     end associate
-  end subroutine
+  end subroutine})
+  m4_list
 
-  subroutine input_file_get_real_arr(this, section_id, name, values, normalize, norm_object, status)
-    !! get array of reals
-    class(input_file),             intent(in)  :: this
-    integer,                       intent(in)  :: section_id
-      !! section index
-    character(*),                  intent(in)  :: name
-      !! variable name
-    real, allocatable,             intent(out) :: values(:)
-      !! output values
-    logical,             optional, intent(in)  :: normalize
-      !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in)  :: norm_object
-      !! optional normalization object (default: use global normconst)
-    logical,             optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-    logical :: normalize_
-
-    call this%get_var(section_id, name, INPUT_TYPE_REAL, .false., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    associate (var => this%sections%d(section_id)%vars%d(var_idx))
-      values = var%real_data
-
-      normalize_ = .true.
-      if (present(normalize)) normalize_ = normalize
-      if (normalize_) values = norm(values, var%unit, n = norm_object)
-    end associate
-  end subroutine
-
-  subroutine input_file_get_name_real(this, section_name, name, value, normalize, norm_object, status)
-    !! get scalar real value, provide section name instead of index
-    class(input_file),             intent(in)  :: this
-    character(*),                  intent(in)  :: section_name
-      !! section name
-    character(*),                  intent(in)  :: name
-      !! variable name
-    real,                          intent(out) :: value
-      !! output value
-    logical,             optional, intent(in)  :: normalize
-      !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in)  :: norm_object
-      !! optional normalization object (default: use global normconst)
-    logical,             optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, value, normalize = normalize, norm_object = norm_object, status = status)
-  end subroutine
-
-  subroutine input_file_get_name_real_arr(this, section_name, name, values, normalize, norm_object, status)
-    !! get array of reals, provide section name instead of index
-
-    class(input_file),             intent(in)  :: this
-    character(*),                  intent(in)  :: section_name
-      !! section name
-    character(*),                  intent(in)  :: name
-      !! variable name
-    real, allocatable,             intent(out) :: values(:)
-      !! output values
-    logical,             optional, intent(in)  :: normalize
-      !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in)  :: norm_object
-      !! optional normalization object (default: use global normconst)
-    logical,             optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, values, normalize = normalize, norm_object = norm_object, status = status)
-  end subroutine
-
-  subroutine input_file_get_string(this, section_id, name, value, status)
-    !! get scalar string value
-
-    class(input_file),         intent(in)  :: this
-    integer,                   intent(in)  :: section_id
-      !! section index
-    character(*),              intent(in)  :: name
-      !! variable name
-    character(:), allocatable, intent(out) :: value
-      !! output value
-    logical,      optional,    intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_STRING, .true., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    value = this%sections%d(section_id)%vars%d(var_idx)%str_data(1)%s
-  end subroutine
-
-  subroutine input_file_get_string_arr(this, section_id, name, values, status)
-    !! get array of strings
-
-    class(input_file),         intent(in)  :: this
-    integer,                   intent(in)  :: section_id
-      !! section index
-    character(*),              intent(in)  :: name
-      !! variable name
-    type(string), allocatable, intent(out) :: values(:)
-      !! output values
-    logical,      optional,    intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_STRING, .false., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    values = this%sections%d(section_id)%vars%d(var_idx)%str_data
-  end subroutine
-
-  subroutine input_file_get_name_string(this, section_name, name, value, status)
-    !! get scalar string value, provide section name instead of index
-    class(input_file),         intent(in)  :: this
-    character(*),              intent(in)  :: section_name
-      !! section name
-    character(*),              intent(in)  :: name
-      !! variable name
-    character(:), allocatable, intent(out) :: value
-      !! output value
-    logical,      optional,    intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, value, status = status)
-  end subroutine
-
-  subroutine input_file_get_name_string_arr(this, section_name, name, values, status)
-    !! get array of strings, provide section name instead of index
-    class(input_file),         intent(in)  :: this
-    character(*),              intent(in)  :: section_name
-      !! section name
-    character(*),              intent(in)  :: name
-      !! variable name
-    type(string), allocatable, intent(out) :: values(:)
-      !! output values
-    logical,      optional,    intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: section_id, st
-
-    ! get section
-    if (present(status)) then
-      call this%get_section(section_name, section_id, status = st)
-      status = (st == 0)
-      if (.not. status) return
-    else
-      call this%get_section(section_name, section_id)
-    end if
-
-    ! get value
-    call this%get(section_id, name, values, status = status)
-  end subroutine
-
-  subroutine input_file_get_logical(this, section_id, name, value, status)
-    !! get scalar logical value
-    class(input_file), intent(in)  :: this
-    integer,           intent(in)  :: section_id
-      !! section index
-    character(*),      intent(in)  :: name
-      !! variable name
-    logical,           intent(out) :: value
-      !! output value
-    logical, optional, intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_LOGIC, .true., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    value = this%sections%d(section_id)%vars%d(var_idx)%logic_data(1)
-  end subroutine
-
-  subroutine input_file_get_logical_arr(this, section_id, name, values, status)
-    !! get array of reals
-    class(input_file),    intent(in)  :: this
-    integer,              intent(in)  :: section_id
-      !! section index
-    character(*),         intent(in)  :: name
-      !! variable name
-    logical, allocatable, intent(out) :: values(:)
-      !! output values
-    logical, optional,    intent(out) :: status
-      !! optional output if name was found (if not present: error if not found)
-
-    integer :: var_idx
-
-    call this%get_var(section_id, name, INPUT_TYPE_LOGIC, .false., var_idx, status = status)
-    if (present(status)) then
-      if (.not. status) return
-    end if
-
-    values = this%sections%d(section_id)%vars%d(var_idx)%logic_data
-  end subroutine
-
-  subroutine input_file_get_name_logical(this, section_name, name, value, status)
-    !! get scalar logical value, provide section name instead of index
+  m4_define({m4_X},{subroutine input_file_get_name_$1(this, section_name, name, value, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+    !! get scalar value, provide section name instead of index
     class(input_file), intent(in)  :: this
     character(*),      intent(in)  :: section_name
       !! section name
     character(*),      intent(in)  :: name
       !! variable name
-    logical,           intent(out) :: value
+    m4_type($1),       intent(out) :: value
       !! output value
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
+    m4_ifelse($1,real,{
+    logical,             optional, intent(in) :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in) :: norm_object
+      !! optional normalization object (default: use global normconst)
+    },)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
@@ -1524,22 +1138,28 @@ contains
     end if
 
     ! get value
-    call this%get(section_id, name, value, status = status)
-  end subroutine
+    call this%get(section_id, name, value, status = status{}m4_ifelse($1,real,{, normalize = normalize, norm_object = norm_object},))
+  end subroutine})
+  m4_list
 
-  subroutine input_file_get_name_logical_arr(this, section_name, name, values, status)
-    !! get array of logicals, provide section name instead of index
-    class(input_file),    intent(in)  :: this
-    character(*),         intent(in)  :: section_name
+  m4_define({m4_X},{subroutine input_file_get_name_$1_n(this, section_name, name, values, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+    !! get array of values, provide section name instead of index
+    class(input_file),        intent(in)  :: this
+    character(*),             intent(in)  :: section_name
       !! section name
-    character(*),         intent(in)  :: name
+    character(*),             intent(in)  :: name
       !! variable name
-    logical, allocatable, intent(out) :: values(:)
+    m4_type($1), allocatable, intent(out) :: values(:)
       !! output values
-    logical, optional,    intent(out) :: status
+    logical, optional,           intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
+    m4_ifelse($1,real,{
+    logical,             optional, intent(in) :: normalize
+      !! normalize value by using unit token (default: true)
+    type(normalization), optional, intent(in) :: norm_object
+      !! optional normalization object (default: use global normconst)
+    },)
 
-    ! local variables
     integer :: section_id, st
 
     ! get section
@@ -1551,8 +1171,9 @@ contains
       call this%get_section(section_name, section_id)
     end if
 
-    ! get value
-    call this%get(section_id, name, values, status = status)
-  end subroutine
+    ! get values
+    call this%get(section_id, name, values, status = status{}m4_ifelse($1,real,{, normalize = normalize, norm_object = norm_object},))
+  end subroutine})
+  m4_list
 
 end module

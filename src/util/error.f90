@@ -1,9 +1,9 @@
+m4_include(macro.f90.inc)
+
 module error_m
 
   use color_m, only: COL_DEFAULT, COL_MAGENTA
-#ifdef __INTEL_COMPILER
-  use ifcore
-#endif
+  m4_ifdef({m4_intel},use ifcore)
 
   implicit none
 
@@ -25,17 +25,15 @@ module error_m
       !! line in source code file
   end type
 
-#define T error_msg
-#define TT type(error_msg)
-#include "vector_def.f90.inc"
+  m4_define({T},{error_msg})
+  m4_include(vector_def.f90.inc)
 
   type(vector_error_msg) :: emsg
 
 contains
 
-#define T error_msg
-#define TT type(error_msg)
-#include "vector_imp.f90.inc"
+  m4_define({T},{error_msg})
+  m4_include(vector_imp.f90.inc)
 
   subroutine set_error_mode(mode)
     !! enable/disable saving of error messages
@@ -77,13 +75,9 @@ contains
       end if
 
       ! print traceback and stop program
-#ifdef __INTEL_COMPILER
-      call tracebackqq()
-#endif
-#ifdef __GFORTRAN__
-      call backtrace()
+      m4_ifdef({m4_intel},{call tracebackqq()})
+      m4_ifdef({m4_gnu},{call backtrace()})
       call exit(1)
-#endif
     end if
   end subroutine
 
@@ -119,13 +113,9 @@ contains
     print "(3A,I0)", "file: ", file, "; line: ", line
     print *
 
-#ifdef __INTEL_COMPILER
-    call tracebackqq()
-#endif
-#ifdef __GFORTRAN__
-    call backtrace()
+    m4_ifdef({m4_intel},{call tracebackqq()})
+    m4_ifdef({m4_gnu},{call backtrace()})
     call exit(1)
-#endif
   end subroutine
 
 end module

@@ -1,26 +1,7 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define VECTOR_VALUE      CONCAT(vector,T)
-#define HASHMAP_TYPE      CONCAT(hashmap,T)
-#define HASHMAP_INIT      CONCAT3(hashmap,T,init)
-#define HASHMAP_DESTRUCT  CONCAT3(hashmap,T,destruct)
-#define HASHMAP_RESET     CONCAT3(hashmap,T,reset)
-#define HASHMAP_RESERVE   CONCAT3(hashmap,T,reserve)
-#define HASHMAP_LOOKUP    CONCAT3(hashmap,T,lookup)
-#define HASHMAP_GET_KEY_1 CONCAT3(hashmap,T,get_key_1)
-#define HASHMAP_GET_KEY_N CONCAT3(hashmap,T,get_key_n)
-#define HASHMAP_SET_KEY_1 CONCAT3(hashmap,T,set_key_1)
-#define HASHMAP_SET_KEY_N CONCAT3(hashmap,T,set_key_n)
-
-subroutine HASHMAP_INIT(this, c)
+subroutine hashmap_{}T{}_init(this, c)
   !! initialize hashmap
-  class(HASHMAP_TYPE), intent(out) :: this
-  integer, optional,   intent(in)  :: c
+  class(hashmap_{}T), intent(out) :: this
+  integer, optional,  intent(in)  :: c
     !! initial capacity (default: c = 16)
 
   integer :: c_
@@ -40,33 +21,33 @@ subroutine HASHMAP_INIT(this, c)
   call this%reserve(c_)
 end subroutine
 
-subroutine HASHMAP_DESTRUCT(this)
+subroutine hashmap_{}T{}_destruct(this)
   !! destruct hashmap
-  class(HASHMAP_TYPE), intent(inout) :: this
+  class(hashmap_{}T), intent(inout) :: this
 
   call this%keys%destruct()
   call this%values%destruct()
   if (allocated(this%table)) deallocate (this%table)
 end subroutine
 
-subroutine HASHMAP_RESET(this)
+subroutine hashmap_{}T{}_reset(this)
   !! reset hashmap
-  class(HASHMAP_TYPE), intent(inout) :: this
+  class(hashmap_{}T), intent(inout) :: this
 
   call this%keys%reset()
   call this%values%reset()
   if (allocated(this%table)) this%table = -1
 end subroutine
 
-subroutine HASHMAP_RESERVE(this, c)
+subroutine hashmap_{}T{}_reserve(this, c)
   !! reserve memory
-  class(HASHMAP_TYPE), intent(inout) :: this
-  integer,             intent(in)    :: c
+  class(hashmap_{}T), intent(inout) :: this
+  integer,            intent(in)    :: c
     !! new capacity
 
-  integer              :: i
-  integer, allocatable :: keys(:), keys_i0(:)
-  TT,      allocatable :: values(:)
+  integer                 :: i
+  integer,    allocatable :: keys(:), keys_i0(:)
+  m4_type(T), allocatable :: values(:)
 
   if (allocated(this%table)) then
     ! only reallocate if new capacity is actually larger than old
@@ -97,17 +78,17 @@ subroutine HASHMAP_RESERVE(this, c)
   end if
 end subroutine
 
-function HASHMAP_LOOKUP(this, key) result(i)
+function hashmap_{}T{}_lookup(this, key) result(i)
   !! lookup key and return index
-  class(HASHMAP_TYPE), intent(in) :: this
-  integer,             intent(in) :: key(:)
+  class(hashmap_{}T), intent(in) :: this
+  integer,            intent(in) :: key(:)
     !! key to lookup
-  integer                         :: i
+  integer                        :: i
     !! return index
 
   integer :: j, i0, i1, h, failsafe
 
-  ASSERT(size(key) > 0)
+  m4_assert(size(key) > 0)
 
   failsafe = 0
 
@@ -135,22 +116,22 @@ function HASHMAP_LOOKUP(this, key) result(i)
   if (failsafe > size(this%table)) i = -1
 end function
 
-subroutine HASHMAP_GET_KEY_1(this, key, value, status)
+subroutine hashmap_{}T{}_get_key_1(this, key, value, status)
   !! lookup key and return value
-  class(HASHMAP_TYPE), intent(in)  :: this
-  integer,             intent(in)  :: key
-  TT,                  intent(out) :: value
-  logical, optional,   intent(out) :: status
+  class(hashmap_{}T), intent(in)  :: this
+  integer,            intent(in)  :: key
+  m4_type(T),         intent(out) :: value
+  logical, optional,  intent(out) :: status
 
-  call HASHMAP_GET_KEY_N(this, [key], value, status=status)
+  call hashmap_{}T{}_get_key_n(this, [key], value, status=status)
 end subroutine
 
-subroutine HASHMAP_GET_KEY_N(this, key, value, status)
+subroutine hashmap_{}T{}_get_key_n(this, key, value, status)
   !! lookup key and return value
-  class(HASHMAP_TYPE), intent(in)  :: this
-  integer,             intent(in)  :: key(:)
-  TT,                  intent(out) :: value
-  logical, optional,   intent(out) :: status
+  class(hashmap_{}T), intent(in)  :: this
+  integer,            intent(in)  :: key(:)
+  m4_type(T),         intent(out) :: value
+  logical, optional,  intent(out) :: status
 
   integer :: i, j
 
@@ -166,22 +147,22 @@ subroutine HASHMAP_GET_KEY_N(this, key, value, status)
   if (present(status)) status = .true.
 end subroutine
 
-subroutine HASHMAP_SET_KEY_1(this, key, value, status)
+subroutine hashmap_{}T{}_set_key_1(this, key, value, status)
   !! lookup key and insert/update value
-  class(HASHMAP_TYPE), intent(inout) :: this
-  integer,             intent(in)    :: key
-  TT,                  intent(in)    :: value
-  logical, optional,   intent(out)   :: status
+  class(hashmap_{}T), intent(inout) :: this
+  integer,            intent(in)    :: key
+  m4_type(T),         intent(in)    :: value
+  logical, optional,  intent(out)   :: status
 
-  call HASHMAP_SET_KEY_N(this, [key], value, status=status)
+  call hashmap_{}T{}_set_key_n(this, [key], value, status=status)
 end subroutine
 
-recursive subroutine HASHMAP_SET_KEY_N(this, key, value, status)
+recursive subroutine hashmap_{}T{}_set_key_n(this, key, value, status)
   !! lookup key and insert/update value
-  class(HASHMAP_TYPE), intent(inout) :: this
-  integer,             intent(in)    :: key(:)
-  TT,                  intent(in)    :: value
-  logical, optional,   intent(out)   :: status
+  class(hashmap_{}T), intent(inout) :: this
+  integer,            intent(in)    :: key(:)
+  m4_type(T),         intent(in)    :: value
+  logical, optional,  intent(out)   :: status
 
   integer :: i, j
 
@@ -208,24 +189,4 @@ recursive subroutine HASHMAP_SET_KEY_N(this, key, value, status)
   if (present(status)) status = .true.
 end subroutine
 
-#undef T
-#undef TT
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef VECTOR_VALUE
-#undef HASHMAP_TYPE
-#undef HASHMAP_INIT
-#undef HASHMAP_DESTRUCT
-#undef HASHMAP_RESET
-#undef HASHMAP_RESERVE
-#undef HASHMAP_LOOKUP
-#undef HASHMAP_GET_KEY_1
-#undef HASHMAP_GET_KEY_N
-#undef HASHMAP_SET_KEY_1
-#undef HASHMAP_SET_KEY_N
+m4_undefine({T})

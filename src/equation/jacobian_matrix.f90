@@ -1,3 +1,5 @@
+m4_include(../util/macro.f90.inc)
+
 module jacobian_matrix_m
   use matrix_m,    only: matrix_add, sparse_real, block_real, spbuild_real, sparse_ptr_real
   use vselector_m, only: vselector
@@ -42,15 +44,13 @@ module jacobian_matrix_m
     type(jacobian_matrix), pointer :: p => null()
   end type
 
-#define T jacobian_matrix_ptr
-#define TT type(jacobian_matrix_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{jacobian_matrix_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-#define T jacobian_matrix_ptr
-#define TT type(jacobian_matrix_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{jacobian_matrix_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine jacobian_matrix_init(this, v1, v2, const, zero, valmsk)
     !! initialize jacobian matrix

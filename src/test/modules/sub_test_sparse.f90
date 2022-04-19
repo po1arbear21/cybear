@@ -1,3 +1,5 @@
+m4_include(../../util/macro.f90.inc)
+
 submodule (test_matrix_m) test_sparse_m
 
   use ieee_arithmetic
@@ -618,38 +620,38 @@ contains
       call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: pardiso solver")
 
-#ifdef USE_ILUPACK
-      ! test 3: using ilupack solver
-      call example_matrix3(sA)
-      sA%solver=SOLVER_ILUPACK
-      call sA%factorize()
-      call sA%solve_vec(b, x)
-      call sA%destruct()
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: ilupack solver")
-
-      ! test 4: using ilupack solver, changing ilupack parameters
-      block
-        use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
-
-        type(ilupack_handle), pointer :: ilu
-
+      m4_divert(m4_ifdef({m4_ilupack},0,-1))
+        ! test 3: using ilupack solver
         call example_matrix3(sA)
         sA%solver=SOLVER_ILUPACK
-        call sA%init_solver()
-
-        call get_ilupack_handle_ptr(sA%solver_handle, ilu)
-        ilu%elbow    = 10
-        ilu%droptol  = 3e-2
-        ilu%droptolS = ilu%droptol / 10
-        ilu%matching = 0
-        ilu%restol   = 1e-14
-
         call sA%factorize()
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: ilupack solver")
-      end block
-#endif
+
+        ! test 4: using ilupack solver, changing ilupack parameters
+        block
+          use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
+
+          type(ilupack_handle), pointer :: ilu
+
+          call example_matrix3(sA)
+          sA%solver=SOLVER_ILUPACK
+          call sA%init_solver()
+
+          call get_ilupack_handle_ptr(sA%solver_handle, ilu)
+          ilu%elbow    = 10
+          ilu%droptol  = 3e-2
+          ilu%droptolS = ilu%droptol / 10
+          ilu%matching = 0
+          ilu%restol   = 1e-14
+
+          call sA%factorize()
+          call sA%solve_vec(b, x)
+          call sA%destruct()
+          call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: ilupack solver")
+        end block
+      m4_divert(0)
     end block
 
     ! solve_vec cmplx
@@ -675,38 +677,38 @@ contains
       call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: pardiso solver")
 
-#ifdef USE_ILUPACK
-      ! test 3: using ilupack solver
-      call example_matrix5(sA)
-      sA%solver=SOLVER_ILUPACK
-      call sA%factorize()
-      call sA%solve_vec(b, x)
-      call sA%destruct()
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: ilupack solver")
-
-      ! test 4: using ilupack solver, changing ilupack parameters
-      block
-        use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
-
-        type(ilupack_handle), pointer :: ilu
-
+      m4_divert(m4_ifdef({m4_ilupack},0,-1))
+        ! test 3: using ilupack solver
         call example_matrix5(sA)
         sA%solver=SOLVER_ILUPACK
-        call sA%init_solver()
-
-        call get_ilupack_handle_ptr(sA%solver_handle, ilu)
-        ilu%elbow    = 10
-        ilu%droptol  = 3e-2
-        ilu%droptolS = ilu%droptol / 10
-        ilu%matching = 0
-        ilu%restol   = 1e-14
-
         call sA%factorize()
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: ilupack solver")
-      end block
-#endif
+
+        ! test 4: using ilupack solver, changing ilupack parameters
+        block
+          use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
+
+          type(ilupack_handle), pointer :: ilu
+
+          call example_matrix5(sA)
+          sA%solver=SOLVER_ILUPACK
+          call sA%init_solver()
+
+          call get_ilupack_handle_ptr(sA%solver_handle, ilu)
+          ilu%elbow    = 10
+          ilu%droptol  = 3e-2
+          ilu%droptolS = ilu%droptol / 10
+          ilu%matching = 0
+          ilu%restol   = 1e-14
+
+          call sA%factorize()
+          call sA%solve_vec(b, x)
+          call sA%destruct()
+          call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: ilupack solver")
+        end block
+      m4_divert(0)
     end block
 
     ! solve_mat
@@ -1075,8 +1077,8 @@ contains
     integer            :: i, j
     type(spbuild_real) :: sbuild
 
-    ! S_ij = {i+2*j-i**2    if    (i+j)%31 == 0
-    !        {0             else
+    ! S_ij = /i+2*j-i**2    if    (i+j)%31 == 0
+    !        \0             else
 
     call S%init(n)
     call sbuild%init(S)

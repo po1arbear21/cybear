@@ -1,4 +1,7 @@
-#ifdef USE_MUMPS
+m4_include(../../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_mumps},0,-1))
+
 module test_mumps_m
 
   use mumps_m,      only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, destruct_mumps_handle_r, mumps_factorize, mumps_solve
@@ -125,4 +128,5 @@ contains
   end subroutine
 
 end module
-#endif
+
+m4_divert(0)

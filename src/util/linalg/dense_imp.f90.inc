@@ -1,37 +1,9 @@
-#define PASTE(X)             X
-#define PASTE2(X)            PASTE(X)_
-#define CONCATHELP(X, Y)     PASTE2(X)Y
-#define CONCAT(X, Y)         CONCATHELP(X,Y)
-#define CONCATHELP3(X, Y, Z) PASTE2(CONCATHELP(X,Y))Z
-#define CONCAT3(X, Y, Z)     CONCATHELP3(X,Y,Z)
-
-#define DENSE_TYPE           CONCAT(dense,T)
-#define DENSE_PTR_TYPE       CONCAT(dense_ptr,T)
-#define MATRIX_TYPE          CONCAT(matrix,T)
-
-#define DENSE_INIT_BY_DATA   CONCAT3(dense,T,init_by_data)
-#define DENSE_INIT_BY_SIZE   CONCAT3(dense,T,init_by_size)
-#define DENSE_DESTRUCT       CONCAT3(dense,T,destruct)
-#define DENSE_RESET          CONCAT3(dense,T,reset)
-#define DENSE_SCALE          CONCAT3(dense,T,scale)
-#define DENSE_MUL_VEC        CONCAT3(dense,T,mul_vec)
-#define DENSE_MUL_MAT        CONCAT3(dense,T,mul_mat)
-#define DENSE_FACTORIZE      CONCAT3(dense,T,factorize)
-#define DENSE_SOLVE_VEC      CONCAT3(dense,T,solve_vec)
-#define DENSE_SOLVE_MAT      CONCAT3(dense,T,solve_mat)
-#define DENSE_TRANSPOSE      CONCAT3(dense,T,transpose)
-#define DENSE_TRANSPOSE2     CONCAT3(dense,T,transpose2)
-#define DENSE_MUL_DENSE      CONCAT3(dense,T,mul_dense)
-#define DENSE_EIG            CONCAT3(dense,T,eig)
-#define DENSE_OUTPUT         CONCAT3(dense,T,output)
-#define DENSE_EYE            CONCAT3(dense,eye,T)
-
-module subroutine DENSE_INIT_BY_DATA(this, d)
+module subroutine dense_{}T{}_init_by_data(this, d)
   !! Initialize dense matrix.
 
-  class(DENSE_TYPE), intent(out) :: this
+  class(dense_{}T), intent(out) :: this
     !! Dense matrix
-  TT,                intent(in)  :: d(:,:)
+  m4_type(T),       intent(in)  :: d(:,:)
     !! Provide initial data.
 
   ! init base
@@ -40,10 +12,10 @@ module subroutine DENSE_INIT_BY_DATA(this, d)
   this%d = d
 end subroutine
 
-module subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
+module subroutine dense_{}T{}_init_by_size(this, nrows, ncols)
   !! Initialize dense matrix.
 
-  class(DENSE_TYPE), intent(out) :: this
+  class(dense_{}T),  intent(out) :: this
     !! Dense matrix
   integer,           intent(in)  :: nrows
     !! Number of rows (Default: d0rows)
@@ -63,10 +35,10 @@ module subroutine DENSE_INIT_BY_SIZE(this, nrows, ncols)
   this%d = 0
 end subroutine
 
-module subroutine DENSE_DESTRUCT(this)
+module subroutine dense_{}T{}_destruct(this)
   !! Destruct dense matrix; i.e. deallocate its members.
 
-  class(DENSE_TYPE), intent(inout) :: this
+  class(dense_{}T), intent(inout) :: this
     !! Dense matrix
 
   if (allocated(this%d   )) deallocate (this%d   )
@@ -75,15 +47,14 @@ module subroutine DENSE_DESTRUCT(this)
   this%factorized = .false.
 end subroutine
 
-module subroutine DENSE_RESET(this, only_factorization)
+module subroutine dense_{}T{}_reset(this, only_factorization)
   !! Reset dense matrix to zero (optionally only the factorization).
 
-  class(DENSE_TYPE), intent(inout) :: this
+  class(dense_{}T),  intent(inout) :: this
     !! Dense matrix
   logical, optional, intent(in)    :: only_factorization
     !! Reset only factorization data (default: false)
 
-  ! local variables
   logical :: only_fact
 
   only_fact = .false.
@@ -100,65 +71,64 @@ module subroutine DENSE_RESET(this, only_factorization)
   this%factorized = .false.
 end subroutine
 
-module subroutine DENSE_SCALE(this, fact)
+module subroutine dense_{}T{}_scale(this, fact)
   !! Scale dense matrix by a factor.
 
-  class(DENSE_TYPE), intent(inout) :: this
+  class(dense_{}T), intent(inout) :: this
     !! Dense matrix
-  TT,                intent(in)    :: fact
+  m4_type(T),       intent(in)    :: fact
     !! Scaling factor
 
-  ASSERT(.not. allocated(this%lu))
-  ASSERT(.not. allocated(this%ipiv))
+  m4_assert(.not. allocated(this%lu))
+  m4_assert(.not. allocated(this%ipiv))
 
   ! scale data
   this%d = fact * this%d
 end subroutine
 
-module subroutine DENSE_MUL_VEC(this, x, y, fact_y, trans)
+module subroutine dense_{}T{}_mul_vec(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw vector.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(DENSE_TYPE),   intent(in)    :: this
+  class(dense_{}T),     intent(in)    :: this
     !! Dense matrix
-  TT,                  intent(in)    :: x(:)
+  m4_type(T),           intent(in)    :: x(:)
     !! Raw vector to multiply by
-  TT,                  intent(inout) :: y(:)
+  m4_type(T),           intent(inout) :: y(:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
-  character, optional, intent(in)    :: trans
+  character,  optional, intent(in)    :: trans
     !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
 
   call gemv(this%d, x, y, beta = fact_y, trans = trans)
 end subroutine
 
-module subroutine DENSE_MUL_MAT(this, x, y, fact_y, trans)
+module subroutine dense_{}T{}_mul_mat(this, x, y, fact_y, trans)
   !! Multiply dense matrix by a raw matrix.
   !! Performs operation: y = this * x + fact_y * y
 
-  class(DENSE_TYPE),   intent(in)    :: this
+  class(dense_{}T),     intent(in)    :: this
     !! Dense matrix
-  TT,                  intent(in)    :: x(:,:)
+  m4_type(T),           intent(in)    :: x(:,:)
     !! Raw matrix to multiply by
-  TT,                  intent(inout) :: y(:,:)
+  m4_type(T),           intent(inout) :: y(:,:)
     !! Store result in y
-  TT,        optional, intent(in)    :: fact_y
+  m4_type(T), optional, intent(in)    :: fact_y
     !! Scale existing data in y and add result to it (default: 0)
-  character, optional, intent(in)    :: trans
+  character,  optional, intent(in)    :: trans
     !! Transposed flag for this matrix, must be 'N', 'C' or 'T' (default: 'N')
 
   call gemm(this%d, x, y, transa = trans, beta = fact_y)
 end subroutine
 
-module subroutine DENSE_FACTORIZE(this)
+module subroutine dense_{}T{}_factorize(this)
   !! Calculate LU decomposition.
   !! Call this subroutine before solving!
 
-  class(DENSE_TYPE), intent(inout) :: this
+  class(dense_{}T), intent(inout) :: this
     !! Dense matrix
 
-  ! local variables
   integer :: info
 
   ! allocate memory for factorization
@@ -173,23 +143,22 @@ module subroutine DENSE_FACTORIZE(this)
   this%factorized = .true.
 end subroutine
 
-module subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
+module subroutine dense_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for a single right-hand side.
   !! Solves: this * x = rhs, where x and rhs are raw vectors. Call this%factorize() first!
 
-  class(DENSE_TYPE),   intent(in)  :: this
+  class(dense_{}T),    intent(in)  :: this
     !! Dense matrix
-  TT,                  intent(in)  :: rhs(:)
+  m4_type(T),          intent(in)  :: rhs(:)
     !! Right hand side of equation system
-  TT,                  intent(out) :: x(:)
+  m4_type(T),          intent(out) :: x(:)
     !! Store result in x
   character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
-  ! local variables
-  TT :: rhs_(size(rhs),1), x_(size(x),1)
+  m4_type(T) :: rhs_(size(rhs),1), x_(size(x),1)
 
   ! solve with matrix routine
   rhs_(:,1) = rhs
@@ -197,26 +166,25 @@ module subroutine DENSE_SOLVE_VEC(this, rhs, x, trans, iter_refine)
   x = x_(:,1)
 end subroutine
 
-module subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
+module subroutine dense_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   !! Solve linear equation system for multiple right-hand sides.
   !! Solves: this * x = rhs, where x and rhs are raw matrices. Call this%factorize() first!
 
-  class(DENSE_TYPE),   intent(in)  :: this
+  class(dense_{}T),    intent(in)  :: this
     !! Dense matrix
-  TT,                  intent(in)  :: rhs(:,:)
+  m4_type(T),          intent(in)  :: rhs(:,:)
     !! Right hand sides of equation system
-  TT,                  intent(out) :: x(:,:)
+  m4_type(T),          intent(out) :: x(:,:)
     !! Store results in x
   character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement (default: true)
 
-  ! local variables
   integer :: info
   logical :: iter_refine_
 
-  ASSERT(this%factorized)
+  m4_assert(this%factorized)
 
   ! optional arguments
   iter_refine_ = .true.
@@ -234,17 +202,16 @@ module subroutine DENSE_SOLVE_MAT(this, rhs, x, trans, iter_refine)
   end if
 end subroutine
 
-module subroutine DENSE_TRANSPOSE(this)
+module subroutine dense_{}T{}_transpose(this)
   !! Transpose dense matrix
 
-  class(DENSE_TYPE), intent(inout) :: this
+  class(dense_{}T), intent(inout) :: this
     !! Dense matrix
 
-  ! local variables
-  TT, allocatable :: d(:,:)
+  m4_type(T), allocatable :: d(:,:)
 
-  ASSERT(.not. allocated(this%lu))
-  ASSERT(.not. allocated(this%ipiv))
+  m4_assert(.not. allocated(this%lu))
+  m4_assert(.not. allocated(this%ipiv))
 
   ! transpose matrix
   allocate (d(this%ncols,this%nrows), source = transpose(this%d))
@@ -253,26 +220,26 @@ module subroutine DENSE_TRANSPOSE(this)
   this%ncols = size(this%d,2)
 end subroutine
 
-module subroutine DENSE_TRANSPOSE2(this, d2)
+module subroutine dense_{}T{}_transpose2(this, d2)
   !! Transpose matrix and store result in second matrix
 
-  class(DENSE_TYPE), intent(in) :: this
+  class(dense_{}T), intent(in)  :: this
     !! First dense matrix (unchanged)
-  type(DENSE_TYPE), intent(out) :: d2
+  type(dense_{}T),  intent(out) :: d2
     !! Output transposed matrix
 
   call d2%init(transpose(this%d))
 end subroutine
 
-module subroutine DENSE_MUL_DENSE(this, d2, d3)
+module subroutine dense_{}T{}_mul_dense(this, d2, d3)
   !! Multiply two dense matrices, store result in a third dense matrix.
   !!  Operation: d3 <- this * d2
 
-  class(DENSE_TYPE), intent(in)  :: this
+  class(dense_{}T), intent(in)  :: this
     !! Dense first matrix d1 (unchanged)
-  type(DENSE_TYPE),  intent(in)  :: d2
+  type(dense_{}T),  intent(in)  :: d2
     !! Dense second matrix d2 (unchanged)
-  type(DENSE_TYPE),  intent(out) :: d3
+  type(dense_{}T),  intent(out) :: d3
     !! Output dense third matrix d3
 
   ! init output matrix
@@ -282,10 +249,10 @@ module subroutine DENSE_MUL_DENSE(this, d2, d3)
   call gemm(this%d, d2%d, d3%d)
 end subroutine
 
-module subroutine DENSE_EIG(this, e, R, L, sort)
+module subroutine dense_{}T{}_eig(this, e, R, L, sort)
   !! Perform a dense eigenvalue decomposition.
 
-  class(DENSE_TYPE), intent(in)  :: this
+  class(dense_{}T),  intent(in)  :: this
     !! Dense matrix
   complex,           intent(out) :: e(:)
     !! Output eigenvalues (complex in general)
@@ -296,67 +263,64 @@ module subroutine DENSE_EIG(this, e, R, L, sort)
   logical, optional, intent(in)  :: sort
     !! Sort by magnitude of eigenvalues (default: false)
 
-  ! local variables
   integer :: info
   logical :: sort_
-#ifdef TCMPLX
-  complex, allocatable :: a(:,:)
+  m4_divert(m4_ifelse(T,cmplx,0,-1))
+    complex, allocatable :: a(:,:)
 
-  ! allocate memory
-  allocate (a(this%nrows,this%nrows), source = this%d)
+    ! allocate memory
+    allocate (a(this%nrows,this%nrows), source = this%d)
 
-  ! get eigenvalue decomposition
-  call geev(a, e, vl = L, vr = R, info = info)
-  if (info /= 0) call program_error("error in complex LAPACK geev", code = info)
+    ! get eigenvalue decomposition
+    call geev(a, e, vl = L, vr = R, info = info)
+    if (info /= 0) call program_error("error in complex LAPACK geev", code = info)
+  m4_divert(m4_ifelse(T,real,0,-1))
+    integer           :: i
+    real, allocatable :: ar(:,:), wr(:), wi(:), vl(:,:), vr(:,:)
 
-#else
-  integer           :: i
-  real, allocatable :: ar(:,:), wr(:), wi(:), vl(:,:), vr(:,:)
+    ! allocate memory
+    allocate (ar(this%nrows,this%nrows), source = this%d)
+    allocate (wr(this%nrows))
+    allocate (wi(this%nrows))
 
-  ! allocate memory
-  allocate (ar(this%nrows,this%nrows), source = this%d)
-  allocate (wr(this%nrows))
-  allocate (wi(this%nrows))
-
-  if (present(L) .and. present(R)) then
-    allocate (vl(this%nrows,this%nrows))
-    allocate (vr(this%nrows,this%nrows))
-    call geev(ar, wr, wi, vl = vl, vr = vr, info = info)
-  elseif (present(L)) then
-    allocate (vl(this%nrows,this%nrows))
-    call geev(ar, wr, wi, vl = vl, info = info)
-  elseif (present(R)) then
-    allocate (vr(this%nrows,this%nrows))
-    call geev(ar, wr, wi, vr = vr, info = info)
-  else
-    call geev(ar, wr, wi, info = info)
-  end if
-  if (info /= 0) call program_error("error in real LAPACK geev", code = info)
-
-  ! construct eigenvalues and eigenvectors
-  i = 1
-  do while (i <= this%nrows)
-    if (wi(i) == 0) then
-      e(i) = wr(i)
-      if (present(L)) L(:,i) = vl(:,i)
-      if (present(R)) R(:,i) = vr(:,i)
-      i = i + 1
+    if (present(L) .and. present(R)) then
+      allocate (vl(this%nrows,this%nrows))
+      allocate (vr(this%nrows,this%nrows))
+      call geev(ar, wr, wi, vl = vl, vr = vr, info = info)
+    elseif (present(L)) then
+      allocate (vl(this%nrows,this%nrows))
+      call geev(ar, wr, wi, vl = vl, info = info)
+    elseif (present(R)) then
+      allocate (vr(this%nrows,this%nrows))
+      call geev(ar, wr, wi, vr = vr, info = info)
     else
-      e(i  ) = cmplx(wr(i  ), wi(i  ))
-      e(i+1) = cmplx(wr(i+1), wi(i+1))
-      if (present(L)) then
-        L(:,i  ) = cmplx(vl(:,i), + vl(:,i+1))
-        L(:,i+1) = cmplx(vl(:,i), - vl(:,i+1))
-      end if
-      if (present(R)) then
-        R(:,i  ) = cmplx(vr(:,i), + vr(:,i+1))
-        R(:,i+1) = cmplx(vr(:,i), - vr(:,i+1))
-      end if
-      i = i + 2
+      call geev(ar, wr, wi, info = info)
     end if
-  end do
+    if (info /= 0) call program_error("error in real LAPACK geev", code = info)
 
-#endif
+    ! construct eigenvalues and eigenvectors
+    i = 1
+    do while (i <= this%nrows)
+      if (wi(i) == 0) then
+        e(i) = wr(i)
+        if (present(L)) L(:,i) = vl(:,i)
+        if (present(R)) R(:,i) = vr(:,i)
+        i = i + 1
+      else
+        e(i  ) = cmplx(wr(i  ), wi(i  ))
+        e(i+1) = cmplx(wr(i+1), wi(i+1))
+        if (present(L)) then
+          L(:,i  ) = cmplx(vl(:,i), + vl(:,i+1))
+          L(:,i+1) = cmplx(vl(:,i), - vl(:,i+1))
+        end if
+        if (present(R)) then
+          R(:,i  ) = cmplx(vr(:,i), + vr(:,i+1))
+          R(:,i+1) = cmplx(vr(:,i), - vr(:,i+1))
+        end if
+        i = i + 2
+      end if
+    end do
+  m4_divert(0)
 
   ! sort
   sort_ = .false.
@@ -379,10 +343,10 @@ module subroutine DENSE_EIG(this, e, R, L, sort)
   end if
 end subroutine
 
-module subroutine DENSE_OUTPUT(this, file, funit, fmt)
+module subroutine dense_{}T{}_output(this, file, funit, fmt)
   !! Write dense matrix to file or stream.
 
-  class(DENSE_TYPE),      intent(in) :: this
+  class(dense_{}T),       intent(in) :: this
     !! Dense matrix
   character(*), optional, intent(in) :: file
     !! Filename (alternative: provide funit)
@@ -391,7 +355,6 @@ module subroutine DENSE_OUTPUT(this, file, funit, fmt)
   character(*), optional, intent(in) :: fmt
     !! Value format string
 
-  ! local variables
   integer                   :: i, j, funit_, status
   character(:), allocatable :: fmt_
 
@@ -399,16 +362,12 @@ module subroutine DENSE_OUTPUT(this, file, funit, fmt)
   if (present(fmt)) then
     fmt_ = fmt
   else
-#ifdef TCMPLX
-    fmt_ = '(A,ES24.16,SP,ES24.16,"i")'
-#else
-    fmt_ = '(A,ES24.16)'
-#endif
+    fmt_ = m4_ifelse(T,cmplx,{'(A,ES24.16,SP,ES24.16,"i")'},{'(A,ES24.16)'})
   end if
 
   ! open file if needed
-  ASSERT(.not. (present(file) .and. present(funit)))
-  ASSERT(present(file) .or. present(funit))
+  m4_assert(.not. (present(file) .and. present(funit)))
+  m4_assert(present(file) .or. present(funit))
   if (present(file)) then
     open (newunit = funit_, file = file, status = "replace", action = "write", iostat = status)
     if (status /= 0) call program_error("File could not be opened")
@@ -433,52 +392,19 @@ module subroutine DENSE_OUTPUT(this, file, funit, fmt)
   if (present(file)) close(funit_)
 end subroutine
 
-module function DENSE_EYE(nrows, ncols) result(eye)
+module function dense_eye_{}T{}(nrows, ncols) result(eye)
   !! dense identity matrix
 
-  integer,            intent(in)  :: nrows
+  integer,           intent(in) :: nrows
     !! Number of rows
-  integer, optional,  intent(in)  :: ncols
+  integer, optional, intent(in) :: ncols
     !! Optional number of columns (default: ncols = nrows)
-  type(DENSE_TYPE)                :: eye
+  type(dense_{}T)               :: eye
 
-  ! local variables
-  integer         :: i
+  integer :: i
 
   call eye%init(nrows, ncols)
   do i = 1, min(eye%nrows, eye%ncols)
     eye%d(i,i) = 1
   end do
 end function
-
-#undef T
-#undef TT
-#undef TCMPLX
-
-#undef PASTE
-#undef PASTE2
-#undef CONCATHELP
-#undef CONCAT
-#undef CONCATHELP3
-#undef CONCAT3
-
-#undef DENSE_TYPE
-#undef DENSE_PTR_TYPE
-#undef MATRIX_TYPE
-
-#undef DENSE_INIT_BY_DATA
-#undef DENSE_INIT_BY_SIZE
-#undef DENSE_DESTRUCT
-#undef DENSE_RESET
-#undef DENSE_SCALE
-#undef DENSE_MUL_VEC
-#undef DENSE_MUL_MAT
-#undef DENSE_FACTORIZE
-#undef DENSE_SOLVE_VEC
-#undef DENSE_SOLVE_MAT
-#undef DENSE_TRANSPOSE
-#undef DENSE_TRANSPOSE2
-#undef DENSE_MUL_DENSE
-#undef DENSE_EIG
-#undef DENSE_OUTPUT
-#undef DENSE_EYE

@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module dual_m
 
@@ -7,44 +7,38 @@ module dual_m
   implicit none
 
   private
-  public dual_1, dual_2, dual_3, dual_4, dual_5, dual_6, dual_7, dual_8
+
   public operator(+), operator(-), operator(*), operator(/), operator(**)
   public abs, cos, dot_product, exp, log, sin, sqrt, sum, tan
 
-#define N 1
-#include "dual_def.f90.inc"
-#define N 2
-#include "dual_def.f90.inc"
-#define N 3
-#include "dual_def.f90.inc"
-#define N 4
-#include "dual_def.f90.inc"
-#define N 5
-#include "dual_def.f90.inc"
-#define N 6
-#include "dual_def.f90.inc"
-#define N 7
-#include "dual_def.f90.inc"
-#define N 8
-#include "dual_def.f90.inc"
+  ! maximum supported dimension
+  m4_define({m4_max_dim},{8})
+
+  ! get dimension list (1 to max_dim)
+  m4_define({m4_list_help},{
+    m4_ifelse($1,0,,{m4_list_help(m4_decr($1))})
+    m4_X($1)
+  })
+  m4_define({m4_list},{m4_list_help(m4_max_dim)})
+
+  ! make defined types public
+  m4_define({m4_X},{public dual_$1})
+  m4_list
+
+  ! include type definitions
+  m4_define({m4_X},{
+    m4_define({N},$1)
+    m4_include(dual_def.f90.inc)
+  })
+  m4_list
 
 contains
 
-#define N 1
-#include "dual_imp.f90.inc"
-#define N 2
-#include "dual_imp.f90.inc"
-#define N 3
-#include "dual_imp.f90.inc"
-#define N 4
-#include "dual_imp.f90.inc"
-#define N 5
-#include "dual_imp.f90.inc"
-#define N 6
-#include "dual_imp.f90.inc"
-#define N 7
-#include "dual_imp.f90.inc"
-#define N 8
-#include "dual_imp.f90.inc"
+  ! include type procedure implementations
+  m4_define({m4_X},{
+    m4_define({N},$1)
+    m4_include(dual_imp.f90.inc)
+  })
+  m4_list
 
 end module

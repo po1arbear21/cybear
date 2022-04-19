@@ -1,4 +1,4 @@
-#include "../macro.f90.inc"
+m4_include(../macro.f90.inc)
 
 module pardiso_m
 
@@ -17,12 +17,8 @@ module pardiso_m
   public pardiso_solve
 
   ! include pardiso or pardiso_64 interface
-#include "mkl_pardiso.fi"
-#if (defined(INTSIZE64) && defined(IDXSIZE64)) || (defined(INTSIZE32) && defined(IDXSIZE32))
-#define PARDISO_ROUTINE pardiso
-#elif (defined(INTSIZE32) && defined(IDXSIZE64))
-#define PARDISO_ROUTINE pardiso_64
-#endif
+  include "mkl_pardiso.fi"
+  m4_define({PARDISO_ROUTINE},{m4_ifelse(m4_intsize,m4_idxsize,{pardiso},{pardiso_64})})
 
   type pardiso_handle
     type(MKL_PARDISO_HANDLE) :: pt(64)
@@ -170,11 +166,11 @@ contains
         nrhs = int(0, kind = SPARSE_IDX)
         phase = -1 ! release internal memory
         if (p%mtype == 11) then
-          call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, a, ia, ja, perm, nrhs, &
-            &                  p%iparm, p%msglvl, b, x, error)
+          call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, a, ia, ja, perm, nrhs, &
+            &                    p%iparm, p%msglvl, b, x, error)
         else if (p%mtype == 13) then
-          call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, ca, ia, ja, perm, nrhs, &
-            &                  p%iparm, p%msglvl, cb, cx, error)
+          call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, ca, ia, ja, perm, nrhs, &
+            &                    p%iparm, p%msglvl, cb, cx, error)
         end if
 
         if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
@@ -205,35 +201,31 @@ contains
 
     associate (p => pardiso_handles(h))
       ! make sure the matrix type is real
-      ASSERT(p%mtype == 11)
+      m4_assert(p%mtype == 11)
 
       ! convert ja if necessary
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      allocate (japtr(size(ja, kind = SPARSE_IDX)))
-      japtr = int(ja, kind = SPARSE_IDX)
-#else
-      japtr => ja
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,{japtr => ja},{
+        allocate (japtr(size(ja, kind = SPARSE_IDX)))
+        japtr = int(ja, kind = SPARSE_IDX)
+      })
 
       nrhs = int(0, kind = SPARSE_IDX)
 
       ! reordering and symbolic factorization
       phase = 11 ! analysis
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! factorization
       phase = 22 ! numerical factorization
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
       p%factorized = .true.
 
       ! free memory for ja copy
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      deallocate (japtr)
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,,{deallocate(japtr)})
     end associate
   end subroutine
 
@@ -253,35 +245,31 @@ contains
 
     associate (p => pardiso_handles(h))
       ! make sure matrix type is complex
-      ASSERT(p%mtype == 13)
+      m4_assert(p%mtype == 13)
 
       ! convert ja if necessary
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      allocate (japtr(size(ja, kind = SPARSE_IDX)))
-      japtr = int(ja, kind = SPARSE_IDX)
-#else
-      japtr => ja
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,{japtr => ja},{
+        allocate (japtr(size(ja, kind = SPARSE_IDX)))
+        japtr = int(ja, kind = SPARSE_IDX)
+      })
 
       nrhs = int(0, kind = SPARSE_IDX)
 
       ! reordering and symbolic factorization
       phase = 11 ! analysis
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! factorization
       phase = 22 ! numerical factorization
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, nrhs, p%iparm, p%msglvl, dum, dum, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
       p%factorized = .true.
 
       ! free memory for ja copy
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      deallocate (japtr)
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,,{deallocate(japtr)})
     end associate
   end subroutine
 
@@ -303,30 +291,26 @@ contains
 
     associate (p => pardiso_handles(h))
       ! make sure matrix type is real and matrix is factorized
-      ASSERT(p%mtype == 11)
-      ASSERT(p%factorized)
+      m4_assert(p%mtype == 11)
+      m4_assert(p%factorized)
 
       ! convert ja if necessary
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      allocate (japtr(size(ja, kind = SPARSE_IDX)))
-      japtr = int(ja, kind = SPARSE_IDX)
-#else
-      japtr => ja
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,{japtr => ja},{
+        allocate (japtr(size(ja, kind = SPARSE_IDX)))
+        japtr = int(ja, kind = SPARSE_IDX)
+      })
 
       ! copy data
       b_ = b
 
       ! back substitution and iterative refinement
       phase = 33 ! solve, iterative refinement
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! free memory for ja copy
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      deallocate (japtr)
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,,{deallocate(japtr)})
     end associate
   end subroutine
 
@@ -348,30 +332,26 @@ contains
 
     associate (p => pardiso_handles(h))
       ! make sure matrix type is complex and matrix is factorized
-      ASSERT(p%mtype == 13)
-      ASSERT(p%factorized)
+      m4_assert(p%mtype == 13)
+      m4_assert(p%factorized)
 
       ! convert ja if necessary
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      allocate (japtr(size(ja, kind = SPARSE_IDX)))
-      japtr = int(ja, kind = SPARSE_IDX)
-#else
-      japtr => ja
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,{japtr => ja},{
+        allocate (japtr(size(ja, kind = SPARSE_IDX)))
+        japtr = int(ja, kind = SPARSE_IDX)
+      })
 
       ! copy data
       b_ = b
 
       ! back substitution and iterative refinement
       phase = 33 ! solve, iterative refinement
-      call PARDISO_ROUTINE(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
-        &                  a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
+      call PARDISO_ROUTINE{}(p%pt, p%maxfct, p%mnum, p%mtype, phase, p%nrows, &
+        &                    a, ia, japtr, perm, size(b, kind = SPARSE_IDX)/p%nrows, p%iparm, p%msglvl, b_, x, error)
       if (error /= 0) call program_error("Error in pardiso: "//trim(PARDISO_ERROR(error)))
 
       ! free memory for ja copy
-#if (defined(INTSIZE32) && defined(IDXSIZE64))
-      deallocate (japtr)
-#endif
+      m4_ifelse(m4_intsize,m4_idxsize,,{deallocate(japtr)})
     end associate
   end subroutine
 

@@ -1,11 +1,11 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module equation_m
 
-  use array_m,         only: array_real
+  use array_m,         only: array1_real
   use color_m
   use error_m
-  use grid_m,          only: grid_table, grid_table_ptr
+  use grid_table_m,    only: grid_table, grid_table_ptr
   use ieee_arithmetic, only: ieee_is_nan
   use jacobian_m,      only: jacobian, jacobian_ptr
   use stencil_m,       only: stencil_ptr
@@ -92,15 +92,13 @@ module equation_m
     class(equation), pointer :: p => null()
   end type
 
-#define T equation_ptr
-#define TT type(equation_ptr)
-#include "../util/vector_def.f90.inc"
+  m4_define({T},{equation_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
 contains
 
-#define T equation_ptr
-#define TT type(equation_ptr)
-#include "../util/vector_imp.f90.inc"
+  m4_define({T},{equation_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine equation_init(this, name, precon)
     !! initialize equation base
@@ -282,7 +280,7 @@ contains
       ! preconditioner flag
       precon_ = .false.
       if (present(precon)) precon_ = precon
-      ASSERT((.not. precon_) .or. allocated(this%jaco_p))
+      m4_assert((.not. precon_) .or. allocated(this%jaco_p))
 
       ! allocate and init jacobian
       allocate (jaco)
@@ -290,10 +288,10 @@ contains
 
       ! save pointer to jacobian
       if (precon_) then
-        ASSERT(.not. associated(this%jaco_p(iprov,idep)%p))
+        m4_assert(.not. associated(this%jaco_p(iprov,idep)%p))
         this%jaco_p(iprov,idep)%p => jaco
       else
-        ASSERT(.not. associated(this%jaco(iprov,idep)%p))
+        m4_assert(.not. associated(this%jaco(iprov,idep)%p))
         this%jaco(iprov,idep)%p => jaco
       end if
     end associate
@@ -354,12 +352,12 @@ contains
     real, optional,  intent(in)    :: atol
       !! absolute tolerance (default: 1e-6)
 
-    integer                       :: i, j, k, l
-    logical                       :: nan, nan1, nan2
-    real                          :: rx_, ax_, rtol_, atol_
-    real                          :: dx1, dydx, dydx1, dydx2
-    real,             allocatable :: x0(:), xm(:), xp(:), dx(:)
-    type(array_real), allocatable :: y0(:), ym(:), yp(:), dy(:)
+    integer                        :: i, j, k, l
+    logical                        :: nan, nan1, nan2
+    real                           :: rx_, ax_, rtol_, atol_
+    real                           :: dx1, dydx, dydx1, dydx2
+    real,              allocatable :: x0(:), xm(:), xp(:), dx(:)
+    type(array1_real), allocatable :: y0(:), ym(:), yp(:), dy(:)
 
     ! optional arguments
     rx_ = 1e-4

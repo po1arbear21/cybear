@@ -1,11 +1,11 @@
+m4_include(../../util/macro.f90.inc)
+
 module test_normalization_m
 
   use math_m,          only: PI
   use normalization_m, only: denorm, destruct_normconst, init_normconst, norm
   use test_case_m,     only: test_case
-#ifdef __INTEL_COMPILER
-  use ifport
-#endif
+  m4_ifdef({m4_intel},{use ifport})
 
   implicit none
 

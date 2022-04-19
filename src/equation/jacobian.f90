@@ -1,4 +1,4 @@
-#include "../util/macro.f90.inc"
+m4_include(../util/macro.f90.inc)
 
 module jacobian_m
 
@@ -146,12 +146,12 @@ contains
     ! stencil pointers
     if (present(st)) then
       ! save stencil pointers
-      ASSERT(size(st) == v1%ntab)
+      m4_assert(size(st) == v1%ntab)
       this%st = st
     else
       ! use dummy stencil
-      ASSERT(associated(v1%g, target = v2%g))
-      ASSERT((v1%idx_type == v2%idx_type) .and. (v1%idx_dir == v2%idx_dir))
+      m4_assert(associated(v1%g, target = v2%g))
+      m4_assert((v1%idx_type == v2%idx_type) .and. (v1%idx_dir == v2%idx_dir))
       call this%dum_st%init(v1%g)
       allocate (this%st(v1%ntab))
       do itab1 = 1, v1%ntab
@@ -163,7 +163,7 @@ contains
     const_ = .false.
     if (present(const)) const_ = const
     if (present(zero)) then
-      ASSERT(all(shape(zero) == [v1%ntab, v2%ntab]))
+      m4_assert(all(shape(zero) == [v1%ntab, v2%ntab]))
       zero_ = zero
     else
       ! set zero flags automatically by checking stencils
@@ -209,15 +209,15 @@ contains
     const_  = (const_ .or. zero_) ! zero blocks are also constant
 
     ! value mask
-    ASSERT(.not. (present(valmsk) .and. present(valmsk_tab)))
+    m4_assert(.not. (present(valmsk) .and. present(valmsk_tab)))
     valmsk_ = .true.
     if (present(valmsk)) then
-      ASSERT(all(shape(valmsk) == [v1%nval, v2%nval]))
+      m4_assert(all(shape(valmsk) == [v1%nval, v2%nval]))
       do itab2 = 1, v2%ntab; do itab1 = 1, v1%ntab
         valmsk_(:,:,itab1,itab2) = valmsk
       end do; end do
     elseif (present(valmsk_tab)) then
-      ASSERT(all(shape(valmsk_tab) == [v1%nval, v2%nval, v1%ntab, v2%ntab]))
+      m4_assert(all(shape(valmsk_tab) == [v1%nval, v2%nval, v1%ntab, v2%ntab]))
       valmsk_ = valmsk_tab
     end if
 
@@ -416,8 +416,8 @@ contains
     integer :: itab2, i2, j, row, row0, col, col0, ival1, ival2
     logical :: add_
 
-    ASSERT(size(d, dim=1) == this%matr%v1%nval)
-    ASSERT(size(d, dim=2) == this%matr%v2%nval)
+    m4_assert(size(d, dim=1) == this%matr%v1%nval)
+    m4_assert(size(d, dim=2) == this%matr%v2%nval)
 
     ! optional addition flag
     add_ = .false.
@@ -532,8 +532,8 @@ contains
     logical, optional, intent(in)    :: add
       !! addition flag (default: false)
 
-    ASSERT(this%matr%v1%nval == 1)
-    ASSERT(this%matr%v2%nval == 1)
+    m4_assert(this%matr%v1%nval == 1)
+    m4_assert(this%matr%v2%nval == 1)
 
     call this%jacobian_set_itab_ival(itab1, i1, idx2, 1, 1, d, add = add)
   end subroutine

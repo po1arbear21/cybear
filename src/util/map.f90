@@ -1,4 +1,4 @@
-#include "macro.f90.inc"
+m4_include(macro.f90.inc)
 
 module map_m
 
@@ -8,59 +8,36 @@ module map_m
   implicit none
 
   private
-  public map_string_int,    mapnode_string_int
-  public map_string_string, mapnode_string_string
-  public map_string_real,   mapnode_string_real
-  public map_string_cmplx,  mapnode_string_cmplx
 
-#define T string
-#define TT type(string)
-#define U int
-#define UU integer
-#include "map_def.f90.inc"
+  ! list of built-in types
+  m4_define({m4_list},{
+    m4_X(int)
+    m4_X(log)
+    m4_X(real)
+    m4_X(cmplx)
+    m4_X(string)
+  })
 
-#define T string
-#define TT type(string)
-#define U string
-#define UU type(string)
-#include "map_def.f90.inc"
+  ! make defined types public
+  m4_define({m4_X},{public map_string_$1, mapnode_string_$1})
+  m4_list
 
-#define T string
-#define TT type(string)
-#define U real
-#define UU real
-#include "map_def.f90.inc"
-
-#define T string
-#define TT type(string)
-#define U cmplx
-#define UU complex
-#include "map_def.f90.inc"
+  ! include type definitions
+  m4_define({m4_X},{
+    m4_define({T},string)
+    m4_define({U},$1)
+    m4_include(map_def.f90.inc)
+  })
+  m4_list
 
 contains
 
-#define T string
-#define TT type(string)
-#define U int
-#define UU integer
-#include "map_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#define U string
-#define UU type(string)
-#include "map_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#define U real
-#define UU real
-#include "map_imp.f90.inc"
-
-#define T string
-#define TT type(string)
-#define U cmplx
-#define UU complex
-#include "map_imp.f90.inc"
+  ! include type procedure implementations
+  m4_define({m4_X},{
+    m4_define({T},string)
+    m4_define({U},$1)
+    m4_include(map_imp.f90.inc)
+  })
+  m4_list
 
 end module

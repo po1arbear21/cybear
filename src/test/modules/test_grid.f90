@@ -1,6 +1,7 @@
 module test_grid_m
 
-  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid_data2_real
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use grid_data_m,   only: grid_data2_real
   use grid0D_m,      only: grid0D
   use grid1D_m,      only: grid1D
   use math_m,        only: linspace, logspace
@@ -47,11 +48,11 @@ contains
       y = linspace(1.0, real(ny), ny)
 
       ! initialize 1D grids
-      call gx%init(x)
-      call gy%init(y)
+      call gx%init("x", x)
+      call gy%init("y", y)
 
       ! initialize tensor grid and grid_data
-      call g%init([gx%get_ptr(), gy%get_ptr()])
+      call g%init("xy", [gx%get_ptr(), gy%get_ptr()])
       call par%init(g, IDX_CELL, 0)
 
       ! check attributes
@@ -84,7 +85,7 @@ contains
       logical      :: status
       real         :: p(0)
 
-      call g%init()
+      call g%init("g")
 
       ! testing attributes
       call tc%assert_eq(0,      g%dim,       "grid0D: dim")
@@ -114,7 +115,7 @@ contains
       allocate (x(nx))                ! remove gfortran warning
       x = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
 
-      call g%init(x)
+      call g%init("x", x)
 
       ! check attributes
       block
@@ -454,7 +455,7 @@ contains
       icell(:,5) = [1, 5, 2]
       icell(:,6) = [6, 2, 7]
 
-      call g%init(vert, icell)
+      call g%init("g", vert, icell)
 
       ! testing attributes
       call tc%assert_eq( 2,  g%dim,      "triang_grid: dim")
@@ -463,7 +464,7 @@ contains
       call tc%assert_eq( 3,  g%cell_dim, "triang_grid: cell_dim")
 
       ! testing get_icell
-      block 
+      block
         integer :: itr
 
         call g%get_icell([0.5, -0.1], itr)
@@ -473,8 +474,8 @@ contains
         call g%get_icell([0.5, 0.8], itr)
         call tc%assert_eq(4, itr, "triang_grid: get_icell 4")
         call g%get_icell([0.5, 1.2], itr)
-        call tc%assert_eq(6, itr, "triang_grid: get_icell 6") 
-      end block 
+        call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
+      end block
 
       ! testing get_idx_bnd
       block
@@ -883,12 +884,12 @@ contains
       x = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
       y = logspace(2.0,  5.0, ny)
       z = logspace(3.0, 20.0, nz)
-      call gx%init(x)
-      call gy%init(y)
-      call gz%init(z)
+      call gx%init("x", x)
+      call gy%init("y", y)
+      call gz%init("z", z)
 
       ! initialize tensor grid
-      call tg%init([gx%get_ptr(), gy%get_ptr(), gz%get_ptr()])
+      call tg%init("xyz", [gx%get_ptr(), gy%get_ptr(), gz%get_ptr()])
 
       ! check attributes
       block
