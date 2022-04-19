@@ -1,7 +1,8 @@
 module density_m
 
   use device_params_m, only: device_params, CR_NAME
-  use grid_m,          only: grid_data2_real, IDX_VERTEX
+  use grid_m,          only: IDX_VERTEX
+  use grid_data_m,     only: grid_data2_real
   use variable_m,      only: variable_real
 
   implicit none

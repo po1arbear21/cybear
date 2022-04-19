@@ -1,7 +1,5 @@
 module contact_m
 
-  use grid_m, only: grid_table
-
   implicit none
 
   private

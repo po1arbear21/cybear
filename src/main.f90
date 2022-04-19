@@ -15,9 +15,10 @@ program main
 
   implicit none
 
-  character(:), allocatable :: filename, dev_filename
+  character(:), allocatable :: filename
   logical                   :: restart_gummel
   real                      :: T
+  type(string)              :: dev_filename
   type(input_file)          :: file
   type(newton_opt)          :: opt_nlpe, opt_dd, opt_gum, opt_full
 
@@ -33,7 +34,7 @@ program main
 
   ! get device filename and initialize device
   call file%get("", "device", dev_filename)
-  call dev%init(dev_filename)
+  call dev%init(dev_filename%s)
 
   ! get iteration options
   call load_iteration_params("nlpe params",        dev%sys_nlpe%n,  opt_nlpe)
@@ -94,11 +95,11 @@ contains
   end subroutine
 
   subroutine solve_steady_state()
-    character(:), allocatable :: ofile
     integer                   :: si, ict, ict_sweep, isweep, nsweep, ofunit
     integer,      allocatable :: sids(:)
     logical                   :: status
     real,         allocatable :: Vbounds(:), Vsweep(:)
+    type(string)              :: ofile
     type(const_src)           :: input
     type(steady_state)        :: ss
 
@@ -125,7 +126,7 @@ contains
       if (ict_sweep /= 0) then
         ! get output filename
         call file%get(sids(si), "output", ofile)
-        open (newunit = ofunit, file = ofile, status = "replace", action = "write")
+        open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
 
         ! sweep over voltages
         do isweep = 1, nsweep
@@ -156,13 +157,13 @@ contains
   end subroutine
 
   subroutine solve_small_signal()
-    character(:), allocatable :: ofile
     integer                   :: i, si, ict, jct, Nf, ofunit
     integer,      allocatable :: sids(:)
     logical                   :: flog
     real                      :: f0, f1
     real,         allocatable :: f(:), rY(:,:,:), iY(:,:,:)
     complex,      allocatable :: s(:)
+    type(string)              :: ofile
     type(const_src)           :: input
     type(small_signal)        :: ac
     type(steady_state)        :: ss
@@ -214,7 +215,7 @@ contains
       end do
 
       ! output
-      open (newunit = ofunit, file = ofile, status = "replace", action = "write")
+      open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
       do i = 1, Nf
         write (ofunit, "(ES24.16)", advance = "no") denorm(f(i), "Hz")
         do jct = 1, size(dev%par%contacts); do ict = 1, size(dev%par%contacts)
@@ -225,17 +226,17 @@ contains
       end do
       close (ofunit)
 
-      deallocate (ofile, f, rY, iY, s)
+      deallocate (f, rY, iY, s)
     end do
     print *
   end subroutine
 
   subroutine solve_responsivity()
-    character(:), allocatable :: source, drain, ofile
     integer                   :: i, si, ict, isrc, idrn, Nf, NH, Nt, ofunit
     integer,      allocatable :: sids(:)
     real                      :: VA, f0, f1, power, curr, resp
     real,         allocatable :: f(:), c(:,:), s(:,:)
+    type(string)              :: source, drain, ofile
 
     type(harmonic_src)        :: input
     type(harmonic_balance)    :: hb
@@ -253,8 +254,8 @@ contains
       ! get source and drain contact ids
       call file%get(sids(si), "source", source)
       call file%get(sids(si), "drain",  drain )
-      isrc = dev%par%contact_map%get(string(source))
-      idrn = dev%par%contact_map%get(string(drain))
+      isrc = dev%par%contact_map%get(source)
+      idrn = dev%par%contact_map%get(drain)
 
       ! get amplitude
       call file%get(sids(si), "VA", VA)
@@ -290,7 +291,7 @@ contains
       call load_iteration_params("full newton params", dev%sys_full%n*(1+2*NH), opt_hb)
       call hb%run(dev%sys_full, NH, f, input, nopt = opt_hb, nt = Nt)
 
-      open (newunit = ofunit, file = ofile, status = "replace", action = "write")
+      open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
       do i = 1, Nf
         call hb%select_harmonic(1, i, sine = .true.)
         power = 0.5 * VA * dev%curr(isrc)%x

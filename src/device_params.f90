@@ -1,10 +1,12 @@
-#include "util/macro.f90.inc"
+m4_include(util/macro.f90.inc)
 
 module device_params_m
 
   use bin_search_m,  only: bin_search
   use contact_m,     only: CT_OHMIC, CT_GATE, contact
-  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid_data2_real, grid_data2_int, grid_table
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
+  use grid_data_m,   only: grid_data2_int, grid_data2_real
+  use grid_table_m,  only: grid_table
   use grid1D_m,      only: grid1D
   use error_m,       only: assert_failed, program_error
   use input_m,       only: input_file
@@ -142,14 +144,14 @@ contains
       call file%get(sid, "v_sat",     this%v_sat)
 
       ! make sure parameters are valid
-      ASSERT(this%ci0 <= this%ci1)
-      ASSERT(size(this%mass) == 2)
-      ASSERT(size(this%alpha) == 2)
-      ASSERT(size(this%beta) == 2)
-      ASSERT(size(this%mob_min) == 2)
-      ASSERT(size(this%mob_max) == 2)
-      ASSERT(size(this%N_ref) == 2)
-      ASSERT(size(this%v_sat) == 2)
+      m4_assert(this%ci0 <= this%ci1)
+      m4_assert(size(this%mass) == 2)
+      m4_assert(size(this%alpha) == 2)
+      m4_assert(size(this%beta) == 2)
+      m4_assert(size(this%mob_min) == 2)
+      m4_assert(size(this%mob_max) == 2)
+      m4_assert(size(this%N_ref) == 2)
+      m4_assert(size(this%v_sat) == 2)
     end subroutine
 
     subroutine init_grid()
@@ -183,9 +185,9 @@ contains
       end if
 
       ! init x, y, xy grids
-      call this%gx%init(x)
-      call this%gy%init(y)
-      call this%g%init([this%gx%get_ptr(), this%gy%get_ptr()])
+      call this%gx%init("x", x)
+      call this%gy%init("y", y)
+      call this%g%init("xy", [this%gx%get_ptr(), this%gy%get_ptr()])
     end subroutine
 
     subroutine init_poisson()
@@ -476,9 +478,8 @@ contains
 
     subroutine init_contacts()
       integer                           :: ict, ict0, nct, ct_type
-      character(:), allocatable         :: typename
       real                              :: phims
-      type(string)                      :: name
+      type(string)                      :: name, typename
       type(mapnode_string_int), pointer :: node
 
       ! get contact sections
@@ -488,7 +489,7 @@ contains
       call this%contact_map%init()
       nct = 0
       do si = 1, size(sids)
-        call file%get(sids(si), "name", name%s)
+        call file%get(sids(si), "name", name)
         node => this%contact_map%find(name)
         if (.not. associated(node)) then
           ! new contact
@@ -513,17 +514,17 @@ contains
       allocate (this%contacts(nct))
       do si = 1, size(sids)
         ! lookup name
-        call file%get(sids(si), "name", name%s)
+        call file%get(sids(si), "name", name)
         ict = this%contact_map%get(name)
 
         ! get type
         call file%get(sids(si), "type", typename)
-        if (typename == "ohmic") then
+        if (typename%s == "ohmic") then
           ct_type = CT_OHMIC
-        elseif (typename == "gate") then
+        elseif (typename%s == "gate") then
           ct_type = CT_GATE
         else
-          call program_error("unknown contact type "//typename)
+          call program_error("unknown contact type "//typename%s)
         end if
 
         ! bounds

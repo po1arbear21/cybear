@@ -3,7 +3,8 @@ module mobility_m
   use device_params_m, only: device_params, CR_NAME, DIR_NAME
   use dual_m
   use equation_m,      only: equation
-  use grid_m,          only: grid_data2_real, IDX_VERTEX, IDX_EDGE
+  use grid_m,          only: IDX_VERTEX, IDX_EDGE
+  use grid_data_m,     only: grid_data2_real
   use imref_m,         only: imref
   use jacobian_m,      only: jacobian
   use stencil_m,       only: near_neighb_stencil

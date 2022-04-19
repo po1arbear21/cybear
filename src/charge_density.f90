@@ -3,7 +3,8 @@ module charge_density_m
   use density_m,       only: density
   use device_params_m, only: CR_CHARGE, CR_ELEC, CR_HOLE, device_params
   use equation_m,      only: equation
-  use grid_m,          only: grid_data2_real, IDX_VERTEX
+  use grid_m,          only: IDX_VERTEX
+  use grid_data_m,     only: grid_data2_real
   use jacobian_m,      only: jacobian
   use variable_m,      only: variable_real
 

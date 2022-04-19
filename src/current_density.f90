@@ -3,7 +3,8 @@ module current_density_m
   use density_m,       only: density
   use device_params_m, only: device_params, CR_NAME, CR_CHARGE, DIR_NAME
   use equation_m,      only: equation
-  use grid_m,          only: grid_data2_real, IDX_VERTEX, IDX_EDGE
+  use grid_m,          only: IDX_VERTEX, IDX_EDGE
+  use grid_data_m,     only: grid_data2_real
   use jacobian_m,      only: jacobian
   use math_m,          only: ber, dberdx
   use mobility_m,      only: mobility

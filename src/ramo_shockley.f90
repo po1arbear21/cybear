@@ -5,7 +5,8 @@ module ramo_shockley_m
   use current_density_m, only: current_density
   use device_params_m,   only: device_params, CR_CHARGE
   use esystem_m,         only: esystem
-  use grid_m,            only: grid_data2_real, IDX_VERTEX, IDX_EDGE, IDX_CELL
+  use grid_m,            only: IDX_VERTEX, IDX_EDGE, IDX_CELL
+  use grid_data_m,       only: grid_data2_real
   use grid0D_m,          only: get_dummy_grid
   use jacobian_m,        only: jacobian, jacobian_ptr
   use math_m,            only: eye_real

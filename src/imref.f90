@@ -3,7 +3,8 @@ module imref_m
   use density_m,       only: density
   use device_params_m, only: device_params, CR_NAME, CR_CHARGE
   use equation_m,      only: equation
-  use grid_m,          only: grid_data2_real, IDX_VERTEX
+  use grid_m,          only: IDX_VERTEX
+  use grid_data_m,     only: grid_data2_real
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
   use variable_m,      only: variable_real
