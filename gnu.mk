@@ -1,6 +1,6 @@
 # gnu fortran compiler flags
 FC     := gfortran
-FFLAGS := -ffree-line-length-none -I./ -march=native -Wall -Wno-maybe-uninitialized -fopenmp -fuse-ld=bfd -fdefault-real-8
+FFLAGS := -ffree-line-length-none -march=native -Wall -Wno-maybe-uninitialized -fopenmp -fuse-ld=bfd -fdefault-real-8
 ifeq ($(BUILD),debug)
   FFLAGS += -O0 -g3 -ggdb -fcheck=all -fbacktrace -finit-integer=-9999 -finit-real=-inf
 endif

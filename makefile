@@ -23,15 +23,12 @@ all: dirs depend
 
 # directories
 BUILD_DIR := build
-TRASH_DIR := $(BUILD_DIR)/trash
-dirs: $(BUILD_DIR) $(TRASH_DIR)
+TMP_DIR := $(BUILD_DIR)/tmp
+dirs: $(BUILD_DIR) $(TMP_DIR)
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
-$(TRASH_DIR):
-	@mkdir -p $(TRASH_DIR)
-
-# include directories
-FINCLUDE += -I$(BUILD_DIR)
+$(TMP_DIR):
+	@mkdir -p $(TMP_DIR)
 
 # find all fortran and c source files in src directory
 F90_SOURCES := $(shell find src -name '*.f90')
@@ -69,17 +66,21 @@ $(BUILD_DIR)/%.c.o: %.c
 
 # rule for object files
 $(BUILD_DIR)/%.o:
-	@printf "%b" "$(FC_P) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
-	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TRASH_DIR) -c $< -o $@
+	@printf "%b" "$(FC_P) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TMP_DIR) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
+	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(TMP_DIR) -c $< -o $@
 
+# delete files in build folder
 clean:
-	@printf "%b" "$(RM_P) -f $(INP_COLOR)$(TRASH_DIR)/*.{s,}mod $(BUILD_DIR)/*.{f90,i90,anc,mod,smod,o,a} $(BUILD_DIR)/depend.mk $(TARGETS)$(OFF_COLOR)\n"
-	@rm -f $(TRASH_DIR)/*.{s,}mod $(BUILD_DIR)/*.{f90,i90,anc,mod,smod,o,a} $(BUILD_DIR)/depend.mk $(TARGETS)
+	@printf "%b" "$(RM_P) -f $(INP_COLOR)$(TMP_DIR)/*.{s,}mod $(BUILD_DIR)/*.{f90,i90,anc,mod,smod,o,a} $(BUILD_DIR)/depend.mk $(TARGETS)$(OFF_COLOR)\n"
+	@rm -f $(TMP_DIR)/*.{s,}mod $(BUILD_DIR)/*.{f90,i90,anc,mod,smod,o,a} $(BUILD_DIR)/depend.mk $(TARGETS)
 
+# search and delete accidentally created mod files in source folder
 clean_mod:
-	find src -type f -name '*.mod' -delete
+	@printf "%b" "$(FIND_P) $(INP_COLOR)src$(OFF_COLOR) -type f -name '*.mod' -delete\n"
+	@find src -type f -name '*.mod' -delete
 
 doc: all
-	ford -d $(BUILD_DIR) README.md
+	@printf "%b" "$(FORD_P) -d $(BUILD_DIR) README.md $(FINCLUDE) -I$(MKLROOT)/include\n"
+	@ford -d $(BUILD_DIR) README.md $(FINCLUDE) -I$(MKLROOT)/include
 
 .PHONY: all dirs doc clean clean_mod
