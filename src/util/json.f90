@@ -2,7 +2,7 @@ m4_include(macro.f90.inc)
 
 module json_m
 
-  use error_m,  only: program_error
+  use error_m,  only: assert_failed, program_error
   use map_m,    only: map_string_int, mapnode_string_int
   use string_m, only: string, new_string
   use util_m,   only: int2str
@@ -1057,10 +1057,14 @@ contains
     class(json), pointer, intent(out) :: js
       !! output pointer to json value
 
-    integer :: idx
+    type(mapnode_string_int), pointer :: p
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    p => this%property_map%find(new_string(name))
+    if (associated(p)) then
+      js => this%properties%d(p%value)%p
+    else
+      js => null()
+    end if
   end subroutine
 
   subroutine json_object_get_null(this, name)
@@ -1069,11 +1073,10 @@ contains
     character(*),       intent(in) :: name
       !! property name
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_null)
@@ -1090,11 +1093,10 @@ contains
     logical,            intent(out) :: value
       !! output logical value
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_bool)
@@ -1112,11 +1114,10 @@ contains
     integer,            intent(out) :: value
       !! output integer value
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_int)
@@ -1134,11 +1135,10 @@ contains
     real,               intent(out) :: value
       !! output integer value
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_real)
@@ -1156,11 +1156,10 @@ contains
     character(:), allocatable, intent(out) :: value
       !! output integer value
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_string)
@@ -1178,11 +1177,10 @@ contains
     type(json_array), pointer, intent(out) :: ar
       !! output pointer to json array
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_array)
@@ -1200,11 +1198,10 @@ contains
     type(json_object), pointer, intent(out) :: obj
       !! output pointer to json array
 
-    integer              :: idx
     class(json), pointer :: js
 
-    idx = this%property_map%get(new_string(name))
-    js => this%properties%d(idx)%p
+    call this%get_json(name, js)
+    m4_assert(associated(js))
 
     select type (js)
     type is (json_object)
