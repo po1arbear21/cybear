@@ -2,8 +2,10 @@ m4_include(../util/macro.f90.inc)
 
 module grid_data_m
 
-  use error_m, only: assert_failed, program_error
-  use grid_m,  only: grid
+  use error_m,       only: assert_failed, program_error
+  use grid_m,        only: grid
+  use json_m,        only: json_object
+  use output_file_m, only: output_file
 
   implicit none
 
@@ -57,13 +59,17 @@ module grid_data_m
         !! total number of values
     contains
       procedure :: init     => grid_data_$1_init
-      m4_dimlist(m4_max_dim,$1)
       procedure :: destruct => grid_data_$1_destruct
       procedure :: reset    => grid_data_$1_reset
+
+      m4_dimlist(m4_max_dim,$1)
+
       generic   :: get      => grid_data_$1_get_point, grid_data_$1_get_all
       generic   :: set      => grid_data_$1_set_point, grid_data_$1_set_all
       m4_ifelse($1,log,,{generic   :: update   => grid_data_$1_update_point, grid_data_$1_update_all})
-      !procedure :: output   => grid_data_$1_update_point, grid_data_$1_update_all
+
+      procedure :: output   => grid_data_$1_output
+
       procedure, private :: grid_data_$1_get_point, grid_data_$1_get_all
       procedure, private :: grid_data_$1_set_point, grid_data_$1_set_all
       m4_ifelse($1,log,,{procedure, private :: grid_data_$1_update_point, grid_data_$1_update_all})
@@ -234,19 +240,6 @@ contains
   end subroutine})
   m4_typelist
 
-  m4_define({m4_Y},{function grid_data_$2_get_ptr$1(this) result(p)
-    class(grid_data_$2), target, intent(in) :: this
-    type(grid_data$1_$2), pointer           :: p
-
-    select type (this)
-    type is (grid_data$1_$2)
-      p => this
-    class default
-      p => null()
-    end select
-  end function})
-  m4_list
-
   m4_define({m4_Y},{m4_ifelse($1,0,,{
     type is (grid_data$1_$2)
       if (allocated(this%data)) deallocate (this%data)
@@ -283,6 +276,19 @@ contains
     end select
   end subroutine})
   m4_typelist
+
+  m4_define({m4_Y},{function grid_data_$2_get_ptr$1(this) result(p)
+    class(grid_data_$2), target, intent(in) :: this
+    type(grid_data$1_$2), pointer           :: p
+
+    select type (this)
+    type is (grid_data$1_$2)
+      p => this
+    class default
+      p => null()
+    end select
+  end function})
+  m4_list
 
   m4_define({m4_Y},{
     type is (grid_data$1_$2)
@@ -409,22 +415,26 @@ contains
 
   m4_define({m4_Y},{
     type is (grid_data$1_$2)
-      call of%write(obj, name, this%data{}m4_unit($1,{, unit}))
+      call of%write(obj, name, this%data{}m4_unit($2,{, unit = unit}))
   })
-  m4_define({m4_X},{subroutine grid_data_$1_output(this, of, obj{}m4_unit($1,{, unit}))
+  m4_define({m4_X},{subroutine grid_data_$1_output(this, of, obj, name{}m4_unit($1,{, unit}))
     !! output grid data
-    class(grid_data_$1), intent(in) :: this
-    type(output_file),      intent(inout) :: of
+    class(grid_data_$1),        intent(in)    :: this
+    type(output_file),          intent(inout) :: of
       !! output file handle
-    type(json_object),      intent(inout) :: obj
+    type(json_object), pointer, intent(inout) :: obj
       !! parent object in output file
-    character(*),           intent(in)    :: name
+    character(*),               intent(in)    :: name
       !! data name
+    m4_unit($1,{
+    character(*),               intent(in)    :: unit
+      !! physical unit token
+    })
 
     select type (this)
       m4_dimlist(m4_max_dim,$1)
     end select
   end subroutine})
-  !#m4_typelist
+  m4_typelist
 
 end module

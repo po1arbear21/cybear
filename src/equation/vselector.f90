@@ -292,7 +292,7 @@ contains
     n = 1 + size(this%v) + size(this%tab)
 
     ! each pointer is 64 bit => multiply size by 2 if integers are only 32 bit
-    m4_ifelse(m4_intsize,32,{n = 2 * n})
+    n = n * m4_ptrsize
 
     ! idx_type, idx_dir
     n = n + 2
@@ -307,7 +307,6 @@ contains
     integer                    :: i, n
     integer(int64)             :: iptr
     class(grid),       pointer :: gptr ! use local pointers to avoid ifort bug
-    class(variable),   pointer :: vptr ! otherwise loc does not return address of target
     class(grid_table), pointer :: tptr
 
     ! convert to integer array (convert pointers to integers using loc function)
@@ -325,17 +324,8 @@ contains
     })
 
     do i = 1, size(this%v)
-      vptr => this%v(i)%p
-      iptr =  loc(vptr)
-
-      m4_ifelse(m4_intsize,32,{
-        hkey(n+1) = int(iptr, kind = int32)
-        hkey(n+2) = int(ishft(iptr, -32), kind = int32)
-        n = n + 2
-      },{
-        hkey(n+1) = iptr
-        n = n + 1
-      })
+      hkey((n+1):(n+m4_ptrsize)) = this%v(i)%p%hashkey()
+      n = n + m4_ptrsize
     end do
     do i = 1, size(this%tab)
       tptr => this%tab(i)%p
