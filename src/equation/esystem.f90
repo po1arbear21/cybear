@@ -8,11 +8,14 @@ module esystem_m
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
   use gmres_m,            only: gmres_options
   use grid_table_m,       only: grid_table, grid_table_ptr
+  use hashmap_m,          only: hashmap_int
+  use json_m,             only: json_object
   use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, matrix_convert
   use newton_m,           only: newton_opt, newton
+  use output_file_m,      only: output_file
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: dummy_equation, selector_equation, input_equation
-  use variable_m,         only: variable, variable_ptr
+  use variable_m,         only: variable, variable_ptr, vector_variable_ptr
   use vector_m,           only: vector_int
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
 
@@ -26,6 +29,11 @@ module esystem_m
 
     character(:), allocatable :: name
       !! system name
+
+    type(vector_variable_ptr) :: vars
+      !! list of all variables
+    type(hashmap_int)         :: hvars
+      !! hashmap for variable => vars index
 
     type(depgraph) :: g
       !! dependency graph
@@ -90,6 +98,8 @@ module esystem_m
     generic   :: get_dfp         => esystem_get_dfp,  esystem_get_dfp_cmplx
     generic   :: get_dft         => esystem_get_dft,  esystem_get_dft_cmplx
     procedure :: print           => esystem_print
+    procedure :: output_info     => esystem_output_info
+    procedure :: output_data     => esystem_output_data
 
     procedure, private :: esystem_provide_vsel,      &
       &                   esystem_provide_nvar_ntab, &
@@ -123,14 +133,18 @@ contains
     if (present(precon)) precon_ = precon
     if (precon_) allocate(this%dfp)
 
+    ! init variable list
+    call this%vars%init(0, c = 8)
+    call this%hvars%init()
+
     ! init dependency graph
     call this%g%init(precon_)
 
     ! init allocated equation vector
-    call this%ealloc%init(0, c=8)
+    call this%ealloc%init(0, c = 8)
 
     ! input variable indices
-    call this%input_equs%init(0, c=8)
+    call this%input_equs%init(0, c = 8)
 
     ! init_final has not been called yet
     this%finished_init = .false.
@@ -326,11 +340,55 @@ contains
     class(equation), target, intent(in)    :: e
       !! equation to add
 
+    integer :: i
+
     ! make sure initialization of equation is finished
     if (.not. e%finished_init) call program_error("init_final was not called for "//e%name)
 
     ! add equation to dependency graph
     call this%g%add_equ(e)
+
+    ! collect variables
+    do i = 1, e%vprov%n
+      call add_vselector(e%vprov%d(i)%p)
+    end do
+    do i = 1, e%vdep%n
+      call add_vselector(e%vdep%d(i)%p)
+    end do
+    select type (e)
+    class is (res_equation)
+      call add_vselector(e%mvar)
+    end select
+
+  contains
+
+    subroutine add_vselector(v)
+      !! add variables from vselector to list
+      type(vselector), target, intent(in) :: v
+
+      integer :: i
+
+      do i = 1, size(v%v)
+        call add_variable(v%v(i)%p)
+      end do
+    end subroutine
+
+    subroutine add_variable(v)
+      !! add variable to list
+      class(variable), target, intent(in) :: v
+
+      integer :: ivar, hkey(m4_ptrsize)
+      logical :: status
+
+      hkey = v%hashkey()
+
+      call this%hvars%get(hkey, ivar, status = status)
+      if (.not. status) then
+        call this%vars%push(v%get_ptr())
+        call this%hvars%set(hkey, this%vars%n)
+      end if
+    end subroutine
+
   end subroutine
 
   subroutine esystem_init_final(this)
@@ -967,6 +1025,34 @@ contains
         end do
         print *
       end associate
+    end do
+  end subroutine
+
+  subroutine esystem_output_info(this, of)
+    !! output info of all variables
+    class(esystem),    intent(in)    :: this
+    type(output_file), intent(inout) :: of
+      !! output file handle
+
+    integer :: i
+
+    do i = 1, this%vars%n
+      call this%vars%d(i)%p%output_info(of)
+    end do
+  end subroutine
+
+  subroutine esystem_output_data(this, of, obj)
+    !! output data of all variables
+    class(esystem),             intent(in)    :: this
+    type(output_file),          intent(inout) :: of
+      !! output file handle
+    type(json_object), pointer, intent(inout) :: obj
+      !! parent object in output file
+
+    integer :: i
+
+    do i = 1, this%vars%n
+      call this%vars%d(i)%p%output_data(of, obj)
     end do
   end subroutine
 

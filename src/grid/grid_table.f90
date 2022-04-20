@@ -2,9 +2,11 @@ m4_include(../util/macro.f90.inc)
 
 module grid_table_m
 
-  use error_m,     only: assert_failed, program_error
-  use grid_m,      only: grid
-  use grid_data_m, only: allocate_grid_data, grid_data_log, grid_data_int
+  use error_m,       only: assert_failed, program_error
+  use grid_m,        only: grid, IDX_NAME
+  use grid_data_m,   only: allocate_grid_data, grid_data_log, grid_data_int
+  use json_m,        only: json_object
+  use output_file_m, only: output_file
 
   implicit none
 
@@ -36,6 +38,7 @@ module grid_table_m
     procedure :: get_ptr    => grid_table_get_ptr
     procedure :: get_idx    => grid_table_get_idx
     procedure :: get_flat   => grid_table_get_flat
+    procedure :: output     => grid_table_output
   end type
 
   type grid_table_ptr
@@ -147,5 +150,21 @@ contains
 
     i = this%idx2flat%get(idx)
   end function
+
+  subroutine grid_table_output(this, of)
+    !! output grid table
+    class(grid_table), intent(in)    :: this
+    type(output_file), intent(inout) :: of
+      !! output file
+
+    type(json_object), pointer :: obj
+
+    obj => of%new_object("GridTables")
+    call obj%add("Name", this%name)
+    call obj%add("Grid", this%g%name)
+    call obj%add("IdxType", trim(IDX_NAME(this%idx_type)))
+    call obj%add("IdxDir", this%idx_dir)
+    call of%write(obj, "Table", this%flat2idx)
+  end subroutine
 
 end module

@@ -7,12 +7,15 @@ module variable_m
   use grid_data_m,     only: allocate_grid_data, grid_data_real, grid_data_cmplx
   use grid_table_m,    only: grid_table
   use grid0D_m,        only: get_dummy_grid
+  use iso_fortran_env, only: int64, int32
+  use json_m,          only: json_object
   use normalization_m, only: denorm, norm
+  use output_file_m,   only: output_file
 
   implicit none
 
   private
-  public variable, variable_ptr, variable_real, variable_cmplx
+  public variable, variable_ptr, vector_variable_ptr, variable_real, variable_cmplx
 
   type, abstract :: variable
     !! base variable
@@ -34,13 +37,19 @@ module variable_m
       !! index direction for edges and faces
   contains
     procedure :: variable_init
-    procedure :: reset   => variable_reset
-    procedure :: get_ptr => variable_get_ptr
+    procedure :: reset       => variable_reset
+    procedure :: get_ptr     => variable_get_ptr
+    procedure :: hashkey     => variable_hashkey
+    procedure :: output_info => variable_output_info
+    procedure :: output_data => variable_output_data
   end type
 
   type variable_ptr
     class(variable), pointer :: p => null()
   end type
+
+  m4_define({T},{variable_ptr})
+  m4_include(../util/vector_def.f90.inc)
 
   type, abstract, extends(variable) :: variable_real
     !! real valued variable
@@ -50,8 +59,6 @@ module variable_m
   contains
     generic :: get => variable_real_get_point, variable_real_get_all
     generic :: set => variable_real_set_point, variable_real_set_all
-
-    procedure :: output_data => variable_real_output_data
 
     procedure, private :: variable_real_get_point, variable_real_get_all
     procedure, private :: variable_real_set_point, variable_real_set_all
@@ -71,6 +78,9 @@ module variable_m
   end type
 
 contains
+
+  m4_define({T},{variable_ptr})
+  m4_include(../util/vector_imp.f90.inc)
 
   subroutine variable_init(this, name, unit, g, idx_type, idx_dir)
     !! initialize base variable
@@ -147,6 +157,62 @@ contains
     ptr%p => this
   end function
 
+  function variable_hashkey(this) result(hkey)
+    !! get key for hashmap (based on address)
+    class(variable), target, intent(in) :: this
+    integer                             :: hkey(m4_ptrsize)
+
+    integer(int64)           :: iptr
+    class(variable), pointer :: vptr
+
+    vptr => this
+    iptr =  loc(vptr)
+
+    m4_ifelse(m4_intsize,32,{
+      hkey(1) = int(iptr, kind = int32)
+      hkey(2) = int(ishft(iptr, -32), kind = int32)
+    },{
+      hkey(1) = iptr
+    })
+  end function
+
+  subroutine variable_output_info(this, of)
+    !! output variable info
+    class(variable),   intent(in)    :: this
+    type(output_file), intent(inout) :: of
+      !! output file handle
+
+    type(json_object), pointer :: obj
+
+    obj => of%new_object("Variables")
+    call obj%add("Name", this%name)
+    select type (this)
+    class is (variable_real)
+      call obj%add("Type", "Real")
+    class is (variable_cmplx)
+      call obj%add("Type", "Complex")
+    end select
+    call obj%add("Grid", this%g%name)
+    call obj%add("IdxType", trim(IDX_NAME(this%idx_type)))
+    call obj%add("IdxDir", this%idx_dir)
+  end subroutine
+
+  subroutine variable_output_data(this, of, obj)
+    !! output variable data
+    class(variable),            intent(in)    :: this
+    type(output_file),          intent(inout) :: of
+      !! output file handle
+    type(json_object), pointer, intent(inout) :: obj
+      !! parent object in output file
+
+    select type (this)
+    class is (variable_real)
+      call this%data%output(of, obj, this%name, this%unit)
+    class is (variable_cmplx)
+      call this%data%output(of, obj, this%name, this%unit)
+    end select
+  end subroutine
+
   function variable_real_get_point(this, idx) result(d)
     !! get data for single point with bounds check (out of bounds: return default value)
     class(variable_real), intent(in) :: this
@@ -185,65 +251,6 @@ contains
       !! new values
 
     call this%data%set(d)
-  end subroutine
-
-  subroutine variable_real_output_data(this, fname, grd_unit, tab)
-    !! save variable data into file as denormalized values.
-    class(variable_real), target,       intent(in) :: this
-    character(*),                       intent(in) :: fname
-      !! file name, e.g. "output/tmp/pot.csv"
-    character(*),             optional, intent(in) :: grd_unit
-      !! physical unit token (default: "nm")
-    type(grid_table), target, optional, intent(in) :: tab
-      !! optional grid table for certain data (default: tab_all)
-
-    integer                   :: iounit, idx(this%g%idx_dim), i, j
-    real                      :: coord(this%g%dim)
-    type(grid_table), pointer :: tab_
-    character(:), allocatable :: grd_unit_
-
-    ! optional arguments
-    allocate (character(2) :: grd_unit_)
-    grd_unit_ = "nm"
-    if (present(grd_unit)) grd_unit_ = grd_unit
-    tab_ => this%tab_all
-    if (present(tab)) tab_ => tab
-
-    open (newunit = iounit, file = fname, action = 'write')
-    do i = 1, tab_%n
-      idx = tab_%get_idx(i)
-
-      select case (this%idx_type)
-        case(IDX_CELL)
-          block
-            real :: coord_cl(this%g%dim, this%g%cell_dim)
-            call this%g%get_cell(idx, coord_cl)
-            coord = sum(coord_cl, dim = 2) / size(coord_cl, dim = 2)
-          end block
-        case(IDX_EDGE)
-          block
-            real :: coord_ed(this%g%dim ,2)
-            call this%g%get_edge(idx, this%idx_dir, coord_ed)
-            coord = sum(coord_ed, dim = 2) / size(coord_ed, dim = 2)
-          end block
-        case(IDX_FACE)
-          block
-            real :: coord_fc(this%g%dim, this%g%face_dim(this%idx_dir))
-            call this%g%get_face(idx, this%idx_dir, coord_fc)
-            coord = sum(coord_fc, dim = 2) / size(coord_fc, dim = 2)
-          end block
-        case(IDX_VERTEX)
-          call this%g%get_vertex(idx, coord)
-      end select
-
-      coord = denorm(coord, grd_unit_)
-
-      do j = 1 , size(coord)
-        write (iounit, '(ES24.16)', advance = "no") coord(j)
-      end do
-      write (iounit, '(ES24.16)') denorm(this%get(idx), this%unit)
-    end do
-    close (unit = iounit)
   end subroutine
 
   function variable_cmplx_get_point(this, idx) result(d)
