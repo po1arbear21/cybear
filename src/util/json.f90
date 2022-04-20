@@ -561,7 +561,6 @@ contains
       allocate (character(32) :: tmp)
       write (tmp, "(I0)") js%value
       str = trim(tmp)
-      print *, 'int', js%value
     type is (json_real)
       allocate (character(REAL_LEN) :: tmp)
       write (tmp, REAL_FMT) js%value
