@@ -11,17 +11,42 @@ module json_m
   implicit none
 
   private
-  public :: json, json_null, json_bool, json_int, json_real, json_string, json_array, json_object
-  public :: json_load, json_save, json_read, json_write
+  public :: JS_NULL, JS_LOG, JS_INT, JS_REAL, JS_STRING, JS_ARRAY, JS_OBJECT
+  public :: json_file, json, json_ptr, json_null, json_log, json_int, json_real, json_string, json_array, json_object
 
-  character(*), parameter :: INDENT_INC = "  "
-  character(*), parameter :: REAL_FMT   = "(ES23.16)"
-  integer,      parameter :: REAL_LEN   = 24
+  integer, parameter :: JS_NULL   = 0
+  integer, parameter :: JS_LOG    = 1
+  integer, parameter :: JS_INT    = 2
+  integer, parameter :: JS_REAL   = 3
+  integer, parameter :: JS_STRING = 4
+  integer, parameter :: JS_ARRAY  = 5
+  integer, parameter :: JS_OBJECT = 6
+
+  type json_file
+    !! json file object
+    class(json), pointer :: js => null()
+      !! main object
+  contains
+    procedure :: init     => json_file_init
+    procedure :: destruct => json_file_destruct
+    procedure :: load     => json_file_load
+    procedure :: save     => json_file_save
+  end type
 
   type, abstract :: json
+    !! base type of json data structure
   contains
     procedure :: init     => json_init
     procedure :: destruct => json_destruct
+    procedure :: get_ptr  => json_get_ptr
+
+    procedure :: cast_null   => json_cast_null
+    procedure :: cast_log    => json_cast_log
+    procedure :: cast_int    => json_cast_int
+    procedure :: cast_real   => json_cast_real
+    procedure :: cast_string => json_cast_string
+    procedure :: cast_array  => json_cast_array
+    procedure :: cast_object => json_cast_object
   end type
 
   type json_ptr
@@ -35,7 +60,7 @@ module json_m
     !! null json value
   end type
 
-  type, extends(json) :: json_bool
+  type, extends(json) :: json_log
     !! logical json value
     logical :: value
   end type
@@ -59,51 +84,20 @@ module json_m
     !! json array
     type(vector_json_ptr) :: values
   contains
-    procedure :: get_json => json_array_get_json
-    generic   :: get      => json_array_get_null, &
-      &                      json_array_get_bool, &
-      &                      json_array_get_int, &
-      &                      json_array_get_real, &
-      &                      json_array_get_string, &
-      &                      json_array_get_array, &
-      &                      json_array_get_object
-    generic   :: set      => json_array_set_null, &
-      &                      json_array_set_bool, &
-      &                      json_array_set_int, &
-      &                      json_array_set_real, &
-      &                      json_array_set_string, &
-      &                      json_array_set_array, &
-      &                      json_array_set_object
-    generic   :: add      => json_array_add_null, &
-      &                      json_array_add_bool, &
-      &                      json_array_add_int, &
-      &                      json_array_add_real, &
-      &                      json_array_add_string, &
-      &                      json_array_add_array, &
-      &                      json_array_add_object
+    procedure :: get_log    => json_array_get_log
+    procedure :: get_int    => json_array_get_int
+    procedure :: get_real   => json_array_get_real
+    procedure :: get_string => json_array_get_string
+    procedure :: get_array  => json_array_get_array
+    procedure :: get_object => json_array_get_object
 
-    procedure, private :: json_array_get_json
-    procedure, private :: json_array_get_null
-    procedure, private :: json_array_get_bool
-    procedure, private :: json_array_get_int
-    procedure, private :: json_array_get_real
-    procedure, private :: json_array_get_string
-    procedure, private :: json_array_get_array
-    procedure, private :: json_array_get_object
-    procedure, private :: json_array_set_null
-    procedure, private :: json_array_set_bool
-    procedure, private :: json_array_set_int
-    procedure, private :: json_array_set_real
-    procedure, private :: json_array_set_string
-    procedure, private :: json_array_set_array
-    procedure, private :: json_array_set_object
-    procedure, private :: json_array_add_null
-    procedure, private :: json_array_add_bool
-    procedure, private :: json_array_add_int
-    procedure, private :: json_array_add_real
-    procedure, private :: json_array_add_string
-    procedure, private :: json_array_add_array
-    procedure, private :: json_array_add_object
+    procedure :: add_null   => json_array_add_null
+    procedure :: add_log    => json_array_add_log
+    procedure :: add_int    => json_array_add_int
+    procedure :: add_real   => json_array_add_real
+    procedure :: add_string => json_array_add_string
+    procedure :: add_array  => json_array_add_array
+    procedure :: add_object => json_array_add_object
   end type
 
   type, extends(json) :: json_object
@@ -116,51 +110,29 @@ module json_m
     type(map_string_int)  :: property_map
       !! property name -> property index
   contains
-    procedure :: get_json => json_object_get_json
-    generic   :: get      => json_object_get_null, &
-      &                      json_object_get_bool, &
-      &                      json_object_get_int, &
-      &                      json_object_get_real, &
-      &                      json_object_get_string, &
-      &                      json_object_get_array, &
-      &                      json_object_get_object
-    generic   :: set      => json_object_set_null, &
-      &                      json_object_set_bool, &
-      &                      json_object_set_int, &
-      &                      json_object_set_real, &
-      &                      json_object_set_string, &
-      &                      json_object_set_array, &
-      &                      json_object_set_object
-    generic   :: add      => json_object_add_null, &
-      &                      json_object_add_bool, &
-      &                      json_object_add_int, &
-      &                      json_object_add_real, &
-      &                      json_object_add_string, &
-      &                      json_object_add_array, &
-      &                      json_object_add_object
+    procedure :: get_json   => json_object_get_json
+    procedure :: get_log    => json_object_get_log
+    procedure :: get_int    => json_object_get_int
+    procedure :: get_real   => json_object_get_real
+    procedure :: get_string => json_object_get_string
+    procedure :: get_array  => json_object_get_array
+    procedure :: get_object => json_object_get_object
 
-    procedure, private :: json_object_get_json
-    procedure, private :: json_object_get_null
-    procedure, private :: json_object_get_bool
-    procedure, private :: json_object_get_int
-    procedure, private :: json_object_get_real
-    procedure, private :: json_object_get_string
-    procedure, private :: json_object_get_array
-    procedure, private :: json_object_get_object
-    procedure, private :: json_object_set_null
-    procedure, private :: json_object_set_bool
-    procedure, private :: json_object_set_int
-    procedure, private :: json_object_set_real
-    procedure, private :: json_object_set_string
-    procedure, private :: json_object_set_array
-    procedure, private :: json_object_set_object
-    procedure, private :: json_object_add_null
-    procedure, private :: json_object_add_bool
-    procedure, private :: json_object_add_int
-    procedure, private :: json_object_add_real
-    procedure, private :: json_object_add_string
-    procedure, private :: json_object_add_array
-    procedure, private :: json_object_add_object
+    procedure :: set_null   => json_object_set_null
+    procedure :: set_log    => json_object_set_log
+    procedure :: set_int    => json_object_set_int
+    procedure :: set_real   => json_object_set_real
+    procedure :: set_string => json_object_set_string
+    procedure :: set_array  => json_object_set_array
+    procedure :: set_object => json_object_set_object
+
+    procedure :: add_null   => json_object_add_null
+    procedure :: add_log    => json_object_add_log
+    procedure :: add_int    => json_object_add_int
+    procedure :: add_real   => json_object_add_real
+    procedure :: add_string => json_object_add_string
+    procedure :: add_array  => json_object_add_array
+    procedure :: add_object => json_object_add_object
 
     procedure, private :: add_property => json_object_add_property
   end type
@@ -171,11 +143,52 @@ contains
   m4_include(vector_imp.f90.inc)
   m4_changequote({{,}})
 
-  subroutine json_load(js, file)
-    !! load json data object from file
-    class(json), pointer, intent(out) :: js
-      !! output pointer to new json data object
-    character(*),         intent(in)  :: file
+  subroutine json_file_init(this, main_type)
+    !! initialize json file
+    class(json_file),  intent(out) :: this
+    integer, optional, intent(in)  :: main_type
+      !! type of main object (default: JS_OBJECT)
+
+    integer :: main_type_
+
+    ! main object type
+    main_type_ = JS_OBJECT
+    if (present(main_type)) main_type_ = main_type
+
+    ! allocate and initialize main object
+    select case (main_type_)
+    case (JS_NULL)
+      allocate (json_null :: this%js)
+    case (JS_LOG)
+      allocate (json_log :: this%js)
+    case (JS_INT)
+      allocate (json_int :: this%js)
+    case (JS_REAL)
+      allocate (json_real :: this%js)
+    case (JS_STRING)
+      allocate (json_string :: this%js)
+    case (JS_ARRAY)
+      allocate (json_array :: this%js)
+    case (JS_OBJECT)
+      allocate (json_object :: this%js)
+    end select
+    call this%js%init()
+  end subroutine
+
+  subroutine json_file_destruct(this)
+    !! destruct json file
+    class(json_file), intent(inout) :: this
+
+    if (associated(this%js)) then
+      call this%js%destruct()
+      deallocate (this%js)
+    end if
+  end subroutine
+
+  subroutine json_file_load(this, fname)
+    !! load json file
+    class(json_file),  intent(out) :: this
+    character(*),      intent(in)  :: fname
       !! file name
 
     character(80)             :: iomsg
@@ -183,34 +196,35 @@ contains
     integer                   :: funit, iostat, n
 
     ! try to open file
-    open (newunit = funit, file = file, access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
+    open (newunit = funit, file = fname, access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
     if (iostat /= 0) call program_error("Error while opening file: " // iomsg)
 
     ! read whole file into buffer
-    inquire (file = file, size = n)
+    inquire (file = fname, size = n)
     allocate (character(n) :: buf)
     read (funit, iostat = iostat, iomsg = iomsg) buf
     close (funit)
     if (iostat /= 0) call program_error("Error while reading file: " // iomsg)
 
-    ! parse
-    call json_read(js, buf)
+    ! parse buffer
+    call read_json(this%js, buf)
   end subroutine
 
-  subroutine json_save(js, file)
-    !! save json data object to file
-    class(json),  intent(in) :: js
-    character(*), intent(in) :: file
+  subroutine json_file_save(this, fname)
+    !! save json file
+    class(json_file), intent(in) :: this
+    character(*),     intent(in) :: fname
+      !! file name
 
     character(80)             :: iomsg
     character(:), allocatable :: buf
     integer                   :: funit, iostat
 
     ! write json into buffer
-    call json_write(js, buf)
+    call write_json(this%js, buf)
 
     ! try to open file
-    open (newunit = funit, file = file, access = "stream", form = "unformatted", status = "replace", action = "write", iostat = iostat, iomsg = iomsg)
+    open (newunit = funit, file = fname, access = "stream", form = "unformatted", status = "replace", action = "write", iostat = iostat, iomsg = iomsg)
     if (iostat /= 0) call program_error("Error while opening file: " // iomsg)
 
     ! write to file
@@ -224,12 +238,12 @@ contains
     close(funit)
   end subroutine
 
-  subroutine json_read(js, str)
-    !! parse string to json data object
+  subroutine read_json(js, str)
+    !! parse string into json data structure
     class(json), pointer, intent(out) :: js
-      !! output pointer to new json data object
+      !! output json structure
     character(*),         intent(in)  :: str
-      !! json data string
+      !! string to parse
 
     character(1)         :: c, scope
     integer              :: istr, jstr, nstr, line
@@ -319,7 +333,7 @@ contains
     end do
     if (stack%n /= 0) call program_error("Error in line " // int2str(line) // ": unterminated '" // scope // "'")
 
-    ! recursive parsing
+    ! parse recursively
     call parse(js, 1, nstr)
 
   contains
@@ -365,18 +379,18 @@ contains
       case ('t')
         if (        i1 /= i0 + 3) call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
         if (str(i0:i1) /= "true") call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
-        allocate (json_bool :: p)
+        allocate (json_log :: p)
         select type (p)
-        type is (json_bool)
+        type is (json_log)
           p%value = .true.
         end select
 
       case ('f')
         if (        i1 /=  i0 + 4) call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
         if (str(i0:i1) /= "false") call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
-        allocate (json_bool :: p)
+        allocate (json_log :: p)
         select type (p)
-        type is (json_bool)
+        type is (json_log)
           p%value = .false.
         end select
 
@@ -534,13 +548,18 @@ contains
 
   end subroutine
 
-  recursive subroutine json_write(js, str, indent)
+  recursive subroutine write_json(js, str, indent)
+    !! write json data structure into string
     class(json),               intent(in)  :: js
-      !! json data object
+      !! json data structure
     character(:), allocatable, intent(out) :: str
       !! output json data string
     character(*), optional,    intent(in)  :: indent
       !! current indentation
+
+    character(*), parameter :: INDENT_INC = "  "
+    character(*), parameter :: REAL_FMT   = "(ES23.16)"
+    integer,      parameter :: REAL_LEN   = 24
 
     character(:), allocatable :: tmp, indent_
     integer                   :: i
@@ -551,7 +570,7 @@ contains
     select type (js)
     type is (json_null)
       str = "null"
-    type is (json_bool)
+    type is (json_log)
       if (js%value) then
         str = "true"
       else
@@ -574,7 +593,7 @@ contains
       else
         str = "[" // char(10)
         do i = 1, js%values%n
-          call json_write(js%values%d(i)%p, tmp, indent_ // INDENT_INC)
+          call write_json(js%values%d(i)%p, tmp, indent_ // INDENT_INC)
           str = str // indent_ // INDENT_INC // tmp
           if (i < js%values%n) str = str // ","
           str = str // char(10)
@@ -589,7 +608,7 @@ contains
         do i = 1, js%properties%n
           call escape_string(js%names%d(i)%s, tmp)
           str = str // indent_ // INDENT_INC // tmp // ": "
-          call json_write(js%properties%d(i)%p, tmp, indent_ // INDENT_INC)
+          call write_json(js%properties%d(i)%p, tmp, indent_ // INDENT_INC)
           str = str // tmp
           if (i < js%properties%n) str = str // ","
           str = str // char(10)
@@ -651,882 +670,856 @@ contains
   end subroutine
 
   subroutine json_init(this)
-    !! initialize json
+    !! initialize json data structure
     class(json), intent(out) :: this
 
     select type (this)
-      type is (json_array)
-        call this%values%init(0, c = 8)
+    type is (json_array)
+      call this%values%init(0, c = 8)
 
-      type is (json_object)
-        call this%names%init(0, c = 8)
-        call this%properties%init(0, c = 8)
-        call this%property_map%init()
+    type is (json_object)
+      call this%names%init(0, c = 8)
+      call this%properties%init(0, c = 8)
+      call this%property_map%init()
 
     end select
   end subroutine
 
   subroutine json_destruct(this)
-    !! destruct json
+    !! destruct json data structure
     class(json), intent(inout) :: this
 
     integer :: i
 
     select type (this)
-      type is (json_array)
-        if (allocated(this%values%d)) then
-          do i = 1, this%values%n
-            if (associated(this%values%d(i)%p)) then
-              call this%values%d(i)%p%destruct()
-              deallocate (this%values%d(i)%p)
-            end if
-          end do
-          call this%values%destruct()
-        end if
-
-      type is (json_object)
-        call this%names%destruct()
-        if (allocated(this%properties%d)) then
-          do i = 1, this%properties%n
-            if (associated(this%properties%d(i)%p)) then
-              call this%properties%d(i)%p%destruct()
-              deallocate (this%properties%d(i)%p)
-            end if
-          end do
-          call this%properties%destruct()
-        end if
-        call this%property_map%destruct()
-
-    end select
-  end subroutine
-
-  subroutine json_array_get_json(this, idx, js)
-    !! get idx-th element from json array
-    class(json_array),    intent(in)  :: this
-    integer,              intent(in)  :: idx
-      !! index
-    class(json), pointer, intent(out) :: js
-      !! output pointer to json value
-
-    js => this%values%d(idx)%p
-  end subroutine
-
-  subroutine json_array_get_null(this, idx)
-    !! get idx-th element from json array, error if not json_null
-    class(json_array), intent(in) :: this
-    integer,           intent(in) :: idx
-      !! index
-
-    select type (p => this%values%d(idx)%p)
-    type is (json_null)
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_null")
-    end select
-  end subroutine
-
-  subroutine json_array_get_bool(this, idx, value)
-    !! get idx-th element as logical from json array, error if not json_bool
-    class(json_array), intent(in)  :: this
-    integer,           intent(in)  :: idx
-      !! index
-    logical,           intent(out) :: value
-      !! output logical element from array
-
-    select type (p => this%values%d(idx)%p)
-    type is (json_bool)
-      value = p%value
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_bool")
-    end select
-  end subroutine
-
-  subroutine json_array_get_int(this, idx, value)
-    !! get idx-th element as integer from json array, error if not json_int
-    class(json_array), intent(in)  :: this
-    integer,           intent(in)  :: idx
-      !! index
-    integer,           intent(out) :: value
-      !! output integer element from array
-
-    select type (p => this%values%d(idx)%p)
-    type is (json_int)
-      value = p%value
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_int")
-    end select
-  end subroutine
-
-  subroutine json_array_get_real(this, idx, value)
-    !! get idx-th element as real from json array, error if not json_real
-    class(json_array), intent(in)  :: this
-    integer,           intent(in)  :: idx
-      !! index
-    real,              intent(out) :: value
-      !! output real element from array
-
-    select type (p => this%values%d(idx)%p)
-    type is (json_real)
-      value = p%value
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_real")
-    end select
-  end subroutine
-
-  subroutine json_array_get_string(this, idx, value)
-    !! get idx-th element as string from json array, error if not json_string
-    class(json_array),         intent(in)  :: this
-    integer,                   intent(in)  :: idx
-      !! index
-    character(:), allocatable, intent(out) :: value
-      !! output string element from array
-
-    select type (p => this%values%d(idx)%p)
-    type is (json_string)
-      value = p%value
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_string")
-    end select
-  end subroutine
-
-  subroutine json_array_get_array(this, idx, ar)
-    !! get idx-th element as array from json array, error if not json_array
-    class(json_array),         intent(in)  :: this
-    integer,                   intent(in)  :: idx
-      !! index
-    type(json_array), pointer, intent(out) :: ar
-      !! output array element from array
-
-    select type (p => this%values%d(idx)%p)
     type is (json_array)
-      ar => p
-    class default
-      call program_error(int2str(idx) // "-th element is not of type json_array")
-    end select
-  end subroutine
+      if (allocated(this%values%d)) then
+        do i = 1, this%values%n
+          if (associated(this%values%d(i)%p)) then
+            call this%values%d(i)%p%destruct()
+            deallocate (this%values%d(i)%p)
+          end if
+        end do
+        call this%values%destruct()
+      end if
 
-  subroutine json_array_get_object(this, idx, obj)
-    !! get idx-th element as object from json array, error if not json_object
-    class(json_array),          intent(in)  :: this
-    integer,                    intent(in)  :: idx
-      !! index
-    type(json_object), pointer, intent(out) :: obj
-      !! output object element from array
-
-    select type (p => this%values%d(idx)%p)
     type is (json_object)
-      obj => p
+      call this%names%destruct()
+      if (allocated(this%properties%d)) then
+        do i = 1, this%properties%n
+          if (associated(this%properties%d(i)%p)) then
+            call this%properties%d(i)%p%destruct()
+            deallocate (this%properties%d(i)%p)
+          end if
+        end do
+        call this%properties%destruct()
+      end if
+      call this%property_map%destruct()
+
+    end select
+  end subroutine
+
+  function json_get_ptr(this) result(ptr)
+    !! get pointer to this json data structure
+    class(json), target, intent(in) :: this
+    type(json_ptr)                  :: ptr
+
+    ptr%p => this
+  end function
+
+  function json_cast_null(this) result(p)
+    !! cast json data structure to json_null
+    class(json), target, intent(in) :: this
+    type(json_null), pointer        :: p
+      !! return pointer to json_null (or null if different type)
+
+    select type (this)
+    type is (json_null)
+      p => this
     class default
-      call program_error(int2str(idx) // "-th element is not of type json_object")
+      p => null()
     end select
-  end subroutine
+  end function
 
-  subroutine json_array_set_null(this, idx)
-    !! set idx-th element of json array to null
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: idx
-      !! index
+  function json_cast_log(this) result(p)
+    !! cast json data structure to json_log
+    class(json), target, intent(in) :: this
+    type(json_log), pointer         :: p
+      !! return pointer to json_log (or null if different type)
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
-
-    allocate (json_null :: this%values%d(idx)%p)
-  end subroutine
-
-  subroutine json_array_set_bool(this, idx, value)
-    !! set idx-th element of json array to logical
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: idx
-      !! index
-    logical,           intent(in)    :: value
-      !! logical value
-
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
-
-    allocate (json_bool :: this%values%d(idx)%p)
-    select type (p => this%values%d(idx)%p)
-    type is (json_bool)
-      p%value = value
+    select type (this)
+    type is (json_log)
+      p => this
+    class default
+      p => null()
     end select
-  end subroutine
+  end function
 
-  subroutine json_array_set_int(this, idx, value)
-    !! set idx-th element of json array to integer
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: idx
-      !! index
-    integer,           intent(in)    :: value
-      !! integer value
+  function json_cast_int(this) result(p)
+    !! cast json data structure to json_int
+    class(json), target, intent(in) :: this
+    type(json_int), pointer         :: p
+      !! return pointer to json_int (or null if different type)
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
-
-    allocate (json_int :: this%values%d(idx)%p)
-    select type (p => this%values%d(idx)%p)
+    select type (this)
     type is (json_int)
-      p%value = value
+      p => this
+    class default
+      p => null()
     end select
-  end subroutine
+  end function
 
-  subroutine json_array_set_real(this, idx, value)
-    !! set idx-th element of json array to real
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: idx
-      !! index
-    real,              intent(in)    :: value
-      !! real value
+  function json_cast_real(this) result(p)
+    !! cast json data structure to json_real
+    class(json), target, intent(in) :: this
+    type(json_real), pointer        :: p
+      !! return pointer to json_real (or null if different type)
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
-
-    allocate (json_real :: this%values%d(idx)%p)
-    select type (p => this%values%d(idx)%p)
+    select type (this)
     type is (json_real)
-      p%value = value
+      p => this
+    class default
+      p => null()
     end select
-  end subroutine
+  end function
 
-  subroutine json_array_set_string(this, idx, value)
-    !! set idx-th element of json array to string
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: idx
-      !! index
-    character(*),      intent(in)    :: value
-      !! string
+  function json_cast_string(this) result(p)
+    !! cast json data structure to json_string
+    class(json), target, intent(in) :: this
+    type(json_string), pointer      :: p
+      !! return pointer to json_string (or null if different type)
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
-
-    allocate (json_string :: this%values%d(idx)%p)
-    select type (p => this%values%d(idx)%p)
+    select type (this)
     type is (json_string)
-      p%value = value
+      p => this
+    class default
+      p => null()
     end select
-  end subroutine
+  end function
 
-  subroutine json_array_set_array(this, idx, ar)
-    !! set idx-th element of json array to array
-    class(json_array),         intent(inout) :: this
-    integer,                   intent(in)    :: idx
+  function json_cast_array(this) result(p)
+    !! cast json data structure to json_array
+    class(json), target, intent(in) :: this
+    type(json_array), pointer       :: p
+      !! return pointer to json_array (or null if different type)
+
+    select type (this)
+    type is (json_array)
+      p => this
+    class default
+      p => null()
+    end select
+  end function
+
+  function json_cast_object(this) result(p)
+    !! cast json data structure to json_object
+    class(json), target, intent(in) :: this
+    type(json_object), pointer      :: p
+      !! return pointer to json_object (or null if different type)
+
+    select type (this)
+    type is (json_object)
+      p => this
+    class default
+      p => null()
+    end select
+  end function
+
+  function json_array_get_log(this, i) result(value)
+    !! get logical value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
       !! index
-    type(json_array), pointer, intent(in)    :: ar
-      !! pointer to json array
+    logical                       :: value
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
+    type(json_log), pointer :: js
 
-    this%values%d(idx)%p => ar
-  end subroutine
+    js => this%values%d(i)%p%cast_log()
+    m4_assert(associated(js))
+    value = js%value
+  end function
 
-  subroutine json_array_set_object(this, idx, obj)
-    !! set idx-th element of json array to object
-    class(json_array),          intent(inout) :: this
-    integer,                    intent(in)    :: idx
+  function json_array_get_int(this, i) result(value)
+    !! get integer value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
       !! index
-    type(json_object), pointer, intent(in)    :: obj
-    !! pointer to json array
+    integer                       :: value
 
-    if (associated(this%values%d(idx)%p)) then
-      call this%values%d(idx)%p%destruct()
-      deallocate (this%values%d(idx)%p)
-    end if
+    type(json_int), pointer :: js
 
-    this%values%d(idx)%p => obj
+    js => this%values%d(i)%p%cast_int()
+    m4_assert(associated(js))
+    value = js%value
+  end function
+
+  function json_array_get_real(this, i) result(value)
+    !! get real value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
+      !! index
+    real                          :: value
+
+    type(json_real), pointer :: js
+
+    js => this%values%d(i)%p%cast_real()
+    m4_assert(associated(js))
+    value = js%value
+  end function
+
+  function json_array_get_string(this, i) result(value)
+    !! get string value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
+      !! index
+    character(:), allocatable     :: value
+
+    type(json_string), pointer :: js
+
+    js => this%values%d(i)%p%cast_string()
+    m4_assert(associated(js))
+    value = js%value
+  end function
+
+  function json_array_get_array(this, i) result(value)
+    !! get array value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
+      !! index
+    type(json_array), pointer     :: value
+
+    value => this%values%d(i)%p%cast_array()
+  end function
+
+  function json_array_get_object(this, i) result(value)
+    !! get object value
+    class(json_array), intent(in) :: this
+    integer,           intent(in) :: i
+      !! index
+    type(json_object), pointer    :: value
+
+    value => this%values%d(i)%p%cast_object()
+  end function
+
+  subroutine json_array_add_null(this, p)
+    !! add json_null to array
+    class(json_array),                  intent(inout) :: this
+    type(json_null), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_null object
+
+    class(json),     pointer :: js
+    type(json_null), pointer :: p_
+
+    allocate (json_null :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_null()
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_null(this)
-    !! add null value to json array
-    class(json_array), intent(inout) :: this
+  subroutine json_array_add_log(this, value, p)
+    !! add json_log to array
+    class(json_array),                 intent(inout) :: this
+    logical,                           intent(in)    :: value
+    type(json_log), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_log object
 
-    type(json_ptr) :: ptr
+    class(json),    pointer :: js
+    type(json_log), pointer :: p_
 
-    allocate (json_null :: ptr%p)
-    call this%values%push(ptr)
+    allocate (json_log :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_log()
+    p_%value = value
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_bool(this, value)
-    !! add boolean to json array
-    class(json_array), intent(inout) :: this
-    logical,           intent(in)    :: value
-      !! boolean value to add
+  subroutine json_array_add_int(this, value, p)
+    !! add json_int to array
+    class(json_array),                 intent(inout) :: this
+    integer,                           intent(in)    :: value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
 
-    type(json_ptr) :: ptr
+    class(json),    pointer :: js
+    type(json_int), pointer :: p_
 
-    allocate (json_bool :: ptr%p)
-    call this%values%push(ptr)
-
-    select type (p => ptr%p)
-    type is (json_bool)
-      p%value = value
-    end select
+    allocate (json_int :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_int()
+    p_%value = value
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_int(this, value)
-    !! add integer to json array
-    class(json_array), intent(inout) :: this
-    integer,           intent(in)    :: value
-      !! integer value to add
+  subroutine json_array_add_real(this, value, p)
+    !! add json_real to array
+    class(json_array),                  intent(inout) :: this
+    real,                               intent(in)    :: value
+    type(json_real), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_real object
 
-    type(json_ptr) :: ptr
+    class(json),     pointer :: js
+    type(json_real), pointer :: p_
 
-    allocate (json_int :: ptr%p)
-    call this%values%push(ptr)
-
-    select type (p => ptr%p)
-    type is (json_int)
-      p%value = value
-    end select
+    allocate (json_real :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_real()
+    p_%value = value
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_real(this, value)
-    !! add real to json array
-    class(json_array), intent(inout) :: this
-    real,              intent(in)    :: value
-      !! real value to add
+  subroutine json_array_add_string(this, value, p)
+    !! add json_string to array
+    class(json_array),                    intent(inout) :: this
+    character(*),                         intent(in)    :: value
+    type(json_string), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_string object
 
-    type(json_ptr) :: ptr
+    class(json),       pointer :: js
+    type(json_string), pointer :: p_
 
-    allocate (json_real :: ptr%p)
-    call this%values%push(ptr)
-
-    select type (p => ptr%p)
-    type is (json_real)
-      p%value = value
-    end select
+    allocate (json_string :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_string()
+    p_%value = value
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_string(this, value)
-    !! add string to json array
-    class(json_array), intent(inout) :: this
-    character(*),      intent(in)    :: value
-      !! string to add
+  subroutine json_array_add_array(this, p)
+    !! add json_array to array
+    class(json_array),                   intent(inout) :: this
+    type(json_array), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_array object
 
-    type(json_ptr) :: ptr
+    class(json),      pointer :: js
+    type(json_array), pointer :: p_
 
-    allocate (json_string :: ptr%p)
-    call this%values%push(ptr)
-
-    select type (p => ptr%p)
-    type is (json_string)
-      p%value = value
-    end select
+    allocate (json_array :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_array()
+    call p_%init()
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_array(this, ar)
-    !! add array to json array
-    class(json_array),         intent(inout) :: this
-    type(json_array), pointer, intent(in)    :: ar
-      !! pointer to json array
+  subroutine json_array_add_object(this, p)
+    !! add json_object to array
+    class(json_array),                    intent(inout) :: this
+    type(json_object), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_object object
 
-    type(json_ptr) :: ptr
+    class(json),       pointer :: js
+    type(json_object), pointer :: p_
 
-    ptr%p => ar
-    call this%values%push(ptr)
+    allocate (json_object :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_object()
+    call p_%init()
+    if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_object(this, obj)
-    !! add object to json array
-    class(json_array),          intent(inout) :: this
-    type(json_object), pointer, intent(in)    :: obj
-      !! pointer to json object
-
-    type(json_ptr) :: ptr
-
-    ptr%p => obj
-    call this%values%push(ptr)
-  end subroutine
-
-  subroutine json_object_get_json(this, name, js)
-    !! get json value from json object
-    class(json_object),   intent(in)  :: this
-    character(*),         intent(in)  :: name
-      !! property name
-    class(json), pointer, intent(out) :: js
-      !! output pointer to json value
-
-    type(mapnode_string_int), pointer :: p
-
-    p => this%property_map%find(new_string(name))
-    if (associated(p)) then
-      js => this%properties%d(p%value)%p
-    else
-      js => null()
-    end if
-  end subroutine
-
-  subroutine json_object_get_null(this, name)
-    !! get null from json object
+  function json_object_get_json(this, name) result(p)
+    !! get json data structure by property name
     class(json_object), intent(in) :: this
     character(*),       intent(in) :: name
       !! property name
+    class(json), pointer           :: p
+      !! return pointer to property (or null if property name not found)
+
+    type(mapnode_string_int), pointer :: nd
+
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then
+      p => this%properties%d(nd%value)%p
+    else
+      p => null()
+    end if
+  end function
+
+  function json_object_get_log(this, name) result(value)
+    !! get logical value
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
+      !! property name
+    logical                        :: value
+
+    class(json),    pointer :: js
+    type(json_log), pointer :: js2
+
+    js => this%get_json(name)
+    m4_assert(associated(js))
+    js2 => js%cast_log()
+    m4_assert(associated(js2))
+    value = js2%value
+  end function
+
+  function json_object_get_int(this, name) result(value)
+    !! get integer value
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
+      !! property name
+    integer                        :: value
+
+    class(json),    pointer :: js
+    type(json_int), pointer :: js2
+
+    js => this%get_json(name)
+    m4_assert(associated(js))
+    js2 => js%cast_int()
+    m4_assert(associated(js2))
+    value = js2%value
+  end function
+
+  function json_object_get_real(this, name) result(value)
+    !! get real value
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
+      !! property name
+    real                           :: value
+
+    class(json),     pointer :: js
+    type(json_real), pointer :: js2
+
+    js => this%get_json(name)
+    m4_assert(associated(js))
+    js2 => js%cast_real()
+    m4_assert(associated(js2))
+    value = js2%value
+  end function
+
+  function json_object_get_string(this, name) result(value)
+    !! get string value
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
+      !! property name
+    character(:), allocatable      :: value
+
+    class(json),       pointer :: js
+    type(json_string), pointer :: js2
+
+    js => this%get_json(name)
+    m4_assert(associated(js))
+    js2 => js%cast_string()
+    m4_assert(associated(js2))
+    value = js2%value
+  end function
+
+  function json_object_get_array(this, name) result(value)
+    !! get json_array
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
+      !! property name
+    type(json_array), pointer      :: value
 
     class(json), pointer :: js
 
-    call this%get_json(name, js)
+    js => this%get_json(name)
     m4_assert(associated(js))
+    value => js%cast_array()
+  end function
 
-    select type (js)
-    type is (json_null)
-    class default
-      call program_error('property with name "' // name // '" is not of type json_null')
-    end select
-  end subroutine
-
-  subroutine json_object_get_bool(this, name, value)
-    !! get logical from json object
-    class(json_object), intent(in)  :: this
-    character(*),       intent(in)  :: name
+  function json_object_get_object(this, name) result(value)
+    !! get json_object
+    class(json_object), intent(in) :: this
+    character(*),       intent(in) :: name
       !! property name
-    logical,            intent(out) :: value
-      !! output logical value
+    type(json_object), pointer     :: value
 
     class(json), pointer :: js
 
-    call this%get_json(name, js)
+    js => this%get_json(name)
     m4_assert(associated(js))
+    value => js%cast_object()
+  end function
 
-    select type (js)
-    type is (json_bool)
-      value = js%value
-    class default
-      call program_error('property with name "' // name // '" is not of type json_bool')
-    end select
-  end subroutine
-
-  subroutine json_object_get_int(this, name, value)
-    !! get integer from json object
-    class(json_object), intent(in)  :: this
-    character(*),       intent(in)  :: name
+  subroutine json_object_set_null(this, name, p)
+    !! set/add null property
+    class(json_object),                 intent(inout) :: this
+    character(*),                       intent(in)    :: name
       !! property name
-    integer,            intent(out) :: value
-      !! output integer value
+    type(json_null), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_null object
 
-    class(json), pointer :: js
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_null),          pointer :: p_
 
-    call this%get_json(name, js)
-    m4_assert(associated(js))
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
 
-    select type (js)
-    type is (json_int)
-      value = js%value
-    class default
-      call program_error('property with name "' // name // '" is not of type json_int')
-    end select
-  end subroutine
-
-  subroutine json_object_get_real(this, name, value)
-    !! get real from json object
-    class(json_object), intent(in)  :: this
-    character(*),       intent(in)  :: name
-      !! property name
-    real,               intent(out) :: value
-      !! output integer value
-
-    class(json), pointer :: js
-
-    call this%get_json(name, js)
-    m4_assert(associated(js))
-
-    select type (js)
-    type is (json_real)
-      value = js%value
-    class default
-      call program_error('property with name "' // name // '" is not of type json_real')
-    end select
-  end subroutine
-
-  subroutine json_object_get_string(this, name, value)
-    !! get string from json object
-    class(json_object),        intent(in)  :: this
-    character(*),              intent(in)  :: name
-      !! property name
-    character(:), allocatable, intent(out) :: value
-      !! output integer value
-
-    class(json), pointer :: js
-
-    call this%get_json(name, js)
-    m4_assert(associated(js))
-
-    select type (js)
-    type is (json_string)
-      value = js%value
-    class default
-      call program_error('property with name "' // name // '" is not of type json_string')
-    end select
-  end subroutine
-
-  subroutine json_object_get_array(this, name, ar)
-    !! get array from json object
-    class(json_object),        intent(in)  :: this
-    character(*),              intent(in)  :: name
-      !! property name
-    type(json_array), pointer, intent(out) :: ar
-      !! output pointer to json array
-
-    class(json), pointer :: js
-
-    call this%get_json(name, js)
-    m4_assert(associated(js))
-
-    select type (js)
-    type is (json_array)
-      ar => js
-    class default
-      call program_error('property with name "' // name // '" is not of type json_array')
-    end select
-  end subroutine
-
-  subroutine json_object_get_object(this, name, obj)
-    !! get object from json object
-    class(json_object),         intent(in)  :: this
-    character(*),               intent(in)  :: name
-      !! property name
-    type(json_object), pointer, intent(out) :: obj
-      !! output pointer to json array
-
-    class(json), pointer :: js
-
-    call this%get_json(name, js)
-    m4_assert(associated(js))
-
-    select type (js)
-    type is (json_object)
-      obj => js
-    class default
-      call program_error('property with name "' // name // '" is not of type json_object')
-    end select
-  end subroutine
-
-  subroutine json_object_set_null(this, name)
-    !! set json object property to null
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
       end if
 
-      allocate (json_null :: this%properties%d(idx)%p)
-    else
-      call this%add(name)
+      ! reallocate to json_null
+      allocate (json_null :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_null()
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_null(name, p = p)
     end if
   end subroutine
 
-  subroutine json_object_set_bool(this, name, value)
-    !! set json object property to logical value
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
+  subroutine json_object_set_log(this, name, value, p)
+    !! set/add logical property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
       !! property name
-    logical,            intent(in)    :: value
-      !! logical value
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      allocate (json_bool :: this%properties%d(idx)%p)
-      select type (p => this%properties%d(idx)%p)
-      type is (json_bool)
-        p%value = value
-      end select
-    else
-      call this%add(name, value)
-    end if
-  end subroutine
-
-  subroutine json_object_set_int(this, name, value)
-    !! set json object property to integer value
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name
-    integer,            intent(in)    :: value
-      !! integer value
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      allocate (json_int :: this%properties%d(idx)%p)
-      select type (p => this%properties%d(idx)%p)
-      type is (json_int)
-        p%value = value
-      end select
-    else
-      call this%add(name, value)
-    end if
-  end subroutine
-
-  subroutine json_object_set_real(this, name, value)
-    !! set json object property to real value
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name
-    real,               intent(in)    :: value
-      !! real value
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      allocate (json_real :: this%properties%d(idx)%p)
-      select type (p => this%properties%d(idx)%p)
-      type is (json_real)
-        p%value = value
-      end select
-    else
-      call this%add(name, value)
-    end if
-  end subroutine
-
-  subroutine json_object_set_string(this, name, value)
-    !! set json object property to string
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name
-    character(*),       intent(in)    :: value
-      !! string
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      allocate (json_string :: this%properties%d(idx)%p)
-      select type (p => this%properties%d(idx)%p)
-      type is (json_string)
-        p%value = value
-      end select
-    else
-      call this%add(name, value)
-    end if
-  end subroutine
-
-  subroutine json_object_set_array(this, name, ar)
-    !! set json object property to array
-    class(json_object),        intent(inout) :: this
-    character(*),              intent(in)    :: name
-      !! property name
-    type(json_array), pointer, intent(in)    :: ar
-      !! pointer to json array
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      this%properties%d(idx)%p => ar
-    else
-      call this%add(name, ar)
-    end if
-  end subroutine
-
-  subroutine json_object_set_object(this, name, obj)
-    !! set json object property to object
-    class(json_object),         intent(inout) :: this
-    character(*),               intent(in)    :: name
-      !! property name
-    type(json_object), pointer, intent(in)    :: obj
-      !! pointer to json object
-
-    integer                           :: idx
-    type(mapnode_string_int), pointer :: node
-
-    node => this%property_map%find(new_string(name))
-    if (associated(node)) then
-      idx = node%value
-
-      if (associated(this%properties%d(idx)%p)) then
-        call this%properties%d(idx)%p%destruct()
-        deallocate (this%properties%d(idx)%p)
-      end if
-
-      this%properties%d(idx)%p => obj
-    else
-      call this%add(name, obj)
-    end if
-  end subroutine
-
-  subroutine json_object_add_null(this, name)
-    !! add null value to json object
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name (must be unique)
-
-    type(json_ptr) :: ptr
-
-    allocate (json_null :: ptr%p)
-    call this%add_property(name, ptr)
-  end subroutine
-
-  subroutine json_object_add_bool(this, name, value)
-    !! add logical to json object
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name (must be unique)
-    logical,            intent(in)    :: value
+    logical,                           intent(in)    :: value
       !! property value
+    type(json_log), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_log object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_log),           pointer :: p_
 
-    allocate (json_bool :: ptr%p)
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
 
-    select type (p => ptr%p)
-    type is (json_bool)
-      p%value = value
-    end select
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_log
+      allocate (json_log :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_log()
+      p_%value = value
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_log(name, value, p = p)
+    end if
   end subroutine
 
-  subroutine json_object_add_int(this, name, value)
-    !! add integer to json object
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name (must be unique)
-    integer,            intent(in)    :: value
+  subroutine json_object_set_int(this, name, value, p)
+    !! set/add integer property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
+      !! property name
+    integer,                           intent(in)    :: value
       !! property value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_int),           pointer :: p_
 
-    allocate (json_int :: ptr%p)
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
 
-    select type (p => ptr%p)
-    type is (json_int)
-      p%value = value
-    end select
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_int
+      allocate (json_int :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_int()
+      p_%value = value
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_int(name, value, p = p)
+    end if
   end subroutine
 
-  subroutine json_object_add_real(this, name, value)
-    !! add real to json object
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name (must be unique)
-    real,               intent(in)    :: value
+  subroutine json_object_set_real(this, name, value, p)
+    !! set/add real property
+    class(json_object),                 intent(inout) :: this
+    character(*),                       intent(in)    :: name
+      !! property name
+    real,                               intent(in)    :: value
       !! property value
+    type(json_real), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_real object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_real),          pointer :: p_
 
-    allocate (json_real :: ptr%p)
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
 
-    select type (p => ptr%p)
-    type is (json_real)
-      p%value = value
-    end select
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_real
+      allocate (json_real :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_real()
+      p_%value = value
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_real(name, value, p = p)
+    end if
   end subroutine
 
-  subroutine json_object_add_string(this, name, value)
-    !! add string to json object
-    class(json_object), intent(inout) :: this
-    character(*),       intent(in)    :: name
-      !! property name (must be unique)
-    character(*),       intent(in)    :: value
+  subroutine json_object_set_string(this, name, value, p)
+    !! set/add string property
+    class(json_object),                   intent(inout) :: this
+    character(*),                         intent(in)    :: name
+      !! property name
+    character(*),                         intent(in)    :: value
       !! property value
+    type(json_string), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_string object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_string),        pointer :: p_
 
-    allocate (json_string :: ptr%p)
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
 
-    select type (p => ptr%p)
-    type is (json_string)
-      p%value = value
-    end select
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_string
+      allocate (json_string :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_string()
+      p_%value = value
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_string(name, value, p = p)
+    end if
   end subroutine
 
-  subroutine json_object_add_array(this, name, ar)
-    !! add array to json object
-    class(json_object),        intent(inout) :: this
-    character(*),              intent(in)    :: name
-      !! property name (must be unique)
-    type(json_array), pointer, intent(in)    :: ar
-      !! pointer to json array
+  subroutine json_object_set_array(this, name, p)
+    !! set/add array property
+    class(json_object),                  intent(inout) :: this
+    character(*),                        intent(in)    :: name
+      !! property name
+    type(json_array), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new empty json_array object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_array),         pointer :: p_
 
-    ptr%p => ar
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
+
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_array
+      allocate (json_array :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_array()
+      call p_%init()
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_array(name, p = p)
+    end if
   end subroutine
 
-  subroutine json_object_add_object(this, name, obj)
-    !! add object to json object
-    class(json_object),         intent(inout) :: this
-    character(*),               intent(in)    :: name
-      !! property name (must be unique)
-    type(json_object), pointer, intent(in)   :: obj
-      !! pointer to json object
+  subroutine json_object_set_object(this, name, p)
+    !! set/add array property
+    class(json_object),                   intent(inout) :: this
+    character(*),                         intent(in)    :: name
+      !! property name
+    type(json_object), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new empty json_object
 
-    type(json_ptr) :: ptr
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_object),        pointer :: p_
 
-    ptr%p => obj
-    call this%add_property(name, ptr)
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
+
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_object
+      allocate (json_object :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_object()
+      call p_%init()
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_object(name, p = p)
+    end if
+  end subroutine
+
+  subroutine json_object_add_null(this, name, p)
+    !! add null property
+    class(json_object),                 intent(inout) :: this
+    character(*),                       intent(in)    :: name
+      !! property name
+    type(json_null), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_null object
+
+    class(json),     pointer :: js
+    type(json_null), pointer :: p_
+
+    allocate (json_null :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_null()
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_log(this, name, value, p)
+    !! add logical property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
+      !! property name
+    logical,                           intent(in)    :: value
+      !! property value
+    type(json_log), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_log object
+
+    class(json),    pointer :: js
+    type(json_log), pointer :: p_
+
+    allocate (json_log :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_log()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_int(this, name, value, p)
+    !! add integer property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
+      !! property name
+    integer,                           intent(in)    :: value
+      !! property value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
+
+    class(json),    pointer :: js
+    type(json_int), pointer :: p_
+
+    allocate (json_int :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_int()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_real(this, name, value, p)
+    !! add real property
+    class(json_object),                 intent(inout) :: this
+    character(*),                       intent(in)    :: name
+      !! property name
+    real,                               intent(in)    :: value
+      !! property value
+    type(json_real), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_real object
+
+    class(json),     pointer :: js
+    type(json_real), pointer :: p_
+
+    allocate (json_real :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_real()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_string(this, name, value, p)
+    !! add string property
+    class(json_object),                   intent(inout) :: this
+    character(*),                         intent(in)    :: name
+      !! property name
+    character(*),                         intent(in)    :: value
+      !! property value
+    type(json_string), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_string object
+
+    class(json),       pointer :: js
+    type(json_string), pointer :: p_
+
+    allocate (json_string :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_string()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_array(this, name, p)
+    !! add array property
+    class(json_object),                  intent(inout) :: this
+    character(*),                        intent(in)    :: name
+      !! property name
+    type(json_array), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new empty json_array object
+
+    class(json),      pointer :: js
+    type(json_array), pointer :: p_
+
+    allocate (json_array :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_array()
+    call p_%init()
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_object(this, name, p)
+    !! add object property
+    class(json_object),                   intent(inout) :: this
+    character(*),                         intent(in)    :: name
+      !! property name
+    type(json_object), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new empty json_object object
+
+    class(json),       pointer :: js
+    type(json_object), pointer :: p_
+
+    allocate (json_object :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_object()
+    call p_%init()
+    if (present(p)) p => p_
   end subroutine
 
   subroutine json_object_add_property(this, name, ptr)
     !! add allocated json value pointer to properties
     class(json_object),   intent(inout) :: this
     character(*),         intent(in)    :: name
-      !! property name (must be unique)
+      !! property name
     type(json_ptr),       intent(in)    :: ptr
       !! allocated json value pointer
 

@@ -160,10 +160,10 @@ contains
     type(json_object), pointer :: obj
 
     obj => of%new_object("GridTables")
-    call obj%add("Name", this%name)
-    call obj%add("Grid", this%g%name)
-    call obj%add("IdxType", trim(IDX_NAME(this%idx_type)))
-    call obj%add("IdxDir", this%idx_dir)
+    call obj%add_string("Name", this%name)
+    call obj%add_string("Grid", this%g%name)
+    call obj%add_string("IdxType", trim(IDX_NAME(this%idx_type)))
+    call obj%add_int("IdxDir", this%idx_dir)
     call of%write(obj, "Table", this%flat2idx)
   end subroutine
 
