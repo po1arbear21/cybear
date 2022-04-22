@@ -276,8 +276,8 @@ contains
     m4_ignore(unit)
 
     obj => of%new_object("Grids")
-    call obj%add("Name", this%name)
-    call obj%add("Type", "0D")
+    call obj%add_string("Name", this%name)
+    call obj%add_string("Type", "0D")
   end subroutine
 
 end module

@@ -326,8 +326,8 @@ contains
     if (present(unit)) unit_ = unit
 
     obj => of%new_object("Grids")
-    call obj%add("Name", this%name)
-    call obj%add("Type", "1D")
+    call obj%add_string("Name", this%name)
+    call obj%add_string("Type", "1D")
     call of%write(obj, "Vertices", this%x, unit_)
   end subroutine
 

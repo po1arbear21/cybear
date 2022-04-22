@@ -28,72 +28,61 @@ contains
       class(json),       pointer :: js
 
       call ar%init()
-      call ar%add()
-      call ar%add(.true.)
-      call ar%add(.false.)
-      call ar%add(2)
-      call ar%add(3.0)
-      call ar%add("string1")
-      call ar%add("string2")
-      allocate (ar2)
-      call ar2%init()
-      call ar2%add(1)
-      call ar2%add(2)
-      call ar2%add(3)
-      call ar%add(ar2)
-      allocate (obj)
-      call obj%init()
-      call ar%add(obj)
+      call ar%add_null()
+      call ar%add_log(.true.)
+      call ar%add_log(.false.)
+      call ar%add_int(2)
+      call ar%add_real(3.0)
+      call ar%add_string("string1")
+      call ar%add_string("string2")
+      call ar%add_array(p = ar2)
+      call ar2%add_int(1)
+      call ar2%add_int(2)
+      call ar2%add_int(3)
+      call ar%add_object(p = obj)
 
-      call ar%get_json(1, js)
+      js => ar%values%d(1)%p
       select type (js)
       type is (json_null)
-        call tc%assert(.true., "json_array_get => null")
+        call tc%assert(.true., "json_array => null")
       class default
-        call tc%assert(.false., "json_array_get => null")
+        call tc%assert(.false., "json_array => null")
       end select
 
-      call ar%get_json(2, js)
+      js => ar%values%d(2)%p
       select type (js)
-      type is (json_bool)
-        call tc%assert(js%value, "json_array_get => bool")
+      type is (json_log)
+        call tc%assert(js%value, "json_array => logical")
       class default
-        call tc%assert(.false., "json_array_get => bool")
+        call tc%assert(.false., "json_array => logical")
       end select
 
-      call ar%get(3, l)
-      call tc%assert(.not. l, "json_array_get_bool")
+      l = ar%get_log(3)
+      call tc%assert(.not. l, "json_array_get_log")
 
-      call ar%get(4, i)
+      i = ar%get_int(4)
       call tc%assert_eq(2, i, "json_array_get_int")
 
-      call ar%get(5, r)
+      r = ar%get_real(5)
       call tc%assert_eq(3.0, r, 0.0, "json_array_get_real")
 
-      call ar%get(6, s1%s)
+      s1%s = ar%get_string(6)
       call tc%assert_eq(new_string("string1"), s1, "json_array_get_string 1")
 
-      call ar%get(7, s2%s)
+      s2%s = ar%get_string(7)
       call tc%assert_eq(new_string("string2"), s2, "json_array_get_string 2")
 
-      call ar%get(8, ar2)
-      call ar2%get(1, i)
+      ar2 => ar%get_array(8)
+      i = ar2%get_int(1)
       call tc%assert_eq(1, i, "json_array_get_array 1")
-      call ar2%get(2, i)
+      i = ar2%get_int(2)
       call tc%assert_eq(2, i, "json_array_get_array 2")
-      call ar2%get(3, i)
+      i = ar2%get_int(3)
       call tc%assert_eq(3, i, "json_array_get_array 3")
 
-      call ar%get(9, obj)
+      obj => ar%get_object(9)
       call tc%assert_eq(0, obj%names%n,      "json_array_get_object 1")
       call tc%assert_eq(0, obj%properties%n, "json_array_get_object 2")
-
-      call ar%set(1, 5)
-      call ar%set(2, 6)
-      call ar%get(1, i)
-      call tc%assert_eq(5, i, "json_array_set_int 1")
-      call ar%get(2, i)
-      call tc%assert_eq(6, i, "json_array_set_int 2")
 
       call ar%destruct()
     end block
@@ -109,86 +98,83 @@ contains
       class(json),       pointer :: js
 
       call obj%init()
-      call obj%add("name0")
-      call obj%add("name1", .true.)
-      call obj%add("name2", 2)
-      call obj%add("name3", 3.0)
-      call obj%add("name4", "value")
-      allocate (ar)
-      call ar%init()
-      call ar%add(1)
-      call ar%add(2)
-      call ar%add(3)
-      call obj%add("name5", ar)
-      allocate (obj2)
-      call obj2%init()
-      call obj2%add("a", 1)
-      call obj2%add("b", 2)
-      call obj2%add("c", 3)
-      call obj%add("name6", obj2)
+      call obj%add_null("name0")
+      call obj%add_log("name1", .true.)
+      call obj%add_int("name2", 2)
+      call obj%add_real("name3", 3.0)
+      call obj%add_string("name4", "value")
+      call obj%add_array("name5", p = ar)
+      call ar%add_int(1)
+      call ar%add_int(2)
+      call ar%add_int(3)
+      call obj%add_object("name6", p = obj2)
+      call obj2%add_int("a", 1)
+      call obj2%add_int("b", 2)
+      call obj2%add_int("c", 3)
 
-      call obj%get_json("name0", js)
+      js => obj%get_json("name0")
+      call tc%assert(associated(js), "json_object_get_json 1")
       select type (js)
       type is (json_null)
-        call tc%assert(.true., "json_object_get => json_null")
+        call tc%assert(.true., "json_object_get_json 1 => json_null")
       class default
-        call tc%assert(.false., "json_object_get => json_null")
+        call tc%assert(.false., "json_object_get_json 1 => json_null")
       end select
 
-      call obj%get_json("name1", js)
+      js => obj%get_json("name1")
+      call tc%assert(associated(js), "json_object_get_json 2")
       select type (js)
-      type is (json_bool)
-        call tc%assert(js%value, "json_object_get => json_bool")
+      type is (json_log)
+        call tc%assert(js%value, "json_object_get_json 2 => json_log")
       class default
-        call tc%assert(.false., "json_object_get => json_bool")
+        call tc%assert(.false., "json_object_get_json 2 => json_log")
       end select
 
-      call obj%get("name2", i)
+      i = obj%get_int("name2")
       call tc%assert_eq(2, i, "json_object_get_int")
 
-      call obj%get("name3", r)
+      r = obj%get_real("name3")
       call tc%assert_eq(3.0, r, 0.0, "json_object_get_real")
 
-      call obj%get("name4", s1%s)
+      s1%s = obj%get_string("name4")
       call tc%assert_eq(new_string("value"), s1, "json_object_get_string")
 
-      call obj%get("name5", ar)
-      call ar%get(1, i)
+      ar => obj%get_array("name5")
+      i = ar%get_int(1)
       call tc%assert_eq(1, i, "json_object_get_array 1")
-      call ar%get(2, i)
+      i = ar%get_int(2)
       call tc%assert_eq(2, i, "json_object_get_array 2")
-      call ar%get(3, i)
+      i = ar%get_int(3)
       call tc%assert_eq(3, i, "json_object_get_array 3")
 
-      call obj%get("name6", obj2)
-      call obj2%get("a", i)
+      obj2 => obj%get_object("name6")
+      i = obj2%get_int("a")
       call tc%assert_eq(1, i, "json_object_get_object 1")
-      call obj2%get("b", i)
+      i = obj2%get_int("b")
       call tc%assert_eq(2, i, "json_object_get_object 1")
-      call obj2%get("c", i)
+      i = obj2%get_int("c")
       call tc%assert_eq(3, i, "json_object_get_object 1")
 
-      call obj2%set("d", 4)
-      call obj2%set("a", 5)
-      call obj2%get("d", i)
+      call obj2%set_int("d", 4)
+      call obj2%set_int("a", 5)
+      i = obj2%get_int("d")
       call tc%assert_eq(4, i, "json_object_set_int 1")
-      call obj2%get("a", i)
+      i = obj2%get_int("a")
       call tc%assert_eq(5, i, "json_object_set_int 2")
 
       call obj%destruct()
     end block
 
-    ! json_load, json_save
+    ! json load and save
     block
-      integer               :: funit1, funit2, n1, n2, iostat
-      character(80)         :: iomsg
-      class(json),  pointer :: js
-      type(string)          :: s1, s2
+      integer         :: funit1, funit2, n1, n2, iostat
+      character(80)   :: iomsg
+      type(json_file) :: jsfile
+      type(string)    :: s1, s2
 
-      call json_load(js, "src/test/test1.json")
-      call json_save(js, "src/test/test3.json")
-      call js%destruct()
-      deallocate (js)
+      call jsfile%load("src/test/test1.json")
+      call jsfile%save("src/test/test3.json")
+      call jsfile%destruct()
 
       ! try to open saved file
       open (newunit = funit1, file = "src/test/test3.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)

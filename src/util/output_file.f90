@@ -4,7 +4,7 @@ module output_file_m
 
   use error_m,         only: assert_failed, program_error
   use iso_fortran_env, only: int32, int64
-  use json_m,          only: json, json_array, json_object, json_save
+  use json_m,          only: json_file, json, json_array, json_object
   use normalization_m, only: denorm
 
   implicit none
@@ -60,8 +60,10 @@ module output_file_m
     integer :: index_bin
       !! index in binary file
 
-    type(json_object) :: obj
-      !! main json object
+    type(json_file)            :: jsfile
+      !! json file
+    type(json_object), pointer :: obj => null()
+      !! pointer to main json object
   contains
     procedure :: init       => output_file_init
     procedure :: save       => output_file_save
@@ -103,26 +105,27 @@ contains
     if (iostat /= 0) call program_error("Error while opening file '" // this%fname_bin // "': " // iomsg)
     this%index_bin = 0
 
-    ! initialize json object
-    call this%obj%init()
-    call this%obj%add("DataFile", name // ".bin")
+    ! initialize json file
+    call this%jsfile%init()
+    this%obj => this%jsfile%js%cast_object()
+    call this%obj%add_string("DataFile", name // ".bin")
   end subroutine
 
   subroutine output_file_save(this)
-    !! save json object to file
+    !! save json file
     class(output_file), intent(in) :: this
 
-    call json_save(this%obj, this%fname_json)
+    call this%jsfile%save(this%fname_json)
   end subroutine
 
   subroutine output_file_close(this)
-    !! save json object and close binary file
+    !! save json file and close binary file
     class(output_file), intent(inout) :: this
 
     m4_assert(this%is_open())
 
     call this%save()
-    call this%obj%destruct()
+    call this%jsfile%destruct()
 
     close (this%funit_bin)
     this%funit_bin = -1
@@ -148,21 +151,14 @@ contains
     class(json),      pointer :: js
     type(json_array), pointer :: js_category
 
-    call this%obj%get_json(category, js)
+    js => this%obj%get_json(category)
     if (associated(js)) then
-      select type (js)
-      type is (json_array)
-        js_category => js
-      end select
+      js_category => js%cast_array()
     else
-      allocate (js_category)
-      call js_category%init()
-      call this%obj%add(category, js_category)
+      call this%obj%add_array(category, p = js_category)
     end if
 
-    allocate (obj)
-    call obj%init()
-    call js_category%add(obj)
+    call js_category%add_object(p = obj)
   end function
 
   m4_define({m4_Y},{subroutine output_file_write_$2_$1(this, obj, name, values{}m4_real_or_cmplx($2,{, unit}))
@@ -191,21 +187,14 @@ contains
     if (present(unit)) unit_ = unit
     })
 
-    ! create json shape array
-    allocate (sh)
-    call sh%init()
+    call obj%add_object(name, p = dat)
+    call dat%add_string("Type", "m4_typename($2)")
+    call dat%add_array("Shape", p = sh)
     tmp = shape(values)
     do i = 1, size(tmp)
-      call sh%add(tmp(i))
+      call sh%add_int(tmp(i))
     end do
-
-    ! create json data descriptor and add it to parent object
-    allocate (dat)
-    call dat%init()
-    call dat%add("Type", "m4_typename($2)")
-    call dat%add("Shape", sh)
-    call dat%add("Index", this%index_bin)
-    call obj%add(name, dat)
+    call dat%add_int("Index", this%index_bin)
 
     ! write data to binary file
     write (this%funit_bin) m4_real_or_cmplx($2,{denorm(values, unit_)},{values})

@@ -2,9 +2,7 @@ module vsource_m
 
   use circuit_m,      only: circuit, component, terminal
   use current_m,      only: current
-  use esystem_m,      only: esystem
-  use jacobian_m,     only: jacobian, jacobian_ptr
-  use math_m,         only: PI
+  use jacobian_m,     only: jacobian_ptr
   use res_equation_m, only: res_equation
   use string_m,       only: new_string
   use voltage_m,      only: voltage
@@ -12,7 +10,7 @@ module vsource_m
   implicit none
 
   private
-  public vsource, new_vsource
+  public vsource
 
   type, extends(res_equation) :: vsource_equ
     !! voltage source equation (V0 + V1 - V2 == 0)
@@ -37,17 +35,18 @@ module vsource_m
     procedure :: eval => vsource_equ_eval
   end type
 
-  type, extends(component) :: vsource
-    !! circuit component: voltage source
+  type vsource
+    !! voltage source
 
-    type(voltage) :: V
+    type(voltage)            :: V
       !! input voltage
-
-    type(vsource_equ) :: equ
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
+    type(vsource_equ)        :: equ
       !! voltage source equation
   contains
-    procedure :: init_final => vsource_init_final
-    procedure :: destruct   => vsource_destruct
+    procedure :: init     => vsource_init
+    procedure :: destruct => vsource_destruct
   end type
 
 contains
@@ -110,31 +109,28 @@ contains
     call this%curr2%set(- this%curr1%get())
   end subroutine
 
-  function new_vsource(crt, name) result(vsrc)
-    !! create new voltage source
-    type(circuit), intent(inout) :: crt
-      !! circuit
-    character(*),  intent(in)    :: name
+  subroutine vsource_init(this, crt, name, node1, node2)
+    !! initialize voltage source
+    class(vsource), intent(out)   :: this
+    type(circuit),  intent(inout) :: crt
+      !! circuit to add this to
+    character(*),   intent(in)    :: name
       !! component name
-    type(vsource), pointer       :: vsrc
-      !! return pointer to new voltage source
+    character(*),   intent(in)    :: node1
+      !! name of first node this is connected to
+    character(*),   intent(in)    :: node2
+      !! name of first node this is connected to
 
-    ! allocate and initialize component
-    allocate (vsrc)
-    call vsrc%init(crt, name, 2)
+    ! init voltage variable and provide as input variable
+    call this%V%init(name // ".V")
+    call crt%sys%provide(this%V, input = .true.)
 
-    ! init input voltage
-    call vsrc%V%init(name)
-  end function
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1), new_string(node2)])
 
-  subroutine vsource_init_final(this, sys)
-    !! initialize voltage source equation and add to equation system
-    class(vsource), target, intent(inout) :: this
-    type(esystem),          intent(inout) :: sys
-
-    call this%equ%init(this%name, this%terms(1), this%terms(2), this%V)
-    call sys%add_equation(this%equ)
-    call sys%provide(this%V, input = .true.)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), this%V)
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine vsource_destruct(this)

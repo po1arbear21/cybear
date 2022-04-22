@@ -185,16 +185,16 @@ contains
     type(json_object), pointer :: obj
 
     obj => of%new_object("Variables")
-    call obj%add("Name", this%name)
+    call obj%add_string("Name", this%name)
     select type (this)
     class is (variable_real)
-      call obj%add("Type", "Real")
+      call obj%add_string("Type", "Real")
     class is (variable_cmplx)
-      call obj%add("Type", "Complex")
+      call obj%add_string("Type", "Complex")
     end select
-    call obj%add("Grid", this%g%name)
-    call obj%add("IdxType", trim(IDX_NAME(this%idx_type)))
-    call obj%add("IdxDir", this%idx_dir)
+    call obj%add_string("Grid", this%g%name)
+    call obj%add_string("IdxType", trim(IDX_NAME(this%idx_type)))
+    call obj%add_int("IdxDir", this%idx_dir)
   end subroutine
 
   subroutine variable_output_data(this, of, obj)

@@ -97,16 +97,12 @@ contains
     if (present(ofile)) then
       m4_assert(present(oname))
       obj => ofile%new_object("SteadyState")
-      call obj%add("Name", oname)
+      call obj%add_string("Name", oname)
       if (nt == 1) then
-        allocate (data)
-        call data%init()
-        call obj%add("Data", data)
+        call obj%add_object("Data", p = data)
       elseif (nt > 1) then
-        call obj%add("nTime", nt)
-        allocate (ar)
-        call ar%init()
-        call obj%add("Data", ar)
+        call obj%add_int("nTime", nt)
+        call obj%add_array("Data", p = ar)
       end if
     end if
 
@@ -127,9 +123,7 @@ contains
       if (present(ofile)) then
         if (nt > 1) then
           ! new data slice
-          allocate (data)
-          call data%init()
-          call ar%add(data)
+          call ar%add_object(p = data)
         end if
 
         call this%sys%output_data(ofile, data)

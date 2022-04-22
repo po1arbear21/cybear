@@ -745,8 +745,8 @@ contains
     if (present(unit)) unit_ = unit
 
     obj => of%new_object("Grids")
-    call obj%add("Name", this%name)
-    call obj%add("Type", "Triangle")
+    call obj%add_string("Name", this%name)
+    call obj%add_string("Type", "Triangle")
     call of%write(obj, "Vertices", this%vert, unit_)
     call of%write(obj, "Cells", this%cell2vert)
     call of%write(obj, "Edges", this%edge2vert)

@@ -460,14 +460,12 @@ contains
     m4_ignore(unit)
 
     obj => of%new_object("Grids")
-    call obj%add("Name", this%name)
-    call obj%add("Type", "Tensor")
-    allocate (subgrids)
-    call subgrids%init()
+    call obj%add_string("Name", this%name)
+    call obj%add_string("Type", "Tensor")
+    call obj%add_array("Subgrids", subgrids)
     do i = 1, size(this%g)
-      call subgrids%add(this%g(i)%p%name)
+      call subgrids%add_string(this%g(i)%p%name)
     end do
-    call obj%add("Subgrids", subgrids)
   end subroutine
 
   subroutine tensor_grid_init_neighb(this)
