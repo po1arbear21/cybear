@@ -1,17 +1,17 @@
 module csource_m
 
-  use circuit_m,  only: circuit, component, terminal
-  use current_m,  only: current
-  use esystem_m,  only: esystem
-  use jacobian_m, only: jacobian, jacobian_ptr
-  use math_m,     only: PI
-  use equation_m, only: equation
-  use string_m,   only: new_string
+  use circuit_m,      only: circuit, component, terminal
+  use current_m,      only: current
+  use equation_m,     only: equation
+  use jacobian_m,     only: jacobian_ptr
+  use res_equation_m, only: res_equation
+  use string_m,       only: new_string
+  use voltage_m,      only: voltage
 
   implicit none
 
   private
-  public csource, new_csource
+  public csource
 
   type, extends(equation) :: csource_equ
     !! current source equation (I1 = I0; I2 = -I0)
@@ -30,17 +30,18 @@ module csource_m
     procedure :: eval => csource_equ_eval
   end type
 
-  type, extends(component) :: csource
-    !! circuit component: current source
+  type csource
+    !! current source
 
-    type(current) :: I
+    type(current)            :: I
       !! input current
-
-    type(csource_equ) :: equ
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
+    type(csource_equ)        :: equ
       !! current source equation
   contains
-    procedure :: init_final => csource_init_final
-    procedure :: destruct   => csource_destruct
+    procedure :: init     => csource_init
+    procedure :: destruct => csource_destruct
   end type
 
 contains
@@ -92,35 +93,32 @@ contains
     call this%curr2%set(- this%curr0%get())
   end subroutine
 
-  function new_csource(crt, name) result(csrc)
-    !! create new current source
-    type(circuit), intent(inout) :: crt
-      !! circuit
-    character(*),  intent(in)    :: name
+  subroutine csource_init(this, crt, name, node1, node2)
+    !! initialize current source
+    class(csource), intent(out)   :: this
+    type(circuit),  intent(inout) :: crt
+      !! circuit to add this to
+    character(*),   intent(in)    :: name
       !! component name
-    type(csource), pointer       :: csrc
-      !! return pointer to new current source
+    character(*),   intent(in)    :: node1
+      !! name of first node this is connected to
+    character(*),   intent(in)    :: node2
+      !! name of first node this is connected to
 
-    ! allocate and initialize component
-    allocate (csrc)
-    call csrc%init(crt, name, 2)
+    ! init current variable and provide as input variable
+    call this%I%init(name // ".I")
+    call crt%sys%provide(this%I, input = .true.)
 
-    ! init input current
-    call csrc%I%init(name)
-  end function
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1), new_string(node2)])
 
-  subroutine csource_init_final(this, sys)
-    !! initialize current source equation and add to equation system
-    class(csource), target, intent(inout) :: this
-    type(esystem),          intent(inout) :: sys
-
-    call this%equ%init(this%name, this%terms(1), this%terms(2), this%I)
-    call sys%add_equation(this%equ)
-    call sys%provide(this%I, input = .true.)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), this%I)
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine csource_destruct(this)
-    !! destruct voltage source
+    !! destruct current source
     class(csource), intent(inout) :: this
 
     call this%equ%destruct()

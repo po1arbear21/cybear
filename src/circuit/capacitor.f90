@@ -2,7 +2,6 @@ module capacitor_m
 
   use circuit_m,      only: circuit, component, terminal
   use current_m,      only: current
-  use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian_ptr
   use res_equation_m, only: res_equation
   use string_m,       only: new_string
@@ -11,7 +10,7 @@ module capacitor_m
   implicit none
 
   private
-  public capacitor, new_capacitor
+  public capacitor
 
   type, extends(res_equation) :: capacitor_equ
     !! capacitor equation
@@ -32,17 +31,14 @@ module capacitor_m
     procedure :: eval => capacitor_equ_eval
   end type
 
-  type, extends(component) :: capacitor
-    !! circuit component: capacitor
-
-    real :: C
-      !! capacitance
-
-    type(capacitor_equ) :: equ
+  type capacitor
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
+    type(capacitor_equ)      :: equ
       !! capacitor equation
   contains
-    procedure :: init_final => capacitor_init_final
-    procedure :: destruct   => capacitor_destruct
+    procedure :: init     => capacitor_init
+    procedure :: destruct => capacitor_destruct
   end type
 
 contains
@@ -56,7 +52,7 @@ contains
       !! first terminal
     type(terminal), target, intent(in)  :: term2
       !! second terminal
-    real,           target, intent(in)  :: C
+    real,                   intent(in)  :: C
       !! capacitance
 
     integer :: ivolt1, ivolt2, icurr1, icurr2, dum(0)
@@ -103,32 +99,26 @@ contains
     call this%curr2%set(- this%curr1%get())
   end subroutine
 
-  function new_capacitor(crt, name, C) result(cap)
-    !! create new capacitor and add to circuit
-    type(circuit), intent(inout) :: crt
-      !! circuit
-    character(*),  intent(in)    :: name
-      !! capacitor name
-    real,          intent(in)    :: C
+  subroutine capacitor_init(this, crt, name, node1, node2, C)
+    !! initialize capacitor
+    class(capacitor), intent(out)   :: this
+    type(circuit),    intent(inout) :: crt
+      !! circuit to add this to
+    character(*),     intent(in)    :: name
+      !! component name
+    character(*),     intent(in)    :: node1
+      !! name of first node this is connected to
+    character(*),     intent(in)    :: node2
+      !! name of first node this is connected to
+    real,             intent(in)    :: C
       !! capacitance
-    type(capacitor), pointer     :: cap
-      !! return pointer to new capacitor
 
-    ! allocate and initialize component
-    allocate (cap)
-    call cap%init(crt, name, 2)
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1), new_string(node2)])
 
-    ! set capacitance
-    cap%C = C
-  end function
-
-  subroutine capacitor_init_final(this, sys)
-    !! initialize capacitor equation and add to equation system
-    class(capacitor), target, intent(inout) :: this
-    type(esystem),            intent(inout) :: sys
-
-    call this%equ%init(this%name, this%terms(1), this%terms(2), this%C)
-    call sys%add_equation(this%equ)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), C)
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine capacitor_destruct(this)

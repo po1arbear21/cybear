@@ -525,10 +525,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab, name)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
     iprov = this%provide(vsel)
+    call this%vprov_alc%push(iprov)
   end function
 
   function equation_provide_var_ntab(this, v, tab, name) result(iprov)
@@ -548,10 +546,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab, name=name)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
     iprov = this%provide(vsel)
+    call this%vprov_alc%push(iprov)
   end function
 
   function equation_provide_nvar_tab(this, v, name, tab) result(iprov)
@@ -571,10 +567,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, name, tab=tab)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
     iprov = this%provide(vsel)
+    call this%vprov_alc%push(iprov)
   end function
 
   function equation_provide_var_tab(this, v, tab, name) result(iprov)
@@ -594,10 +588,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab=tab, name=name)
-    call this%vprov_alc%push(this%vprov%n)
-
-    ! add provided vselector
     iprov = this%provide(vsel)
+    call this%vprov_alc%push(iprov)
   end function
 
   function equation_depend_vsel(this, vsel) result(idep)
@@ -634,10 +626,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab, name)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependent vselector
     idep = this%depend(vsel)
+    call this%vdep_alc%push(idep)
   end function
 
   function equation_depend_var_ntab(this, v, tab, name) result(idep)
@@ -657,10 +647,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab, name=name)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependent vselector
     idep = this%depend(vsel)
+    call this%vdep_alc%push(idep)
   end function
 
   function equation_depend_nvar_tab(this, v, name, tab) result(idep)
@@ -680,10 +668,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, name, tab=tab)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependent vselector
     idep = this%depend(vsel)
+    call this%vdep_alc%push(idep)
   end function
 
   function equation_depend_var_tab(this, v, tab, name) result(idep)
@@ -703,10 +689,8 @@ contains
     ! create vselector from variable and keep track of memory
     allocate (vsel)
     call vsel%init(v, tab=tab, name=name)
-    call this%vdep_alc%push(this%vdep%n)
-
-    ! add dependent vselector
     idep = this%depend(vsel)
+    call this%vdep_alc%push(idep)
   end function
 
 end module

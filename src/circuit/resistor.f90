@@ -3,7 +3,6 @@ module resistor_m
   use circuit_m,  only: circuit, component, terminal
   use current_m,  only: current
   use equation_m, only: equation
-  use esystem_m,  only: esystem
   use jacobian_m, only: jacobian_ptr
   use string_m,   only: new_string
   use voltage_m,  only: voltage
@@ -11,7 +10,7 @@ module resistor_m
   implicit none
 
   private
-  public resistor, new_resistor
+  public resistor
 
   type, extends(equation) :: resistor_equ
     !! resistor equation
@@ -35,17 +34,14 @@ module resistor_m
     procedure :: eval => resistor_equ_eval
   end type
 
-  type, extends(component) :: resistor
-    !! circuit component: resistor
-
-    real :: R
-      !! resistance
-
-    type(resistor_equ) :: equ
+  type resistor
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
+    type(resistor_equ)       :: equ
       !! resistor equation
   contains
-    procedure :: init_final => resistor_init_final
-    procedure :: destruct   => resistor_destruct
+    procedure :: init     => resistor_init
+    procedure :: destruct => resistor_destruct
   end type
 
 contains
@@ -108,32 +104,26 @@ contains
     call this%curr2%set((this%volt2%get() - this%volt1%get()) / this%R)
   end subroutine
 
-  function new_resistor(crt, name, R) result(res)
-    !! create new resistor and add to circuit
-    type(circuit), intent(inout) :: crt
-      !! circuit
-    character(*),  intent(in)    :: name
-      !! resistor name
-    real,          intent(in)    :: R
+  subroutine resistor_init(this, crt, name, node1, node2, R)
+    !! initialize resistor
+    class(resistor), intent(out)   :: this
+    type(circuit),   intent(inout) :: crt
+      !! circuit to add this to
+    character(*),    intent(in)    :: name
+      !! component name
+    character(*),    intent(in)    :: node1
+      !! name of first node this is connected to
+    character(*),    intent(in)    :: node2
+      !! name of first node this is connected to
+    real,            intent(in)    :: R
       !! resistance
-    type(resistor), pointer      :: res
-      !! return pointer to new resistor
 
-    ! allocate and initialize component
-    allocate (res)
-    call res%init(crt, name, 2)
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1), new_string(node2)])
 
-    ! set resistance
-    res%R = R
-  end function
-
-  subroutine resistor_init_final(this, sys)
-    !! initialize resistor equation and add to equation system
-    class(resistor), target, intent(inout) :: this
-    type(esystem),           intent(inout) :: sys
-
-    call this%equ%init(this%name, this%terms(1), this%terms(2), this%R)
-    call sys%add_equation(this%equ)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), R)
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine resistor_destruct(this)

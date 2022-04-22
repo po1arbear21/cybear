@@ -2,7 +2,6 @@ module inductor_m
 
   use circuit_m,      only: circuit, component, terminal
   use current_m,      only: current
-  use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian_ptr
   use res_equation_m, only: res_equation
   use string_m,       only: new_string
@@ -11,7 +10,7 @@ module inductor_m
   implicit none
 
   private
-  public inductor, new_inductor
+  public inductor
 
   type, extends(res_equation) :: inductor_equ
     !! inductor equation
@@ -32,17 +31,14 @@ module inductor_m
     procedure :: eval => inductor_equ_eval
   end type
 
-  type, extends(component) :: inductor
-    !! circuit component: inductor
-
-    real :: L
-      !! inductance
-
-    type(inductor_equ) :: equ
+  type inductor
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
+    type(inductor_equ)       :: equ
       !! inductor equation
   contains
-    procedure :: init_final => inductor_init_final
-    procedure :: destruct   => inductor_destruct
+    procedure :: init     => inductor_init
+    procedure :: destruct => inductor_destruct
   end type
 
 contains
@@ -56,7 +52,7 @@ contains
       !! first terminal
     type(terminal), target, intent(in)  :: term2
       !! second terminal
-    real,           target, intent(in)  :: L
+    real,                   intent(in)  :: L
       !! inductance
 
     integer :: ivolt1, ivolt2, icurr1, icurr2, dum(0)
@@ -103,33 +99,26 @@ contains
     call this%curr2%set(- this%curr1%get())
   end subroutine
 
-  function new_inductor(crt, name, L) result(ind)
-    !! create new inductor and add to circuit
-    type(circuit), intent(inout) :: crt
-      !! circuit
-    character(*),  intent(in)    :: name
-      !! inductor name
-    real,          intent(in)    :: L
+  subroutine inductor_init(this, crt, name, node1, node2, L)
+    !! initialize inductor
+    class(inductor), intent(out)   :: this
+    type(circuit),   intent(inout) :: crt
+      !! circuit to add this to
+    character(*),    intent(in)    :: name
+      !! component name
+    character(*),    intent(in)    :: node1
+      !! name of first node this is connected to
+    character(*),    intent(in)    :: node2
+      !! name of first node this is connected to
+    real,            intent(in)    :: L
       !! inductance
-    type(inductor), pointer     :: ind
-      !! return pointer to new inductor
 
-    ! allocate and initialize component
-    allocate (ind)
-    call ind%init(crt, name, 2)
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1), new_string(node2)])
 
-    ! set inductance
-    ind%L = L
-  end function
-
-  subroutine inductor_init_final(this, sys)
-    !! initialize inductor equation and add to equation system
-    class(inductor), target, intent(inout) :: this
-    type(esystem),           intent(inout) :: sys
-
-    ! initialize equation
-    call this%equ%init(this%name, this%terms(1), this%terms(2), this%L)
-    call sys%add_equation(this%equ)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), L)
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine inductor_destruct(this)

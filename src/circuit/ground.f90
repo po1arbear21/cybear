@@ -2,19 +2,18 @@ module ground_m
 
   use circuit_m,      only: circuit, component, terminal
   use current_m,      only: current
-  use res_equation_m, only: res_equation
-  use esystem_m,      only: esystem
   use jacobian_m,     only: jacobian
+  use res_equation_m, only: res_equation
   use string_m,       only: new_string
   use voltage_m,      only: voltage
 
   implicit none
 
   private
-  public ground, new_ground
+  public ground
 
   type, extends(res_equation) :: ground_equ
-    !! ground equation
+    !! circuit ground equation
 
     type(voltage), pointer :: volt => null()
       !! node voltage
@@ -28,14 +27,14 @@ module ground_m
     procedure :: eval => ground_equ_eval
   end type
 
-  type, extends(component) :: ground
-    !! circuit component: ground
-
+  type ground
+    type(component), pointer :: comp => null()
+      !! pointer to circuit component
     type(ground_equ) :: equ
       !! ground equation
   contains
-    procedure :: init_final => ground_init_final
-    procedure :: destruct   => ground_destruct
+    procedure :: init     => ground_init
+    procedure :: destruct => ground_destruct
   end type
 
 contains
@@ -60,7 +59,7 @@ contains
     ! set main variable
     call this%init_f(this%curr)
 
-    ! f = V = 0
+    ! f = V == 0
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), const = .true.)
     call this%jaco_volt%set(dum, dum, 1.0)
 
@@ -75,32 +74,26 @@ contains
     call this%f%set(this%volt%get())
   end subroutine
 
-  function new_ground(crt, name) result(gnd)
-    !! create new ground and add to circuit
+  subroutine ground_init(this, crt, name, node1)
+    !! initialize ground
+    class(ground), intent(out)   :: this
     type(circuit), intent(inout) :: crt
-      !! circuit
+      !! circuit to add this to
     character(*),  intent(in)    :: name
-      !! ground name
-    type(ground), pointer        :: gnd
-      !! return pointer to new ground
+      !! component name
+    character(*),  intent(in)    :: node1
+      !! name of node this is connected to
 
-    ! allocate and initialize component
-    allocate (gnd)
-    call gnd%init(crt, name, 1)
-  end function
+    ! create new component
+    this%comp => crt%add_component(name, [new_string(node1)])
 
-  subroutine ground_init_final(this, sys)
-    !! initialize ground equation and add to equation system
-    class(ground), target, intent(inout) :: this
-    type(esystem),         intent(inout) :: sys
-
-    ! initialize equation
-    call this%equ%init(this%name, this%terms(1))
-    call sys%add_equation(this%equ)
+    ! initialize equation and add to system
+    call this%equ%init(name, this%comp%terms(1))
+    call crt%sys%add_equation(this%equ)
   end subroutine
 
   subroutine ground_destruct(this)
-    !! destruct ground component
+    !! destruct ground
     class(ground), intent(inout) :: this
 
     call this%equ%destruct()
