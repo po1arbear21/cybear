@@ -3,6 +3,9 @@ M4 := m4
 # force m4_ prefix for all builtin macros
 M4FLAGS := -P
 
+# generate synclines
+M4FLAGS += -s
+
 # DEBUG
 ifeq ($(BUILD),debug)
   M4FLAGS += -Dm4_debug
