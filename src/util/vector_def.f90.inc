@@ -5,6 +5,7 @@ type vector_{}T
     !! size of vector
 contains
   procedure :: init       => vector_{}T{}_init
+  procedure :: destruct   => vector_{}T{}_destruct
   procedure :: reset      => vector_{}T{}_reset
   procedure :: reserve    => vector_{}T{}_reserve
   procedure :: resize     => vector_{}T{}_resize

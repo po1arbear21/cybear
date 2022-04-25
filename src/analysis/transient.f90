@@ -257,6 +257,8 @@ contains
     allocate (tmp_x(this%sys%n, 0:i))
     tmp_x(:,0:i) = this%x(:,0:i)
     call move_alloc(tmp_x, this%x)
+
+    call this%dft%destruct()
   end subroutine
 
   subroutine transient_next_time(this, i)

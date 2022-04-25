@@ -112,6 +112,13 @@ contains
       if (present(gum))   call gum()
       call newton(fun, p, nopt_, this%sys%get_x(), this%x(:,i), gmres_opt = gopt)
 
+      ! release factorization
+      if (nopt_%it_solver) then
+        call dfp%destruct()
+      else
+        call df%destruct()
+      end if
+
       ! output
       if (present(ofile)) then
         if (nt > 1) then

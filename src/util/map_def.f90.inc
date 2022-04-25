@@ -14,6 +14,7 @@ type mapnode_{}T{}_{}U
     !! pointer to parent
 contains
   procedure :: init         => mapnode_{}T{}_{}U{}_init
+  procedure :: destruct     => mapnode_{}T{}_{}U{}_destruct
   procedure :: copy         => mapnode_{}T{}_{}U{}_copy
   procedure :: grandparent  => mapnode_{}T{}_{}U{}_grandparent
   procedure :: sibling      => mapnode_{}T{}_{}U{}_sibling
@@ -23,8 +24,6 @@ contains
   procedure :: previous     => mapnode_{}T{}_{}U{}_previous
   procedure :: rotate_left  => mapnode_{}T{}_{}U{}_rotate_left
   procedure :: rotate_right => mapnode_{}T{}_{}U{}_rotate_right
-
-  final :: mapnode_{}T{}_{}U{}_destruct
 end type
 
 type map_{}T{}_{}U
@@ -34,6 +33,7 @@ type map_{}T{}_{}U
     !! number of elements
 contains
   procedure :: init     => map_{}T{}_{}U{}_init
+  procedure :: destruct => map_{}T{}_{}U{}_destruct
   procedure :: copy     => map_{}T{}_{}U{}_copy
   procedure :: find     => map_{}T{}_{}U{}_find
   procedure :: get      => map_{}T{}_{}U{}_get
@@ -44,8 +44,6 @@ contains
   procedure, private :: find_pos  => map_{}T{}_{}U{}_find_pos
   procedure, private :: leftmost  => map_{}T{}_{}U{}_leftmost
   procedure, private :: rightmost => map_{}T{}_{}U{}_rightmost
-
-  final :: map_{}T{}_{}U{}_destruct
 end type
 
 m4_undefine({T},{U})

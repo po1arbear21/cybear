@@ -33,6 +33,7 @@ module jacobian_matrix_m
   contains
     procedure :: jacobian_matrix_init
     generic   :: init     => jacobian_matrix_init
+    procedure :: destruct => jacobian_matrix_destruct
     procedure :: reset    => jacobian_matrix_reset
     procedure :: add_jaco => jacobian_matrix_add_jaco
     procedure :: mul_jaco => jacobian_matrix_mul_jaco
@@ -87,6 +88,28 @@ contains
       call this%s( itab1,itab2)%p%init(v1%nvals(itab1), v2%nvals(itab2))
       call this%sb(itab1,itab2)%init(this%s(itab1,itab2)%p, assume_unique=.true.)
     end do; end do
+  end subroutine
+
+  subroutine jacobian_matrix_destruct(this)
+    !! destruct jacobian matrix
+    class(jacobian_matrix), intent(inout) :: this
+
+    integer :: itab1, itab2
+
+    if (allocated(this%const )) deallocate (this%const )
+    if (allocated(this%zero  )) deallocate (this%zero  )
+    if (allocated(this%valmsk)) deallocate (this%valmsk)
+
+    if (allocated(this%sb)) then
+      do itab1 = 1, this%v1%ntab; do itab2 = 1, this%v2%ntab
+        call this%sb(itab1,itab2)%destruct()
+      end do; end do
+      deallocate (this%sb)
+    end if
+    if (allocated(this%s)) deallocate (this%s)
+
+    ! destruct base
+    call this%block_real%destruct()
   end subroutine
 
   subroutine jacobian_matrix_reset(this, only_factorization)

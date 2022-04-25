@@ -37,7 +37,8 @@ module inductor_m
     type(inductor_equ)       :: equ
       !! inductor equation
   contains
-    procedure :: init => inductor_init
+    procedure :: init     => inductor_init
+    procedure :: destruct => inductor_destruct
   end type
 
 contains
@@ -118,6 +119,13 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), L)
     call crt%sys%add_equation(this%equ)
+  end subroutine
+
+  subroutine inductor_destruct(this)
+    !! destruct inductor
+    class(inductor), intent(inout) :: this
+
+    call this%equ%destruct()
   end subroutine
 
 end module

@@ -13,6 +13,15 @@ module subroutine sparse_{}T{}_init(this, nrows, ncols)
   this%solver = default_solver
 end subroutine
 
+module subroutine sparse_{}T{}_destruct(this)
+  !! Destruct sparse matrix by deallocating memory and deleting factorization.
+
+  class(sparse_{}T), intent(inout) :: this
+    !! Sparse matrix
+
+  call this%reset()
+end subroutine
+
 module subroutine sparse_{}T{}_reset(this, only_factorization)
   !! Reset sparse matrix to empty state (optionally only the factorization).
 
@@ -33,7 +42,7 @@ module subroutine sparse_{}T{}_reset(this, only_factorization)
     if (allocated(this%a )) deallocate (this%a )
   end if
 
-  ! delete factorization
+  ! destruct factorization
   if (this%solver_handle > 0) then
     select case (this%solver)
     case (SOLVER_PARDISO)
@@ -320,9 +329,7 @@ module subroutine sparse_{}T{}_factorize(this)
   class(sparse_{}T), intent(inout) :: this
     !! Sparse matrix
 
-  call this%reset(only_factorization = .true.)
-
-  if (this%solver_handle == 0) call this%init_solver()
+  if (this%solver_handle == 0) call this%init_solver
 
   select case (this%solver)
   case (SOLVER_PARDISO)
@@ -837,14 +844,6 @@ module function sparse_{}T{}_is_empty(this) result(empty)
   end if
 end function
 
-module subroutine sparse_{}T{}_destruct(this)
-  !! Sparse matrix destructor (delete factorization data)
-
-  type(sparse_{}T), intent(inout) :: this
-
-  call this%reset(only_factorization = .true.)
-end subroutine
-
 module function sparse_eye_{}T{}(nrows, ncols) result(eye)
   !! sparse identity matrix
 
@@ -935,6 +934,20 @@ module subroutine spbuild_{}T{}_init(this, s, n_per_row, assume_unique)
 
   ! load existing data from sparse matrix
   call this%load()
+end subroutine
+
+module subroutine spbuild_{}T{}_destruct(this)
+  !! Deallocate memory.
+
+  class(spbuild_{}T), intent(inout) :: this
+    !! Sparse matrix builder
+
+  nullify (this%sp)
+  if (allocated(this%cols       )) deallocate (this%cols       )
+  if (allocated(this%vals       )) deallocate (this%vals       )
+  if (allocated(this%filled     )) deallocate (this%filled     )
+  if (allocated(this%sorted     )) deallocate (this%sorted     )
+  if (allocated(this%keep_struct)) deallocate (this%keep_struct)
 end subroutine
 
 module subroutine spbuild_{}T{}_reset(this)

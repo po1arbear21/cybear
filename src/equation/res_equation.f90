@@ -2,7 +2,7 @@ m4_include(../util/macro.f90.inc)
 
 module res_equation_m
 
-  use equation_m,   only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset
+  use equation_m,   only: equation, equation_realloc_jaco, equation_set_jaco_matr, equation_reset, equation_destruct
   use error_m,      only: assert_failed
   use grid_table_m, only: grid_table, grid_table_ptr
   use jacobian_m,   only: jacobian, jacobian_ptr
@@ -15,7 +15,7 @@ module res_equation_m
   private
   public res_equation, res_equation_ptr, vector_res_equation_ptr
 
-  type, extends(equation) :: res_equation
+  type, abstract, extends(equation) :: res_equation
     !! residual equation (is solved, not eliminated)
 
     type(vselector), pointer :: mvar => null()
@@ -43,6 +43,7 @@ module res_equation_m
       &                           res_equation_init_f_var_ntab,  &
       &                           res_equation_init_f_nvar_tab,  &
       &                           res_equation_init_f_var_tab
+    procedure :: destruct      => res_equation_destruct
     procedure :: realloc_jaco  => res_equation_realloc_jaco
     procedure :: init_jaco_f   => res_equation_init_jaco_f
     procedure :: set_jaco_matr => res_equation_set_jaco_matr
@@ -53,8 +54,6 @@ module res_equation_m
       &                   res_equation_init_f_var_ntab,  &
       &                   res_equation_init_f_nvar_tab,  &
       &                   res_equation_init_f_var_tab
-
-    final :: res_equation_destruct
   end type
 
   type res_equation_ptr
@@ -76,6 +75,48 @@ contains
 
     ptr%p => this
   end function
+
+  subroutine res_equation_destruct(this)
+    !! destruct residual equation
+    class(res_equation), intent(inout) :: this
+
+    integer :: i
+
+    ! mvar
+    if (this%mvar_alc) then
+      if (associated(this%mvar)) deallocate (this%mvar)
+    else
+      nullify (this%mvar)
+    end if
+
+    ! fvar
+    if (allocated(this%fvar)) then
+      do i = 1, size(this%fvar)
+        if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
+      end do
+      deallocate (this%fvar)
+    end if
+
+    ! jaco_f
+    if (allocated(this%jaco_f)) deallocate (this%jaco_f)
+
+    ! jaco_fp
+    if (allocated(this%jaco_fp)) deallocate (this%jaco_fp)
+
+    ! jaco_ft
+    if (allocated(this%jaco_ft)) then
+      do i = 1, size(this%jaco_ft)
+        if (associated(this%jaco_ft(i)%p)) then
+          call this%jaco_ft(i)%p%destruct()
+          deallocate (this%jaco_ft(i)%p)
+        end if
+      end do
+      deallocate (this%jaco_ft)
+    end if
+
+    ! destruct base
+    call equation_destruct(this)
+  end subroutine
 
   subroutine res_equation_realloc_jaco(this, cprov, cdep)
     !! reallocate this%jaco, this%jaco_f, this%jaco_fp and this%jaco_ft if initial capacity was not big enough
@@ -299,38 +340,6 @@ contains
 
     ! init by vselector
     call this%init_f(vsel)
-  end subroutine
-
-  subroutine res_equation_destruct(this)
-    !! residual equation destructor
-    type(res_equation), intent(inout) :: this
-
-    integer :: i
-
-    ! mvar
-    if (this%mvar_alc) then
-      if (associated(this%mvar)) deallocate (this%mvar)
-    end if
-
-    ! fvar
-    if (allocated(this%fvar)) then
-      do i = 1, size(this%fvar)
-        if (associated(this%fvar(i)%p)) deallocate (this%fvar(i)%p)
-      end do
-    end if
-
-    ! jaco_f
-    if (allocated(this%jaco_f)) deallocate (this%jaco_f)
-
-    ! jaco_fp
-    if (allocated(this%jaco_fp)) deallocate (this%jaco_fp)
-
-    ! jaco_ft
-    if (allocated(this%jaco_ft)) then
-      do i = 1, size(this%jaco_ft)
-        if (associated(this%jaco_ft(i)%p)) deallocate (this%jaco_ft(i)%p)
-      end do
-    end if
   end subroutine
 
 end module

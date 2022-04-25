@@ -40,7 +40,8 @@ module csource_m
     type(csource_equ)        :: equ
       !! current source equation
   contains
-    procedure :: init => csource_init
+    procedure :: init     => csource_init
+    procedure :: destruct => csource_destruct
   end type
 
 contains
@@ -114,6 +115,13 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), this%I)
     call crt%sys%add_equation(this%equ)
+  end subroutine
+
+  subroutine csource_destruct(this)
+    !! destruct current source
+    class(csource), intent(inout) :: this
+
+    call this%equ%destruct()
   end subroutine
 
 end module

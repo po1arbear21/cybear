@@ -20,17 +20,17 @@ module circuit_m
 
   type node_ptr
     !! pointer to circuit node
-    class(node), pointer :: p => null()
+    type(node), pointer :: p => null()
   end type
 
   type terminal_ptr
     !! pointer to circuit component terminal
-    class(terminal), pointer :: p => null()
+    type(terminal), pointer :: p => null()
   end type
 
   type component_ptr
     !! pointer to component
-    class(component), pointer :: p => null()
+    type(component), pointer :: p => null()
   end type
 
   m4_define({T},{node_ptr})
@@ -72,6 +72,7 @@ module circuit_m
     procedure :: init       => node_init
     procedure :: connect    => node_connect
     procedure :: init_final => node_init_final
+    procedure :: destruct   => node_destruct
   end type
 
   type terminal
@@ -123,8 +124,7 @@ module circuit_m
     procedure :: init          => circuit_init
     procedure :: add_component => circuit_add_component
     procedure :: init_final    => circuit_init_final
-
-    final :: circuit_destruct
+    procedure :: destruct      => circuit_destruct
   end type
 
 contains
@@ -213,6 +213,14 @@ contains
 
     ! initialize KCL equation
     call this%kcl%init(this)
+  end subroutine
+
+  subroutine node_destruct(this)
+    !! destruct circuit node
+    class(node), intent(inout) :: this
+
+    call this%terms%destruct()
+    call this%kcl%destruct()
   end subroutine
 
   subroutine terminal_init(this, comp_name, iterm, nd)
@@ -345,8 +353,8 @@ contains
   end subroutine
 
   subroutine circuit_destruct(this)
-    !! circuit destructor
-    type(circuit), intent(inout) :: this
+    !! destruct circuit
+    class(circuit), intent(inout) :: this
 
     integer :: i
 
@@ -354,13 +362,20 @@ contains
       do i = 1, this%comps%n
         if (associated(this%comps%d(i)%p)) deallocate (this%comps%d(i)%p)
       end do
+      call this%comps%destruct()
     end if
+    call this%comp_map%destruct()
 
     if (allocated(this%nodes%d)) then
       do i = 1, this%nodes%n
-        if (associated(this%nodes%d(i)%p)) deallocate (this%nodes%d(i)%p)
+        if (associated(this%nodes%d(i)%p)) then
+          call this%nodes%d(i)%p%destruct()
+          deallocate (this%nodes%d(i)%p)
+        end if
       end do
+      call this%nodes%destruct()
     end if
+    call this%node_map%destruct()
   end subroutine
 
 end module

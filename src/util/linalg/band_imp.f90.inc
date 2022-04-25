@@ -39,6 +39,19 @@ module subroutine band_{}T{}_init(this, nrows, nlower, nupper, d0)
   end if
 end subroutine
 
+module subroutine band_{}T{}_destruct(this)
+  !! Destruct band matrix by deallocating its memory.
+
+  class(band_{}T), intent(inout) :: this
+    !! Band matrix
+
+  if (allocated(this%d   )) deallocate (this%d   )
+  if (allocated(this%f   )) deallocate (this%f   )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
+
+  this%factorized = .false.
+end subroutine
+
 module subroutine band_{}T{}_reset(this, only_factorization)
   !! Reset band matrix to zero (optionally only the factorization).
 

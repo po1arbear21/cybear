@@ -38,6 +38,7 @@ type, extends(matrix_{}T) :: band_{}T
 contains
   procedure :: band_{}T{}_init
   generic   :: init      => band_{}T{}_init
+  procedure :: destruct  => band_{}T{}_destruct
   procedure :: reset     => band_{}T{}_reset
   procedure :: reset_row => band_{}T{}_reset_row
   procedure :: scale     => band_{}T{}_scale
@@ -66,6 +67,10 @@ interface
     integer,              intent(in)  :: nlower
     integer,    optional, intent(in)  :: nupper
     m4_type(T), optional, intent(in)  :: d0(:,:)
+  end subroutine
+
+  module subroutine band_{}T{}_destruct(this)
+    class(band_{}T), intent(inout) :: this
   end subroutine
 
   module subroutine band_{}T{}_reset(this, only_factorization)

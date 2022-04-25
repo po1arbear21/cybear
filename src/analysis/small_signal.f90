@@ -111,6 +111,9 @@ contains
         ! extract derivatives
         this%dxds(:,:,i) = dxds(:,:)
       end if
+
+      ! release memory
+      call mat%destruct()
     end do
   end subroutine
 

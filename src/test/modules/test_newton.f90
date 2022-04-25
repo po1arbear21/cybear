@@ -75,6 +75,10 @@ contains
     call tc%assert_eq(   xe,    x, opt%atol(1),    "newton: it sol: x"   )
     call tc%assert_eq(dxedp, dxdp, opt%atol(1)*10, "newton: it sol: dxdp")  ! fixme gmres doesnt achieve tolerance?
 
+    ! destruct matrices
+    call jaco%destruct()
+    call prec%destruct()
+
   contains
 
     subroutine poly2D(x, p, f, dfdx, dfdx_prec, dfdp)
@@ -99,7 +103,6 @@ contains
 
       ! set jacobian dfdx
       if (present(dfdx)) then
-        call jaco%reset()
         jaco%d(1,1) = 3*x(1)**2 + p(2)
         jaco%d(1,2) = -1
         jaco%d(2,1) = 2*p(1)*x(1)*x(2)

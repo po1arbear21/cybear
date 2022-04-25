@@ -21,6 +21,15 @@ subroutine hashmap_{}T{}_init(this, c)
   call this%reserve(c_)
 end subroutine
 
+subroutine hashmap_{}T{}_destruct(this)
+  !! destruct hashmap
+  class(hashmap_{}T), intent(inout) :: this
+
+  call this%keys%destruct()
+  call this%values%destruct()
+  if (allocated(this%table)) deallocate (this%table)
+end subroutine
+
 subroutine hashmap_{}T{}_reset(this)
   !! reset hashmap
   class(hashmap_{}T), intent(inout) :: this
