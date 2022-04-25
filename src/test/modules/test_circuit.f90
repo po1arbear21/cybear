@@ -59,16 +59,6 @@ contains
     call tc%assert_eq( I2, R2%comp%terms(1)%curr%x, 1e-14, "circuit DC R2.I1")
     call tc%assert_eq(-I2, R2%comp%terms(2)%curr%x, 1e-14, "circuit DC R2.I2")
 
-    ! destruct circuit
-    call GND%destruct()
-    call V1%destruct()
-    call R1%destruct()
-    call R2%destruct()
-    call C1%destruct()
-    call C2%destruct()
-    call L1%destruct()
-    call crt%destruct()
-
     call tc%finish()
   end subroutine
 

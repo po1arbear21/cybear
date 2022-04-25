@@ -37,8 +37,7 @@ module capacitor_m
     type(capacitor_equ)      :: equ
       !! capacitor equation
   contains
-    procedure :: init     => capacitor_init
-    procedure :: destruct => capacitor_destruct
+    procedure :: init => capacitor_init
   end type
 
 contains
@@ -119,13 +118,6 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), C)
     call crt%sys%add_equation(this%equ)
-  end subroutine
-
-  subroutine capacitor_destruct(this)
-    !! destruct capacitor
-    class(capacitor), intent(inout) :: this
-
-    call this%equ%destruct()
   end subroutine
 
 end module

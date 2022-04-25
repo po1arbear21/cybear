@@ -137,9 +137,6 @@ contains
       ! solve system by newton iteration
       call newton(fun, dum, nopt_, sol0, sol)
 
-      ! release factorization
-      call dg%destruct()
-
       ! save solution and update newton starting point for next frequency
       this%x(:,:,ifreq) = reshape(sol, [sys%n, 1+2*nH])
       sol0 = sol

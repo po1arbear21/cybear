@@ -54,7 +54,7 @@ module output_file_m
     character(:), allocatable :: fname_bin
       !! full name of binary file
 
-    integer :: funit_bin = 0
+    integer :: funit_bin = -1
       !! file unit of binary file
 
     integer :: index_bin
@@ -125,7 +125,6 @@ contains
     m4_assert(this%is_open())
 
     call this%save()
-    call this%jsfile%destruct()
 
     close (this%funit_bin)
     this%funit_bin = -1

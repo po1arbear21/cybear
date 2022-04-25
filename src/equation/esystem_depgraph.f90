@@ -71,13 +71,14 @@ module esystem_depgraph_m
       !! jacobian chains for computation of total derivatives wrt time der. of main vars
   contains
     procedure :: init     => node_init
-    procedure :: destruct => node_destruct
     procedure :: analyze  => node_analyze
     procedure :: eval     => node_eval
+
+    final :: node_destruct
   end type
 
   type node_ptr
-    type(node), pointer :: p => null()
+    class(node), pointer :: p => null()
   end type
 
   m4_define({T},{node_ptr})
@@ -122,11 +123,12 @@ module esystem_depgraph_m
       !! preconditioner flag
   contains
     procedure :: init     => depgraph_init
-    procedure :: destruct => depgraph_destruct
     procedure :: add_equ  => depgraph_add_equ
     procedure :: add_node => depgraph_add_node
     procedure :: analyze  => depgraph_analyze
     procedure :: output   => depgraph_output
+
+    final :: depgraph_destruct
   end type
 
 contains
@@ -238,37 +240,6 @@ contains
           call program_error("status = STATUS_RES but equation is not a residual equation")
 
       end select
-    end if
-  end subroutine
-
-  subroutine node_destruct(this)
-    !! free memory
-    class(node), intent(inout) :: this
-
-    integer :: i, j
-
-    if (allocated(this%jchain)) then
-      do i = 1, size(this%jchain)
-        do j = 1, this%jchain(i)%n
-          if (associated(this%jchain(i)%d(j)%p)) deallocate (this%jchain(i)%d(j)%p)
-        end do
-      end do
-    end if
-
-    if (allocated(this%jchain_p)) then
-      do i = 1, size(this%jchain_p)
-        do j = 1, this%jchain_p(i)%n
-          if (associated(this%jchain_p(i)%d(j)%p)) deallocate (this%jchain_p(i)%d(j)%p)
-        end do
-      end do
-    end if
-
-    if (allocated(this%jchain_t)) then
-      do i = 1, size(this%jchain_t)
-        do j = 1, this%jchain_t(i)%n
-          if (associated(this%jchain_t(i)%d(j)%p)) deallocate (this%jchain_t(i)%d(j)%p)
-        end do
-      end do
     end if
   end subroutine
 
@@ -481,6 +452,37 @@ contains
     end if
   end subroutine
 
+  subroutine node_destruct(this)
+    !! node destructor
+    type(node), intent(inout) :: this
+
+    integer :: i, j
+
+    if (allocated(this%jchain)) then
+      do i = 1, size(this%jchain)
+        do j = 1, this%jchain(i)%n
+          if (associated(this%jchain(i)%d(j)%p)) deallocate (this%jchain(i)%d(j)%p)
+        end do
+      end do
+    end if
+
+    if (allocated(this%jchain_p)) then
+      do i = 1, size(this%jchain_p)
+        do j = 1, this%jchain_p(i)%n
+          if (associated(this%jchain_p(i)%d(j)%p)) deallocate (this%jchain_p(i)%d(j)%p)
+        end do
+      end do
+    end if
+
+    if (allocated(this%jchain_t)) then
+      do i = 1, size(this%jchain_t)
+        do j = 1, this%jchain_t(i)%n
+          if (associated(this%jchain_t(i)%d(j)%p)) deallocate (this%jchain_t(i)%d(j)%p)
+        end do
+      end do
+    end if
+  end subroutine
+
   subroutine depgraph_equ_init(this, g, id, e)
     !! initialize dependency graph equation
     class(depgraph_equ),     intent(out)   :: this
@@ -537,23 +539,6 @@ contains
     call this%ires%init( 0, c = CAP)
     call this%imvar%init(0, c = CAP)
     call this%ieval%init(0, c = CAP)
-  end subroutine
-
-  subroutine depgraph_destruct(this)
-    !! release memory
-    class(depgraph), intent(inout) :: this
-
-    integer :: i
-
-    call this%equs%destruct()
-    do i = 1, this%nodes%n
-      call this%nodes%d(i)%p%destruct()
-      deallocate (this%nodes%d(i)%p)
-    end do
-    call this%nodes%destruct()
-    call this%ires%destruct()
-    call this%imvar%destruct()
-    call this%ieval%destruct()
   end subroutine
 
   subroutine depgraph_add_equ(this, e)
@@ -725,6 +710,17 @@ contains
     if (pdf_) call execute_command_line('dot -Tpdf '//fname//'.gv > '//fname//'.pdf')
     if (png_) call execute_command_line('dot -Tpng '//fname//'.gv > '//fname//'.png')
     if (svg_) call execute_command_line('dot -Tsvg '//fname//'.gv > '//fname//'.svg')
+  end subroutine
+
+  subroutine depgraph_destruct(this)
+    !! depgraph destructor
+    type(depgraph), intent(inout) :: this
+
+    integer :: i
+
+    do i = 1, this%nodes%n
+      if (associated(this%nodes%d(i)%p)) deallocate (this%nodes%d(i)%p)
+    end do
   end subroutine
 
 end module

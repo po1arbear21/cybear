@@ -22,49 +22,29 @@ subroutine mapnode_{}T{}_{}U{}_init(this, key, value, color, left, right, parent
   this%parent => parent
 end subroutine
 
-recursive subroutine mapnode_{}T{}_{}U{}_destruct(this)
-  !! destruct map-node (and children)
-  class(mapnode_{}T{}_{}U), intent(inout) :: this
-
-  ! destruct left child
-  if (associated(this%left)) then
-    call this%left%destruct()
-    deallocate(this%left)
-  end if
-
-  ! destruct right child
-  if (associated(this%right)) then
-    call this%right%destruct()
-    deallocate(this%right)
-  end if
-end subroutine
-
-recursive subroutine mapnode_{}T{}_{}U{}_copy(this, n)
+recursive subroutine mapnode_{}T{}_{}U{}_copy(this, source)
   !! copy map-node from source
-  class(mapnode_{}T{}_{}U), target, intent(inout) :: this
-  type(mapnode_{}T{}_{}U),          intent(in)    :: n
+  class(mapnode_{}T{}_{}U), target, intent(out) :: this
+  type(mapnode_{}T{}_{}U),          intent(in)  :: source
     !! source mapnode
 
-  ! destruct existing children
-  call this%destruct()
-
   ! copy key, value and color
-  this%key   = n%key
-  this%value = n%value
-  this%color = n%color
+  this%key   = source%key
+  this%value = source%value
+  this%color = source%color
 
   ! copy left child
-  if (associated(n%left)) then
+  if (associated(source%left)) then
     allocate (this%left)
     this%left%parent => this
-    call this%left%copy(n%left)
+    call this%left%copy(source%left)
   end if
 
   ! copy right child
-  if (associated(n%right)) then
+  if (associated(source%right)) then
     allocate (this%right)
     this%right%parent => this
-    call this%right%copy(n%right)
+    call this%right%copy(source%right)
   end if
 end subroutine
 
@@ -75,7 +55,7 @@ function mapnode_{}T{}_{}U{}_grandparent(this) result(p)
     !! return pointer to grandparent
 
   if (.not. associated(this%parent)) then
-    nullify(p)
+    nullify (p)
   else
     p => this%parent%parent
   end if
@@ -88,7 +68,7 @@ function mapnode_{}T{}_{}U{}_sibling(this) result(p)
     !! return pointer to sibling
 
   if (.not. associated(this%parent)) then
-    nullify(p)
+    nullify (p)
   else
     if (associated(this%parent%left, this)) then
       p => this%parent%right
@@ -105,7 +85,7 @@ function mapnode_{}T{}_{}U{}_uncle(this) result(p)
     !! return pointer to uncle
 
   if (.not. associated(this%parent)) then
-    nullify(p)
+    nullify (p)
   else
     p => this%parent%sibling()
   end if
@@ -226,6 +206,21 @@ subroutine mapnode_{}T{}_{}U{}_rotate_right(this)
   p%right => this
 end subroutine
 
+subroutine mapnode_{}T{}_{}U{}_destruct(this)
+  !! mapnode destructor
+  type(mapnode_{}T{}_{}U), intent(inout) :: this
+
+  ! destruct left child
+  if (associated(this%left)) then
+    deallocate (this%left)
+  end if
+
+  ! destruct right child
+  if (associated(this%right)) then
+    deallocate (this%right)
+  end if
+end subroutine
+
 subroutine map_{}T{}_{}U{}_init(this)
   !! initialize map
   class(map_{}T{}_{}U), intent(out) :: this
@@ -234,38 +229,21 @@ subroutine map_{}T{}_{}U{}_init(this)
   this%n = 0
 end subroutine
 
-subroutine map_{}T{}_{}U{}_destruct(this)
-  !! destruct map
-  class(map_{}T{}_{}U), intent(inout) :: this
-
-  ! destruct root node
-  if (associated(this%root)) then
-    call this%root%destruct()
-    deallocate(this%root)
-  end if
-
-  ! clear number of elements
-  this%n = 0
-end subroutine
-
-subroutine map_{}T{}_{}U{}_copy(this, m)
+subroutine map_{}T{}_{}U{}_copy(this, source)
   !! copy map
-  class(map_{}T{}_{}U), intent(inout) :: this
+  class(map_{}T{}_{}U), intent(out) :: this
     !! target
-  type(map_{}T{}_{}U),  intent(in)    :: m
-    !! source
-
-  ! delete old data
-  call this%destruct()
+  type(map_{}T{}_{}U),  intent(in)  :: source
+    !! source map
 
   ! copy root
-  if (associated(m%root)) then
+  if (associated(source%root)) then
     allocate (this%root)
-    call this%root%copy(m%root)
+    call this%root%copy(source%root)
   end if
 
   ! set number of elements
-  this%n = m%n
+  this%n = source%n
 end subroutine
 
 function map_{}T{}_{}U{}_find(this, key) result(node)
@@ -292,33 +270,6 @@ function map_{}T{}_{}U{}_find(this, key) result(node)
   end do
 end function
 
-function map_{}T{}_{}U{}_find_pos(this, key) result(node)
-  ! find nearest key in map
-  class(map_{}T{}_{}U),    intent(in) :: this
-  m4_type(T),              intent(in) :: key
-    !! key to lookup
-  type(mapnode_{}T{}_{}U), pointer    :: node
-    !! return node which is nearest to key
-
-  type(mapnode_{}T{}_{}U), pointer :: tmp
-
-  tmp => this%root
-  nullify(node)
-  do while (associated(tmp))
-    node => tmp
-    if (tmp%key == key) then
-      ! key found
-      return
-    elseif (key < tmp%key) then
-      ! goto left subtree
-      tmp => tmp%left
-    else
-      ! goto right subtree
-      tmp => tmp%right
-    end if
-  end do
-end function
-
 function map_{}T{}_{}U{}_get(this, key) result(val)
   !! lookup key in map and return value
   class(map_{}T{}_{}U), intent(in) :: this
@@ -340,38 +291,12 @@ subroutine map_{}T{}_{}U{}_set(this, key, value)
   m4_type(U),           intent(in)    :: value
 
   type(mapnode_{}T{}_{}U), pointer :: node
-  logical                     :: status
+  logical                          :: status
 
   call this%insert(key, value, node = node, status = status)
 
   if (.not. status) node%value = value
 end subroutine
-
-function map_{}T{}_{}U{}_leftmost(this) result(node)
-  !! get leftmost node in map
-  class(map_{}T{}_{}U), intent(in) :: this
-  type(mapnode_{}T{}_{}U), pointer :: node
-    !! return leftmost node
-
-  node => this%root
-  if (.not. associated(node)) return
-  do while (associated(node%left))
-    node => node%left
-  end do
-end function
-
-function map_{}T{}_{}U{}_rightmost(this) result(node)
-  !! get rightmost node in map
-  class(map_{}T{}_{}U), intent(in) :: this
-  type(mapnode_{}T{}_{}U), pointer :: node
-    !! return rightmost node
-
-  node => this%root
-  if (.not. associated(node)) return
-  do while (associated(node%right))
-    node => node%right
-  end do
-end function
 
 subroutine map_{}T{}_{}U{}_insert(this, key, value, node, status)
   !! insert key-value-pair into map
@@ -492,7 +417,7 @@ subroutine map_{}T{}_{}U{}_to_array(this, keys, values)
   m4_type(U), optional, intent(out) :: values(:)
     !! optional output array with values
 
-  integer :: i
+  integer                          :: i
   type(mapnode_{}T{}_{}U), pointer :: n
 
   if (present(keys)) then
@@ -514,6 +439,72 @@ subroutine map_{}T{}_{}U{}_to_array(this, keys, values)
     n => n%next()
     i = i + 1
   end do
+end subroutine
+
+function map_{}T{}_{}U{}_find_pos(this, key) result(node)
+  ! find nearest key in map
+  class(map_{}T{}_{}U),    intent(in) :: this
+  m4_type(T),              intent(in) :: key
+    !! key to lookup
+  type(mapnode_{}T{}_{}U), pointer    :: node
+    !! return node which is nearest to key
+
+  type(mapnode_{}T{}_{}U), pointer :: tmp
+
+  tmp => this%root
+  nullify (node)
+  do while (associated(tmp))
+    node => tmp
+    if (tmp%key == key) then
+      ! key found
+      return
+    elseif (key < tmp%key) then
+      ! goto left subtree
+      tmp => tmp%left
+    else
+      ! goto right subtree
+      tmp => tmp%right
+    end if
+  end do
+end function
+
+function map_{}T{}_{}U{}_leftmost(this) result(node)
+  !! get leftmost node in map
+  class(map_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer :: node
+    !! return leftmost node
+
+  node => this%root
+  if (.not. associated(node)) return
+  do while (associated(node%left))
+    node => node%left
+  end do
+end function
+
+function map_{}T{}_{}U{}_rightmost(this) result(node)
+  !! get rightmost node in map
+  class(map_{}T{}_{}U), intent(in) :: this
+  type(mapnode_{}T{}_{}U), pointer :: node
+    !! return rightmost node
+
+  node => this%root
+  if (.not. associated(node)) return
+  do while (associated(node%right))
+    node => node%right
+  end do
+end function
+
+subroutine map_{}T{}_{}U{}_destruct(this)
+  !! map destructor
+  type(map_{}T{}_{}U), intent(inout) :: this
+
+  ! destruct root node
+  if (associated(this%root)) then
+    deallocate (this%root)
+  end if
+
+  ! clear number of elements
+  this%n = 0
 end subroutine
 
 m4_undefine({T},{U})

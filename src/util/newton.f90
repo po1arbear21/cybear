@@ -82,15 +82,15 @@ module newton_m
         !! arguments
       real,                                  intent(in)  :: p(:)
         !! parameters
-      real,               optional,          intent(out) :: f(:)
+      real,                        optional, intent(out) :: f(:)
         !! output function values
-      class(matrix_real), optional, pointer, intent(out) :: dfdx
+      class(matrix_real), pointer, optional, intent(out) :: dfdx
         !! output pointer to jacobian of f wrt x
         !! must be factorized if preconditioner not used
-      class(matrix_real), optional, pointer, intent(out) :: dfdx_prec
+      class(matrix_real), pointer, optional, intent(out) :: dfdx_prec
         !! optional output pointer to preconditioner jacobian of f wrt x
         !! must be factorized
-      real,               optional,          intent(out) :: dfdp(:,:)
+      real,                        optional, intent(out) :: dfdp(:,:)
         !! optional output jacobian of f wrt p
     end subroutine
   end interface
@@ -112,7 +112,6 @@ contains
     real,    optional,  intent(out) :: dxdp(:)
       !! optional output derivative of x wrt parameters
 
-    ! local variables
     integer :: it
     real    :: err, err0, xmin, xmax, fmin, fmax
     real    :: f, dfdx, dfdp(size(p)), dx
@@ -230,13 +229,12 @@ contains
     real,                optional, intent(out) :: dxdp(:,:)
       !! optional output derivatives of x wrt p
 
-    ! local variables
-    integer                         :: i, it
-    real                            :: err, abs_err, dx0
-    real,               allocatable :: f(:), dfdp(:,:), dx(:)
-    class(matrix_real), pointer     :: dfdx, dfdx_prec
-    type(gmres_options)             :: gmres_opt_
-    type(single_matop_real)         :: mulvec, precon
+    integer                     :: i, it
+    real                        :: err, abs_err, dx0
+    real, allocatable           :: f(:), dfdp(:,:), dx(:)
+    class(matrix_real), pointer :: dfdx, dfdx_prec
+    type(gmres_options)         :: gmres_opt_
+    type(single_matop_real)     :: mulvec, precon
 
     m4_assert(size(x0      ) == size(x))
     m4_assert(size(opt%atol) == size(x))
@@ -250,7 +248,6 @@ contains
     allocate (f(   size(x)        ), source = huge(err))
     allocate (dfdp(size(x),size(p)), source = 0.0 )
     allocate (dx(  size(x)        ), source = 0.0 )
-    nullify (dfdx, dfdx_prec)
 
     ! init iteration params
     it  = 0
@@ -282,8 +279,6 @@ contains
         dx = 0
 
         ! evaluate function: compute residuals, jacobian, preconditioner
-        if (associated(dfdx     )) call dfdx%reset()
-        if (associated(dfdx_prec)) call dfdx_prec%reset()
         call fun(x, p, f = f, dfdx = dfdx, dfdx_prec = dfdx_prec)
         call dfdx_prec%factorize()
 
@@ -293,7 +288,6 @@ contains
         call gmres(f, mulvec, dx, opts = gmres_opt_, precon = precon)
       else
         ! evaluate function and solve
-        if (associated(dfdx)) call dfdx%reset()
         call fun(x, p, f = f, dfdx = dfdx)
         call dfdx%factorize()
         call dfdx%solve_vec(f, dx)

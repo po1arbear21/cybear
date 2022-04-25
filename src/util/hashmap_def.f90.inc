@@ -9,12 +9,11 @@ type hashmap_{}T
   integer, allocatable :: table(:)
     !! lookup table (used internally)
 contains
-  procedure :: init     => hashmap_{}T{}_init
-  procedure :: destruct => hashmap_{}T{}_destruct
-  procedure :: reset    => hashmap_{}T{}_reset
-  procedure :: reserve  => hashmap_{}T{}_reserve
-  generic   :: get      => hashmap_{}T{}_get_key_1, hashmap_{}T{}_get_key_n
-  generic   :: set      => hashmap_{}T{}_set_key_1, hashmap_{}T{}_set_key_n
+  procedure :: init    => hashmap_{}T{}_init
+  procedure :: reset   => hashmap_{}T{}_reset
+  procedure :: reserve => hashmap_{}T{}_reserve
+  generic   :: get     => hashmap_{}T{}_get_key_1, hashmap_{}T{}_get_key_n
+  generic   :: set     => hashmap_{}T{}_set_key_1, hashmap_{}T{}_set_key_n
 
   procedure, private :: lookup => hashmap_{}T{}_lookup
   procedure, private :: hashmap_{}T{}_get_key_1

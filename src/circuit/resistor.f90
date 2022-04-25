@@ -40,8 +40,7 @@ module resistor_m
     type(resistor_equ)       :: equ
       !! resistor equation
   contains
-    procedure :: init     => resistor_init
-    procedure :: destruct => resistor_destruct
+    procedure :: init => resistor_init
   end type
 
 contains
@@ -124,13 +123,6 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), R)
     call crt%sys%add_equation(this%equ)
-  end subroutine
-
-  subroutine resistor_destruct(this)
-    !! destruct resistor
-    class(resistor), intent(inout) :: this
-
-    call this%equ%destruct()
   end subroutine
 
 end module

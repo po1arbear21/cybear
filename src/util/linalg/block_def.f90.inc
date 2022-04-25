@@ -33,7 +33,6 @@ type, extends(matrix_{}T) :: block_{}T
 contains
   procedure :: block_{}T{}_init
   generic   :: init           => block_{}T{}_init
-  procedure :: destruct       => block_{}T{}_destruct
   procedure :: reset          => block_{}T{}_reset
   procedure :: delete_block   => block_{}T{}_delete_block
   procedure :: scale          => block_{}T{}_scale
@@ -58,6 +57,8 @@ contains
 
   procedure, private :: block_allowed => block_{}T{}_block_allowed
   procedure, private :: check_sizes   => block_{}T{}_check_sizes
+
+  final :: block_{}T{}_destruct
 end type
 
 type block_ptr_{}T
@@ -71,10 +72,6 @@ interface
     integer, optional, intent(in)  :: col_dim(:)
     logical, optional, intent(in)  :: diag
     logical, optional, intent(in)  :: tridiag
-  end subroutine
-
-  module subroutine block_{}T{}_destruct(this)
-    class(block_{}T), intent(inout) :: this
   end subroutine
 
   module subroutine block_{}T{}_delete_block(this, ib, jb)
@@ -207,4 +204,8 @@ interface
     class(block_{}T), intent(in) :: this
     logical                      :: tf
   end function
+
+  module subroutine block_{}T{}_destruct(this)
+    type(block_{}T), intent(inout) :: this
+  end subroutine
 end interface

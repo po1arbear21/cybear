@@ -10,7 +10,7 @@ module normalization_m
   implicit none
 
   private
-  public init_normconst, destruct_normconst
+  public init_normconst
   public norm, denorm
   public normalization
 
@@ -18,8 +18,7 @@ module normalization_m
     type(map_string_real) :: unit_const
       !! phyiscal unit tokens (e.g. "eV" or "kV/cm") -> corresponding normalization constant
   contains
-    procedure :: init     => normalization_init
-    procedure :: destruct => normalization_destruct
+    procedure :: init => normalization_init
   end type
 
   type(normalization) :: normconst
@@ -62,12 +61,6 @@ contains
       !! temperature in Kelvin
 
     call normconst%init(T)
-  end subroutine
-
-  subroutine destruct_normconst()
-    !! destruct global normalization object
-
-    call normconst%destruct()
   end subroutine
 
   m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
@@ -381,14 +374,6 @@ contains
     call this%unit_const%insert(new_string("eps0"), diel)
 
     call this%unit_const%insert(new_string("K"), kelvin)
-  end subroutine
-
-  subroutine normalization_destruct(this)
-    !! destruct normalization constants (release memory)
-    class(normalization), intent(inout) :: this
-
-    ! destruct unit constants
-    call this%unit_const%destruct()
   end subroutine
 
 end module

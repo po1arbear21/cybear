@@ -31,13 +31,6 @@ subroutine deque_{}T{}_init(this, n, c, x)
   end if
 end subroutine
 
-subroutine deque_{}T{}_destruct(this)
-  !! destruct deque (deallocate memory)
-  class(deque_{}T), intent(inout) :: this
-
-  if (allocated(this%d)) deallocate (this%d)
-end subroutine
-
 subroutine deque_{}T{}_reset(this)
   !! reset deque size to zero
   class(deque_{}T), intent(inout) :: this

@@ -65,37 +65,6 @@ module subroutine block_{}T{}_init(this, row_dim, col_dim, diag, tridiag)
   this%factorized = .false.
 end subroutine
 
-module subroutine block_{}T{}_destruct(this)
-  !! Destruct block matrix.
-
-  class(block_{}T), intent(inout) :: this
-    !! Block matrix
-
-  ! local variables
-  integer :: ib, jb
-
-  if (allocated(this%i0)) deallocate (this%i0)
-  if (allocated(this%i1)) deallocate (this%i1)
-  if (allocated(this%j0)) deallocate (this%j0)
-  if (allocated(this%j1)) deallocate (this%j1)
-
-  if (allocated(this%b)) then
-    do ib = 1, this%nbrows
-      do jb = 1, this%nbcols
-        if (.not. this%alc(ib,jb)) cycle
-        if (.not. associated(this%b(ib,jb)%p)) cycle
-
-        call this%b(ib,jb)%p%destruct()
-        deallocate (this%b(ib,jb)%p)
-        this%alc(ib,jb) = .false.
-      end do
-    end do
-    deallocate (this%b)
-  end if
-
-  this%factorized = .false.
-end subroutine
-
 module subroutine block_{}T{}_delete_block(this, ib, jb)
   !! Deletes block (ib, jb).
   !!
@@ -575,10 +544,7 @@ module subroutine block_{}T{}_set(this, ib, jb, b, fact)
 
   ! destruct old block
   if (this%alc(ib,jb)) then
-    if (associated(this%b(ib,jb)%p)) then
-      call this%b(ib,jb)%p%destruct()
-      deallocate (this%b(ib,jb)%p)
-    end if
+    if (associated(this%b(ib,jb)%p)) deallocate (this%b(ib,jb)%p)
     this%alc(ib,jb) = .false.
   end if
 
@@ -613,10 +579,7 @@ module subroutine block_{}T{}_set_ptr(this, ib, jb, b)
 
   ! destruct old block
   if (this%alc(ib,jb)) then
-    if (associated(this%b(ib,jb)%p)) then
-      call this%b(ib,jb)%p%destruct()
-      deallocate (this%b(ib,jb)%p)
-    end if
+    if (associated(this%b(ib,jb)%p)) deallocate (this%b(ib,jb)%p)
     this%alc(ib,jb) = .false.
   end if
 
@@ -706,3 +669,17 @@ module function block_{}T{}_check_sizes(this) result(tf)
 
   tf = .true.
 end function
+
+module subroutine block_{}T{}_destruct(this)
+  !! Block matrix destructor
+
+  type(block_{}T), intent(inout) :: this
+
+  integer :: ib, jb
+
+  if (allocated(this%b)) then
+    do jb = 1, this%nbcols; do ib = 1, this%nbrows
+      if (this%alc(ib,jb) .and. associated(this%b(ib,jb)%p)) deallocate (this%b(ib,jb)%p)
+    end do; end do
+  end if
+end subroutine

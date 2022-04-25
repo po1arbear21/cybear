@@ -252,16 +252,20 @@ contains
 
     ! set_ptr, destruct
     block
-      type(dense_real) :: ext_A
+      type(dense_real)              :: ext_A
+      type(block_real), allocatable :: M3
+
+      allocate (M3)
+      call example_matrix7(M3)
 
       d0 = reshape([1,0,0,2,3,5,0,4,6], [3,3])
       call ext_A%init(d0)
-      call M1%set_ptr(1, 1, ext_A)
-      call M1%set_ptr(1, 2, ext_A)
-      call M1%set_ptr(2, 1, ext_A)
+      call M3%set_ptr(1, 1, ext_A)
+      call M3%set_ptr(1, 2, ext_A)
+      call M3%set_ptr(2, 1, ext_A)
 
-      ! destruct should not delete ext_A
-      call M1%destruct()
+      ! destructor should not delete ext_A
+      deallocate (M3)
 
       call tc%assert_eq(3, ext_A%nrows, "set_ptr")
     end block

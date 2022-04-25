@@ -10,7 +10,6 @@ type deque_{}T
     !! back index
 contains
   procedure :: init       => deque_{}T{}_init
-  procedure :: destruct   => deque_{}T{}_destruct
   procedure :: reset      => deque_{}T{}_reset
   procedure :: reserve    => deque_{}T{}_reserve
   procedure :: resize     => deque_{}T{}_resize

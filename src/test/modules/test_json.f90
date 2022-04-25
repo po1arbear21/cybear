@@ -83,8 +83,6 @@ contains
       obj => ar%get_object(9)
       call tc%assert_eq(0, obj%names%n,      "json_array_get_object 1")
       call tc%assert_eq(0, obj%properties%n, "json_array_get_object 2")
-
-      call ar%destruct()
     end block
 
     ! json_object
@@ -161,8 +159,6 @@ contains
       call tc%assert_eq(4, i, "json_object_set_int 1")
       i = obj2%get_int("a")
       call tc%assert_eq(5, i, "json_object_set_int 2")
-
-      call obj%destruct()
     end block
 
     ! json load and save
@@ -174,7 +170,6 @@ contains
 
       call jsfile%load("src/test/test1.json")
       call jsfile%save("src/test/test3.json")
-      call jsfile%destruct()
 
       ! try to open saved file
       open (newunit = funit1, file = "src/test/test3.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)

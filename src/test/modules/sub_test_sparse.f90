@@ -379,8 +379,6 @@ contains
       call sA%mul_vec(x, y, fact_y = (-2, 0), trans = 'T')
       call tc%assert_eq(y_exp, y, 0.0, "mul_vec cmplx 4")
 
-      call sa%destruct()
-
       ! tests using large matrix
       ! expected solutions are too long to include here. just compare the sum
       n = 600
@@ -609,7 +607,6 @@ contains
       call example_matrix3(sA)
       call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: default solver")
 
       ! test 2: using pardiso solver
@@ -617,7 +614,6 @@ contains
       sA%solver=SOLVER_PARDISO
       call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: pardiso solver")
 
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
@@ -626,7 +622,6 @@ contains
         sA%solver=SOLVER_ILUPACK
         call sA%factorize()
         call sA%solve_vec(b, x)
-        call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: ilupack solver")
 
         ! test 4: using ilupack solver, changing ilupack parameters
@@ -648,7 +643,6 @@ contains
 
           call sA%factorize()
           call sA%solve_vec(b, x)
-          call sA%destruct()
           call tc%assert_eq(x_exp, x, 1e-15, "solve_vec real: ilupack solver")
         end block
       m4_divert(0)
@@ -666,7 +660,6 @@ contains
       call example_matrix5(sA)
       call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: default solver")
 
       ! test 2: using pardiso solver
@@ -674,7 +667,6 @@ contains
       sA%solver=SOLVER_PARDISO
       call sA%factorize()
       call sA%solve_vec(b, x)
-      call sA%destruct()
       call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: pardiso solver")
 
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
@@ -683,7 +675,6 @@ contains
         sA%solver=SOLVER_ILUPACK
         call sA%factorize()
         call sA%solve_vec(b, x)
-        call sA%destruct()
         call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: ilupack solver")
 
         ! test 4: using ilupack solver, changing ilupack parameters
@@ -705,7 +696,6 @@ contains
 
           call sA%factorize()
           call sA%solve_vec(b, x)
-          call sA%destruct()
           call tc%assert_eq(x_exp, x, 1e-15, "solve_vec cmplx: ilupack solver")
         end block
       m4_divert(0)
@@ -735,7 +725,6 @@ contains
       call example_matrix3(sA)
       call sA%factorize()
       call sA%solve_mat(b, x)
-      call sA%destruct()
 
       call tc%assert_eq(x_exp, x, 1e-15, "solve_mat")
     end block

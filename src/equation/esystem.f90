@@ -77,7 +77,6 @@ module esystem_m
       !! indicates whether init_final was called
   contains
     procedure :: init            => esystem_init
-    procedure :: destruct        => esystem_destruct
     procedure :: add_equation    => esystem_add_equation
     generic   :: provide         => esystem_provide_vsel,      &
       &                             esystem_provide_nvar_ntab, &
@@ -113,6 +112,8 @@ module esystem_m
     procedure, private :: esystem_get_dfp,  esystem_get_dfp_cmplx
     procedure, private :: esystem_get_dft,  esystem_get_dft_cmplx
     procedure, private :: esystem_get_x,    esystem_get_x_block
+
+    final :: esystem_destruct
   end type
 
 contains
@@ -150,30 +151,6 @@ contains
     this%finished_init = .false.
   end subroutine
 
-  subroutine esystem_destruct(this)
-    !! release memory
-    class(esystem), intent(inout) :: this
-
-    integer :: i
-
-    ! destruct dependency graph
-    call this%g%destruct()
-
-    ! destruct dummy and selection equations
-    do i = 1, this%ealloc%n
-      if (associated(this%ealloc%d(i)%p)) then
-        call this%ealloc%d(i)%p%destruct()
-        deallocate (this%ealloc%d(i)%p)
-      end if
-    end do
-    call this%ealloc%destruct()
-
-    ! destruct jacobians
-    call this%df%destruct()
-    call this%dft%destruct()
-    if (allocated(this%dfp)) call this%dfp%destruct()
-  end subroutine
-
   subroutine esystem_provide_vsel(this, v, input)
     !! provide vselector (create dummy equation)
     class(esystem),          intent(inout) :: this
@@ -181,9 +158,9 @@ contains
     logical, optional,       intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical                        :: input_
+    class(dummy_equation), pointer :: d
+    class(input_equation), pointer :: i
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -214,9 +191,9 @@ contains
     logical, optional,    intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical                        :: input_
+    class(dummy_equation), pointer :: d
+    class(input_equation), pointer :: i
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -247,9 +224,9 @@ contains
     logical,      optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical                        :: input_
+    class(dummy_equation), pointer :: d
+    class(input_equation), pointer :: i
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -280,9 +257,9 @@ contains
     logical,          optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical                        :: input_
+    class(dummy_equation), pointer :: d
+    class(input_equation), pointer :: i
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -313,9 +290,9 @@ contains
     logical,          optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical                        :: input_
+    class(dummy_equation), pointer :: d
+    class(input_equation), pointer :: i
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -417,12 +394,13 @@ contains
       !! try to generate missing equations
 
       integer, parameter :: CAP = 32
-      integer                          :: i
-      logical                          :: status
-      type(vselector_ptr)              :: vp
-      type(vector_vselector_ptr)       :: prov
-      type(vector_int)                 :: fix_list
-      type(selector_equation), pointer :: e
+
+      integer                           :: i
+      logical                           :: status
+      type(vselector_ptr)               :: vp
+      type(vector_vselector_ptr)        :: prov
+      type(vector_int)                  :: fix_list
+      class(selector_equation), pointer :: e
 
       ! get list of provided vars, init fix list (unprovided)
       call prov%init(    0, c = CAP)
@@ -781,13 +759,6 @@ contains
     ! save newton's result in esystem's variables
     call this%set_x(x)
 
-    ! release factorizations
-    if (nopt_%it_solver) then
-      call dfp%destruct()
-    else
-      call df%destruct()
-    end if
-
   contains
 
     subroutine fun(x, p, f, dfdx, dfdx_prec, dfdp)
@@ -1053,6 +1024,18 @@ contains
 
     do i = 1, this%vars%n
       call this%vars%d(i)%p%output_data(of, obj)
+    end do
+  end subroutine
+
+  subroutine esystem_destruct(this)
+    !! equation system destructor
+    type(esystem), intent(inout) :: this
+
+    integer :: i
+
+    ! delete dummy and selection equations
+    do i = 1, this%ealloc%n
+      if (associated(this%ealloc%d(i)%p)) deallocate (this%ealloc%d(i)%p)
     end do
   end subroutine
 

@@ -18,12 +18,11 @@ module equation_m
   private
   public equation, equation_ptr, vector_equation_ptr
   public equation_realloc_jaco
-  public equation_destruct
   public equation_reset
   public equation_set_jaco_matr
 
-  type, abstract :: equation
-    !! abstract equation base
+  type equation
+    !! equation base type
 
     character(:), allocatable  :: name
       !! equation name
@@ -47,7 +46,6 @@ module equation_m
   contains
     procedure :: equation_init
     procedure :: get_ptr       => equation_get_ptr
-    procedure :: destruct      => equation_destruct
     procedure :: reset         => equation_reset
     generic   :: provide       => equation_provide_vsel,      &
       &                           equation_provide_nvar_ntab, &
@@ -66,7 +64,7 @@ module equation_m
     procedure :: has_precon    => equation_has_precon
     procedure :: test          => equation_test
 
-    procedure(equation_eval), deferred :: eval
+    procedure :: eval          => equation_eval
 
     procedure, private :: equation_provide_vsel
     procedure, private :: equation_provide_nvar_ntab
@@ -78,15 +76,9 @@ module equation_m
     procedure, private :: equation_depend_var_ntab
     procedure, private :: equation_depend_nvar_tab
     procedure, private :: equation_depend_var_tab
-  end type
 
-  abstract interface
-    subroutine equation_eval(this)
-      !! evaluate equation (implement in child classes)
-      import equation
-      class(equation), intent(inout) :: this
-    end subroutine
-  end interface
+    final :: equation_destruct
+  end type
 
   type equation_ptr
     class(equation), pointer :: p => null()
@@ -139,55 +131,6 @@ contains
 
     ptr%p => this
   end function
-
-  subroutine equation_destruct(this)
-    !! destruct equation
-    class(equation), intent(inout) :: this
-
-    integer :: i, j
-
-    if (allocated(this%name)) deallocate (this%name)
-
-    if (allocated(this%vprov_alc%d)) then
-      do i = 1, this%vprov_alc%n
-        deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
-      end do
-    end if
-    if (allocated(this%vdep_alc%d)) then
-      do i = 1, this%vdep_alc%n
-        deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
-      end do
-    end if
-
-    call this%vprov%destruct()
-    call this%vdep%destruct()
-    call this%vprov_alc%destruct()
-    call this%vdep_alc%destruct()
-
-    ! destruct jacobians
-    if (allocated(this%jaco)) then
-      do j = 1, size(this%jaco, dim = 2)
-        do i = 1, size(this%jaco, dim = 1)
-          if (associated(this%jaco(i,j)%p)) then
-            call this%jaco(i,j)%p%destruct()
-            deallocate (this%jaco(i,j)%p)
-          end if
-        end do
-      end do
-      deallocate (this%jaco)
-    end if
-    if (allocated(this%jaco_p)) then
-      do j = 1, size(this%jaco_p, dim = 2)
-        do i = 1, size(this%jaco_p, dim = 1)
-          if (associated(this%jaco_p(i,j)%p)) then
-            call this%jaco_p(i,j)%p%destruct()
-            deallocate (this%jaco_p(i,j)%p)
-          end if
-        end do
-      end do
-      deallocate (this%jaco_p)
-    end if
-  end subroutine
 
   subroutine equation_reset(this, const, nonconst)
     !! reset provided var selectors and jacobians
@@ -491,6 +434,15 @@ contains
     end do
   end subroutine
 
+  subroutine equation_eval(this)
+    !! evaluate equation (implement in child classes)
+    class(equation), intent(inout) :: this
+
+    m4_ignore(this)
+
+    call program_error("Override in child class!")
+  end subroutine
+
   function equation_provide_vsel(this, vsel) result(iprov)
     !! provide var selector
     class(equation),         intent(inout) :: this
@@ -692,5 +644,42 @@ contains
     idep = this%depend(vsel)
     call this%vdep_alc%push(idep)
   end function
+
+  subroutine equation_destruct(this)
+    !! equation destructor
+    type(equation), intent(inout) :: this
+
+    integer :: i, j
+
+    ! deallocate vselectors that were automatically created
+    if (allocated(this%vprov_alc%d)) then
+      do i = 1, this%vprov_alc%n
+        j = this%vprov_alc%d(i)
+        if (associated(this%vprov%d(j)%p)) deallocate (this%vprov%d(j)%p)
+      end do
+    end if
+    if (allocated(this%vdep_alc%d)) then
+      do i = 1, this%vdep_alc%n
+        j = this%vdep_alc%d(i)
+        if (associated(this%vdep%d(j)%p)) deallocate (this%vdep%d(j)%p)
+      end do
+    end if
+
+    ! deallocate jacobians
+    if (allocated(this%jaco)) then
+      do j = 1, size(this%jaco, dim = 2)
+        do i = 1, size(this%jaco, dim = 1)
+          if (associated(this%jaco(i,j)%p)) deallocate (this%jaco(i,j)%p)
+        end do
+      end do
+    end if
+    if (allocated(this%jaco_p)) then
+      do j = 1, size(this%jaco_p, dim = 2)
+        do i = 1, size(this%jaco_p, dim = 1)
+          if (associated(this%jaco_p(i,j)%p)) deallocate (this%jaco_p(i,j)%p)
+        end do
+      end do
+    end if
+  end subroutine
 
 end module

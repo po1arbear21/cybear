@@ -20,8 +20,7 @@ module jacobian_m
     type(hashmap_int) :: hmap
       !! (i1, itab2, i2) -> j (= 3rd index in d)
   contains
-    procedure :: init     => static_data_init
-    procedure :: destruct => static_data_destruct
+    procedure :: init => static_data_init
   end type
 
   type jacobian
@@ -38,7 +37,6 @@ module jacobian_m
       !! derivatives for static stencils (v1%ntab)
   contains
     procedure :: init     => jacobian_init
-    procedure :: destruct => jacobian_destruct
     procedure :: reset    => jacobian_reset
     procedure :: set_matr => jacobian_set_matr
     generic   :: set      => jacobian_set_itab_nval, &
@@ -69,7 +67,7 @@ module jacobian_m
   end type
 
   type jacobian_ptr
-    type(jacobian), pointer :: p => null()
+    class(jacobian), pointer :: p => null()
   end type
 
 contains
@@ -113,13 +111,6 @@ contains
         call this%hmap%set([i1, itab2, i2], j)
       end do
     end do
-  end subroutine
-
-  subroutine static_data_destruct(this)
-    class(static_data), intent(inout) :: this
-
-    if (allocated(this%d)) deallocate(this%d)
-    call this%hmap%destruct()
   end subroutine
 
   subroutine jacobian_init(this, v1, v2, st, const, zero, valmsk, valmsk_tab)
@@ -232,21 +223,6 @@ contains
         call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
       end select
     end do
-  end subroutine
-
-  subroutine jacobian_destruct(this)
-    !! destruct jacobian
-    class(jacobian), intent(inout) :: this
-
-    integer :: i
-
-    call this%matr%destruct()
-    if (allocated(this%st)) deallocate (this%st)
-    if (allocated(this%sd)) then
-      do i = 1, size(this%sd)
-        call this%sd(i)%destruct()
-      end do
-    end if
   end subroutine
 
   subroutine jacobian_reset(this, const, nonconst)

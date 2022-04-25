@@ -57,12 +57,6 @@ contains
       call tc%assert_eq(0, hmap%keys%n, "hashmap_int reset: keys%n == 0")
       call tc%assert_eq(0, hmap%values%n, "hashmap_int reset: values%n == 0")
       call tc%assert(all(hmap%table == -1), "hashmap_int reset: all(table == -1)")
-
-      ! destruct
-      call hmap%destruct()
-      call tc%assert(.not. allocated(hmap%keys%d  ), "hashmap_int destruct: deallocated(hmap%keys%d)")
-      call tc%assert(.not. allocated(hmap%values%d), "hashmap_int destruct: deallocated(hmap%values%d)")
-      call tc%assert(.not. allocated(hmap%table   ), "hashmap_int destruct: deallocated(hmap%table)")
     end block
 
     block
