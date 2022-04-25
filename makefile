@@ -57,7 +57,6 @@ $(BUILD_DIR)/%.f90:
 $(BUILD_DIR)/%.anc:
 	@printf "%b" "$(FC_P) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $(INP_COLOR)$<$(OFF_COLOR)\n\n"
 	@$(FC) $(FFLAGS) $(FINCLUDE) $(FMODULE) $(BUILD_DIR) $(FSYNTAXONLY) -c $<
-	@mv $(notdir $(<:.f90=.i90)) $(BUILD_DIR) 2>/dev/null || true
 	@touch $@
 
 # rule for c object files

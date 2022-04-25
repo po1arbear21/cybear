@@ -66,6 +66,11 @@ contains
     call map%set(string("f"), 6.0)
     call tc%assert_eq(6.0, map%get(string("f")), 0.0, "set existing")
 
+    ! test destruct
+    call map%destruct()
+    node => map%find(str(1))
+    call tc%assert(.not. associated(node), "destruct")
+
     call tc%finish()
   end subroutine
 

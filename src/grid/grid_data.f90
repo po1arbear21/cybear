@@ -58,16 +58,17 @@ module grid_data_m
       integer              :: n
         !! total number of values
     contains
-      procedure :: init  => grid_data_$1_init
-      procedure :: reset => grid_data_$1_reset
+      procedure :: init     => grid_data_$1_init
+      procedure :: destruct => grid_data_$1_destruct
+      procedure :: reset    => grid_data_$1_reset
 
       m4_dimlist(m4_max_dim,$1)
 
-      generic   :: get => grid_data_$1_get_point, grid_data_$1_get_all
-      generic   :: set => grid_data_$1_set_point, grid_data_$1_set_all
+      generic   :: get      => grid_data_$1_get_point, grid_data_$1_get_all
+      generic   :: set      => grid_data_$1_set_point, grid_data_$1_set_all
       m4_ifelse($1,log,,{generic   :: update   => grid_data_$1_update_point, grid_data_$1_update_all})
 
-      procedure :: output => grid_data_$1_output
+      procedure :: output   => grid_data_$1_output
 
       procedure, private :: grid_data_$1_get_point, grid_data_$1_get_all
       procedure, private :: grid_data_$1_set_point, grid_data_$1_set_all
@@ -233,6 +234,20 @@ contains
     if (present(d0)) d0_ = d0
 
     ! allocate data array
+    select type (this)
+      m4_dimlist(m4_max_dim,$1)
+    end select
+  end subroutine})
+  m4_typelist
+
+  m4_define({m4_Y},{m4_ifelse($1,0,,{
+    type is (grid_data$1_$2)
+      if (allocated(this%data)) deallocate (this%data)
+  })})
+  m4_define({m4_X},{subroutine grid_data_$1_destruct(this)
+    class(grid_data_$1), intent(inout) :: this
+
+    if (allocated(this%idx_bnd)) deallocate (this%idx_bnd)
     select type (this)
       m4_dimlist(m4_max_dim,$1)
     end select

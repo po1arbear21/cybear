@@ -35,6 +35,18 @@ module subroutine dense_{}T{}_init_by_size(this, nrows, ncols)
   this%d = 0
 end subroutine
 
+module subroutine dense_{}T{}_destruct(this)
+  !! Destruct dense matrix; i.e. deallocate its members.
+
+  class(dense_{}T), intent(inout) :: this
+    !! Dense matrix
+
+  if (allocated(this%d   )) deallocate (this%d   )
+  if (allocated(this%lu  )) deallocate (this%lu  )
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
+  this%factorized = .false.
+end subroutine
+
 module subroutine dense_{}T{}_reset(this, only_factorization)
   !! Reset dense matrix to zero (optionally only the factorization).
 

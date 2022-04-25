@@ -16,38 +16,42 @@ contains
 
     call tc%init("deque")
 
-    ! init
+    ! test1: init
     call deq%init(0, c = 4)
     call tc%assert_eq(0, deq%n, "init: n")
     call tc%assert(allocated(deq%d), "init: allocated(d)")
     call tc%assert_eq(4, size(deq%d), "init: capacity")
 
-    ! init with initial values
+    ! test2: init with initial values
     call deq%init(3, c = 7, x = [1, 2, 3])
     call tc%assert_eq(3, deq%n, "init_x: n")
     call tc%assert(allocated(deq%d), "init_x: allocated(d)")
     call tc%assert_eq(7, size(deq%d), "init_x: capacity")
     call tc%assert_eq([1, 2, 3], deq%d(1:deq%n), "init_x: values")
 
-    ! reset
+    ! test3: destruct
+    call deq%destruct()
+    call tc%assert(.not. allocated(deq%d), "destruct")
+
+    ! test4: reset
     call deq%init(2, c = 3)
     call deq%reset()
     call tc%assert_eq(0, deq%n, "reset: n")
 
-    ! reserve
+    ! test5: reserve
     call deq%reserve(50)
     call tc%assert_eq(50, size(deq%d), "reserve: capacity")
 
-    ! resize
+    ! test6: resize
     call deq%resize(10)
     call tc%assert_eq(10, deq%n, "resize: n")
 
-    ! front/back
+    ! test7: front/back
     call deq%init(3, c = 4, x = [1, 2, 3])
     call tc%assert_eq(1, deq%front(), "front")
     call tc%assert_eq(3, deq%back(), "back")
 
-    ! push_front
+    ! test8: push_front
     call deq%init(0, c = 1)
     call deq%push_front(1)
     call deq%push_front(2)
@@ -58,7 +62,7 @@ contains
     call tc%assert_eq(5, deq%front(), "push_front: front")
     call tc%assert_eq(1, deq%back(), "push_front: back")
 
-    ! push_back
+    ! test9: push_back
     call deq%push_back(101)
     call deq%push_back(102)
     call deq%push_back(103)
@@ -71,7 +75,7 @@ contains
     call tc%assert_eq(5, deq%front(), "push_back: front")
     call tc%assert_eq(108, deq%back(), "push_back: back")
 
-    ! pop_front
+    ! test10: pop_front
     call deq%pop_front()
     call deq%pop_front()
     call deq%pop_front()
@@ -83,7 +87,7 @@ contains
     call tc%assert_eq(102, deq%front(), "pop_front: front")
     call tc%assert_eq(109, deq%back(), "pop_front: back")
 
-    ! pop_back
+    ! test11: pop_back
     call deq%pop_back()
     call deq%pop_back()
     call deq%pop_back()
@@ -91,15 +95,15 @@ contains
     call tc%assert_eq(102, deq%front(), "pop_back: front")
     call tc%assert_eq(106, deq%back(), "pop_back: back")
 
-    ! shrink
+    ! test12: shrink
     call deq%shrink()
     call tc%assert_eq(5, size(deq%d), "shrink: capacity")
     call tc%assert_eq([102, 103, 104, 105, 106], deq%d(1:deq%n), "shrink: d")
 
-    ! to_array
+    ! test13: to_array
     call tc%assert_eq([102, 103, 104, 105, 106], deq%to_array(), "to_array")
 
-    ! from_array
+    ! test14: from_array
     call deq%resize(3)
     call deq%shrink()
     call deq%from_array([1, 2, 3, 4, 5])

@@ -31,6 +31,13 @@ subroutine vector_{}T{}_init(this, n, c, x)
   end if
 end subroutine
 
+subroutine vector_{}T{}_destruct(this)
+  !! destruct vector (deallocate memory)
+  class(vector_{}T), intent(inout) :: this
+
+  if (allocated(this%d)) deallocate (this%d)
+end subroutine
+
 subroutine vector_{}T{}_reset(this)
   !! reset vector to size zero
   class(vector_{}T), intent(inout) :: this

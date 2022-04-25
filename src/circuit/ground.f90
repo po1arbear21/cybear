@@ -33,7 +33,8 @@ module ground_m
     type(ground_equ) :: equ
       !! ground equation
   contains
-    procedure :: init => ground_init
+    procedure :: init     => ground_init
+    procedure :: destruct => ground_destruct
   end type
 
 contains
@@ -89,6 +90,13 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1))
     call crt%sys%add_equation(this%equ)
+  end subroutine
+
+  subroutine ground_destruct(this)
+    !! destruct ground
+    class(ground), intent(inout) :: this
+
+    call this%equ%destruct()
   end subroutine
 
 end module

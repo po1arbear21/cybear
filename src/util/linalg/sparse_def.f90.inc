@@ -13,6 +13,7 @@ contains
   procedure :: sparse_{}T{}_init
   generic   :: init          => sparse_{}T{}_init
   procedure :: init_solver   => sparse_{}T{}_init_solver
+  procedure :: destruct      => sparse_{}T{}_destruct
   procedure :: reset         => sparse_{}T{}_reset
   procedure :: scale         => sparse_{}T{}_scale
   procedure :: mul_vec       => sparse_{}T{}_mul_vec
@@ -30,8 +31,6 @@ contains
   procedure :: output        => sparse_{}T{}_output
   procedure :: nnz           => sparse_{}T{}_nnz
   procedure :: is_empty      => sparse_{}T{}_is_empty
-
-  final :: sparse_{}T{}_destruct
 end type
 
 type sparse_ptr_{}T
@@ -56,6 +55,7 @@ type spbuild_{}T
     !! user ensures no duplicate entries
 contains
   procedure :: init      => spbuild_{}T{}_init
+  procedure :: destruct  => spbuild_{}T{}_destruct
   procedure :: reset     => spbuild_{}T{}_reset
   procedure :: reset_row => spbuild_{}T{}_reset_row
   procedure :: set       => spbuild_{}T{}_set
@@ -72,6 +72,10 @@ interface
     class(sparse_{}T), intent(out) :: this
     integer,           intent(in)  :: nrows
     integer, optional, intent(in)  :: ncols
+  end subroutine
+
+  module subroutine sparse_{}T{}_destruct(this)
+    class(sparse_{}T), intent(inout) :: this
   end subroutine
 
   module subroutine sparse_{}T{}_reset(this, only_factorization)
@@ -173,10 +177,6 @@ interface
     logical                       :: empty
   end function
 
-  module subroutine sparse_{}T{}_destruct(this)
-    type(sparse_{}T), intent(inout) :: this
-  end subroutine
-
   module function sparse_eye_{}T{}(nrows, ncols) result(eye)
     integer,           intent(in)  :: nrows
     integer, optional, intent(in)  :: ncols
@@ -194,6 +194,10 @@ interface
     type(sparse_{}T), target, intent(in)  :: s
     integer, optional,        intent(in)  :: n_per_row
     logical, optional,        intent(in)  :: assume_unique
+  end subroutine
+
+  module subroutine spbuild_{}T{}_destruct(this)
+    class(spbuild_{}T), intent(inout) :: this
   end subroutine
 
   module subroutine spbuild_{}T{}_reset(this)

@@ -11,6 +11,7 @@ contains
   procedure :: matrix_{}T{}_init
   generic   :: init => matrix_{}T{}_init
 
+  procedure(matrix_{}T{}_destruct),  deferred :: destruct
   procedure(matrix_{}T{}_reset),     deferred :: reset
   procedure(matrix_{}T{}_scale),     deferred :: scale
   procedure(matrix_{}T{}_mul_vec),   deferred :: mul_vec
@@ -25,6 +26,10 @@ type matrix_ptr_{}T
 end type
 
 interface
+  module subroutine matrix_{}T{}_destruct(this)
+    class(matrix_{}T), intent(inout) :: this
+  end subroutine
+
   module subroutine matrix_{}T{}_reset(this, only_factorization)
     class(matrix_{}T), intent(inout) :: this
     logical, optional, intent(in)    :: only_factorization

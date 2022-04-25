@@ -10,6 +10,7 @@ type, extends(matrix_{}T) :: dense_{}T
 contains
   procedure :: dense_{}T{}_init_by_size, dense_{}T{}_init_by_data
   generic   :: init       => dense_{}T{}_init_by_size, dense_{}T{}_init_by_data
+  procedure :: destruct   => dense_{}T{}_destruct
   procedure :: reset      => dense_{}T{}_reset
   procedure :: scale      => dense_{}T{}_scale
   procedure :: mul_vec    => dense_{}T{}_mul_vec
@@ -39,6 +40,10 @@ interface
     class(dense_{}T),  intent(out) :: this
     integer,           intent(in)  :: nrows
     integer, optional, intent(in)  :: ncols
+  end subroutine
+
+  module subroutine dense_{}T{}_destruct(this)
+    class(dense_{}T), intent(inout) :: this
   end subroutine
 
   module subroutine dense_{}T{}_reset(this, only_factorization)

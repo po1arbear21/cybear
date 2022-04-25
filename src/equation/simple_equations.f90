@@ -263,7 +263,8 @@ contains
       ! make sure this value was found for all points
       do itab1 = 1, v1%ntab
         if (any(get_v2(itab1,ival1)%d <= 0)) then
-          ! return fail
+          ! clean up and return fail
+          call this%destruct()
           status = .false.
           return
         end if

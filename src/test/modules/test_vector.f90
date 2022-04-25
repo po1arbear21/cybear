@@ -16,38 +16,42 @@ contains
 
     call tc%init("vector")
 
-    ! init
+    ! test1: init
     call vec%init(0, c = 4)
     call tc%assert_eq(0, vec%n, "init: n")
     call tc%assert(allocated(vec%d), "init: allocated(d)")
     call tc%assert_eq(4, size(vec%d), "init: capacity")
 
-    ! init with initial values
+    ! test2: init with initial values
     call vec%init(3, c = 7, x = [1, 2, 3])
     call tc%assert_eq(3, vec%n, "init_x: n")
     call tc%assert(allocated(vec%d), "init_x: allocated(d)")
     call tc%assert_eq(7, size(vec%d), "init_x: capacity")
     call tc%assert_eq([1, 2, 3], vec%d(1:vec%n), "init_x: values")
 
-    ! reset
+    ! test3: destruct
+    call vec%destruct()
+    call tc%assert(.not. allocated(vec%d), "destruct")
+
+    ! test4: reset
     call vec%init(2, c = 3)
     call vec%reset()
     call tc%assert_eq(0, vec%n, "reset: n")
 
-    ! reserve
+    ! test5: reserve
     call vec%reserve(50)
     call tc%assert_eq(50, size(vec%d), "reserve: capacity")
 
-    ! resize
+    ! test6: resize
     call vec%resize(10)
     call tc%assert_eq(10, vec%n, "resize: n")
 
-    ! front/back
+    ! test7: front/back
     call vec%init(3, c = 4, x = [1, 2, 3])
     call tc%assert_eq(1, vec%front(), "front")
     call tc%assert_eq(3, vec%back(), "back")
 
-    ! push_elem
+    ! test8: push_elem
     call vec%init(0, c = 1)
     call vec%push(1)
     call vec%push(2)
@@ -60,25 +64,25 @@ contains
     call tc%assert_eq(1, vec%front(), "push_elem: front")
     call tc%assert_eq(7, vec%back(), "push_elem: back")
 
-    ! push_elems
+    ! test9: push_elems
     call vec%push([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
     call tc%assert_eq(20, vec%n, "push_elems: n")
     call tc%assert_eq([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], vec%d(1:vec%n), "push_elems: d")
 
-    ! pop
+    ! test10: pop
     call vec%pop
     call tc%assert_eq(19, vec%n, "pop")
     call tc%assert_eq(19, vec%back(), "pop: back")
 
-    ! shrink
+    ! test11: shrink
     call vec%shrink()
     call tc%assert_eq(19, size(vec%d), "shrink: capacity")
     call tc%assert_eq([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], vec%d(1:vec%n), "shrink: d")
 
-    ! to_array
+    ! test12: to_array
     call tc%assert_eq([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], vec%to_array(), "to_array")
 
-    ! from_array
+    ! test13: from_array
     call vec%resize(3)
     call vec%shrink()
     call vec%from_array([1, 2, 3, 4, 5])

@@ -3,7 +3,7 @@ m4_include(../../util/macro.f90.inc)
 module test_normalization_m
 
   use math_m,          only: PI
-  use normalization_m, only: denorm, init_normconst, norm
+  use normalization_m, only: denorm, destruct_normconst, init_normconst, norm
   use test_case_m,     only: test_case
   m4_ifdef({m4_intel},{use ifport})
 
@@ -92,6 +92,8 @@ contains
       deg = norm(45.0, "deg")
       call tc%assert_eq(PI/4.0, deg, 1e-14, "norming degrees")
     end block
+
+    call destruct_normconst()
 
     call tc%finish()
   end subroutine

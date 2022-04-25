@@ -45,7 +45,8 @@ module vsource_m
     type(vsource_equ)        :: equ
       !! voltage source equation
   contains
-    procedure :: init => vsource_init
+    procedure :: init     => vsource_init
+    procedure :: destruct => vsource_destruct
   end type
 
 contains
@@ -130,6 +131,13 @@ contains
     ! initialize equation and add to system
     call this%equ%init(name, this%comp%terms(1), this%comp%terms(2), this%V)
     call crt%sys%add_equation(this%equ)
+  end subroutine
+
+  subroutine vsource_destruct(this)
+    !! destruct voltage source
+    class(vsource), intent(inout) :: this
+
+    call this%equ%destruct()
   end subroutine
 
 end module

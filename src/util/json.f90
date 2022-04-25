@@ -27,18 +27,18 @@ module json_m
     class(json), pointer :: js => null()
       !! main object
   contains
-    procedure :: init => json_file_init
-    procedure :: load => json_file_load
-    procedure :: save => json_file_save
-
-    final :: json_file_destruct
+    procedure :: init     => json_file_init
+    procedure :: destruct => json_file_destruct
+    procedure :: load     => json_file_load
+    procedure :: save     => json_file_save
   end type
 
   type, abstract :: json
     !! base type of json data structure
   contains
-    procedure :: init    => json_init
-    procedure :: get_ptr => json_get_ptr
+    procedure :: init     => json_init
+    procedure :: destruct => json_destruct
+    procedure :: get_ptr  => json_get_ptr
 
     procedure :: cast_null   => json_cast_null
     procedure :: cast_log    => json_cast_log
@@ -98,8 +98,6 @@ module json_m
     procedure :: add_string => json_array_add_string
     procedure :: add_array  => json_array_add_array
     procedure :: add_object => json_array_add_object
-
-    final :: json_array_destruct
   end type
 
   type, extends(json) :: json_object
@@ -137,8 +135,6 @@ module json_m
     procedure :: add_object => json_object_add_object
 
     procedure, private :: add_property => json_object_add_property
-
-    final :: json_object_destruct
   end type
 
 contains
@@ -177,6 +173,16 @@ contains
       allocate (json_object :: this%js)
     end select
     call this%js%init()
+  end subroutine
+
+  subroutine json_file_destruct(this)
+    !! destruct json file
+    class(json_file), intent(inout) :: this
+
+    if (associated(this%js)) then
+      call this%js%destruct()
+      deallocate (this%js)
+    end if
   end subroutine
 
   subroutine json_file_load(this, fname)
@@ -230,13 +236,6 @@ contains
 
     ! close file
     close(funit)
-  end subroutine
-
-  subroutine json_file_destruct(this)
-    !! json_file destructor
-    type(json_file), intent(inout) :: this
-
-    if (associated(this%js)) deallocate (this%js)
   end subroutine
 
   subroutine read_json(js, str)
@@ -686,6 +685,40 @@ contains
     end select
   end subroutine
 
+  subroutine json_destruct(this)
+    !! destruct json data structure
+    class(json), intent(inout) :: this
+
+    integer :: i
+
+    select type (this)
+    type is (json_array)
+      if (allocated(this%values%d)) then
+        do i = 1, this%values%n
+          if (associated(this%values%d(i)%p)) then
+            call this%values%d(i)%p%destruct()
+            deallocate (this%values%d(i)%p)
+          end if
+        end do
+        call this%values%destruct()
+      end if
+
+    type is (json_object)
+      call this%names%destruct()
+      if (allocated(this%properties%d)) then
+        do i = 1, this%properties%n
+          if (associated(this%properties%d(i)%p)) then
+            call this%properties%d(i)%p%destruct()
+            deallocate (this%properties%d(i)%p)
+          end if
+        end do
+        call this%properties%destruct()
+      end if
+      call this%property_map%destruct()
+
+    end select
+  end subroutine
+
   function json_get_ptr(this) result(ptr)
     !! get pointer to this json data structure
     class(json), target, intent(in) :: this
@@ -983,19 +1016,6 @@ contains
     if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_destruct(this)
-    !! json_array destructor
-    type(json_array), intent(inout) :: this
-
-    integer :: i
-
-    if (allocated(this%values%d)) then
-      do i = 1, this%values%n
-        if (associated(this%values%d(i)%p)) deallocate (this%values%d(i)%p)
-      end do
-    end if
-  end subroutine
-
   function json_object_get_json(this, name) result(p)
     !! get json data structure by property name
     class(json_object), intent(in) :: this
@@ -1129,7 +1149,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_null
       allocate (json_null :: js)
@@ -1162,7 +1185,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_log
       allocate (json_log :: js)
@@ -1196,7 +1222,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_int
       allocate (json_int :: js)
@@ -1230,7 +1259,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_real
       allocate (json_real :: js)
@@ -1264,7 +1296,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_string
       allocate (json_string :: js)
@@ -1296,7 +1331,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_array
       allocate (json_array :: js)
@@ -1328,7 +1366,10 @@ contains
       i = nd%value
 
       ! delete old data
-      if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
 
       ! reallocate to json_object
       allocate (json_object :: js)
@@ -1488,19 +1529,6 @@ contains
     call this%properties%push(ptr)
     call this%property_map%insert(new_string(name), this%properties%n, status = status)
     if (.not. status) call program_error("property with name '"//name//"' already exists")
-  end subroutine
-
-  subroutine json_object_destruct(this)
-    !! json_object destructor
-    type(json_object), intent(inout) :: this
-
-    integer :: i
-
-    if (allocated(this%properties%d)) then
-      do i = 1, this%properties%n
-        if (associated(this%properties%d(i)%p)) deallocate (this%properties%d(i)%p)
-      end do
-    end if
   end subroutine
 
 end module
