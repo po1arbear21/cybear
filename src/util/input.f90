@@ -165,10 +165,18 @@ contains
     data = data0
 
     ! search for equals sign
-    i = scan(data, '=')
-    if (i == 0) then
+    do i = 1, len_trim(data)
+      if ((data(i:i) == "'") .or. (data(i:i) == '"')) then
+        valid = .false.
+        err   = "Variable definition error, found quote before equals"
+        return
+      elseif (data(i:i) == '=') then
+        exit
+      end if
+    end do
+    if (i > len_trim(data)) then
       valid = .false.
-      err   = "Variable definition error"
+      err   = "Variable definition error, no equals sign"
       return
     end if
 
@@ -187,8 +195,21 @@ contains
     end if
 
     ! search for unit
-    i = scan(data, ':')
-    if (i /= 0) then
+    quote = ""
+    do i = 1, len_trim(data)
+      ! check if inside of quotes
+      if (quote == "") then ! not inside of quote
+        ! check for beginning of quote
+        if ((data(i:i) == "'") .or. (data(i:i) == '"')) then
+          quote = data(i:i)
+        elseif (data(i:i) == ':') then ! found unit separator
+          exit
+        end if
+      elseif (data(i:i) == quote) then ! end of quote
+        quote = ""
+      end if
+    end do
+    if (i <= len_trim(data)) then
       ! implicit real
       this%type = INPUT_TYPE_REAL
 
@@ -215,7 +236,7 @@ contains
     do i = 1, len_trim(data)
       ! check if inside of quote
       if (quote == "") then ! not inside of quote
-        ! check for beginning of quote or comment
+        ! check for beginning of quote
         if ((data(i:i) == "'") .or. (data(i:i) == '"')) then
           quote = data(i:i)
         elseif (data(i:i) == ",") then
