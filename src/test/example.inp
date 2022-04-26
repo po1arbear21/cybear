@@ -38,5 +38,5 @@ scaling fact = 2.0
   x1 = -0.5 : um
   y0 =  0.2 : um
   y1 =  0.5 : um
-  names = "123", "asd asd", "asd 123 x"
+  names = "1:23", "asd,asd", "asd 123 x"
   tf = true, true, false, true

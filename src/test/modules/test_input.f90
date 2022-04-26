@@ -121,7 +121,7 @@ contains
 
       ! get_name_string_arr
       call f%get("contact", "names", s_arr)
-      call tc%assert_eq([string("123"), string("asd asd"), string("asd 123 x")], s_arr, "get_name_string_arr")
+      call tc%assert_eq([string("1:23"), string("asd,asd"), string("asd 123 x")], s_arr, "get_name_string_arr")
 
       ! get_string
       call f%get_sections("contact", sid)
@@ -131,7 +131,7 @@ contains
       ! get_string_arr
       call f%get_sections("contact", sid)
       call f%get(sid(1), "names", s_arr)
-      call tc%assert_eq([string("123"), string("asd asd"), string("asd 123 x")], s_arr, "get_string_arr")
+      call tc%assert_eq([string("1:23"), string("asd,asd"), string("asd 123 x")], s_arr, "get_string_arr")
     end block
 
     ! logicals
