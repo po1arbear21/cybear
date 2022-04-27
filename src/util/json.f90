@@ -2,11 +2,12 @@ m4_include(macro.f90.inc)
 
 module json_m
 
-  use error_m,  only: assert_failed, program_error
-  use map_m,    only: map_string_int, mapnode_string_int
-  use string_m, only: string, new_string
-  use util_m,   only: int2str
-  use vector_m, only: vector_int, vector_string
+  use error_m,         only: assert_failed, program_error
+  use iso_fortran_env, only: int32, int64
+  use map_m,           only: map_string_int, mapnode_string_int
+  use string_m,        only: string, new_string
+  use util_m,          only: int2str
+  use vector_m,        only: vector_int, vector_string
 
   implicit none
 
@@ -67,7 +68,7 @@ module json_m
 
   type, extends(json) :: json_int
     !! integer json number
-    integer :: value
+    integer(kind=int64) :: value
   end type
 
   type, extends(json) :: json_real
@@ -93,7 +94,9 @@ module json_m
 
     procedure :: add_null   => json_array_add_null
     procedure :: add_log    => json_array_add_log
-    procedure :: add_int    => json_array_add_int
+    procedure :: json_array_add_int32
+    procedure :: json_array_add_int64
+    generic   :: add_int    => json_array_add_int32, json_array_add_int64
     procedure :: add_real   => json_array_add_real
     procedure :: add_string => json_array_add_string
     procedure :: add_array  => json_array_add_array
@@ -120,7 +123,9 @@ module json_m
 
     procedure :: set_null   => json_object_set_null
     procedure :: set_log    => json_object_set_log
-    procedure :: set_int    => json_object_set_int
+    procedure :: json_object_set_int32
+    procedure :: json_object_set_int64
+    generic   :: set_int    => json_object_set_int32, json_object_set_int64
     procedure :: set_real   => json_object_set_real
     procedure :: set_string => json_object_set_string
     procedure :: set_array  => json_object_set_array
@@ -128,7 +133,9 @@ module json_m
 
     procedure :: add_null   => json_object_add_null
     procedure :: add_log    => json_object_add_log
-    procedure :: add_int    => json_object_add_int
+    procedure :: json_object_add_int32
+    procedure :: json_object_add_int64
+    generic   :: add_int    => json_object_add_int32, json_object_add_int64
     procedure :: add_real   => json_object_add_real
     procedure :: add_string => json_object_add_string
     procedure :: add_array  => json_object_add_array
@@ -363,6 +370,7 @@ contains
       integer,              intent(in)  :: i1
 
       integer                   :: i, j, k, l, iostat
+      integer(kind=int64)       :: i64
       logical                   :: first, lname
       character(:), allocatable :: name
       real                      :: r
@@ -398,12 +406,12 @@ contains
         l = scan(str(i0:i1), '.') + scan(str(i0:i1), 'd') + scan(str(i0:i1), 'e')
 
         if (l == 0) then
-          read (str(i0:i1), *, iostat = iostat) i
+          read (str(i0:i1), *, iostat = iostat) i64
           if (iostat /= 0) call program_error("Error in line " // int2str(line) // ": unable to parse value '" // str(i0:i1) // "'")
           allocate (json_int :: p)
           select type (p)
           type is (json_int)
-            p%value = i
+            p%value = i64
           end select
         else
           read (str(i0:i1), *, iostat = iostat) r
@@ -844,7 +852,7 @@ contains
     class(json_array), intent(in) :: this
     integer,           intent(in) :: i
       !! index
-    integer                       :: value
+    integer(int64)                :: value
 
     type(json_int), pointer :: js
 
@@ -933,10 +941,27 @@ contains
     if (present(p)) p => p_
   end subroutine
 
-  subroutine json_array_add_int(this, value, p)
+  subroutine json_array_add_int32(this, value, p)
     !! add json_int to array
     class(json_array),                 intent(inout) :: this
-    integer,                           intent(in)    :: value
+    integer(kind=int32),               intent(in)    :: value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
+
+    class(json),    pointer :: js
+    type(json_int), pointer :: p_
+
+    allocate (json_int :: js)
+    call this%values%push(js%get_ptr())
+    p_ => js%cast_int()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_array_add_int64(this, value, p)
+    !! add json_int to array
+    class(json_array),                 intent(inout) :: this
+    integer(kind=int64),               intent(in)    :: value
     type(json_int), optional, pointer, intent(out)   :: p
       !! optional: output pointer to new json_int object
 
@@ -1056,7 +1081,7 @@ contains
     class(json_object), intent(in) :: this
     character(*),       intent(in) :: name
       !! property name
-    integer                        :: value
+    integer(kind=int64)            :: value
 
     class(json),    pointer :: js
     type(json_int), pointer :: js2
@@ -1201,12 +1226,49 @@ contains
     end if
   end subroutine
 
-  subroutine json_object_set_int(this, name, value, p)
+  subroutine json_object_set_int32(this, name, value, p)
     !! set/add integer property
     class(json_object),                intent(inout) :: this
     character(*),                      intent(in)    :: name
       !! property name
-    integer,                           intent(in)    :: value
+    integer(kind=int32),               intent(in)    :: value
+      !! property value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
+
+    integer                           :: i
+    type(mapnode_string_int), pointer :: nd
+    class(json),              pointer :: js
+    type(json_int),           pointer :: p_
+
+    ! lookup property name
+    nd => this%property_map%find(new_string(name))
+    if (associated(nd)) then ! property with this name already exists
+      i = nd%value
+
+      ! delete old data
+      if (associated(this%properties%d(i)%p)) then
+        call this%properties%d(i)%p%destruct()
+        deallocate (this%properties%d(i)%p)
+      end if
+
+      ! reallocate to json_int
+      allocate (json_int :: js)
+      this%properties%d(i)%p => js
+      p_ => js%cast_int()
+      p_%value = value
+      if (present(p)) p => p_
+    else ! new property
+      call this%add_int(name, value, p = p)
+    end if
+  end subroutine
+
+  subroutine json_object_set_int64(this, name, value, p)
+    !! set/add integer property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
+      !! property name
+    integer(kind=int64),               intent(in)    :: value
       !! property value
     type(json_int), optional, pointer, intent(out)   :: p
       !! optional: output pointer to new json_int object
@@ -1419,12 +1481,32 @@ contains
     if (present(p)) p => p_
   end subroutine
 
-  subroutine json_object_add_int(this, name, value, p)
+  subroutine json_object_add_int32(this, name, value, p)
     !! add integer property
     class(json_object),                intent(inout) :: this
     character(*),                      intent(in)    :: name
       !! property name
-    integer,                           intent(in)    :: value
+    integer(kind=int32),               intent(in)    :: value
+      !! property value
+    type(json_int), optional, pointer, intent(out)   :: p
+      !! optional: output pointer to new json_int object
+
+    class(json),    pointer :: js
+    type(json_int), pointer :: p_
+
+    allocate (json_int :: js)
+    call this%add_property(name, js%get_ptr())
+    p_ => js%cast_int()
+    p_%value = value
+    if (present(p)) p => p_
+  end subroutine
+
+  subroutine json_object_add_int64(this, name, value, p)
+    !! add integer property
+    class(json_object),                intent(inout) :: this
+    character(*),                      intent(in)    :: name
+      !! property name
+    integer(kind=int64),               intent(in)    :: value
       !! property value
     type(json_int), optional, pointer, intent(out)   :: p
       !! optional: output pointer to new json_int object
