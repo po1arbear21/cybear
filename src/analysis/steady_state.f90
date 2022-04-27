@@ -94,6 +94,7 @@ contains
     ! allocate memory to store results
     allocate (this%x(this%sys%n, nt))
 
+    ! output initialization
     if (present(ofile)) then
       m4_assert(present(oname))
       obj => ofile%new_object("SteadyState")
@@ -101,7 +102,7 @@ contains
       if (nt == 1) then
         call obj%add_object("Data", p = data)
       elseif (nt > 1) then
-        call obj%add_int("nTime", nt)
+        call ofile%write(obj, "Time", t)
         call obj%add_array("Data", p = ar)
       end if
     end if

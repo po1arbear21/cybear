@@ -1,7 +1,13 @@
+m4_include(../util/macro.f90.inc)
+
 module small_signal_m
 
-  use esystem_m, only: esystem
-  use matrix_m,  only: sparse_cmplx, matrix_add
+  use error_m,       only: assert_failed
+  use esystem_m,     only: esystem
+  use json_m,        only: json_object, json_array
+  use math_m,        only: PI
+  use matrix_m,      only: sparse_cmplx, matrix_add
+  use output_file_m, only: output_file
 
   implicit none
 
@@ -32,20 +38,26 @@ module small_signal_m
 
 contains
 
-  subroutine small_signal_run_analysis(this, sys, s, calc_dxds)
+  subroutine small_signal_run_analysis(this, sys, s, calc_dxds, ofile, oname)
     !! perform small signal analysis
-    class(small_signal),   intent(out)   :: this
-    type(esystem), target, intent(inout) :: sys
+    class(small_signal),         intent(out)   :: this
+    type(esystem), target,       intent(inout) :: sys
       !! equation system
-    complex,               intent(in)    :: s(:)
+    complex,                     intent(in)    :: s(:)
       !! assume: x = x_0 + Re{exp(s*t)}
-    logical, optional,     intent(in)    :: calc_dxds
+    logical,           optional, intent(in)    :: calc_dxds
       !! calculate dxds in addition to x (default: false)
+    type(output_file), optional, intent(inout) :: ofile
+      !! output file
+    character(*),      optional, intent(in)    :: oname
+      !! output name
 
-    complex, allocatable :: rhs(:,:), x(:,:), tmp(:,:), dxds(:,:)
-    integer              :: i, j, k, nsrc, ns
-    logical              :: calc_dxds_
-    type(sparse_cmplx)   :: df, dft, mat
+    complex, allocatable       :: rhs(:,:), x(:,:), tmp(:,:), dxds(:,:)
+    integer                    :: i, j, k, isrc, nsrc, ns
+    logical                    :: calc_dxds_
+    type(sparse_cmplx)         :: df, dft, mat
+    type(json_object), pointer :: obj, data, rdata, idata
+    type(json_array),  pointer :: ar, slice
 
     ! optional arguments
     calc_dxds_ = .false.
@@ -88,7 +100,21 @@ contains
       end do
     end do
 
-    ! get admittance parameters for all frequencies
+    ! output initialization
+    if (present(ofile)) then
+      m4_assert(present(oname))
+      obj => ofile%new_object("SmallSignal")
+      call obj%add_string("Name", oname)
+      if (any(s%re /= 0)) then
+        call ofile%write(obj, "Sigma", s%re, "1/s")
+      end if
+      if (any(s%im /= 0)) then
+        call ofile%write(obj, "Freq", s%im / (2 * PI), "Hz")
+      end if
+      call obj%add_array("Data", p = ar)
+    end if
+
+    ! get small-signal quantities for all frequencies
     do i = 1, ns
       ! construct matrix (mat = df + s * dft)
       call matrix_add(df, dft, mat, fact2 = s(i))
@@ -114,6 +140,20 @@ contains
 
       ! release memory
       call mat%destruct()
+
+      ! output
+      if (present(ofile)) then
+        call ar%add_array(p = slice)
+        do isrc = 1, nsrc
+          call slice%add_object(p = data)
+          call data%add_object("Real", p = rdata)
+          call this%sys%set_x(this%x(:,isrc,i)%re)
+          call this%sys%output_data(ofile, rdata)
+          call data%add_object("Imag", p = idata)
+          call this%sys%set_x(this%x(:,isrc,i)%im)
+          call this%sys%output_data(ofile, idata)
+        end do
+      end if
     end do
   end subroutine
 
