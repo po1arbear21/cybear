@@ -57,7 +57,7 @@ module output_file_m
     integer :: funit_bin = 0
       !! file unit of binary file
 
-    integer :: index_bin
+    integer(kind=int64) :: index_bin
       !! index in binary file
 
     type(json_file)            :: jsfile
@@ -175,10 +175,10 @@ contains
       !! physical unit token; default = "1"
     })
 
-    integer                    :: i
-    integer, allocatable       :: tmp(:)
-    type(json_array),  pointer :: sh
-    type(json_object), pointer :: dat
+    integer                          :: i
+    integer(kind=int64), allocatable :: tmp(:)
+    type(json_array),    pointer     :: sh
+    type(json_object),   pointer     :: dat
 
     m4_real_or_cmplx($2,{
     character(:), allocatable :: unit_
