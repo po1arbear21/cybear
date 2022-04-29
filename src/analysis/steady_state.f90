@@ -139,11 +139,11 @@ contains
           class is (variable_real)
             i0 = v%data%n * (i-1) + 1
             i1 = v%data%n * i
-            rx(i)%d(i0:i1) = v%data%get()
+            rx(j)%d(i0:i1) = v%data%get()
           class is (variable_cmplx)
             i0 = v%data%n * (i-1) + 1
             i1 = v%data%n * i
-            cx(i)%d(i0:i1) = v%data%get()
+            cx(j)%d(i0:i1) = v%data%get()
           end select
         end do
       end if
@@ -166,6 +166,17 @@ contains
 
           deallocate (sh)
         class is (variable_cmplx)
+          if (nt > 1) then
+            allocate (sh(size(v%data%idx_n)+1))
+            sh(size(v%data%idx_n)+1) = nt
+          else
+            allocate (sh(size(v%data%idx_n)))
+          end if
+          sh(1:size(v%data%idx_n)) = v%data%idx_n
+
+          call ofile%write(data, v%name, cx(i)%d, sh, unit = v%unit)
+
+          deallocate (sh)
         end select
       end do
     end if
