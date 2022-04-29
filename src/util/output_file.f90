@@ -181,30 +181,11 @@ contains
       !! physical unit token; default = "1"
     })
 
-    integer                          :: i
-    integer(kind=int64), allocatable :: tmp(:)
-    type(json_array),    pointer     :: sh
-    type(json_object),   pointer     :: dat
+    integer, allocatable :: sh(:)
 
-    m4_real_or_cmplx($2,{
-    character(:), allocatable :: unit_
-
-    unit_ = "1"
-    if (present(unit)) unit_ = unit
-    })
-
-    call obj%add_object(name, p = dat)
-    call dat%add_string("Type", "m4_typename($2)")
-    call dat%add_array("Shape", p = sh)
-    tmp = shape(values)
-    do i = 1, size(tmp)
-      call sh%add_int(tmp(i))
-    end do
-    call dat%add_int("Index", this%index_bin)
-
-    ! write data to binary file
-    write (this%funit_bin) m4_real_or_cmplx($2,{denorm(values, unit_)},{values})
-    this%index_bin = this%index_bin + m4_ifelse($1,0,{1},{size(values)}) * m4_sizeof($2)
+    allocate (sh($1))
+    sh = shape(values)
+    call this%write(obj, name, m4_ifelse($1,0,{[values]},{reshape(values, [size(values)])}), sh{}m4_real_or_cmplx($2,{, unit = unit}))
   end subroutine})
   m4_list
 
