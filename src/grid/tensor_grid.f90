@@ -105,13 +105,14 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-    integer,            intent(out) :: idx_bnd(:)
-      !! output upper bound for each index (idx_dim)
+    integer,            intent(out) :: idx_bnd(:,:)
+      !! output lower/upper bound for each index (2, idx_dim)
 
     integer :: i, j0, j1, rdir
 
     m4_assert(this%idx_allowed(idx_type, idx_dir))
-    m4_assert(size(idx_bnd) == this%idx_dim)
+    m4_assert(size(idx_bnd,1) == 2)
+    m4_assert(size(idx_bnd,2) == this%idx_dim)
 
     j1 = 0
     do i = 1, size(this%g)
@@ -122,15 +123,15 @@ contains
         rdir = idx_dir - j0 + 1 ! relative direction
         if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
           if (idx_type == IDX_EDGE) then
-            call this%g(i)%p%get_idx_bnd(IDX_VERTEX, 0, idx_bnd(j0:j1))
+            call this%g(i)%p%get_idx_bnd(IDX_VERTEX, 0, idx_bnd(:,j0:j1))
           else ! idx_type == IDX_FACE
-            call this%g(i)%p%get_idx_bnd(IDX_CELL, 0, idx_bnd(j0:j1))
+            call this%g(i)%p%get_idx_bnd(IDX_CELL, 0, idx_bnd(:,j0:j1))
           end if
         else
-          call this%g(i)%p%get_idx_bnd(idx_type, rdir, idx_bnd(j0:j1))
+          call this%g(i)%p%get_idx_bnd(idx_type, rdir, idx_bnd(:,j0:j1))
         end if
       else
-        call this%g(i)%p%get_idx_bnd(idx_type, 0, idx_bnd(j0:j1))
+        call this%g(i)%p%get_idx_bnd(idx_type, 0, idx_bnd(:,j0:j1))
       end if
     end do
   end subroutine
@@ -528,7 +529,7 @@ contains
       &                                            MULOP, MULOP, ADDOP, SELOP, &
       &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
 
-    integer          :: i, i0, i1, j, j0, j1, k, op, bnd(this%idx_dim), max_neighb, isearch
+    integer          :: i, i0, i1, j, j0, j1, k, op, bnd(2,this%idx_dim), max_neighb, isearch
     integer          :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
     integer          :: neighb_mul_n(size(this%g)), imul(size(this%g))
     logical          :: select1, select2, status
@@ -556,8 +557,8 @@ contains
 
     ! loop over all grid indices
     call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
-    idx1 = 1
-    do while (idx1(this%idx_dim) <= bnd(this%idx_dim))
+    idx1 = bnd(1,:)
+    do while (idx1(this%idx_dim) <= bnd(2,this%idx_dim))
       ! clear temporary neighbour table
       do i = 1, this%idx_dim
         call neighb_tmp(i)%reset()
@@ -682,8 +683,8 @@ contains
       ! next idx1
       idx1(1) = idx1(1) + 1
       do i = 1, this%idx_dim - 1
-        if (idx1(i) <= bnd(i)) exit
-        idx1(i  ) = 1
+        if (idx1(i) <= bnd(2,i)) exit
+        idx1(i  ) = bnd(1,i)
         idx1(i+1) = idx1(i+1) + 1
       end do
     end do

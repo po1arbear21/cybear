@@ -45,16 +45,21 @@ module grid_data_m
   ! (idx(1), idx(2), ...)
   m4_define({m4_pidx},{m4_ifelse($1,0,,{(m4_idx($1))})})
 
-  ! this%idx_bnd(1), this%idx_bnd(2), ...
-  m4_define({m4_this_idx_bnd},{m4_ifelse($1,1,,{m4_this_idx_bnd(m4_decr($1)),}){this%idx_bnd($1)}})
+  ! this%idx_bnd(1,1):this%idx_bnd(2,1), this%idx_bnd(1,2):this%idx_bnd(2,2), ...
+  m4_define({m4_this_idx_bnd},{m4_ifelse($1,1,,{m4_this_idx_bnd(m4_decr($1)),}){this%idx_bnd(1,$1):this%idx_bnd(2,$1)}})
+
+  ! this%idx_n(1), this%idx_n(2), ...
+  m4_define({m4_this_idx_n},{m4_ifelse($1,1,,{m4_this_idx_n(m4_decr($1)),}){this%idx_n($1)}})
 
   ! abstract grid_data type definitions
   m4_define({m4_Y},{procedure :: get_ptr$1 => grid_data_$2_get_ptr$1})
   m4_define({m4_X},{
     type, abstract :: grid_data_$1
       !! grid based array with bounds checks
-      integer, allocatable :: idx_bnd(:)
-        !! index bounds
+      integer, allocatable :: idx_bnd(:,:)
+        !! index bounds (2, idx_dim)
+      integer, allocatable :: idx_n(:)
+        !! number of values per idx_dir (idx_dim)
       integer              :: n
         !! total number of values
     contains
@@ -223,11 +228,13 @@ contains
     m4_type($1) :: d0_
 
     ! get index bounds
-    allocate (this%idx_bnd(g%idx_dim))
+    allocate (this%idx_bnd(2,g%idx_dim))
     call g%get_idx_bnd(idx_type, idx_dir, this%idx_bnd)
 
-    ! set total number of values
-    this%n = product(this%idx_bnd) ! = 1 for idx_dim == 0
+    ! set number of values
+    allocate (this%idx_n(g%idx_dim))
+    this%idx_n = this%idx_bnd(2,:) - this%idx_bnd(1,:) + 1
+    this%n = product(this%idx_n) ! = 1 for idx_dim == 0
 
     ! get initial value
     d0_ = m4_ifelse($1,log,{.false.},0)
@@ -302,8 +309,8 @@ contains
     m4_type($1)                     :: d
       !! return data
 
-    m4_assert(size(idx) == size(this%idx_bnd)             )
-    m4_assert(all(idx >= 1) .and. all(idx <= this%idx_bnd))
+    m4_assert(size(idx) == size(this%idx_bnd,2))
+    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! default value
     d = m4_ifelse($1,log,{.false.},0)
@@ -343,8 +350,8 @@ contains
     m4_type($1),         intent(in)    :: d
       !! new value
 
-    m4_assert(size(idx) == size(this%idx_bnd)             )
-    m4_assert(all(idx >= 1) .and. all(idx <= this%idx_bnd))
+    m4_assert(size(idx) == size(this%idx_bnd,2))
+    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! set data
     select type (this)
@@ -355,7 +362,7 @@ contains
 
   m4_define({m4_Y},{
     type is (grid_data$1_$2)
-      this%data = m4_ifelse($1,0,{d(1)},{m4_ifelse($1,1,{d},{reshape(d, [m4_this_idx_bnd($1)])})})
+      this%data = m4_ifelse($1,0,{d(1)},{m4_ifelse($1,1,{d},{reshape(d, [m4_this_idx_n($1)])})})
   })
   m4_define({m4_X},{subroutine grid_data_$1_set_all(this, d)
     !! set data for all points
@@ -384,8 +391,8 @@ contains
     m4_type($1),         intent(in)    :: d
       !! delta value
 
-    m4_assert(size(idx) == size(this%idx_bnd)             )
-    m4_assert(all(idx >= 1) .and. all(idx <= this%idx_bnd))
+    m4_assert(size(idx) == size(this%idx_bnd,2))
+    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! update data
     select type (this)
@@ -396,7 +403,7 @@ contains
 
   m4_define({m4_Y},{
     type is (grid_data$1_$2)
-      this%data = this%data + m4_ifelse($1,0,{d(1)},{m4_ifelse($1,1,{d},{reshape(d, [m4_this_idx_bnd($1)])})})
+      this%data = this%data + m4_ifelse($1,0,{d(1)},{m4_ifelse($1,1,{d},{reshape(d, [m4_this_idx_n($1)])})})
   })
   m4_define({m4_X},{m4_divert(m4_ifelse($1,log,-1,0))subroutine grid_data_$1_update_all(this, d)
     !! update data for all points

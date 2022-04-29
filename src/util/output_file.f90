@@ -74,8 +74,14 @@ module output_file_m
     m4_define({m4_Y},{generic :: write => output_file_write_$2_$1})
     m4_list
 
+    m4_define({m4_X},{generic :: write => output_file_write_$1})
+    m4_typelist
+
     m4_define({m4_Y},{procedure, private :: output_file_write_$2_$1})
     m4_list
+
+    m4_define({m4_X},{procedure, private :: output_file_write_$1})
+    m4_typelist
   end type
 
 contains
@@ -201,5 +207,46 @@ contains
     this%index_bin = this%index_bin + m4_ifelse($1,0,{1},{size(values)}) * m4_sizeof($2)
   end subroutine})
   m4_list
+
+  m4_define({m4_X},{subroutine output_file_write_$1(this, obj, name, values, sh{}m4_real_or_cmplx($1,{, unit}))
+    !! write data to binary file
+    class(output_file),         intent(inout) :: this
+    type(json_object), pointer, intent(inout) :: obj
+      !! parent json object
+    character(*),               intent(in)    :: name
+      !! data name
+    m4_type($1),                intent(in)    :: values(:)
+      !! data values in flat array
+    integer,                    intent(in)    :: sh(:)
+      !! shape of data values
+    m4_real_or_cmplx($1,{
+    character(*), optional,     intent(in)    :: unit
+      !! physical unit token; default = "1"
+    })
+
+    integer                    :: i
+    type(json_array),  pointer :: ar
+    type(json_object), pointer :: dat
+
+    m4_real_or_cmplx($1,{
+    character(:), allocatable :: unit_
+
+    unit_ = "1"
+    if (present(unit)) unit_ = unit
+    })
+
+    call obj%add_object(name, p = dat)
+    call dat%add_string("Type", "m4_typename($1)")
+    call dat%add_array("Shape", p = ar)
+    do i = 1, size(sh)
+      call ar%add_int(int(sh(i), kind = int64))
+    end do
+    call dat%add_int("Index", this%index_bin)
+
+    ! write data to binary file
+    write (this%funit_bin) m4_real_or_cmplx($1,{denorm(values, unit_)},{values})
+    this%index_bin = this%index_bin + m4_ifelse($1,0,{1},{size(values)}) * m4_sizeof($1)
+  end subroutine})
+  m4_typelist
 
 end module

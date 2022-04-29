@@ -317,9 +317,9 @@ contains
       !! pnt = [x, y]
     integer,            intent(out)   :: icell
       !! idx of triangle
-    integer,            intent(in), optional :: Ntri_max
+    integer, optional,  intent(in)    :: Ntri_max
       !! maximum #triangles associated with a node. default: 4
-    integer,            intent(in), optional :: Nnodes
+    integer, optional,  intent(in)    :: Nnodes
       !! maximum #nodes in quadtree. default: 256
 
     integer :: Nnodes_, Ntri_max_
@@ -345,12 +345,13 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx_dir
       !! index direction for edges and faces. (must be 0 for IDX_VERTEX and IDX_CELL as always)
-    integer,            intent(out) :: idx_bnd(:)
-      !! output: upper bound for each index. size: (idx_dim=1)
+    integer,            intent(out) :: idx_bnd(:,:)
+      !! output: lower/upper bound for each index. size: (2, idx_dim = 1)
 
-    m4_assert(size(idx_bnd) == this%idx_dim)
+    m4_assert(size(idx_bnd,1) == 2)
+    m4_assert(size(idx_bnd,2) == this%idx_dim)
 
-    call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(1))
+    call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(:,1))
   end subroutine
 
   subroutine triang_grid_get_idx_bnd_1(this, idx_type, idx_dir, idx_bnd)
@@ -360,22 +361,24 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,            intent(in)  :: idx_dir
       !! index direction for edges and faces. (must be 0 for IDX_VERTEX and IDX_CELL as always)
-    integer,            intent(out) :: idx_bnd
-      !! output: upper bound for each index.
+    integer,            intent(out) :: idx_bnd(:)
+      !! output: lower/upper bound for each index. (2)
 
+    m4_assert(size(idx_bnd) == 2)
     m4_assert(this%idx_allowed(idx_type, idx_dir))
 
     m4_ignore(idx_dir)
 
+    idx_bnd(1) = 1
     select case (idx_type)
       case (IDX_VERTEX)
-        idx_bnd = size(this%vert,      dim=2)
+        idx_bnd(2) = size(this%vert,      dim=2)
       case (IDX_EDGE)
-        idx_bnd = size(this%edge2vert, dim=2)
+        idx_bnd(2) = size(this%edge2vert, dim=2)
       case (IDX_FACE)
-        idx_bnd = size(this%edge2vert, dim=2)
+        idx_bnd(2) = size(this%edge2vert, dim=2)
       case (IDX_CELL)
-        idx_bnd = size(this%cell2vert, dim=2)
+        idx_bnd(2) = size(this%cell2vert, dim=2)
     end select
   end subroutine
 

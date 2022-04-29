@@ -96,9 +96,10 @@ contains
       if (idx_dim == 0) then
         call this%idx2flat%set(idx, 1)
       else
+        idx = idx_bnd(1,:)
         idx = 1
         i   = 0
-        do while (idx(idx_dim) <= idx_bnd(idx_dim))
+        do while (idx(idx_dim) <= idx_bnd(2,idx_dim))
           if (this%flags%get(idx)) then
             i = i + 1
             this%flat2idx(:,i) = idx
@@ -108,8 +109,8 @@ contains
           ! go to next index
           idx(1) = idx(1) + 1
           do j = 1, idx_dim-1
-            if (idx(j) <= idx_bnd(j)) exit
-            idx(j  ) = 1
+            if (idx(j) <= idx_bnd(2,j)) exit
+            idx(j  ) = idx_bnd(1,j)
             idx(j+1) = idx(j+1) + 1
           end do
         end do

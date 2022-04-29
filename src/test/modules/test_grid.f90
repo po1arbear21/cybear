@@ -81,7 +81,7 @@ contains
 
     subroutine test_grid0D()
       type(grid0D) :: g
-      integer      :: bnd(0), idx1(0), idx2(0)
+      integer      :: bnd(2,0), idx1(0), idx2(0)
       logical      :: status
       real         :: p(0)
 
@@ -128,27 +128,27 @@ contains
 
       ! get_idx_bnd
       block
-        integer :: bnd_n(1), bnd
+        integer :: bnd_n(2,1), bnd(2)
 
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd_n)
-        call tc%assert_eq([nx], bnd_n, "grid1D: idx_bnd_n: IDX_VERTEX")
+        call tc%assert_eq([1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_VERTEX")
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq( nx,  bnd,   "grid1D: idx_bnd_1: IDX_VERTEX")
+        call tc%assert_eq([1,nx], bnd,        "grid1D: idx_bnd_1: IDX_VERTEX")
 
         call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
-        call tc%assert_eq([nx-1], bnd_n, "grid1D: idx_bnd_n: IDX_EDGE")
+        call tc%assert_eq([1,nx-1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq( nx-1,  bnd,   "grid1D: idx_bnd_1: IDX_EDGE")
+        call tc%assert_eq([1,nx-1], bnd,        "grid1D: idx_bnd_1: IDX_EDGE")
 
         call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
-        call tc%assert_eq([nx], bnd_n, "grid1D: idx_bnd_n: IDX_FACE")
+        call tc%assert_eq([1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq( nx,  bnd,   "grid1D: idx_bnd_1: IDX_FACE")
+        call tc%assert_eq([1,nx], bnd,        "grid1D: idx_bnd_1: IDX_FACE")
 
         call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
-        call tc%assert_eq([nx-1], bnd_n, "grid1D: idx_bnd_n: IDX_CELL")
+        call tc%assert_eq([1,nx-1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_CELL")
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq( nx-1,  bnd,   "grid1D: idx_bnd_1: IDX_CELL")
+        call tc%assert_eq([1,nx-1], bnd,        "grid1D: idx_bnd_1: IDX_CELL")
       end block
 
       ! get_vertex
@@ -479,27 +479,27 @@ contains
 
       ! testing get_idx_bnd
       block
-        integer :: bnd_n(1), bnd
+        integer :: bnd_n(2,1), bnd(2)
 
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd_n)
-        call tc%assert_eq([nvert], bnd_n, "triang_grid: idx_bnd_n: IDX_VERTEX")
+        call tc%assert_eq([1,nvert], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_VERTEX")
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq( nvert,  bnd,   "triang_grid: idx_bnd_1: IDX_VERTEX")
+        call tc%assert_eq([1,nvert], bnd,        "triang_grid: idx_bnd_1: IDX_VERTEX")
 
         call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
-        call tc%assert_eq([12], bnd_n, "triang_grid: idx_bnd_n: IDX_EDGE")
+        call tc%assert_eq([1,12], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq( 12,  bnd,   "triang_grid: idx_bnd_1: IDX_EDGE")
+        call tc%assert_eq( [1,12],  bnd,      "triang_grid: idx_bnd_1: IDX_EDGE")
 
         call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
-        call tc%assert_eq([12], bnd_n, "triang_grid: idx_bnd_n: IDX_FACE")
+        call tc%assert_eq([1,12], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq( 12,  bnd,   "triang_grid: idx_bnd_1: IDX_FACE")
+        call tc%assert_eq([1,12], bnd,        "triang_grid: idx_bnd_1: IDX_FACE")
 
         call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
-        call tc%assert_eq([ncell], bnd_n, "triang_grid: idx_bnd_n: IDX_CELL")
+        call tc%assert_eq([1,ncell], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_CELL")
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq( ncell,  bnd,   "triang_grid: idx_bnd_1: IDX_CELL")
+        call tc%assert_eq([1,ncell], bnd,        "triang_grid: idx_bnd_1: IDX_CELL")
       end block
 
       ! get_vertex
@@ -901,27 +901,35 @@ contains
 
       ! get_idx_bnd
       block
-        integer :: bnd(3)
+        integer :: bnd(2,3)
 
         call tg%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq([nx, ny, nz], bnd, "tensor_grid: idx_bnd: IDX_VERTEX")
+        call tc%assert_eq([ 1,  1,  1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_VERTEX")
+        call tc%assert_eq([nx, ny, nz], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_VERTEX")
 
         call tg%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq([nx-1, ny, nz], bnd, "tensor_grid: idx_bnd: IDX_EDGE X")
+        call tc%assert_eq([   1,  1,  1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_EDGE X")
+        call tc%assert_eq([nx-1, ny, nz], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_EDGE X")
         call tg%get_idx_bnd(IDX_EDGE, 2, bnd)
-        call tc%assert_eq([nx, ny-1, nz], bnd, "tensor_grid: idx_bnd: IDX_EDGE Y")
+        call tc%assert_eq([ 1,    1,  1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_EDGE Y")
+        call tc%assert_eq([nx, ny-1, nz], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_EDGE Y")
         call tg%get_idx_bnd(IDX_EDGE, 3, bnd)
-        call tc%assert_eq([nx, ny, nz-1], bnd, "tensor_grid: idx_bnd: IDX_EDGE Z")
+        call tc%assert_eq([ 1,  1,    1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_EDGE Z")
+        call tc%assert_eq([nx, ny, nz-1], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_EDGE Z")
 
         call tg%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq([nx, ny-1, nz-1], bnd, "tensor_grid: idx_bnd: IDX_FACE X")
+        call tc%assert_eq([ 1,    1,    1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_FACE X")
+        call tc%assert_eq([nx, ny-1, nz-1], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_FACE X")
         call tg%get_idx_bnd(IDX_FACE, 2, bnd)
-        call tc%assert_eq([nx-1, ny, nz-1], bnd, "tensor_grid: idx_bnd: IDX_FACE Y")
+        call tc%assert_eq([   1,  1,    1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_FACE Y")
+        call tc%assert_eq([nx-1, ny, nz-1], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_FACE Y")
         call tg%get_idx_bnd(IDX_FACE, 3, bnd)
-        call tc%assert_eq([nx-1, ny-1, nz], bnd, "tensor_grid: idx_bnd: IDX_FACE Z")
+        call tc%assert_eq([   1,    1,  1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_FACE Z")
+        call tc%assert_eq([nx-1, ny-1, nz], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_FACE Z")
 
         call tg%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq([nx-1, ny-1, nz-1], bnd, "tensor_grid: idx_bnd: IDX_CELL")
+        call tc%assert_eq([   1,    1,    1], bnd(1,:), "tensor_grid: idx_bnd(1,:): IDX_CELL")
+        call tc%assert_eq([nx-1, ny-1, nz-1], bnd(2,:), "tensor_grid: idx_bnd(2,:): IDX_CELL")
       end block
 
       ! get_vertex
