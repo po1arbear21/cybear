@@ -109,12 +109,12 @@ contains
 
       allocate (rx(sys%vars%n))
       allocate (cx(sys%vars%n))
-      do i = 1, sys%vars%n
-        select type (v => sys%vars%d(i)%p)
+      do j = 1, sys%vars%n
+        select type (v => sys%vars%d(j)%p)
         class is (variable_real)
-          allocate (rx(i)%d(v%data%n * nt))
+          allocate (rx(j)%d(v%data%n * nt))
         class is (variable_cmplx)
-          allocate (cx(i)%d(v%data%n * nt))
+          allocate (cx(j)%d(v%data%n * nt))
         end select
       end do
     end if
@@ -151,7 +151,7 @@ contains
 
     ! output
     if (present(ofile)) then
-      do i = 1, sys%vars%n
+      do j = 1, sys%vars%n
         select type (v => sys%vars%d(j)%p)
         class is (variable_real)
           if (nt > 1) then
@@ -162,7 +162,7 @@ contains
           end if
           sh(1:size(v%data%idx_n)) = v%data%idx_n
 
-          call ofile%write(data, v%name, rx(i)%d, sh, unit = v%unit)
+          call ofile%write(data, v%name, rx(j)%d, sh, unit = v%unit)
 
           deallocate (sh)
         class is (variable_cmplx)
@@ -174,7 +174,7 @@ contains
           end if
           sh(1:size(v%data%idx_n)) = v%data%idx_n
 
-          call ofile%write(data, v%name, cx(i)%d, sh, unit = v%unit)
+          call ofile%write(data, v%name, cx(j)%d, sh, unit = v%unit)
 
           deallocate (sh)
         end select
