@@ -65,8 +65,8 @@ module grid_m
         !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
       integer,     intent(in)  :: idx_dir
         !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-      integer,     intent(out) :: idx_bnd(:)
-        !! output: upper bound for each index. size: (idx_dim)
+      integer,     intent(out) :: idx_bnd(:,:)
+        !! output: lower/upper bound for each index. size: (2, idx_dim)
     end subroutine
 
     subroutine grid_get_vertex(this, idx, p)
@@ -248,7 +248,7 @@ contains
       !! index. size: (idx_dim)
     logical                           :: allowed
 
-    integer :: idx_bnd(this%idx_dim)
+    integer :: idx_bnd(2,this%idx_dim)
 
     ! check idx_type, idx_dir
     select case (idx_type)
@@ -262,10 +262,10 @@ contains
 
     ! check idx
     if (present(idx)) then
-      allowed = allowed .and. (size(idx) == this%idx_dim) .and. all(idx > 0)
+      allowed = allowed .and. (size(idx) == this%idx_dim)
 
       call this%get_idx_bnd(idx_type, idx_dir, idx_bnd)
-      allowed = allowed .and. all(idx <= idx_bnd)
+      allowed = allowed .and. all(idx >= idx_bnd(1,:)) .and. all(idx <= idx_bnd(2,:))
     end if
   end function
 

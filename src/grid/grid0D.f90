@@ -62,16 +62,17 @@ contains
       !! grid index type (only IDX_VERTEX allowed)
     integer,       intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-    integer,       intent(out) :: idx_bnd(:)
-      !! output upper bound for each index (0)
+    integer,       intent(out) :: idx_bnd(:,:)
+      !! output lower/upper bound for each index (2, idx_dim = 0)
 
     m4_assert(this%idx_allowed(idx_type, idx_dir))
-    m4_assert(size(idx_bnd) == 0)
+    m4_assert(size(idx_bnd,1) == 2)
+    m4_assert(size(idx_bnd,2) == 0)
 
     m4_ignore(this    )
     m4_ignore(idx_type)
     m4_ignore(idx_dir )
-    idx_bnd(:) = 0
+    idx_bnd(:,:) = 0
   end subroutine
 
   subroutine grid0D_get_vertex(this, idx, p)

@@ -26,7 +26,7 @@ contains
     ! init grid table by grid
     ! choose all cells except one
     block
-      integer            :: ncell, ic, idx_bnd(1)
+      integer            :: ncell, ic, idx_bnd(2,1)
       integer, parameter :: nx=101, ic0(1)=[3]
 
       call g%init("x", logspace(1.0, 10.0, nx))
@@ -34,7 +34,7 @@ contains
 
       ! enable each cell
       call g%get_idx_bnd(IDX_CELL, 0, idx_bnd)
-      ncell = idx_bnd(1)
+      ncell = idx_bnd(2,1)
       call g_cell%flags%set([(.true., ic=1,ncell)])
 
       ! disable one cell to make testing more interesting

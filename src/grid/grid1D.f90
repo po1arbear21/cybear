@@ -61,12 +61,13 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,       intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-    integer,       intent(out) :: idx_bnd(:)
-      !! output: upper bound for each index. size: (idx_dim=1)
+    integer,       intent(out) :: idx_bnd(:,:)
+      !! output: lower/upper bound for each index. size: (2, idx_dim = 1)
 
-    m4_assert(size(idx_bnd) == 1)
+    m4_assert(size(idx_bnd,1) == 2)
+    m4_assert(size(idx_bnd,2) == 1)
 
-    call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(1))
+    call this%get_idx_bnd(idx_type, idx_dir, idx_bnd(:,1))
   end subroutine
 
   subroutine grid1D_get_idx_bnd_1(this, idx_type, idx_dir, idx_bnd)
@@ -76,22 +77,24 @@ contains
       !! grid index type (IDX_VERTEX, IDX_EDGE, IDX_FACE or IDX_CELL)
     integer,       intent(in)  :: idx_dir
       !! index direction for edges and faces (must be 0 for IDX_VERTEX and IDX_CELL)
-    integer,       intent(out) :: idx_bnd
-      !! output: upper bound for each index.
+    integer,       intent(out) :: idx_bnd(:)
+      !! output: lower/upper bound for each index.
 
+    m4_assert(size(idx_bnd) == 2)
     m4_assert(this%idx_allowed(idx_type, idx_dir))
 
     m4_ignore(idx_dir)
 
+    idx_bnd(1) = 1
     select case (idx_type)
       case (IDX_VERTEX)
-        idx_bnd = size(this%x)
+        idx_bnd(2) = size(this%x)
       case (IDX_EDGE)
-        idx_bnd = size(this%x) - 1
+        idx_bnd(2) = size(this%x) - 1
       case (IDX_FACE)
-        idx_bnd = size(this%x)
+        idx_bnd(2) = size(this%x)
       case (IDX_CELL)
-        idx_bnd = size(this%x) - 1
+        idx_bnd(2) = size(this%x) - 1
     end select
   end subroutine
 
@@ -99,9 +102,9 @@ contains
     !! get single vertex: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! vertex' grid indices. size: (idx_dim)
+      !! vertex grid indices (idx_dim)
     real,          intent(out) :: p(:)
-      !! output: vertex' coordinates. size: (dim=1)
+      !! output: vertex coordinates (dim=1)
 
     m4_assert(this%idx_allowed(IDX_VERTEX, 0, idx=idx))
     m4_assert(size(p) == this%dim)
@@ -113,11 +116,11 @@ contains
     !! get single edge: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! edge's indices. size: (idx_dim)
+      !! edge indices (idx_dim)
     integer,       intent(in)  :: idx_dir
-      !! edge's direction
+      !! edge direction
     real,          intent(out) :: p(:,:)
-      !! output: edge's coordinates. size: (dim, 2)
+      !! output: edge coordinates (dim, 2)
 
     m4_assert(this%idx_allowed(IDX_EDGE, idx_dir, idx=idx))
     m4_assert(all(shape(p) == [this%dim, 2]))
@@ -131,11 +134,11 @@ contains
     !! get single face: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! face's indices. size: (idx_dim)
+      !! face indices (idx_dim)
     integer,       intent(in)  :: idx_dir
-      !! face's direction
+      !! face direction
     real,          intent(out) :: p(:,:)
-      !! output: face's coordinates. size: (dim=1, face_dim(idx_dir)=1)
+      !! output: face coordinates (dim=1, face_dim(idx_dir)=1)
 
     m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
     m4_assert(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
@@ -149,9 +152,9 @@ contains
     !! get single cell: from grid indices to coordinates
     class(grid1D), intent(in)  :: this
     integer,       intent(in)  :: idx(:)
-      !! cell's indices. size: (idx_dim)
+      !! cell indices (idx_dim)
     real,          intent(out) :: p(:,:)
-      !! output: cell's coordinates. size: (dim=1, cell_dim=2)
+      !! output: cell coordinates (dim=1, cell_dim=2)
 
     m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
     m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
@@ -177,12 +180,12 @@ contains
   end function
 
   function grid1D_get_surf(this, idx, idx_dir) result(surf)
-    !! get single face's surface
+    !! get single surface
     class(grid1D), intent(in) :: this
     integer,       intent(in) :: idx(:)
-      !! face's indices. size: (idx_dim)
+      !! face indices. size: (idx_dim)
     integer,       intent(in) :: idx_dir
-      !! face's direction
+      !! face direction
     real                      :: surf
       !! output: size of face
 
@@ -196,10 +199,10 @@ contains
   end function
 
   function grid1D_get_vol(this, idx) result(vol)
-    !! get single cell's volume
+    !! get single cell volume
     class(grid1D), intent(in) :: this
     integer,       intent(in) :: idx(:)
-      !! cell's indices. size: (idx_dim)
+      !! cell indices. size: (idx_dim)
     real                      :: vol
       !! return cell volume
 
@@ -263,7 +266,7 @@ contains
     logical,       intent(out) :: status
       !! does j-th neighbor exist?
 
-    integer :: idx_bnd(1), shift
+    integer :: idx_bnd(2), shift
 
     m4_assert(this%idx_allowed(idx1_type, idx1_dir, idx=idx1))
     m4_assert(this%idx_allowed(idx2_type, idx2_dir))
@@ -308,7 +311,7 @@ contains
 
     ! make sure idx2 is valid
     call this%get_idx_bnd(idx2_type, idx2_dir, idx_bnd)
-    status = ((idx2(1) >= 1) .and. (idx2(1) <= idx_bnd(1)))
+    status = ((idx2(1) >= idx_bnd(1)) .and. (idx2(1) <= idx_bnd(2)))
   end subroutine
 
   subroutine grid1D_output(this, of, unit)
