@@ -17,8 +17,10 @@ module grid1D_m
     !! 1D grid
     real, allocatable :: x(:)
       !! grid points
+    integer           :: i0, i1
+      !! lower/upper bounds of x
     integer           :: n
-      !! size of x
+      !! size of x (n = i1 - i0 + 1)
   contains
     procedure :: init           => grid1D_init
     procedure :: get_idx_bnd_n  => grid1D_get_idx_bnd_n
@@ -38,20 +40,25 @@ module grid1D_m
 
 contains
 
-  subroutine grid1D_init(this, name, x)
+  subroutine grid1D_init(this, name, x, i0)
     !! initialize 1D grid
-    class(grid1D), intent(out) :: this
-    character(*),  intent(in)  :: name
+    class(grid1D),     intent(out) :: this
+    character(*),      intent(in)  :: name
       !! grid name
-    real,          intent(in)  :: x(:)
+    real,              intent(in)  :: x(:)
       !! grid points
+    integer, optional, intent(in)  :: i0
+      !! lower bound of x
 
     ! init base
     call this%grid_init(name, 1, 1, [1], 2)
 
-    ! save grid points
-    this%x = x
+    ! grid points
+    this%i0 = 1
+    if (present(i0)) this%i0 = i0
     this%n = size(x)
+    this%i1 = this%n + this%i0 - 1
+    allocate (this%x(this%i0:this%i1), source = x)
   end subroutine
 
   subroutine grid1D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
@@ -85,16 +92,16 @@ contains
 
     m4_ignore(idx_dir)
 
-    idx_bnd(1) = 1
+    idx_bnd(1) = this%i0
     select case (idx_type)
       case (IDX_VERTEX)
-        idx_bnd(2) = size(this%x)
+        idx_bnd(2) = this%i1
       case (IDX_EDGE)
-        idx_bnd(2) = size(this%x) - 1
+        idx_bnd(2) = this%i1 - 1
       case (IDX_FACE)
-        idx_bnd(2) = size(this%x)
+        idx_bnd(2) = this%i1
       case (IDX_CELL)
-        idx_bnd(2) = size(this%x) - 1
+        idx_bnd(2) = this%i1 - 1
     end select
   end subroutine
 
@@ -275,12 +282,12 @@ contains
     m4_ignore(idx1_dir)
     m4_ignore(idx2_dir)
 
-    idx2  = 0
+    idx2  = this%i0 - 1
     shift = 0
 
     if (idx1_type == idx2_type) then
       ! idx1 is not a neighbour of itself => either subtract or add 1
-      if (idx1(1) == 1) shift = 1
+      if (idx1(1) == this%i0) shift = 1
       if (j + shift == 1) then
         idx2(1) = idx1(1) - 1
       else if (j + shift == 2) then
@@ -295,7 +302,7 @@ contains
         idx2(1) = idx1(1)
       end if
     else if ((idx1_type == IDX_VERTEX) .or. (idx1_type == IDX_FACE)) then
-      if (idx1(1) == 1) shift = 1
+      if (idx1(1) == this%i0) shift = 1
       if (j + shift == 1) then
         idx2(1) = idx1(1) - 1
       else if (j + shift == 2) then

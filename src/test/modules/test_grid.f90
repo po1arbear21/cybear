@@ -112,10 +112,13 @@ contains
       type(grid1D)       :: g
       real, allocatable  :: x(:)
 
-      allocate (x(nx))                ! remove gfortran warning
-      x = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
+      allocate (x(-1:nx+1))                ! remove gfortran warning
+      x(1:nx) = logspace(1.0, 10.0, nx)     ! logspacing -> non-equidistant!
+      x(-1) = 0.01
+      x(0)  = 0.1
+      x(nx+1) = 11.0
 
-      call g%init("x", x)
+      call g%init("x", x, i0 = lbound(x, 1))
 
       ! check attributes
       block
@@ -131,24 +134,24 @@ contains
         integer :: bnd_n(2,1), bnd(2)
 
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd_n)
-        call tc%assert_eq([1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_VERTEX")
+        call tc%assert_eq([-1,nx+1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_VERTEX")
         call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
-        call tc%assert_eq([1,nx], bnd,        "grid1D: idx_bnd_1: IDX_VERTEX")
+        call tc%assert_eq([-1,nx+1], bnd,        "grid1D: idx_bnd_1: IDX_VERTEX")
 
         call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
-        call tc%assert_eq([1,nx-1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_EDGE")
+        call tc%assert_eq([-1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq([1,nx-1], bnd,        "grid1D: idx_bnd_1: IDX_EDGE")
+        call tc%assert_eq([-1,nx], bnd,        "grid1D: idx_bnd_1: IDX_EDGE")
 
         call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
-        call tc%assert_eq([1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_FACE")
+        call tc%assert_eq([-1,nx+1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq([1,nx], bnd,        "grid1D: idx_bnd_1: IDX_FACE")
+        call tc%assert_eq([-1,nx+1], bnd,        "grid1D: idx_bnd_1: IDX_FACE")
 
         call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
-        call tc%assert_eq([1,nx-1], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_CELL")
+        call tc%assert_eq([-1,nx], bnd_n(:,1), "grid1D: idx_bnd_n: IDX_CELL")
         call g%get_idx_bnd(IDX_CELL, 0, bnd)
-        call tc%assert_eq([1,nx-1], bnd,        "grid1D: idx_bnd_1: IDX_CELL")
+        call tc%assert_eq([-1,nx], bnd,        "grid1D: idx_bnd_1: IDX_CELL")
       end block
 
       ! get_vertex
@@ -269,82 +272,82 @@ contains
         logical              :: status
 
         associate (V => IDX_VERTEX, E => IDX_EDGE, F => IDX_FACE, C => IDX_CELL)
-          ! V(ix=1) -> V_neigh=?
-          exp_idx2 = [2]
+          ! V(ix=-1) -> V_neigh=?
+          exp_idx2 = [0]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(V, 0, V, 0, [1], j, idx2, status)
+            call g%get_neighb(V, 0, V, 0, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb V V: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb V V: idx2"  )
           end do
 
-          ! V(ix=1) -> E_neigh=?
-          exp_idx2 = [1]
+          ! V(ix=-1) -> E_neigh=?
+          exp_idx2 = [-1]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(V, 0, E, 1, [1], j, idx2, status)
+            call g%get_neighb(V, 0, E, 1, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb V E: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb V E: idx2"  )
           end do
 
-          ! V(ix=1) -> F_neigh=?
-          exp_idx2 = [1]
+          ! V(ix=-1) -> F_neigh=?
+          exp_idx2 = [-1]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(V, 0, F, 1, [1], j, idx2, status)
+            call g%get_neighb(V, 0, F, 1, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb V F: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb V F: idx2"  )
           end do
 
-          ! V(ix=1) -> C_neigh=?
-          exp_idx2 = [1]
+          ! V(ix=-1) -> C_neigh=?
+          exp_idx2 = [-1]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(V, 0, C, 0, [1], j, idx2, status)
+            call g%get_neighb(V, 0, C, 0, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb V C: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb V C: idx2"  )
           end do
 
-          ! E(ix=1) -> E_neigh=?
-          exp_idx2 = [2]
+          ! E(ix=-1) -> E_neigh=?
+          exp_idx2 = [0]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(E, 1, E, 1, [1], j, idx2, status)
+            call g%get_neighb(E, 1, E, 1, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb E E: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb E E: idx2"  )
           end do
 
-          ! E(ix=1) -> F_neigh=?
-          exp_idx2 = [1, 2]
+          ! E(ix=-1) -> F_neigh=?
+          exp_idx2 = [-1, 0]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(E, 1, F, 1, [1], j, idx2, status)
+            call g%get_neighb(E, 1, F, 1, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb E F: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb E F: idx2"  )
           end do
 
-          ! E(ix=1) -> C_neigh=?
-          exp_idx2 = [1]
+          ! E(ix=-1) -> C_neigh=?
+          exp_idx2 = [-1]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(E, 1, C, 0, [1], j, idx2, status)
+            call g%get_neighb(E, 1, C, 0, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb E C: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb E C: idx2"  )
           end do
 
-          ! F(ix=1) -> F_neigh=?
-          exp_idx2 = [2]
+          ! F(ix=-1) -> F_neigh=?
+          exp_idx2 = [0]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(F, 1, F, 1, [1], j, idx2, status)
+            call g%get_neighb(F, 1, F, 1, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb F F: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb F F: idx2"  )
           end do
 
-          ! F(ix=1) -> C_neigh=?
-          exp_idx2 = [1]
+          ! F(ix=-1) -> C_neigh=?
+          exp_idx2 = [-1]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(F, 1, C, 0, [1], j, idx2, status)
+            call g%get_neighb(F, 1, C, 0, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb F C: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb F C: idx2"  )
           end do
 
-          ! C(ix=1) -> C_neigh=?
-          exp_idx2 = [2]
+          ! C(ix=-1) -> C_neigh=?
+          exp_idx2 = [0]
           do j = 1, size(exp_idx2)+1
-            call g%get_neighb(C, 0, C, 0, [1], j, idx2, status)
+            call g%get_neighb(C, 0, C, 0, [-1], j, idx2, status)
             call tc%assert((status .eqv. (j <= size(exp_idx2))), "grid1D: get_neighb C C: status")
             if (status) call tc%assert_eq(exp_idx2(j:j), idx2,   "grid1D: get_neighb C C: idx2"  )
           end do
