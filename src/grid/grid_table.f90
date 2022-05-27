@@ -97,7 +97,6 @@ contains
         call this%idx2flat%set(idx, 1)
       else
         idx = idx_bnd(1,:)
-        idx = 1
         i   = 0
         do while (idx(idx_dim) <= idx_bnd(2,idx_dim))
           if (this%flags%get(idx)) then
