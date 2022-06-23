@@ -48,16 +48,19 @@ module tensor_grid_m
 
 contains
 
-  subroutine tensor_grid_init(this, name, g)
+  subroutine tensor_grid_init(this, name, g, no_neighbours)
     !! initialize tensor grid
     class(tensor_grid), intent(out) :: this
     character(*),       intent(in)  :: name
       !! grid name
     type(grid_ptr),     intent(in)  :: g(:)
       !! sub-grids
+    logical, optional,  intent(in)  :: no_neighbours
+      !! do not compute neighbour table (grid can not be used in conjunction with jacobians)
 
     integer              :: i, j, j0, j1, k, dim, idx_dim, cell_dim
     integer, allocatable :: face_dim(:)
+    logical              :: no_neighbours_
 
     ! get dimension and index dimension
     dim = 0
@@ -95,7 +98,9 @@ contains
     this%g = g
 
     ! init neighbour data
-    call this%init_neighb()
+    no_neighbours_ = .false.
+    if (present(no_neighbours)) no_neighbours_ = no_neighbours
+    if (.not. no_neighbours_) call this%init_neighb()
   end subroutine
 
   subroutine tensor_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
