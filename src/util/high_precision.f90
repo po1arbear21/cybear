@@ -12,7 +12,7 @@ module high_precision_m
   private
   public hp_real
   public hp_to_real, real_to_hp
-  public operator(+), operator(-), operator(*), operator(/)
+  public operator(+), operator(-), operator(*), operator(/), operator(**)
   public sqrt, exp, expm1
   public hp_sum, hp_dot
   public TwoSum, TwoProduct
@@ -51,6 +51,12 @@ module high_precision_m
     module procedure :: hp_real_div_rh
   end interface
 
+  interface operator (**)
+    module procedure :: hp_real_pow_hh
+    module procedure :: hp_real_pow_hr
+    module procedure :: hp_real_pow_rh
+  end interface
+
   interface sqrt
     module procedure :: hp_sqrt
   end interface
@@ -61,6 +67,10 @@ module high_precision_m
 
   interface expm1
     module procedure :: hp_expm1
+  end interface
+
+  interface log
+    module procedure :: hp_log
   end interface
 
   interface hp_sum
@@ -308,6 +318,33 @@ contains
     h3 = c - (h2 * c - r1) / h2%x
   end function
 
+  elemental function hp_real_pow_hh(h1, h2) result(h3)
+    !! h3 = h1 ** h2
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = exp(log(h1) * h2)
+  end function
+
+  elemental function hp_real_pow_hr(h1, r2) result(h3)
+    !! h3 = h1 ** r2
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    h3 = exp(log(h1) * r2)
+  end function
+
+  elemental function hp_real_pow_rh(r1, h2) result(h3)
+    !! h3 = r1 ** h2
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = exp(log(real_to_hp(r1)) * h2)
+  end function
+
   elemental function hp_sqrt(h) result(s)
     !! high precision square root
     type(hp_real), intent(in) :: h
@@ -366,6 +403,20 @@ contains
       tmp = (etmp - 1.0) * tmp / log(etmp)
       e = SplitQuad(tmp)
     end if
+  end function
+
+  elemental function hp_log(h) result(l)
+    !! high precision logarithm (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: l
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = log(tmp)
+
+    l = SplitQuad(tmp)
   end function
 
   function SumKvert(p, K) result(res)
