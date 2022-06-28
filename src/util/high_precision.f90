@@ -324,7 +324,11 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = exp(log(h1) * h2)
+    if ((h1%x == 0) .and. (h1%y == 0) .and. (hp_to_real(h2) > 0)) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(h1) * h2)
+    end if
   end function
 
   elemental function hp_real_pow_hr(h1, r2) result(h3)
@@ -333,7 +337,11 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3 = exp(log(h1) * r2)
+    if ((h1%x == 0) .and. (h1%y == 0) .and. (r2 > 0)) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(h1) * r2)
+    end if
   end function
 
   elemental function hp_real_pow_rh(r1, h2) result(h3)
@@ -342,7 +350,11 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    h3 = exp(log(real_to_hp(r1)) * h2)
+    if ((r1 == 0) .and. (hp_to_real(h2) > 0)) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(real_to_hp(r1)) * h2)
+    end if
   end function
 
   elemental function hp_sqrt(h) result(s)
