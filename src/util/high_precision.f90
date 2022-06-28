@@ -13,7 +13,7 @@ module high_precision_m
   public hp_real
   public hp_to_real, real_to_hp
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public sqrt, exp, expm1
+  public sqrt, exp, expm1, log
   public hp_sum, hp_dot
   public TwoSum, TwoProduct
 
