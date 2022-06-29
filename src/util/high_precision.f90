@@ -13,7 +13,7 @@ module high_precision_m
   public hp_real
   public hp_to_real, real_to_hp
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public sqrt, exp, expm1, log
+  public sqrt, exp, expm1, log, log1p
   public hp_sum, hp_dot
   public TwoSum, TwoProduct
 
@@ -71,6 +71,10 @@ module high_precision_m
 
   interface log
     module procedure :: hp_log
+  end interface
+
+  interface log1p
+    module procedure :: hp_log1p
   end interface
 
   interface hp_sum
@@ -429,6 +433,38 @@ contains
     tmp = log(tmp)
 
     l = SplitQuad(tmp)
+  end function
+
+  elemental function hp_log1p(h) result(l)
+    !! high precision log(1 + x)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: l
+
+    real(kind=16) :: tmp, u, d
+
+    if (ieee_class(h%x) == IEEE_POSITIVE_INF) then
+      l%x = h%x
+      l%y = 0.0
+      return
+    end if
+    if (ieee_class(h%y) == IEEE_POSITIVE_INF) then
+      l%x = h%y
+      l%y = 0.0
+      return
+    end if
+
+    tmp = h%x
+    tmp = tmp + h%y
+
+    u = tmp + 1.0
+    d = u - 1.0
+
+    if (d == 0) then
+      l = h
+    else
+      tmp = log(u) * tmp / d
+      l = SplitQuad(tmp)
+    end if
   end function
 
   function SumKvert(p, K) result(res)
