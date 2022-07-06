@@ -106,9 +106,10 @@ contains
         if (v(i)%p%idx_dir  /= this%idx_dir   ) call program_error("different variable index directions" )
       end do
       do i = 1, size(tab)
-        if (.not. associated(tab(i)%p%g, this%g)) call program_error("grid table defined on wrong grid"     )
-        if (tab(i)%p%idx_type /= this%idx_type  ) call program_error("grid table has wrong index type"      )
-        if (tab(i)%p%idx_dir  /= this%idx_dir   ) call program_error("grid table has wrong index direction" )
+        if (.not. associated(tab(i)%p%g, this%g)) call program_error("grid table "//tab(i)%p%name//" defined on wrong grid"     )
+        if (tab(i)%p%idx_type /= this%idx_type  ) call program_error("grid table "//tab(i)%p%name//" has wrong index type"      )
+        if (tab(i)%p%idx_dir  /= this%idx_dir   ) call program_error("grid table "//tab(i)%p%name//" has wrong index direction" )
+        if (        .not. tab(i)%p%finished_init) call program_error("init_final was not called for grid table "//tab(i)%p%name)
       end do
     m4_divert(0)
 

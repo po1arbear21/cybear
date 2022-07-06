@@ -301,7 +301,7 @@ contains
     !! set constant parts of jacobian matrices
     class(equation), intent(inout) :: this
 
-    if (this%finished_init) call program_error("init_final called multiple times")
+    m4_assert(.not. this%finished_init)
     this%finished_init = .true.
 
     call this%set_jaco_matr(const = .true., nonconst = .false.)

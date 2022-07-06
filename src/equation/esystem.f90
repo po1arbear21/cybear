@@ -395,7 +395,7 @@ contains
     !! finish initialization
     class(esystem), intent(inout) :: this
 
-    if (this%finished_init) call program_error("init_final called multiple times")
+    m4_assert(.not. this%finished_init)
     this%finished_init = .true.
 
     ! try to generate selector equations for missing variable selectors
@@ -652,7 +652,7 @@ contains
 
     integer :: i, j, k0, k1, ibl1, ibl2
 
-    if (.not. this%finished_init) call program_error("init_final was not called")
+    m4_assert(this%finished_init)
 
     ! loop over evaluation list
     do i = 1, this%g%ieval%n
