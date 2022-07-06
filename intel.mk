@@ -2,13 +2,13 @@
 FC     := ifort
 FFLAGS := -march=native -warn all -qopenmp -fp-model precise -real-size 64 -fpp
 ifeq ($(BUILD),debug)
-  FFLAGS += -O0 -mkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
+  FFLAGS += -O0 -qmkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
 endif
 ifeq ($(BUILD),release)
-  FFLAGS += -O3 -mkl -ftz
+  FFLAGS += -O3 -qmkl -ftz
 endif
 ifeq ($(BUILD),profile)
-  FFLAGS += -O3 -mkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2
+  FFLAGS += -O3 -qmkl -ftz -g -shared-intel -debug inline-debug-info -parallel-source-info=2
 endif
 ifeq ($(INTSIZE),64)
   FFLAGS += -i8
