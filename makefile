@@ -50,8 +50,10 @@ all: $(TARGETS)
 
 # rule for m4 files
 $(BUILD_DIR)/%.f90:
-	@printf "%b" "$(INSTALL_P) -m 444 <($(M4_P) $(M4FLAGS) -I$(dir $<) $(INP_COLOR)$<$(OFF_COLOR)) $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
-	@install -m 444 <($(M4) $(M4FLAGS) -I$(dir $<) $<) $@
+	@printf "%b" "$(M4_P) $(M4FLAGS) -I$(dir $<) $(INP_COLOR)$<$(OFF_COLOR) > $(OUT_COLOR)$@$(OFF_COLOR)\n"
+	@$(M4) $(M4FLAGS) -I$(dir $<) $< > $@
+	@printf "%b" "$(CHMOD_P) -w $(OUT_COLOR)$@$(OFF_COLOR)\n"
+	@chmod -w $@
 
 # rule for anchor files
 $(BUILD_DIR)/%.anc:
