@@ -50,9 +50,11 @@ all: $(TARGETS)
 
 # rule for m4 files
 $(BUILD_DIR)/%.f90:
+	@printf "%b" "$(TEST_P) -f $(OUT_COLOR)$@$(OFF_COLOR) && $(CHMOD_P) +w $(OUT_COLOR)$@$(OFF_COLOR) || true\n"
+	@test -f $@ && chmod +w $@ || true
 	@printf "%b" "$(M4_P) $(M4FLAGS) -I$(dir $<) $(INP_COLOR)$<$(OFF_COLOR) > $(OUT_COLOR)$@$(OFF_COLOR)\n"
 	@$(M4) $(M4FLAGS) -I$(dir $<) $< > $@
-	@printf "%b" "$(CHMOD_P) -w $(OUT_COLOR)$@$(OFF_COLOR)\n"
+	@printf "%b" "$(CHMOD_P) -w $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
 	@chmod -w $@
 
 # rule for anchor files
