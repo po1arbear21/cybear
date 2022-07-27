@@ -13,7 +13,7 @@ module high_precision_m
   public hp_real
   public hp_to_real, real_to_hp
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public sqrt, exp, expm1, log, log1p
+  public abs, sqrt, exp, expm1, log, log1p
   public hp_sum, hp_dot
   public TwoSum, TwoProduct
 
@@ -65,6 +65,10 @@ module high_precision_m
     module procedure :: hp_real_pow_rh
     module procedure :: hp_real_pow_hi
     module procedure :: hp_real_pow_ih
+  end interface
+
+  interface abs
+    module procedure :: hp_abs
   end interface
 
   interface sqrt
@@ -410,7 +414,9 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    if ((h1%x == 0) .and. (h1%y == 0) .and. (hp_to_real(h2) > 0)) then
+    if (hp_to_real(h2) == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (hp_to_real(h1) == 0) then
       h3 = real_to_hp(0.0)
     else
       h3 = exp(log(h1) * h2)
@@ -423,7 +429,9 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    if ((h1%x == 0) .and. (h1%y == 0) .and. (r2 > 0)) then
+    if (r2 == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (hp_to_real(h1) == 0) then
       h3 = real_to_hp(0.0)
     else
       h3 = exp(log(h1) * r2)
@@ -436,7 +444,9 @@ contains
     type(hp_real), intent(in) :: h2
     type(hp_real)             :: h3
 
-    if ((r1 == 0) .and. (hp_to_real(h2) > 0)) then
+    if (hp_to_real(h2) == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (r1 == 0) then
       h3 = real_to_hp(0.0)
     else
       h3 = exp(log(real_to_hp(r1)) * h2)
@@ -450,6 +460,8 @@ contains
     type(hp_real)             :: h3
 
     select case (i2)
+    case (-3)
+      h3 = 1.0 / (h1 * h1 * h1)
     case (-2)
       h3 = 1.0 / (h1 * h1)
     case (-1)
@@ -460,8 +472,10 @@ contains
       h3 = h1
     case (+2)
       h3 = h1 * h1
+    case (+3)
+      h3 = h1 * h1 * h1
     case default
-      h3 = h1 ** real(i2)
+      h3 = (sign(1.0, hp_to_real(h1))**i2) * abs(h1) ** real(i2)
     end select
   end function
 
@@ -472,6 +486,18 @@ contains
     type(hp_real)             :: h3
 
     h3 = real(i1) ** h2
+  end function
+
+  elemental function hp_abs(h) result(a)
+    !! absolute value of high precision real
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: a
+
+    if (hp_to_real(h) >= 0.0) then
+      a = h
+    else
+      a = -h
+    end if
   end function
 
   elemental function hp_sqrt(h) result(s)
