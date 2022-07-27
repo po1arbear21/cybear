@@ -30,6 +30,8 @@ module high_precision_m
     module procedure :: hp_real_add_hh
     module procedure :: hp_real_add_hr
     module procedure :: hp_real_add_rh
+    module procedure :: hp_real_add_hi
+    module procedure :: hp_real_add_ih
   end interface
 
   interface operator (-)
@@ -37,24 +39,32 @@ module high_precision_m
     module procedure :: hp_real_sub_hh
     module procedure :: hp_real_sub_hr
     module procedure :: hp_real_sub_rh
+    module procedure :: hp_real_sub_hi
+    module procedure :: hp_real_sub_ih
   end interface
 
   interface operator (*)
     module procedure :: hp_real_mul_hh
     module procedure :: hp_real_mul_hr
     module procedure :: hp_real_mul_rh
+    module procedure :: hp_real_mul_hi
+    module procedure :: hp_real_mul_ih
   end interface
 
   interface operator (/)
     module procedure :: hp_real_div_hh
     module procedure :: hp_real_div_hr
     module procedure :: hp_real_div_rh
+    module procedure :: hp_real_div_hi
+    module procedure :: hp_real_div_ih
   end interface
 
   interface operator (**)
     module procedure :: hp_real_pow_hh
     module procedure :: hp_real_pow_hr
     module procedure :: hp_real_pow_rh
+    module procedure :: hp_real_pow_hi
+    module procedure :: hp_real_pow_ih
   end interface
 
   interface sqrt
@@ -206,6 +216,24 @@ contains
     h3 = h2 + r1 ! calls hp_real_add_hr
   end function
 
+  elemental function hp_real_add_hi(h1, i2) result(h3)
+    !! add integer to high precision real
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 + real(i2)
+  end function
+
+  elemental function hp_real_add_ih(i1, h2) result(h3)
+    !! add high precision real to integer
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) + h2
+  end function
+
   elemental function hp_real_neg(h1) result(h2)
     !! negate high precision real
     type(hp_real), intent(in) :: h1
@@ -241,6 +269,24 @@ contains
     type(hp_real)             :: h3
 
     h3 = r1 + (-h2) ! calls hp_real_neg, hp_real_add_rh
+  end function
+
+  elemental function hp_real_sub_hi(h1, i2) result(h3)
+    !! subtract integer from high precision real
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 - real(i2)
+  end function
+
+  elemental function hp_real_sub_ih(i1, h2) result(h3)
+    !! subtract high precision real from integer
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) - h2
   end function
 
   elemental function hp_real_mul_hh(h1, h2) result(h3)
@@ -280,6 +326,24 @@ contains
     type(hp_real)             :: h3
 
     h3 = h2 * r1
+  end function
+
+  elemental function hp_real_mul_hi(h1, i2) result(h3)
+    !! multiply high precision real by integer
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 * real(i2)
+  end function
+
+  elemental function hp_real_mul_ih(i1, h2) result(h3)
+    !! multiply integer by high precision real
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) * h2
   end function
 
   elemental function hp_real_div_hh(h1, h2) result(h3)
@@ -322,6 +386,24 @@ contains
     h3 = c - (h2 * c - r1) / h2%x
   end function
 
+  elemental function hp_real_div_hi(h1, i2) result(h3)
+    !! divide high precision real by integer
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 / real(i2)
+  end function
+
+  elemental function hp_real_div_ih(i1, h2) result(h3)
+    !! divide integer by high precision real
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) / h2
+  end function
+
   elemental function hp_real_pow_hh(h1, h2) result(h3)
     !! h3 = h1 ** h2
     type(hp_real), intent(in) :: h1
@@ -359,6 +441,37 @@ contains
     else
       h3 = exp(log(real_to_hp(r1)) * h2)
     end if
+  end function
+
+  elemental function hp_real_pow_hi(h1, i2) result(h3)
+    !! h3 = h1 ** i2
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    select case (i2)
+    case (-2)
+      h3 = 1.0 / (h1 * h1)
+    case (-1)
+      h3 = 1.0 / h1
+    case ( 0)
+      h3 = real_to_hp(0.0)
+    case (+1)
+      h3 = h1
+    case (+2)
+      h3 = h1 * h1
+    case default
+      h3 = h1 ** real(i2)
+    end select
+  end function
+
+  elemental function hp_real_pow_ih(i1, h2) result(h3)
+    !! h3 = i1 ** h2
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) ** h2
   end function
 
   elemental function hp_sqrt(h) result(s)
