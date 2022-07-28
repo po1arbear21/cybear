@@ -467,7 +467,7 @@ contains
     case (-1)
       h3 = 1.0 / h1
     case ( 0)
-      h3 = real_to_hp(0.0)
+      h3 = real_to_hp(1.0)
     case (+1)
       h3 = h1
     case (+2)
