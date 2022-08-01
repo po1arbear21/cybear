@@ -505,11 +505,16 @@ contains
     type(hp_real), intent(in) :: h
     type(hp_real)             :: s
 
+    real :: s0
+
     ! first approximation
-    s = real_to_hp(sqrt(h%x))
+    s0 = sqrt(hp_to_real(h))
+    s = real_to_hp(s0)
 
     ! one step of newton iteration
-    s = 0.5 * (s + h / s)
+    if (s0 > 0) then
+      s = 0.5 * (s + h / s)
+    end if
   end function
 
   elemental function hp_exp(h) result(e)
