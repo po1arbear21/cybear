@@ -70,30 +70,31 @@ contains
       type(mpfr)   :: a, b, c
       type(string) :: s, s_exp
 
-      call a%init_set("3.14159")
-      call b%init_set("1.00000")
+      call a%init()
+      call b%init()
+      call c%init()
+
+      call a%set("3.14159")
+      call b%set("1.00000")
       call add(c, a, b)
       s%s = c%to_string()
       s_exp%s = "4.141589999999999999999999999999999999988E+0"
       call tc%assert_eq(s_exp, s, "add mpfr mpfr")
-      call a%destruct()
-      call b%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call add(c, a, 1.0)
       s%s = c%to_string()
       s_exp%s = "4.141592653589793238462643383279499999991E+0"
       call tc%assert_eq(s_exp, s, "add mpfr real")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call add(c, a, 1)
       s%s = c%to_string()
       s_exp%s = "4.141592653589793238462643383279499999991E+0"
       call tc%assert_eq(s_exp, s, "add mpfr int")
+
       call a%destruct()
+      call b%destruct()
       call c%destruct()
     end block
 
@@ -102,46 +103,43 @@ contains
       type(mpfr)   :: a, b, c
       type(string) :: s, s_exp
 
-      call a%init_set("3.14159")
-      call b%init_set("1.00000")
+      call a%init()
+      call b%init()
+      call c%init()
+
+      call a%set("3.14159")
+      call b%set("1.00000")
       call sub(c, a, b)
       s%s = c%to_string()
       s_exp%s = "2.141590000000000000000000000000000000000E+0"
       call tc%assert_eq(s_exp, s, "sub mpfr mpfr")
-      call a%destruct()
-      call b%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call sub(c, a, 1.0)
       s%s = c%to_string()
       s_exp%s = "2.141592653589793238462643383279500000002E+0"
       call tc%assert_eq(s_exp, s, "sub mpfr real")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call sub(c, 1.0, a)
       s%s = c%to_string()
       s_exp%s = "-2.141592653589793238462643383279500000002E+0"
       call tc%assert_eq(s_exp, s, "sub real mpfr")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call sub(c, a, 1)
       s%s = c%to_string()
       s_exp%s = "2.141592653589793238462643383279500000002E+0"
       call tc%assert_eq(s_exp, s, "sub mpfr int")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call sub(c, 1, a)
       s%s = c%to_string()
       s_exp%s = "-2.141592653589793238462643383279500000002E+0"
       call tc%assert_eq(s_exp, s, "sub int mpfr")
+
       call a%destruct()
+      call b%destruct()
       call c%destruct()
     end block
 
@@ -150,30 +148,31 @@ contains
       type(mpfr)   :: a, b, c
       type(string) :: s, s_exp
 
-      call a%init_set("3.1415926535897932384626433832795")
-      call b%init_set("2.7182818284590452353602874713527")
+      call a%init()
+      call b%init()
+      call c%init()
+
+      call a%set("3.1415926535897932384626433832795")
+      call b%set("2.7182818284590452353602874713527")
       call mul(c, a, b)
       s%s = c%to_string()
       s_exp%s = "8.539734222673567065463550869546684471768E+0"
       call tc%assert_eq(s_exp, s, "mul mpfr mpfr")
-      call a%destruct()
-      call b%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call mul(c, a, 2.718281828459045)
       s%s = c%to_string()
       s_exp%s = "8.539734222673566611300185395393421040520E+0"
       call tc%assert_eq(s_exp, s, "mul mpfr real")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call mul(c, a, 2)
       s%s = c%to_string()
       s_exp%s = "6.283185307179586476925286766559000000005E+0"
       call tc%assert_eq(s_exp, s, "mul mpfr int")
+
       call a%destruct()
+      call b%destruct()
       call c%destruct()
     end block
 
@@ -182,48 +181,47 @@ contains
       type(mpfr)   :: a, b, c
       type(string) :: s, s_exp
 
-      call a%init_set("3.1415926535897932384626433832795")
-      call b%init_set("2.7182818284590452353602874713527")
+      call a%init()
+      call b%init()
+      call c%init()
+
+      call a%set("3.1415926535897932384626433832795")
+      call b%set("2.7182818284590452353602874713527")
       call div(c, a, b)
       s%s = c%to_string()
       s_exp%s = "1.155727349790921717910093183312679293316E+0"
       call tc%assert_eq(s_exp, s, "div mpfr mpfr")
-      call a%destruct()
-      call b%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call div(c, a, 2.718281828459045)
       s%s = c%to_string()
       s_exp%s = "1.155727349790921779374420885450460118450E+0"
       call tc%assert_eq(s_exp, s, "div mpfr real")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call div(c, 2.718281828459045, a)
       s%s = c%to_string()
       s_exp%s = "8.652559794322650412014050328172537248468E-1"
       call tc%assert_eq(s_exp, s, "div real mpfr")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call div(c, a, 2)
       s%s = c%to_string()
       s_exp%s = "1.570796326794896619231321691639750000001E+0"
       call tc%assert_eq(s_exp, s, "div mpfr int")
-      call a%destruct()
-      call c%destruct()
 
-      call a%init_set("3.1415926535897932384626433832795")
+      call a%set("3.1415926535897932384626433832795")
       call div(c, 2, a)
       s%s = c%to_string()
       s_exp%s = "6.366197723675813430755350534900580325970E-1"
       call tc%assert_eq(s_exp, s, "div int mpfr")
+
       call a%destruct()
+      call b%destruct()
       call c%destruct()
     end block
+
+    ! FIXME: add missing tests
 
     call tc%finish()
   end subroutine

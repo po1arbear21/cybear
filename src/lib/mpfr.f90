@@ -20,11 +20,15 @@ module mpfr_m
   public mpfr_startup, mpfr_cleanup
   public get_default_rnd, set_default_rnd
   public get_default_prec, set_default_prec
-  public add, sub, mul, div
+  public add, sub, mul, sqr, div, pow, sqrt, neg, abs
+  public log, log1p, exp, expm1
+  public sin, asin, cos, acos, tan, atan
+  public sinh, asinh, cosh, acosh, tanh, atanh
 
   type mpfr
     !! multiprecision number (fortran type)
     type(mpfr_t) :: m
+      !! underlying c type
   contains
     procedure :: init     => mpfr_init
     procedure :: destruct => mpfr_destruct
@@ -56,9 +60,7 @@ module mpfr_m
   end type
 
   integer(mpfr_rnd_t)  :: default_rnd
-    !! default rounding mode
   integer(mpfr_prec_t) :: default_prec
-    !! default precision
 
   interface add
     module procedure :: add_mpfr_mpfr
@@ -80,6 +82,10 @@ module mpfr_m
     module procedure :: mul_mpfr_int
   end interface
 
+  interface sqr
+    module procedure :: sqr_mpfr
+  end interface
+
   interface div
     module procedure :: div_mpfr_mpfr
     module procedure :: div_mpfr_real
@@ -87,6 +93,89 @@ module mpfr_m
     module procedure :: div_mpfr_int
     module procedure :: div_int_mpfr
   end interface
+
+  interface pow
+    module procedure :: pow_mpfr_mpfr
+    module procedure :: pow_mpfr_int
+    module procedure :: pow_int_mpfr
+  end interface
+
+  interface sqrt
+    module procedure :: sqrt_mpfr
+  end interface
+
+  interface neg
+    module procedure :: neg_mpfr
+  end interface
+
+  interface abs
+    module procedure :: abs_mpfr
+  end interface
+
+  interface log
+    module procedure :: log_mpfr
+  end interface
+
+  interface log1p
+    module procedure :: log1p_mpfr
+  end interface
+
+  interface exp
+    module procedure :: exp_mpfr
+  end interface
+
+  interface expm1
+    module procedure :: expm1_mpfr
+  end interface
+
+  interface sin
+    module procedure :: sin_mpfr
+  end interface
+
+  interface asin
+    module procedure :: asin_mpfr
+  end interface
+
+  interface cos
+    module procedure :: cos_mpfr
+  end interface
+
+  interface acos
+    module procedure :: acos_mpfr
+  end interface
+
+  interface tan
+    module procedure :: tan_mpfr
+  end interface
+
+  interface atan
+    module procedure :: atan_mpfr
+  end interface
+
+  interface sinh
+    module procedure :: sinh_mpfr
+  end interface
+
+  interface asinh
+    module procedure :: asinh_mpfr
+  end interface
+
+  interface cosh
+    module procedure :: cosh_mpfr
+  end interface
+
+  interface acosh
+    module procedure :: acosh_mpfr
+  end interface
+
+  interface tanh
+    module procedure :: tanh_mpfr
+  end interface
+
+  interface atanh
+    module procedure :: atanh_mpfr
+  end interface
+
 
 contains
 
@@ -449,352 +538,609 @@ contains
     ret = mpfr_init_set_str(this%m, f2cstring(s), int(0, kind = c_int), rnd_)
   end subroutine
 
-
   subroutine add_mpfr_mpfr(r, x, y, rnd)
-    !! add two multiprecision numbers: r = x + y
-    type(mpfr),        intent(out) :: r
-      !! resulting multiprecision number
-    type(mpfr),        intent(in)  :: x
-      !! first number
-    type(mpfr),        intent(in)  :: y
-      !! second number
-    integer, optional, intent(in)  :: rnd
-      !! optional rounding mode
+    !! r = x + y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = max(x%get_prec(), y%get_prec()))
-
-    ! perform addition
     ret = mpfr_add(r%m, x%m, y%m, rnd_)
   end subroutine
 
   subroutine add_mpfr_real(r, x, y, rnd)
-    !! add multiprecision number and real: r = x + y
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    real,              intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x + y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    real,              intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform addition
     ret = mpfr_add_d(r%m, x%m, y, rnd_)
   end subroutine
 
   subroutine add_mpfr_int(r, x, y, rnd)
-    !! add multiprecision number and integer
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    integer,           intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x + y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer,           intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform addition
     ret = mpfr_add_si(r%m, x%m, int(y, kind=c_long), rnd_)
   end subroutine
 
-
   subroutine sub_mpfr_mpfr(r, x, y, rnd)
-    !! subtract two multiprecision numbers
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x - y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = max(x%get_prec(), y%get_prec()))
-
-    ! perform subtraction
     ret = mpfr_sub(r%m, x%m, y%m, rnd_)
   end subroutine
 
   subroutine sub_mpfr_real(r, x, y, rnd)
-    !! subtract real from multiprecision number
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    real,              intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x - y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    real,              intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform subtraction
     ret = mpfr_sub_d(r%m, x%m, y, rnd_)
   end subroutine
 
   subroutine sub_real_mpfr(r, x, y, rnd)
-    !! subtract multiprecision number from real
-    type(mpfr),        intent(out) :: r
-    real,              intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x - y
+    type(mpfr),        intent(inout) :: r
+    real,              intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = y%get_prec())
-
-    ! perform subtraction
     ret = mpfr_d_sub(r%m, x, y%m, rnd_)
   end subroutine
 
   subroutine sub_mpfr_int(r, x, y, rnd)
-    !! subtract integer from multiprecision number
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    integer,           intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x - y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer,           intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform subtraction
     ret = mpfr_sub_si(r%m, x%m, int(y, kind=c_long), rnd_)
   end subroutine
 
   subroutine sub_int_mpfr(r, x, y, rnd)
-    !! subtract multiprecision number from integer
-    type(mpfr),        intent(out) :: r
-    integer,           intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x - y
+    type(mpfr),        intent(inout) :: r
+    integer,           intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = y%get_prec())
-
-    ! perform subtraction
     ret = mpfr_si_sub(r%m, int(x, kind=c_long), y%m, rnd_)
   end subroutine
 
-
   subroutine mul_mpfr_mpfr(r, x, y, rnd)
-    !! multiply two multiprecision numbers: r = x * y
-    type(mpfr),        intent(out) :: r
-      !! resulting multiprecision number
-    type(mpfr),        intent(in)  :: x
-      !! first number
-    type(mpfr),        intent(in)  :: y
-      !! second number
-    integer, optional, intent(in)  :: rnd
-      !! optional rounding mode
+    !! r = x * y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = max(x%get_prec(), y%get_prec()))
-
-    ! perform multiplication
     ret = mpfr_mul(r%m, x%m, y%m, rnd_)
   end subroutine
 
   subroutine mul_mpfr_real(r, x, y, rnd)
-    !! multiply multiprecision number and real: r = x * y
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    real,              intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x * y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    real,              intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform multiplication
     ret = mpfr_mul_d(r%m, x%m, y, rnd_)
   end subroutine
 
   subroutine mul_mpfr_int(r, x, y, rnd)
-    !! multiply multiprecision number and integer
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    integer,           intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x * y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer,           intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform multiplication
     ret = mpfr_mul_si(r%m, x%m, int(y, kind=c_long), rnd_)
   end subroutine
 
-
-  subroutine div_mpfr_mpfr(r, x, y, rnd)
-    !! divide two multiprecision numbers
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+  subroutine sqr_mpfr(r, x, rnd)
+    !! r = x**2
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = max(x%get_prec(), y%get_prec()))
+    ret = mpfr_sqr(r%m, x%m, rnd_)
+  end subroutine
 
-    ! perform division
+  subroutine div_mpfr_mpfr(r, x, y, rnd)
+    !! r = x / y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
     ret = mpfr_div(r%m, x%m, y%m, rnd_)
   end subroutine
 
   subroutine div_mpfr_real(r, x, y, rnd)
-    !! divide multiprecision number by real
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    real,              intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x / y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    real,              intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform division
     ret = mpfr_div_d(r%m, x%m, y, rnd_)
   end subroutine
 
   subroutine div_real_mpfr(r, x, y, rnd)
-    !! divide real by multiprecision number
-    type(mpfr),        intent(out) :: r
-    real,              intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x / y
+    type(mpfr),        intent(inout) :: r
+    real,              intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = y%get_prec())
-
-    ! perform division
     ret = mpfr_d_div(r%m, x, y%m, rnd_)
   end subroutine
 
   subroutine div_mpfr_int(r, x, y, rnd)
-    !! divide multiprecision number by integer
-    type(mpfr),        intent(out) :: r
-    type(mpfr),        intent(in)  :: x
-    integer,           intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x / y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer,           intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = x%get_prec())
-
-    ! perform division
     ret = mpfr_div_si(r%m, x%m, int(y, kind=c_long), rnd_)
   end subroutine
 
   subroutine div_int_mpfr(r, x, y, rnd)
-    !! divide integer by multiprecision number
-    type(mpfr),        intent(out) :: r
-    integer,           intent(in)  :: x
-    type(mpfr),        intent(in)  :: y
-    integer, optional, intent(in)  :: rnd
+    !! r = x / y
+    type(mpfr),        intent(inout) :: r
+    integer,           intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
 
     integer(c_int)       :: ret
     integer(mpfr_rnd_t)  :: rnd_
 
-    ! rounding
     rnd_ = default_rnd
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
-    ! init result
-    call r%init(prec = y%get_prec())
-
-    ! perform division
     ret = mpfr_si_div(r%m, int(x, kind=c_long), y%m, rnd_)
+  end subroutine
+
+  subroutine pow_mpfr_mpfr(r, x, y, rnd)
+    !! r = x ** y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_pow(r%m, x%m, y%m, rnd_)
+  end subroutine
+
+  subroutine pow_mpfr_int(r, x, y, rnd)
+    !! r = x ** y
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer,           intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_pow_si(r%m, x%m, int(y, kind=c_long), rnd_)
+  end subroutine
+
+  subroutine pow_int_mpfr(r, x, y, rnd)
+    !! r = x ** y
+    type(mpfr),        intent(inout) :: r
+    integer,           intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    if (x < 0) call program_error("x must be non-negative")
+    ret = mpfr_ui_pow(r%m, int(x, kind=c_long), y%m, rnd_)
+  end subroutine
+
+  subroutine sqrt_mpfr(r, x, rnd)
+    !! r = sqrt(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_sqrt(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine neg_mpfr(r, x, rnd)
+    !! r = -x
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_neg(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine abs_mpfr(r, x, rnd)
+    !! r = abs(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_abs(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine log_mpfr(r, x, rnd)
+    !! r = log(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_log(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine log1p_mpfr(r, x, rnd)
+    !! r = log1p(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_log1p(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine exp_mpfr(r, x, rnd)
+    !! r = exp(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_exp(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine expm1_mpfr(r, x, rnd)
+    !! r = expm1(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_expm1(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine sin_mpfr(r, x, rnd)
+    !! r = sin(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_sin(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine asin_mpfr(r, x, rnd)
+    !! r = asin(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_asin(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine cos_mpfr(r, x, rnd)
+    !! r = cos(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_cos(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine acos_mpfr(r, x, rnd)
+    !! r = acos(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_acos(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine tan_mpfr(r, x, rnd)
+    !! r = tan(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_tan(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine atan_mpfr(r, x, rnd)
+    !! r = atan(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_atan(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine sinh_mpfr(r, x, rnd)
+    !! r = sinh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_sinh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine asinh_mpfr(r, x, rnd)
+    !! r = asinh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_asinh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine cosh_mpfr(r, x, rnd)
+    !! r = cosh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_cosh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine acosh_mpfr(r, x, rnd)
+    !! r = acosh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_acosh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine tanh_mpfr(r, x, rnd)
+    !! r = tanh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_tanh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine atanh_mpfr(r, x, rnd)
+    !! r = atanh(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_atanh(r%m, x%m, rnd_)
   end subroutine
 
 end module
