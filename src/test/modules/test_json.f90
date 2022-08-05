@@ -62,7 +62,7 @@ contains
       call tc%assert(.not. l, "json_array_get_log")
 
       i = ar%get_int(4)
-      call tc%assert_eq(2, int(i, kind=int32), "json_array_get_int")
+      call tc%assert_eq(2, int(i), "json_array_get_int")
 
       r = ar%get_real(5)
       call tc%assert_eq(3.0, r, 0.0, "json_array_get_real")
@@ -75,11 +75,11 @@ contains
 
       ar2 => ar%get_array(8)
       i = ar2%get_int(1)
-      call tc%assert_eq(1, int(i, kind=int32), "json_array_get_array 1")
+      call tc%assert_eq(1, int(i), "json_array_get_array 1")
       i = ar2%get_int(2)
-      call tc%assert_eq(2, int(i, kind=int32), "json_array_get_array 2")
+      call tc%assert_eq(2, int(i), "json_array_get_array 2")
       i = ar2%get_int(3)
-      call tc%assert_eq(3, int(i, kind=int32), "json_array_get_array 3")
+      call tc%assert_eq(3, int(i), "json_array_get_array 3")
 
       obj => ar%get_object(9)
       call tc%assert_eq(0, obj%names%n,      "json_array_get_object 1")
@@ -132,7 +132,7 @@ contains
       end select
 
       i = obj%get_int("name2")
-      call tc%assert_eq(2, int(i, kind=int32), "json_object_get_int")
+      call tc%assert_eq(2, int(i), "json_object_get_int")
 
       r = obj%get_real("name3")
       call tc%assert_eq(3.0, r, 0.0, "json_object_get_real")
@@ -142,26 +142,26 @@ contains
 
       ar => obj%get_array("name5")
       i = ar%get_int(1)
-      call tc%assert_eq(1, int(i, kind=int32), "json_object_get_array 1")
+      call tc%assert_eq(1, int(i), "json_object_get_array 1")
       i = ar%get_int(2)
-      call tc%assert_eq(2, int(i, kind=int32), "json_object_get_array 2")
+      call tc%assert_eq(2, int(i), "json_object_get_array 2")
       i = ar%get_int(3)
-      call tc%assert_eq(3, int(i, kind=int32), "json_object_get_array 3")
+      call tc%assert_eq(3, int(i), "json_object_get_array 3")
 
       obj2 => obj%get_object("name6")
       i = obj2%get_int("a")
-      call tc%assert_eq(1, int(i, kind=int32), "json_object_get_object 1")
+      call tc%assert_eq(1, int(i), "json_object_get_object 1")
       i = obj2%get_int("b")
-      call tc%assert_eq(2, int(i, kind=int32), "json_object_get_object 1")
+      call tc%assert_eq(2, int(i), "json_object_get_object 1")
       i = obj2%get_int("c")
-      call tc%assert_eq(3, int(i, kind=int32), "json_object_get_object 1")
+      call tc%assert_eq(3, int(i), "json_object_get_object 1")
 
       call obj2%set_int("d", 4)
       call obj2%set_int("a", 5)
       i = obj2%get_int("d")
-      call tc%assert_eq(4, int(i, kind=int32), "json_object_set_int 1")
+      call tc%assert_eq(4, int(i), "json_object_set_int 1")
       i = obj2%get_int("a")
-      call tc%assert_eq(5, int(i, kind=int32), "json_object_set_int 2")
+      call tc%assert_eq(5, int(i), "json_object_set_int 2")
 
       call obj%destruct()
     end block

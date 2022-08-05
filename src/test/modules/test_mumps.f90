@@ -124,7 +124,7 @@ contains
       call destruct_mumps_handle_c(m)
     end block
 
-    call tc%finish
+    call tc%finish()
   end subroutine
 
 end module

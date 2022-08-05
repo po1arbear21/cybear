@@ -66,8 +66,8 @@ $(BUILD_DIR)/%.anc:
 
 # rule for c object files
 $(BUILD_DIR)/%.c.o: %.c
-	@printf "%b" "$(CC_P) $(CFLAGS) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@printf "%b" "$(CC_P) $(CFLAGS) $(CINCLUDE) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
+	@$(CC) $(CFLAGS) $(CINCLUDE) -c $< -o $@
 
 # rule for object files
 $(BUILD_DIR)/%.o:
