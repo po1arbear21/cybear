@@ -223,6 +223,101 @@ contains
 
     ! FIXME: add missing tests
 
+    ! comparisons
+    block
+      type(mpfr) :: a, b
+      real       :: br
+      integer    :: bi
+      logical    :: c
+
+      call a%init()
+      call b%init()
+
+      call a%set("3.1415926535897932384626433832795")
+      call b%set("3.1415926535897932384626433832795")
+      c = (a == b)
+      call tc%assert(c, "operator(==)")
+      c = (a /= b)
+      call tc%assert(.not. c, "operator(/=)")
+      c = (a < b)
+      call tc%assert(.not. c, "operator(<)")
+      c = (a <= b)
+      call tc%assert(c, "operator(<=)")
+      c = (a > b)
+      call tc%assert(.not. c, "operator(>)")
+      c = (a >= b)
+      call tc%assert(c, "operator(>=)")
+
+      call b%set("2.7182818284590452353602874713527")
+      c = (a == b)
+      call tc%assert(.not. c, "operator(==) 2")
+      c = (a /= b)
+      call tc%assert(c, "operator(/=) 2")
+      c = (a < b)
+      call tc%assert(.not. c, "operator(<) 2")
+      c = (a <= b)
+      call tc%assert(.not. c, "operator(<=) 2")
+      c = (a > b)
+      call tc%assert(c, "operator(>) 2")
+      c = (a >= b)
+      call tc%assert(c, "operator(>=) 2")
+
+      br = 3.141
+      c = (a == br)
+      call tc%assert(.not. c, "operator(==) mpfr real")
+      c = (br == a)
+      call tc%assert(.not. c, "operator(==) real mpfr")
+      c = (a /= br)
+      call tc%assert(c, "operator(/=) mpfr real")
+      c = (br /= a)
+      call tc%assert(c, "operator(/=) real mpfr")
+      c = (a < br)
+      call tc%assert(.not. c, "operator(<) mpfr real")
+      c = (br < a)
+      call tc%assert(c, "operator(<) real mpfr")
+      c = (a <= br)
+      call tc%assert(.not. c, "operator(<=) mpfr real")
+      c = (br <= a)
+      call tc%assert(c, "operator(<=) real mpfr")
+      c = (a > br)
+      call tc%assert(c, "operator(>) mpfr real")
+      c = (br > a)
+      call tc%assert(.not. c, "operator(>) real mpfr")
+      c = (a >= br)
+      call tc%assert(c, "operator(>=) mpfr real")
+      c = (br >= a)
+      call tc%assert(.not. c, "operator(>=) real mpfr")
+
+      bi = 4
+      c = (a == bi)
+      call tc%assert(.not. c, "operator(==) mpfr int")
+      c = (bi == a)
+      call tc%assert(.not. c, "operator(==) int mpfr")
+      c = (a /= bi)
+      call tc%assert(c, "operator(/=) mpfr int")
+      c = (bi /= a)
+      call tc%assert(c, "operator(/=) int mpfr")
+      c = (a < bi)
+      call tc%assert(c, "operator(<) mpfr int")
+      c = (bi < a)
+      call tc%assert(.not. c, "operator(<) int mpfr")
+      c = (a <= bi)
+      call tc%assert(c, "operator(<=) mpfr int")
+      c = (bi <= a)
+      call tc%assert(.not. c, "operator(<=) int mpfr")
+      c = (a > bi)
+      call tc%assert(.not. c, "operator(>) mpfr int")
+      c = (bi > a)
+      call tc%assert(c, "operator(>) int mpfr")
+      c = (a >= bi)
+      call tc%assert(.not. c, "operator(>=) mpfr int")
+      c = (bi >= a)
+      call tc%assert(c, "operator(>=) int mpfr")
+
+      call a%destruct()
+      call b%destruct()
+    end block
+
     call tc%finish()
   end subroutine
 

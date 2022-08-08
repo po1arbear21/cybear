@@ -24,6 +24,7 @@ module mpfr_m
   public log, log1p, exp, expm1
   public sin, asin, cos, acos, tan, atan
   public sinh, asinh, cosh, acosh, tanh, atanh
+  public operator(==), operator(/=), operator(<), operator(<=), operator(>), operator(>=)
 
   type mpfr
     !! multiprecision number (fortran type)
@@ -176,6 +177,53 @@ module mpfr_m
     module procedure :: atanh_mpfr
   end interface
 
+  interface operator (==)
+    module procedure :: equal_mpfr_mpfr
+    module procedure :: equal_mpfr_real
+    module procedure :: equal_real_mpfr
+    module procedure :: equal_mpfr_int
+    module procedure :: equal_int_mpfr
+  end interface
+
+  interface operator (/=)
+    module procedure :: nequal_mpfr_mpfr
+    module procedure :: nequal_mpfr_real
+    module procedure :: nequal_real_mpfr
+    module procedure :: nequal_mpfr_int
+    module procedure :: nequal_int_mpfr
+  end interface
+
+  interface operator (<)
+    module procedure :: less_mpfr_mpfr
+    module procedure :: less_mpfr_real
+    module procedure :: less_real_mpfr
+    module procedure :: less_mpfr_int
+    module procedure :: less_int_mpfr
+  end interface
+
+  interface operator (<=)
+    module procedure :: lesseq_mpfr_mpfr
+    module procedure :: lesseq_mpfr_real
+    module procedure :: lesseq_real_mpfr
+    module procedure :: lesseq_mpfr_int
+    module procedure :: lesseq_int_mpfr
+  end interface
+
+  interface operator (>)
+    module procedure :: great_mpfr_mpfr
+    module procedure :: great_mpfr_real
+    module procedure :: great_real_mpfr
+    module procedure :: great_mpfr_int
+    module procedure :: great_int_mpfr
+  end interface
+
+  interface operator (>=)
+    module procedure :: greateq_mpfr_mpfr
+    module procedure :: greateq_mpfr_real
+    module procedure :: greateq_real_mpfr
+    module procedure :: greateq_mpfr_int
+    module procedure :: greateq_int_mpfr
+  end interface
 
 contains
 
@@ -1142,6 +1190,262 @@ contains
 
     ret = mpfr_atanh(r%m, x%m, rnd_)
   end subroutine
+
+  elemental function cmp_mpfr_real(x, y) result(i)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    integer                :: i
+
+    i = int(mpfr_cmp_d(x%m, y))
+  end function
+
+  elemental function cmp_mpfr_int(x, y) result(i)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    integer                :: i
+
+    i = int(mpfr_cmp_si(x%m, int(y, kind = c_long)))
+  end function
+
+  elemental function equal_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (mpfr_equal_p(x%m, y%m) /= 0)
+  end function
+
+  elemental function equal_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(x, y) == 0)
+  end function
+
+  elemental function equal_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(y, x) == 0)
+  end function
+
+  elemental function equal_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(x, y) == 0)
+  end function
+
+  elemental function equal_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(y, x) == 0)
+  end function
+
+  elemental function nequal_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = .not. (x == y)
+  end function
+
+  elemental function nequal_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = .not. (x == y)
+  end function
+
+  elemental function nequal_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = .not. (x == y)
+  end function
+
+  elemental function nequal_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = .not. (x == y)
+  end function
+
+  elemental function nequal_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = .not. (x == y)
+  end function
+
+  elemental function less_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (mpfr_less_p(x%m, y%m) /= 0)
+  end function
+
+  elemental function less_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(x, y) < 0)
+  end function
+
+  elemental function less_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(y, x) > 0)
+  end function
+
+  elemental function less_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(x, y) < 0)
+  end function
+
+  elemental function less_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(y, x) > 0)
+  end function
+
+  elemental function lesseq_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (mpfr_lessequal_p(x%m, y%m) /= 0)
+  end function
+
+  elemental function lesseq_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(x, y) <= 0)
+  end function
+
+  elemental function lesseq_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(y, x) >= 0)
+  end function
+
+  elemental function lesseq_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(x, y) <= 0)
+  end function
+
+  elemental function lesseq_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(y, x) >= 0)
+  end function
+
+  elemental function great_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (mpfr_greater_p(x%m, y%m) /= 0)
+  end function
+
+  elemental function great_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(x, y) > 0)
+  end function
+
+  elemental function great_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(y, x) < 0)
+  end function
+
+  elemental function great_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(x, y) > 0)
+  end function
+
+  elemental function great_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(y, x) < 0)
+  end function
+
+  elemental function greateq_mpfr_mpfr(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (mpfr_greaterequal_p(x%m, y%m) /= 0)
+  end function
+
+  elemental function greateq_mpfr_real(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    real,       intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(x, y) >= 0)
+  end function
+
+  elemental function greateq_real_mpfr(x, y) result(l)
+    real,       intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_real(y, x) <= 0)
+  end function
+
+  elemental function greateq_mpfr_int(x, y) result(l)
+    type(mpfr), intent(in) :: x
+    integer,    intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(x, y) >= 0)
+  end function
+
+  elemental function greateq_int_mpfr(x, y) result(l)
+    integer,    intent(in) :: x
+    type(mpfr), intent(in) :: y
+    logical                :: l
+
+    l = (cmp_mpfr_int(y, x) <= 0)
+  end function
 
 end module
 
