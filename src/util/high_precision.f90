@@ -15,7 +15,7 @@ module high_precision_m
   public operator(+), operator(-), operator(*), operator(/), operator(**)
   public abs, sqrt, exp, expm1, log, log1p
   public hp_sum, hp_dot
-  public TwoSum, TwoProduct
+  public TwoSum, TwoProduct, TwoDivision
 
   type hp_real
     !! represents high precision value x + y
@@ -160,6 +160,26 @@ contains
     associate(y => h%y, x=> h%x, a1 => h1%x, a2 => h1%y, b1 => h2%x, b2 => h2%y)
       y = a2*b2 - (((x-a1*b1) - a2*b1) - a1*b2)
     end associate
+  end function
+
+  elemental function TwoDivision(a, b) result(h)
+    !! divide two real numbers with high precision (not error free)
+    real, intent(in) :: a
+    real, intent(in) :: b
+    type(hp_real)    :: h
+
+    real :: x0
+
+    ! first approximation
+    x0 = a / b
+
+    ! residual
+    h = a - TwoProduct(b, x0)
+
+    ! Newton step
+    h%x = h%x / b
+    h%y = h%y / b
+    h = x0 + h
   end function
 
   elemental function real_to_hp(r) result(h)
@@ -371,8 +391,7 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3%x = h1%x / r2
-    h3%y = h1%y / r2
+    h3 = TwoDivision(h1%x, r2) + TwoDivision(h1%y, r2)
   end function
 
   elemental function hp_real_div_rh(r1, h2) result(h3)
