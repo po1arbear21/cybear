@@ -20,6 +20,9 @@ module gmres_m
     integer :: max_it    = 150
       !! maximum number of iterations - ipar(5)
 
+    logical :: res_stop_test = .false.
+      !! should gmres perform a residual stopping test - ipar(9)
+
     real    :: rtol      = 1e-12
       !! relative residual tolerance - dpar(1)
     real    :: atol      = 0.0
@@ -71,21 +74,24 @@ module gmres_m
 contains
 
   subroutine gmres_options_apply(this, ipar, dpar)
-    !! apply this' values to ipar and dpar as well as setting useful default values.
-
+    !! apply this values to ipar and dpar as well as setting useful default values.
     class(gmres_options), intent(in)    :: this
     integer,              intent(inout) :: ipar(128)
       !! integer parameters. see mkl doc
     real,                 intent(inout) :: dpar(128)
       !! real parameters. see mkl doc
 
-    ipar( 5) = this%max_it
-    ipar( 9) = 1              ! performs stopping test: dpar(5) <= dpar(4) aka residual norm smaller abs+tol thresholds
-    ipar(10) = 0              ! user-defined stopping test is not requested
-    ipar(12) = 1              ! zero-norm test is performed: dpar(7) <= dpar(8)
+    ipar(5) = this%max_it
+    if (this%res_stop_test) ipar(9) = 1 ! performs residual stopping test: dpar(5) <= dpar(4) aka residual norm smaller abs+tol thresholds
+
+    ipar(10) = 0 ! user-defined stopping test is not requested
+    ipar(12) = 1 ! zero-norm test is performed: dpar(7) <= dpar(8)
 
     dpar(1) = this%rtol
     dpar(2) = this%atol
+
+    dpar(8) = this%atol ! tolerance for the zero norm of the currently generated vector
+    if (this%atol < epsilon(1.0)) dpar(8) = epsilon(1.0)
   end subroutine
 
   subroutine gmres_c(b, mulvec, x, opts, precon, itercount, residual)
@@ -94,7 +100,6 @@ contains
     !! solves Ax=b and optionally, uses a preconditioner P.
     !!
     !! complex arrays are upscaled to real arrays of double the length.
-
     complex,             intent(in),    target           :: b(:)
       !! rhs
       !! reason for target: we will create real pointer pointing to its real and imag part.
@@ -105,7 +110,7 @@ contains
       !! on input:  inital guess x_0
       !! on output: solution x
       !! reason for target: we will create real pointer pointing to its real and imag part.
-    class(matop_cmplx),  intent(inout),    target, optional :: precon
+    class(matop_cmplx),  intent(inout), target, optional :: precon
       !! matrix vector operation: x \mapsto P*x
       !! reason for target: matop_c2r will point to this matop.
       !! inout: preconditioner will need to be factorized.
@@ -139,7 +144,6 @@ contains
     !! wrapper around mkl's dfgmres.
     !!
     !! solves Ax=b and optionally, uses a preconditioner P.
-
     real,                intent(in)              :: b(:)
       !! rhs
     class(matop_real),   intent(in)              :: mulvec
@@ -169,7 +173,7 @@ contains
     ipar15_default = min(150, n)  ! default value. needs to be set before allocating tmp?
     allocate (tmp(tmp_size(n, ipar15_default)))
     call dfgmres_init(n, x, b, rci_request, ipar, dpar, tmp)
-    if (rci_request /= 0) call program_error('gmres init failed. rci_request: ' // int2str(rci_request))
+    if (rci_request /= 0) call program_error("gmres init failed. rci_request: " // int2str(rci_request))
 
     ! set values from options into ipar, dpar
     block
@@ -195,11 +199,11 @@ contains
 
     ! check ipar, dpar
     call dfgmres_check(n, x, b, rci_request, ipar, dpar, tmp)
-    if (rci_request /= 0) call program_error('gmres check params failed. rci_request: ' // int2str(rci_request))
+    if (rci_request /= 0) call program_error("gmres check params failed. rci_request: " // int2str(rci_request))
 
     ! (ipar(13) > 0) == (write solution into b)
     !     not implemented as b has intent(in)
-    if (ipar(13) > 0) call program_error('writing solution into b is not supported.')
+    if (ipar(13) > 0) call program_error("writing solution into b is not supported.")
 
     ! allocated tmp array by default length. we might need to reallocate if it got changed.
     if (ipar(15) /= ipar15_default) then
@@ -225,7 +229,7 @@ contains
 
             if (print_msg_) then
               call system_clock(count=t(2))
-              print '(A, ES10.3, A)', " [gmres] precon factorized. time:", (t(2)-t(1))/cr, "s."
+              print "(A, ES10.3, A)", " [gmres] precon factorized. time:", (t(2)-t(1))/cr, "s."
             end if
           end block
       end select
@@ -258,11 +262,11 @@ contains
 
         ! stopping test
         case (2)
-          call program_error('user-defined stopping test not supplied but requested!!')
+          call program_error("user-defined stopping test not supplied but requested!!")
 
         ! apply preconditioner
         case (3)
-          if (.not. present(precon)) call program_error('preconditioner rountine not supplied but requested!!')
+          if (.not. present(precon)) call program_error("preconditioner rountine not supplied but requested!!")
           associate (bb => tmp(ipar(22):ipar(22)+(n-1)), &
             &        xx => tmp(ipar(23):ipar(23)+(n-1))  )
 
@@ -271,18 +275,18 @@ contains
 
         ! vector zero test
         case (4)
-          call program_error('user-defined zero vector test not supplied but requested!!')
+          call program_error("user-defined zero vector test not supplied but requested!!")
 
         ! If RCI_REQUEST=anything else, then DFGMRES subroutine failed
         case default
-          print *, '[gmres] gmres loop failed. rci_request: ' // int2str(rci_request)
+          print *, "[gmres] gmres loop failed. rci_request: " // int2str(rci_request)
           exit LOOP
       end select
     end do LOOP
 
     ! get solution
     call dfgmres_get(n, x, b, rci_request, ipar, dpar, tmp, itercount_)
-    if (rci_request /= 0) call program_error('gmres get failed. rci_request: ' // int2str(rci_request))
+    if (rci_request /= 0) call program_error("gmres get failed. rci_request: " // int2str(rci_request))
 
     ! set output variables
     if (present(itercount)) itercount = itercount_
@@ -294,7 +298,6 @@ contains
 
   integer function tmp_size(n, ipar15)
     !! mkl's gmres needs a work variable "tmp". this function computes its size according to mkl documentation.
-
     integer, intent(in) :: n
       !! system size
     integer, intent(in) :: ipar15
