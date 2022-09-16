@@ -170,6 +170,7 @@ contains
     do ict = 1, size(this%par%contacts)
       call this%sys_full%provide(this%volt(ict), input = .true.)
     end do
+
     call this%sys_full%init_final()
     call this%sys_full%g%output("full")
   end subroutine

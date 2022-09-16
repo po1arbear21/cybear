@@ -5,10 +5,11 @@ program main
   use error_m,            only: program_error
   use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file
-  use input_src_m,        only: const_src, harmonic_src
+  use input_src_m,        only: const_src, polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI
   use newton_m,           only: newton_opt
   use normalization_m,    only: init_normconst, norm, denorm
+  use output_file_m,      only: output_file
   use small_signal_m,     only: small_signal
   use steady_state_m,     only: steady_state
   use string_m,           only: string
@@ -16,11 +17,12 @@ program main
   implicit none
 
   character(:), allocatable :: filename
-  logical                   :: restart_gummel
+  logical                   :: gummel_restart, gummel_once, gummel_enabled
   real                      :: T
-  type(string)              :: dev_filename
+  type(string)              :: dev_filename, ofilename
   type(input_file)          :: file
   type(newton_opt)          :: opt_nlpe, opt_dd, opt_gum, opt_full
+  type(output_file)         :: ofile
 
   ! get input filename from command line arguments
   call parse_command_line_args()
@@ -36,6 +38,18 @@ program main
   call file%get("", "device", dev_filename)
   call dev%init(dev_filename%s)
 
+  ! output file
+  call file%get("", "output", ofilename)
+  call ofile%init(ofilename%s)
+
+  ! output grids
+  call dev%par%gx%output(ofile, unit = "nm")
+  call dev%par%gy%output(ofile, unit = "nm")
+  call dev%par%g%output( ofile, unit = "nm")
+
+  ! output variable data
+  call dev%sys_full%output_info(ofile)
+
   ! get iteration options
   call load_iteration_params("nlpe params",        dev%sys_nlpe%n,  opt_nlpe)
   opt_nlpe%dx_lim = norm(0.1, "V")
@@ -47,6 +61,9 @@ program main
   call solve_steady_state()
   call solve_small_signal()
   call solve_responsivity()
+
+  ! save and close output file
+  call ofile%close()
 
 contains
 
@@ -95,18 +112,23 @@ contains
   end subroutine
 
   subroutine solve_steady_state()
-    integer                   :: si, ict, ict_sweep, isweep, nsweep, ofunit
-    integer,      allocatable :: sids(:)
-    logical                   :: status
-    real,         allocatable :: Vbounds(:), Vsweep(:)
-    type(string)              :: ofile
-    type(const_src)           :: input
-    type(steady_state)        :: ss
+    integer              :: si, ict, ict_sweep, nsweep
+    integer, allocatable :: sids(:)
+    logical              :: status
+    real,    allocatable :: Vi(:,:), Vbounds(:), t(:)
+    type(string)         :: name
+    type(polygon_src)    :: input
+    type(steady_state)   :: ss
+
+    allocate (Vi(size(dev%par%contacts),2))
 
     call file%get_sections("steady state", sids)
     do si = 1, size(sids)
       print "(A)", "steady state"
-      ! set voltages
+
+      call file%get(sids(si), "name", name)
+
+      ! voltage input source
       ict_sweep = 0
       do ict = 1, size(dev%par%contacts)
         call file%get(sids(si), "N_"//dev%par%contacts(ict)%name, nsweep, status = status)
@@ -114,45 +136,24 @@ contains
           if (ict_sweep /= 0) call program_error("only one voltage sweep per steady-state section allowed")
           ict_sweep = ict
           call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, Vbounds)
-          Vsweep = linspace(Vbounds(1), Vbounds(2), nsweep)
+          Vi(ict,:) = Vbounds
         else
-          call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, dev%volt(ict)%x)
+          call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, Vi(ict,1))
+          Vi(ict,2) = Vi(ict,1)
         end if
       end do
-      call input%init([(dev%volt(ict)%x, ict = 1, size(dev%par%contacts))])
+      call input%init([0.0, 1.0], Vi)
 
-      ! solve steady-state
-      restart_gummel = .true.
-      if (ict_sweep /= 0) then
-        ! get output filename
-        call file%get(sids(si), "output", ofile)
-        open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
-
-        ! sweep over voltages
-        do isweep = 1, nsweep
-          input%const(ict_sweep) = Vsweep(isweep)
-          if (isweep == 1) then
-            call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
-          else
-            ! only newton
-            call ss%run(dev%sys_full, nopt = opt_full, input = input)
-          end if
-
-          write (ofunit, "(ES24.16)", advance = "no") denorm(Vsweep(isweep), "V")
-          do ict = 1, size(dev%par%contacts)
-            write (ofunit, "(ES24.16)", advance = "no") denorm(dev%curr(ict)%x, "A/um")
-          end do
-          write (ofunit, *)
-        end do
-        close (ofunit)
+      if (ict_sweep == 0) then
+        t = [ 0.0 ]
       else
-        call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
-
-        do ict = 1, size(dev%par%contacts)
-          write (*, "(A,ES24.16)", advance = "no") "; "//dev%curr(ict)%name//" = ", denorm(dev%curr(ict)%x, "A/um")
-        end do
-        print *
+        t = linspace(0.0, 1.0, nsweep)
       end if
+
+      gummel_restart = .true.
+      gummel_once    = .true.
+      gummel_enabled = .true.
+      call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
     end do
   end subroutine
 
@@ -161,15 +162,19 @@ contains
     integer,      allocatable :: sids(:)
     logical                   :: flog
     real                      :: f0, f1
-    real,         allocatable :: f(:), rY(:,:,:), iY(:,:,:)
+    real,         allocatable :: f(:)
     complex,      allocatable :: s(:)
-    type(string)              :: ofile
+    type(string)              :: name
     type(const_src)           :: input
     type(small_signal)        :: ac
     type(steady_state)        :: ss
 
     call file%get_sections("small signal", sids)
     do si = 1, size(sids)
+      print "(A)", "small signal"
+
+      call file%get(sids(si), "name", name)
+
       ! get DC voltages
       do ict = 1, size(dev%par%contacts)
         call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, dev%volt(ict)%x)
@@ -188,45 +193,16 @@ contains
       end if
       s = 2 * PI * (0.0, 1.0) * f
 
-      ! get output filename
-      call file%get(sids(si), "output", ofile)
-
       ! solve steady-state
-      restart_gummel = .true.
+      gummel_restart = .true.
+      gummel_once    = .false.
+      gummel_enabled = .true.
       call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
 
       ! run small-signal analysis
-      call ac%run_analysis(dev%sys_full, s)
+      call ac%run_analysis(dev%sys_full, s, ofile = ofile, oname = name%s)
 
-      ! extract Y parameters
-      allocate (rY(size(dev%par%contacts),size(dev%par%contacts),Nf))
-      allocate (iY(size(dev%par%contacts),size(dev%par%contacts),Nf))
-      do i = 1, Nf
-        do jct = 1, size(dev%par%contacts)
-          call ac%select_real(jct, i)
-          do ict = 1, size(dev%par%contacts)
-            rY(ict,jct,i) = dev%curr(ict)%x
-          end do
-          call ac%select_imag(jct, i)
-          do ict = 1, size(dev%par%contacts)
-            iY(ict,jct,i) = dev%curr(ict)%x
-          end do
-        end do
-      end do
-
-      ! output
-      open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
-      do i = 1, Nf
-        write (ofunit, "(ES24.16)", advance = "no") denorm(f(i), "Hz")
-        do jct = 1, size(dev%par%contacts); do ict = 1, size(dev%par%contacts)
-          write (ofunit, "(ES24.16)", advance = "no") denorm(rY(ict,jct,i), "A/V/um")
-          write (ofunit, "(ES24.16)", advance = "no") denorm(iY(ict,jct,i), "A/V/um")
-        end do; end do
-        write (ofunit, *)
-      end do
-      close (ofunit)
-
-      deallocate (f, rY, iY, s)
+      deallocate (f, s)
     end do
     print *
   end subroutine
@@ -285,7 +261,9 @@ contains
       call input%init(0.0, c, s)
 
       ! solve steady-state
-      restart_gummel = .true.
+      gummel_restart = .true.
+      gummel_once    = .false.
+      gummel_enabled = .true.
       call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
 
       call load_iteration_params("full newton params", dev%sys_full%n*(1+2*NH), opt_hb)
@@ -315,9 +293,12 @@ contains
     real, allocatable  :: pot0(:), iref0(:,:)
     type(steady_state) :: ss_nlpe, ss_dd(2)
 
+    if (.not. gummel_enabled) return
+    if (gummel_once) gummel_enabled = .false.
+
     allocate (pot0(dev%pot%data%n), iref0(dev%iref(1)%data%n,2))
 
-    if (restart_gummel) then
+    if (gummel_restart) then
       ! approximate imrefs
       do ci = dev%par%ci0, dev%par%ci1
         call approx_imref(dev%par, dev%iref(ci), dev%volt)
