@@ -109,7 +109,7 @@ contains
     integer,      allocatable :: sids(:)
     real                      :: vol, surf
     real,         allocatable :: xbounds(:), ybounds(:)
-    character(:), allocatable :: table_name
+    character(:), allocatable :: table_name0, table_name
 
     call init_transport_params()
     call init_grid()
@@ -202,9 +202,13 @@ contains
 
       ! initialize poisson grid tables
       do idx_type = 1, 4
-        table_name = "poisson_"//IDX_NAME(idx_type)(1:1)
+        table_name0 = "poisson_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
-          if (idx_dir > 0) table_name = table_name//DIR_NAME(idx_dir)
+          if (idx_dir > 0) then
+            table_name = table_name0//DIR_NAME(idx_dir)
+          else
+            table_name = table_name0
+          end if
           call this%poisson(idx_type, idx_dir)%init(table_name, this%g, idx_type, idx_dir)
         end do
       end do
@@ -273,15 +277,23 @@ contains
 
       ! initialize oxide and transport grid tables
       do idx_type = 1, 4
-        table_name = "oxide_"//IDX_NAME(idx_type)(1:1)
+        table_name0 = "oxide_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
-          if (idx_dir > 0) table_name = table_name//DIR_NAME(idx_dir)
+          if (idx_dir > 0) then
+            table_name = table_name0//DIR_NAME(idx_dir)
+          else
+            table_name = table_name0
+          end if
           call this%oxide(idx_type, idx_dir)%init(table_name, this%g, idx_type, idx_dir)
           this%oxide(idx_type, idx_dir)%flags = this%poisson(idx_type, idx_dir)%flags
         end do
-        table_name = "transport_"//IDX_NAME(idx_type)(1:1)
+        table_name0 = "transport_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
-          if (idx_dir > 0) table_name = table_name//DIR_NAME(idx_dir)
+          if (idx_dir > 0) then
+            table_name = table_name0//DIR_NAME(idx_dir)
+          else
+            table_name = table_name0
+          end if
           call this%transport(idx_type, idx_dir)%init(table_name, this%g, idx_type, idx_dir)
         end do
       end do

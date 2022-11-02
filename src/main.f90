@@ -52,7 +52,6 @@ program main
 
   ! get iteration options
   call load_iteration_params("nlpe params",        dev%sys_nlpe%n,  opt_nlpe)
-  opt_nlpe%dx_lim = norm(0.1, "V")
   call load_iteration_params("dd params",          dev%sys_dd(1)%n, opt_dd  )
   call load_iteration_params("gummel params",      1,               opt_gum )
   call load_iteration_params("full newton params", dev%sys_full%n,  opt_full)
@@ -60,6 +59,7 @@ program main
   ! solve
   call solve_steady_state()
   call solve_small_signal()
+  call solve_harmonic_balance()
   call solve_responsivity()
 
   ! save and close output file
@@ -101,14 +101,15 @@ contains
 
     integer :: max_it
     logical :: log
-    real    :: rtol, atol
+    real    :: rtol, atol, lim
 
     call file%get(section_name, "max_it", max_it)
     call file%get(section_name, "rtol",   rtol  )
     call file%get(section_name, "atol",   atol  )
+    call file%get(section_name, "lim",    lim   )
     call file%get(section_name, "log",    log   )
 
-    call opt%init(n, atol = atol, rtol = rtol, max_it = max_it, log = log)
+    call opt%init(n, atol = atol, rtol = rtol, dx_lim = lim, max_it = max_it, log = log)
   end subroutine
 
   subroutine solve_steady_state()
@@ -158,7 +159,7 @@ contains
   end subroutine
 
   subroutine solve_small_signal()
-    integer                   :: i, si, ict, jct, Nf, ofunit
+    integer                   :: si, ict, Nf
     integer,      allocatable :: sids(:)
     logical                   :: flog
     real                      :: f0, f1
@@ -205,6 +206,69 @@ contains
       deallocate (f, s)
     end do
     print *
+  end subroutine
+
+  subroutine solve_harmonic_balance()
+    integer                :: si, ict, Nf, NH, Nt
+    integer, allocatable   :: sids(:)
+    logical                :: flog
+    real                   :: f0, f1
+    real,    allocatable   :: volt(:), f(:), c(:,:), s(:,:)
+    type(string)           :: name
+
+    type(harmonic_src)     :: input
+    type(harmonic_balance) :: hb
+    type(steady_state)     :: ss
+    type(newton_opt)       :: opt_hb
+
+    allocate (c(size(dev%par%contacts),0:1), s(size(dev%par%contacts),1))
+
+    call file%get_sections("harmonic balance", sids)
+    do si = 1, size(sids)
+      print "(A)", "harmonic balance"
+
+      call file%get(sids(si), "name", name)
+
+      ! get input source
+      do ict = 1, size(dev%par%contacts)
+        call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, volt)
+        if (size(volt) /= 3) call program_error("3 values for voltage expected (c0, c1, s1 coefficients)")
+
+        c(ict,0) = volt(1)
+        c(ict,1) = volt(2)
+        s(ict,1) = volt(3)
+      end do
+      call input%init(0.0, c, s)
+
+      ! get frequency
+      call file%get(sids(si), "f0", f0)
+      call file%get(sids(si), "f1", f1)
+      call file%get(sids(si), "Nf", Nf)
+      call file%get(sids(si), "flog", flog)
+      if (flog) then
+        f = logspace(f0, f1, Nf)
+      else
+        f = linspace(f0, f1, Nf)
+      end if
+
+      ! number of harmonics
+      call file%get(sids(si), "NH", NH)
+
+      ! number of time evaluation points
+      call file%get(sids(si), "Nt", Nt)
+
+      ! solve steady-state
+      gummel_restart = .true.
+      gummel_once    = .false.
+      gummel_enabled = .true.
+      call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
+
+      ! run harmonic balance
+      call load_iteration_params("harmonic balance params", dev%sys_full%n*(1+2*NH), opt_hb)
+      call hb%run(dev%sys_full, NH, f, input, nopt = opt_hb, nt = Nt)
+
+      deallocate (f)
+    end do
   end subroutine
 
   subroutine solve_responsivity()
@@ -266,7 +330,7 @@ contains
       gummel_enabled = .true.
       call ss%run(dev%sys_full, nopt = opt_full, input = input, gum = gummel)
 
-      call load_iteration_params("full newton params", dev%sys_full%n*(1+2*NH), opt_hb)
+      call load_iteration_params("harmonic balance params", dev%sys_full%n*(1+2*NH), opt_hb)
       call hb%run(dev%sys_full, NH, f, input, nopt = opt_hb, nt = Nt)
 
       open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
