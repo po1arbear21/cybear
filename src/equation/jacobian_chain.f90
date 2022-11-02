@@ -15,8 +15,9 @@ module jacobian_chain_m
     type(jacobian_matrix) :: result
       !! resulting jacobian matrix
   contains
-    procedure :: init => jacobian_chain_init
-    procedure :: eval => jacobian_chain_eval
+    procedure :: init     => jacobian_chain_init
+    procedure :: eval     => jacobian_chain_eval
+    procedure :: destruct => jacobian_chain_destruct
   end type
 
   type, extends(jacobian_chain) :: jacobian_add_chain
@@ -144,5 +145,12 @@ contains
           if (ev(itab1,itab2)) call this%result%mul_jaco(this%jaco1, this%jaco2, itab1 = itab1, itab2 = itab2)
         end do; end do
     end select
+  end subroutine
+
+  subroutine jacobian_chain_destruct(this)
+    !! free memory
+    class(jacobian_chain), intent(inout) :: this
+
+    call this%result%destruct()
   end subroutine
 end module

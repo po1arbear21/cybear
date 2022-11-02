@@ -181,24 +181,29 @@ contains
     logical, optional,       intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical            :: input_
+    type(equation_ptr) :: ptr
 
     input_ = .false.
     if (present(input)) input_ = input
 
     if (input_) then
-      allocate (i)
-      call this%ealloc%push(i%get_ptr())
-      call i%init(v)
-      call this%add_equation(i)
-      call this%input_equs%push(this%g%equs%n)
+      allocate (input_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (i => ptr%p)
+      type is (input_equation)
+        call i%init(v)
+        call this%add_equation(i)
+        call this%input_equs%push(this%g%equs%n)
+      end select
     else
-      allocate (d)
-      call this%ealloc%push(d%get_ptr())
-      call d%init(v)
-      call this%add_equation(d)
+      allocate (dummy_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (d => ptr%p)
+      type is (dummy_equation)
+        call d%init(v)
+        call this%add_equation(d)
+      end select
     end if
   end subroutine
 
@@ -214,24 +219,30 @@ contains
     logical, optional,    intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical            :: input_
+    type(equation_ptr) :: ptr
+
 
     input_ = .false.
     if (present(input)) input_ = input
 
     if (input_) then
-      allocate (i)
-      call this%ealloc%push(i%get_ptr())
-      call i%init(v, tab, name)
-      call this%add_equation(i)
-      call this%input_equs%push(this%g%equs%n)
+      allocate (input_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (i => ptr%p)
+      type is (input_equation)
+        call i%init(v, tab, name)
+        call this%add_equation(i)
+        call this%input_equs%push(this%g%equs%n)
+      end select
     else
-      allocate (d)
-      call this%ealloc%push(d%get_ptr())
-      call d%init(v, tab, name)
-      call this%add_equation(d)
+      allocate (dummy_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (d => ptr%p)
+      type is (dummy_equation)
+        call d%init(v, tab, name)
+        call this%add_equation(d)
+      end select
     end if
   end subroutine
 
@@ -247,24 +258,29 @@ contains
     logical,      optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical            :: input_
+    type(equation_ptr) :: ptr
 
     input_ = .false.
     if (present(input)) input_ = input
 
     if (input_) then
-      allocate (i)
-      call this%ealloc%push(i%get_ptr())
-      call i%init(v, tab, name=name)
-      call this%add_equation(i)
-      call this%input_equs%push(this%g%equs%n)
+      allocate (input_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (i => ptr%p)
+      type is (input_equation)
+        call i%init(v, tab, name=name)
+        call this%add_equation(i)
+        call this%input_equs%push(this%g%equs%n)
+      end select
     else
-      allocate (d)
-      call this%ealloc%push(d%get_ptr())
-      call d%init(v, tab, name=name)
-      call this%add_equation(d)
+      allocate (dummy_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (d => ptr%p)
+      type is (dummy_equation)
+        call d%init(v, tab, name=name)
+        call this%add_equation(d)
+      end select
     end if
   end subroutine
 
@@ -280,24 +296,29 @@ contains
     logical,          optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical            :: input_
+    type(equation_ptr) :: ptr
 
     input_ = .false.
     if (present(input)) input_ = input
 
     if (input_) then
-      allocate (i)
-      call this%ealloc%push(i%get_ptr())
-      call i%init(v, name, tab=tab)
-      call this%add_equation(i)
-      call this%input_equs%push(this%g%equs%n)
+      allocate (input_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (i => ptr%p)
+      type is (input_equation)
+        call i%init(v, name, tab=tab)
+        call this%add_equation(i)
+        call this%input_equs%push(this%g%equs%n)
+      end select
     else
-      allocate (d)
-      call this%ealloc%push(d%get_ptr())
-      call d%init(v, name, tab=tab)
-      call this%add_equation(d)
+      allocate (dummy_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (d => ptr%p)
+      type is (dummy_equation)
+        call d%init(v, name, tab=tab)
+        call this%add_equation(d)
+      end select
     end if
   end subroutine
 
@@ -313,24 +334,29 @@ contains
     logical,          optional, intent(in)    :: input
       !! input variable (default: false)
 
-    logical                       :: input_
-    type(dummy_equation), pointer :: d
-    type(input_equation), pointer :: i
+    logical            :: input_
+    type(equation_ptr) :: ptr
 
     input_ = .false.
     if (present(input)) input_ = input
 
     if (input_) then
-      allocate (i)
-      call this%ealloc%push(i%get_ptr())
-      call i%init(v, tab=tab, name=name)
-      call this%add_equation(i)
-      call this%input_equs%push(this%g%equs%n)
+      allocate (input_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (i => ptr%p)
+      type is (input_equation)
+        call i%init(v, tab=tab, name=name)
+        call this%add_equation(i)
+        call this%input_equs%push(this%g%equs%n)
+      end select
     else
-      allocate (d)
-      call this%ealloc%push(d%get_ptr())
-      call d%init(v, tab=tab, name=name)
-      call this%add_equation(d)
+      allocate (dummy_equation :: ptr%p)
+      call this%ealloc%push(ptr)
+      select type (d => ptr%p)
+      type is (dummy_equation)
+        call d%init(v, tab=tab, name=name)
+        call this%add_equation(d)
+      end select
     end if
   end subroutine
 
@@ -395,7 +421,7 @@ contains
     !! finish initialization
     class(esystem), intent(inout) :: this
 
-    if (this%finished_init) call program_error("init_final called multiple times")
+    m4_assert(.not. this%finished_init)
     this%finished_init = .true.
 
     ! try to generate selector equations for missing variable selectors
@@ -422,7 +448,7 @@ contains
       type(vselector_ptr)              :: vp
       type(vector_vselector_ptr)       :: prov
       type(vector_int)                 :: fix_list
-      type(selector_equation), pointer :: e
+      type(equation_ptr)               :: ptr
 
       ! get list of provided vars, init fix list (unprovided)
       call prov%init(    0, c = CAP)
@@ -442,22 +468,25 @@ contains
       do i = 1, fix_list%n
         associate (n => this%g%nodes%d(fix_list%d(i))%p)
           ! new selector equation
-          allocate (e)
-          call e%init(n%v, prov%d(1:prov%n), status)
+          allocate (selector_equation :: ptr%p)
+          select type (e => ptr%p)
+          type is (selector_equation)
+            call e%init(n%v, prov%d(1:prov%n), status)
 
-          ! check status
-          if (.not. status) then
-            ! can not be resolved by selector equation
-            deallocate (e)
+            ! check status
+            if (.not. status) then
+              ! can not be resolved by selector equation
+              deallocate (ptr%p)
 
-            print "(A)", "Missing variable selector:"
-            call n%v%print()
-            call program_error("Cannot fix equation system")
-          end if
+              print "(A)", "Missing variable selector:"
+              call n%v%print()
+              call program_error("Cannot fix equation system")
+            end if
 
-          ! save equation and add to system
-          call this%ealloc%push(e%get_ptr())
-          call this%add_equation(e)
+            ! save equation and add to system
+            call this%ealloc%push(ptr)
+            call this%add_equation(e)
+          end select
 
           ! add var to prov
           vp%p => n%v
@@ -652,7 +681,7 @@ contains
 
     integer :: i, j, k0, k1, ibl1, ibl2
 
-    if (.not. this%finished_init) call program_error("init_final was not called")
+    m4_assert(this%finished_init)
 
     ! loop over evaluation list
     do i = 1, this%g%ieval%n

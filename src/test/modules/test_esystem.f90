@@ -137,6 +137,9 @@ contains
     call tc%assert_eq([(-0.5, i=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
     call tc%assert_eq([(-1.0, i=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
 
+    ! destruct esystem
+    call es%destruct()
+
     call tc%finish()
   end subroutine
 

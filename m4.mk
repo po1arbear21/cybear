@@ -59,3 +59,6 @@ endif
 ifeq ($(USE_QUADPACK),true)
   M4FLAGS += -Dm4_quadpack
 endif
+ifeq ($(USE_MPFR),true)
+  M4FLAGS += -Dm4_mpfr
+endif

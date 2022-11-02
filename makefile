@@ -50,8 +50,12 @@ all: $(TARGETS)
 
 # rule for m4 files
 $(BUILD_DIR)/%.f90:
-	@printf "%b" "$(M4_P) $(M4FLAGS) $(INP_COLOR)$<$(OFF_COLOR) > $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
+	@printf "%b" "$(TEST_P) -f $(OUT_COLOR)$@$(OFF_COLOR) && $(CHMOD_P) +w $(OUT_COLOR)$@$(OFF_COLOR) || true\n"
+	@test -f $@ && chmod +w $@ || true
+	@printf "%b" "$(M4_P) $(M4FLAGS) -I$(dir $<) $(INP_COLOR)$<$(OFF_COLOR) > $(OUT_COLOR)$@$(OFF_COLOR)\n"
 	@$(M4) $(M4FLAGS) -I$(dir $<) $< > $@
+	@printf "%b" "$(CHMOD_P) -w $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
+	@chmod -w $@
 
 # rule for anchor files
 $(BUILD_DIR)/%.anc:
@@ -62,8 +66,8 @@ $(BUILD_DIR)/%.anc:
 
 # rule for c object files
 $(BUILD_DIR)/%.c.o: %.c
-	@printf "%b" "$(CC_P) $(CFLAGS) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@printf "%b" "$(CC_P) $(CFLAGS) $(CINCLUDE) -c $(INP_COLOR)$<$(OFF_COLOR) -o $(OUT_COLOR)$@$(OFF_COLOR)\n\n"
+	@$(CC) $(CFLAGS) $(CINCLUDE) -c $< -o $@
 
 # rule for object files
 $(BUILD_DIR)/%.o:

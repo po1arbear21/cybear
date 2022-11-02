@@ -12,10 +12,10 @@ module high_precision_m
   private
   public hp_real
   public hp_to_real, real_to_hp
-  public operator(+), operator(-), operator(*), operator(/)
-  public sqrt, exp, expm1
+  public operator(+), operator(-), operator(*), operator(/), operator(**)
+  public abs, sqrt, exp, expm1, log, log1p
   public hp_sum, hp_dot
-  public TwoSum, TwoProduct
+  public TwoSum, TwoProduct, TwoDivision
 
   type hp_real
     !! represents high precision value x + y
@@ -30,6 +30,8 @@ module high_precision_m
     module procedure :: hp_real_add_hh
     module procedure :: hp_real_add_hr
     module procedure :: hp_real_add_rh
+    module procedure :: hp_real_add_hi
+    module procedure :: hp_real_add_ih
   end interface
 
   interface operator (-)
@@ -37,18 +39,36 @@ module high_precision_m
     module procedure :: hp_real_sub_hh
     module procedure :: hp_real_sub_hr
     module procedure :: hp_real_sub_rh
+    module procedure :: hp_real_sub_hi
+    module procedure :: hp_real_sub_ih
   end interface
 
   interface operator (*)
     module procedure :: hp_real_mul_hh
     module procedure :: hp_real_mul_hr
     module procedure :: hp_real_mul_rh
+    module procedure :: hp_real_mul_hi
+    module procedure :: hp_real_mul_ih
   end interface
 
   interface operator (/)
     module procedure :: hp_real_div_hh
     module procedure :: hp_real_div_hr
     module procedure :: hp_real_div_rh
+    module procedure :: hp_real_div_hi
+    module procedure :: hp_real_div_ih
+  end interface
+
+  interface operator (**)
+    module procedure :: hp_real_pow_hh
+    module procedure :: hp_real_pow_hr
+    module procedure :: hp_real_pow_rh
+    module procedure :: hp_real_pow_hi
+    module procedure :: hp_real_pow_ih
+  end interface
+
+  interface abs
+    module procedure :: hp_abs
   end interface
 
   interface sqrt
@@ -61,6 +81,14 @@ module high_precision_m
 
   interface expm1
     module procedure :: hp_expm1
+  end interface
+
+  interface log
+    module procedure :: hp_log
+  end interface
+
+  interface log1p
+    module procedure :: hp_log1p
   end interface
 
   interface hp_sum
@@ -134,6 +162,26 @@ contains
     end associate
   end function
 
+  elemental function TwoDivision(a, b) result(h)
+    !! divide two real numbers with high precision (not error free)
+    real, intent(in) :: a
+    real, intent(in) :: b
+    type(hp_real)    :: h
+
+    real :: x0
+
+    ! first approximation
+    x0 = a / b
+
+    ! residual
+    h = a - TwoProduct(b, x0)
+
+    ! Newton step
+    h%x = h%x / b
+    h%y = h%y / b
+    h = x0 + h
+  end function
+
   elemental function real_to_hp(r) result(h)
     !! convert real to high precision real
     real, intent(in) :: r
@@ -192,6 +240,24 @@ contains
     h3 = h2 + r1 ! calls hp_real_add_hr
   end function
 
+  elemental function hp_real_add_hi(h1, i2) result(h3)
+    !! add integer to high precision real
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 + real(i2)
+  end function
+
+  elemental function hp_real_add_ih(i1, h2) result(h3)
+    !! add high precision real to integer
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) + h2
+  end function
+
   elemental function hp_real_neg(h1) result(h2)
     !! negate high precision real
     type(hp_real), intent(in) :: h1
@@ -227,6 +293,24 @@ contains
     type(hp_real)             :: h3
 
     h3 = r1 + (-h2) ! calls hp_real_neg, hp_real_add_rh
+  end function
+
+  elemental function hp_real_sub_hi(h1, i2) result(h3)
+    !! subtract integer from high precision real
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 - real(i2)
+  end function
+
+  elemental function hp_real_sub_ih(i1, h2) result(h3)
+    !! subtract high precision real from integer
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) - h2
   end function
 
   elemental function hp_real_mul_hh(h1, h2) result(h3)
@@ -268,6 +352,24 @@ contains
     h3 = h2 * r1
   end function
 
+  elemental function hp_real_mul_hi(h1, i2) result(h3)
+    !! multiply high precision real by integer
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 * real(i2)
+  end function
+
+  elemental function hp_real_mul_ih(i1, h2) result(h3)
+    !! multiply integer by high precision real
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) * h2
+  end function
+
   elemental function hp_real_div_hh(h1, h2) result(h3)
     !! divide two high precision reals
     type(hp_real), intent(in) :: h1
@@ -289,8 +391,7 @@ contains
     real,          intent(in) :: r2
     type(hp_real)             :: h3
 
-    h3%x = h1%x / r2
-    h3%y = h1%y / r2
+    h3 = TwoDivision(h1%x, r2) + TwoDivision(h1%y, r2)
   end function
 
   elemental function hp_real_div_rh(r1, h2) result(h3)
@@ -308,16 +409,131 @@ contains
     h3 = c - (h2 * c - r1) / h2%x
   end function
 
+  elemental function hp_real_div_hi(h1, i2) result(h3)
+    !! divide high precision real by integer
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    h3 = h1 / real(i2)
+  end function
+
+  elemental function hp_real_div_ih(i1, h2) result(h3)
+    !! divide integer by high precision real
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) / h2
+  end function
+
+  elemental function hp_real_pow_hh(h1, h2) result(h3)
+    !! h3 = h1 ** h2
+    type(hp_real), intent(in) :: h1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    if (hp_to_real(h2) == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (hp_to_real(h1) == 0) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(h1) * h2)
+    end if
+  end function
+
+  elemental function hp_real_pow_hr(h1, r2) result(h3)
+    !! h3 = h1 ** r2
+    type(hp_real), intent(in) :: h1
+    real,          intent(in) :: r2
+    type(hp_real)             :: h3
+
+    if (r2 == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (hp_to_real(h1) == 0) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(h1) * r2)
+    end if
+  end function
+
+  elemental function hp_real_pow_rh(r1, h2) result(h3)
+    !! h3 = r1 ** h2
+    real,          intent(in) :: r1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    if (hp_to_real(h2) == 0) then
+      h3 = real_to_hp(1.0)
+    elseif (r1 == 0) then
+      h3 = real_to_hp(0.0)
+    else
+      h3 = exp(log(real_to_hp(r1)) * h2)
+    end if
+  end function
+
+  elemental function hp_real_pow_hi(h1, i2) result(h3)
+    !! h3 = h1 ** i2
+    type(hp_real), intent(in) :: h1
+    integer,       intent(in) :: i2
+    type(hp_real)             :: h3
+
+    select case (i2)
+    case (-3)
+      h3 = 1.0 / (h1 * h1 * h1)
+    case (-2)
+      h3 = 1.0 / (h1 * h1)
+    case (-1)
+      h3 = 1.0 / h1
+    case ( 0)
+      h3 = real_to_hp(1.0)
+    case (+1)
+      h3 = h1
+    case (+2)
+      h3 = h1 * h1
+    case (+3)
+      h3 = h1 * h1 * h1
+    case default
+      h3 = (sign(1.0, hp_to_real(h1))**i2) * abs(h1) ** real(i2)
+    end select
+  end function
+
+  elemental function hp_real_pow_ih(i1, h2) result(h3)
+    !! h3 = i1 ** h2
+    integer,       intent(in) :: i1
+    type(hp_real), intent(in) :: h2
+    type(hp_real)             :: h3
+
+    h3 = real(i1) ** h2
+  end function
+
+  elemental function hp_abs(h) result(a)
+    !! absolute value of high precision real
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: a
+
+    if (hp_to_real(h) >= 0.0) then
+      a = h
+    else
+      a = -h
+    end if
+  end function
+
   elemental function hp_sqrt(h) result(s)
     !! high precision square root
     type(hp_real), intent(in) :: h
     type(hp_real)             :: s
 
+    real :: s0
+
     ! first approximation
-    s = real_to_hp(sqrt(h%x))
+    s0 = sqrt(hp_to_real(h))
+    s = real_to_hp(s0)
 
     ! one step of newton iteration
-    s = 0.5 * (s + h / s)
+    if (s0 > 0) then
+      s = 0.5 * (s + h / s)
+    end if
   end function
 
   elemental function hp_exp(h) result(e)
@@ -365,6 +581,52 @@ contains
     else
       tmp = (etmp - 1.0) * tmp / log(etmp)
       e = SplitQuad(tmp)
+    end if
+  end function
+
+  elemental function hp_log(h) result(l)
+    !! high precision logarithm (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: l
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = log(tmp)
+
+    l = SplitQuad(tmp)
+  end function
+
+  elemental function hp_log1p(h) result(l)
+    !! high precision log(1 + x)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: l
+
+    real(kind=16) :: tmp, u, d
+
+    if (ieee_class(h%x) == IEEE_POSITIVE_INF) then
+      l%x = h%x
+      l%y = 0.0
+      return
+    end if
+    if (ieee_class(h%y) == IEEE_POSITIVE_INF) then
+      l%x = h%y
+      l%y = 0.0
+      return
+    end if
+
+    tmp = h%x
+    tmp = tmp + h%y
+
+    u = tmp + 1.0
+    d = u - 1.0
+
+    if (d == 0) then
+      l = h
+    else
+      tmp = log(u) * tmp / d
+      l = SplitQuad(tmp)
     end if
   end function
 

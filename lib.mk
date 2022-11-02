@@ -1,5 +1,6 @@
 LIBS     :=
 FINCLUDE :=
+CINCLUDE :=
 
 ifeq ($(INTSIZE),32)
   ARCH := lp64
@@ -136,6 +137,18 @@ ifeq ($(USE_QUADPACK),true)
     $(error QUADPACKROOT is not set)
   endif
   LIBS += $(QUADPACKROOT)/lib/$(COMPILER)_$(ARCH)/quadpack.a
+endif
+
+# MPFR
+ifeq ($(USE_MPFR),true)
+  ifndef GMPROOT
+    $(error GMPROOT is not set)
+  endif
+  ifndef MPFRROOT
+    $(error MPFRROOT is not set)
+  endif
+  LIBS += $(MPFRROOT)/lib/$(COMPILER)_ilp64/libmpfr.a $(GMPROOT)/lib/$(COMPILER)_ilp64/libgmp.a
+  CINCLUDE += -I$(MPFRROOT)/include/$(COMPILER)_ilp64 -I$(GMPROOT)/include/$(COMPILER)_ilp64
 endif
 
 # additional libraries

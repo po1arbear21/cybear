@@ -17,6 +17,7 @@ IDXSIZE = 32
 # USE_ILUPACK  = true
 # USE_MUMPS    = true
 # USE_QUADPACK = true
+# USE_MPFR     = true
 
 # python 3
 PYTHON = python3

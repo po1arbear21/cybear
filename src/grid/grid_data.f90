@@ -310,7 +310,7 @@ contains
       !! return data
 
     m4_assert(size(idx) == size(this%idx_bnd,2))
-    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
+    m4_assert(all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! default value
     d = m4_ifelse($1,log,{.false.},0)
@@ -351,7 +351,7 @@ contains
       !! new value
 
     m4_assert(size(idx) == size(this%idx_bnd,2))
-    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
+    m4_assert(all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! set data
     select type (this)
@@ -392,7 +392,7 @@ contains
       !! delta value
 
     m4_assert(size(idx) == size(this%idx_bnd,2))
-    m4_assert(all(idx >= 1) .and. all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
+    m4_assert(all(idx >= this%idx_bnd(1,:)) .and. all(idx <= this%idx_bnd(2,:)))
 
     ! update data
     select type (this)

@@ -250,7 +250,10 @@ contains
     if (allocated(this%jchain)) then
       do i = 1, size(this%jchain)
         do j = 1, this%jchain(i)%n
-          if (associated(this%jchain(i)%d(j)%p)) deallocate (this%jchain(i)%d(j)%p)
+          if (associated(this%jchain(i)%d(j)%p)) then
+            call this%jchain(i)%d(j)%p%destruct()
+            deallocate (this%jchain(i)%d(j)%p)
+          end if
         end do
       end do
     end if
@@ -258,7 +261,10 @@ contains
     if (allocated(this%jchain_p)) then
       do i = 1, size(this%jchain_p)
         do j = 1, this%jchain_p(i)%n
-          if (associated(this%jchain_p(i)%d(j)%p)) deallocate (this%jchain_p(i)%d(j)%p)
+          if (associated(this%jchain_p(i)%d(j)%p)) then
+            call this%jchain_p(i)%d(j)%p%destruct()
+            deallocate (this%jchain_p(i)%d(j)%p)
+          end if
         end do
       end do
     end if
@@ -266,7 +272,10 @@ contains
     if (allocated(this%jchain_t)) then
       do i = 1, size(this%jchain_t)
         do j = 1, this%jchain_t(i)%n
-          if (associated(this%jchain_t(i)%d(j)%p)) deallocate (this%jchain_t(i)%d(j)%p)
+          if (associated(this%jchain_t(i)%d(j)%p)) then
+            call this%jchain_t(i)%d(j)%p%destruct()
+            deallocate (this%jchain_t(i)%d(j)%p)
+          end if
         end do
       end do
     end if

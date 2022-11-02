@@ -32,6 +32,9 @@ module grid_table_m
       !! flat index to grid indices (idx_dim x n)
     class(grid_data_int), allocatable :: idx2flat
       !! grid indices to flat index
+
+    logical :: finished_init
+      !! indicates whether init_final was called
   contains
     procedure :: init       => grid_table_init
     procedure :: init_final => grid_table_init_final
@@ -75,6 +78,9 @@ contains
     ! initialize flags data
     call allocate_grid_data(this%flags, g%idx_dim)
     call this%flags%init(g, idx_type, idx_dir, d0 = initial_flags)
+
+    ! init_final has not been called yet
+    this%finished_init = .false.
   end subroutine
 
   subroutine grid_table_init_final(this)
@@ -82,6 +88,9 @@ contains
     class(grid_table), intent(inout) :: this
 
     integer :: i, j, idx(this%g%idx_dim)
+
+    m4_assert(.not. this%finished_init)
+    this%finished_init = .true.
 
     associate (idx_dim => this%g%idx_dim, idx_bnd => this%flags%idx_bnd)
       ! count number of entries
@@ -97,7 +106,6 @@ contains
         call this%idx2flat%set(idx, 1)
       else
         idx = idx_bnd(1,:)
-        idx = 1
         i   = 0
         do while (idx(idx_dim) <= idx_bnd(2,idx_dim))
           if (this%flags%get(idx)) then
@@ -134,6 +142,7 @@ contains
     integer                        :: idx(this%g%idx_dim)
       !! return grid indices
 
+    m4_assert(this%finished_init)
     m4_assert((i > 0 ) .and. (i <= this%n))
 
     idx = this%flat2idx(:,i)
@@ -147,6 +156,7 @@ contains
     integer                        :: i
       !! return flat index (0 if grid point is not part of table)
 
+    m4_assert(this%finished_init)
     m4_assert(this%g%idx_allowed(this%idx_type, this%idx_dir, idx=idx))
 
     i = this%idx2flat%get(idx)
@@ -159,6 +169,8 @@ contains
       !! output file
 
     type(json_object), pointer :: obj
+
+    m4_assert(this%finished_init)
 
     obj => of%new_object("GridTables")
     call obj%add_string("Name", this%name)

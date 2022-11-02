@@ -7,7 +7,7 @@ module util_m
   implicit none
 
   private
-  public cstrlen, c2fstring, f2cstring
+  public strlen, cstrlen, c2fstring, f2cstring
   public hash
   public int2str
   public load_array
@@ -21,26 +21,34 @@ module util_m
   interface
     function c_hash_int32(i) result(h) bind(c)
       import :: c_int32_t
-      integer(kind=c_int32_t), value, intent(in) :: i
-      integer(kind=c_int32_t)                    :: h
+      integer(c_int32_t), value, intent(in) :: i
+      integer(c_int32_t)                    :: h
     end function
     function c_hash_int32_array(a, n) result(h) bind(c)
       import :: c_int32_t, c_size_t
-      integer(kind=c_int32_t),       intent(in) :: a(*)
-      integer(kind=c_size_t), value, intent(in) :: n
-      integer(kind=c_int32_t)                   :: h
+      integer(c_int32_t),       intent(in) :: a(*)
+      integer(c_size_t), value, intent(in) :: n
+      integer(c_int32_t)                   :: h
     end function
     function c_hash_int64(i) result(h) bind(c)
       import :: c_int64_t
-      integer(kind=c_int64_t), value, intent(in) :: i
-      integer(kind=c_int64_t)                    :: h
+      integer(c_int64_t), value, intent(in) :: i
+      integer(c_int64_t)                    :: h
     end function
     function c_hash_int64_array(a, n) result(h) bind(c)
       import :: c_int64_t, c_size_t
-      integer(kind=c_int64_t),       intent(in) :: a(*)
-      integer(kind=c_size_t), value, intent(in) :: n
-      integer(kind=c_int64_t)                   :: h
+      integer(c_int64_t),       intent(in) :: a(*)
+      integer(c_size_t), value, intent(in) :: n
+      integer(c_int64_t)                   :: h
     end function
+  end interface
+
+  interface
+     function strlen(s) result(len) bind(c)
+       import :: c_size_t, c_ptr
+       type(c_ptr), value, intent(in) :: s
+       integer(c_size_t)              :: len
+     end function strlen
   end interface
 
 contains
