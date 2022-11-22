@@ -635,11 +635,13 @@ contains
 
   end subroutine
 
-  subroutine esystem_set_input_all(this, x)
+  subroutine esystem_set_input_all(this, x, only_appl)
     !! set input values for all input equation
-    class(esystem), intent(inout) :: this
-    real,           intent(in)    :: x(:)
+    class(esystem),    intent(inout) :: this
+    real,              intent(in)    :: x(:)
       !! new values for all input variables
+    logical, optional, intent(in)    :: only_appl
+      !! only set the applied value, leave actual value unchanged (default: false)
 
     integer :: i, i0, i1
 
@@ -649,23 +651,25 @@ contains
     do i = 1, this%input_equs%n
       i0 = i1 + 1
       i1 = i0 + this%input_i1(i) - this%input_i0(i)
-      call this%esystem_set_input_single(i, x(i0:i1))
+      call this%esystem_set_input_single(i, x(i0:i1), only_appl)
     end do
   end subroutine
 
-  subroutine esystem_set_input_single(this, i, x)
+  subroutine esystem_set_input_single(this, i, x, only_appl)
     !! set input values for one input equation
-    class(esystem), intent(inout) :: this
-    integer,        intent(in)    :: i
+    class(esystem),    intent(inout) :: this
+    integer,           intent(in)    :: i
       !! input variable index
-    real,           intent(in)    :: x(:)
+    real,              intent(in)    :: x(:)
       !! new values for i-th input variable
+    logical, optional, intent(in)    :: only_appl
+      !! only set the applied value, leave actual value unchanged (default: false)
 
     m4_assert(size(x) == this%input_i1(i)-this%input_i0(i)+1)
 
     select type (e => this%g%equs%d(this%input_equs%d(i))%e)
       class is (input_equation)
-        call e%apply(x)
+        call e%apply(x, only_appl)
     end select
   end subroutine
 
