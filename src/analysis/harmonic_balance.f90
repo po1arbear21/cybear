@@ -278,7 +278,7 @@ contains
 
           ! evaluate equation system
           call sys%set_x(xi)
-          call sys%set_input(input_%get(t(it)))
+          call sys%set_input(input_%get(t(it)), only_appl = .true.)
           call sys%eval(f = fi, df = dfi)
 
           ! update residual fourier coefficients
