@@ -201,14 +201,20 @@ contains
     end select
   end subroutine
 
-  subroutine transient_run(this, input)
+  subroutine transient_run(this, input, log)
     !! run the transient iteration
     class(transient),           intent(inout) :: this
     class(input_src), optional, intent(in)    :: input
       !! optional input parameter
+    logical,          optional, intent(in)    :: log
+      !! enable/disable logging. default: false
 
     integer           :: i
+    logical           :: log_
     real, allocatable :: tmp_t(:), tmp_x(:,:)
+
+    log_ = .false.
+    if (present(log)) log_ = log
 
     ! check input parameters
     if (present(input)) then
@@ -245,6 +251,7 @@ contains
     do while (this%t(i) < this%t_1)
       ! next timestep
       call this%next_time(i)
+      if (log_) print "(I0, ES25.16, x, A)", i, denorm(this%t(i), "fs"), "fs"
 
       ! solve system at current time
       call this%solve(i, input = input)
