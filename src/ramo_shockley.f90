@@ -6,7 +6,7 @@ module ramo_shockley_m
   use device_params_m,   only: device_params, CR_CHARGE
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX, IDX_EDGE, IDX_CELL
-  use grid_data_m,       only: grid_data2_real
+  use grid_data_m,       only: grid_data_real, allocate_grid_data1_real
   use grid0D_m,          only: get_dummy_grid
   use jacobian_m,        only: jacobian, jacobian_ptr
   use math_m,            only: eye_real
@@ -26,7 +26,7 @@ module ramo_shockley_m
   type ramo_shockley
     !! Ramo-Shockley data object
 
-    type(grid_data2_real), allocatable :: x(:)
+    class(grid_data_real), allocatable :: x(:)
       !! fundamental solutions to laplace equation
     real,                  allocatable :: cap(:,:)
       !! Capacitance matrix
@@ -39,19 +39,19 @@ module ramo_shockley_m
 
     type(device_params), pointer :: par => null()
 
-    type(vselector) :: cdens(2,2)
+    type(vselector), allocatable :: cdens(:,:)
       !! electron/hole current density (edge direction, carrier index)
-    type(vselector) :: volt
+    type(vselector)              :: volt
       !! terminal voltage
-    type(vselector) :: curr
+    type(vselector)              :: curr
       !! terminal current
 
-    type(dirichlet_stencil) :: st(2)
+    type(dirichlet_stencil), allocatable :: st(:)
       !! coupling to cdens (edge direction)
 
-    type(jacobian_ptr)      :: jaco_cdens(2,2)
-    type(jacobian), pointer :: jaco_volt
-    type(jacobian), pointer :: jaco_curr
+    type(jacobian_ptr), allocatable :: jaco_cdens(:,:)
+    type(jacobian),     pointer     :: jaco_volt => null()
+    type(jacobian),     pointer     :: jaco_curr => null()
   contains
     procedure :: init => ramo_shockley_current_init
     procedure :: eval => ramo_shockley_current_eval
@@ -73,13 +73,13 @@ contains
     type(poisson),        intent(in)    :: poiss
       !! poisson equation
 
-    integer, parameter :: eye(2,2) = reshape([1, 0, 0, 1], [2, 2])
-
-    integer           :: i, j, k, l, nct, idx1(2), idx2(2), jdx1(2), jdx2(2), idx_dir
-    real              :: cap, surf, eps, len, dxi, dxj
-    real, allocatable :: x(:,:), rhs(:,:)
-    type(esystem)     :: sys
-    type(sparse_real) :: df
+    integer               :: i, j, k, nct, idx_dir
+    real                  :: cap, dxi, dxj
+    real,    allocatable  :: x(:,:), rhs(:,:)
+    type(esystem)         :: sys
+    type(sparse_real)     :: df
+    integer, allocatable  :: idx1(:), idx2(:), idx(:)
+    logical               :: status
 
     ! init equation system
     call sys%init("ramo")
@@ -121,7 +121,7 @@ contains
     call df%destruct()
 
     ! save fundamental solutions
-    allocate (this%x(nct))
+    call allocate_grid_data1_real(this%x, par%g%idx_dim, 1, nct)
     do i = 1, nct
       call this%x(i)%init(par%g, IDX_VERTEX, 0)
 
@@ -134,35 +134,25 @@ contains
 
     ! calculate capacitance matrix
     allocate (this%cap(nct,nct), source = 0.0)
+    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
     do i = 1, nct
       do j = 1, i-1
         this%cap(i,j) = this%cap(j,i)
       end do
       do j = i, nct
-        do k = 1, par%poisson(IDX_CELL,0)%n
-          idx1 = par%poisson(IDX_CELL,0)%get_idx(k)
-          do idx_dir = 1, 2
-            idx2 = idx1 + eye(:,idx_dir)
+        do idx_dir = 1, par%g%idx_dim
+          do k = 1, par%poisson(IDX_EDGE,idx_dir)%n
+            idx = par%poisson(IDX_EDGE,idx_dir)%get_idx(k)
+            call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+            call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
+            cap = par%eps(IDX_EDGE,idx_dir)%get(idx) * par%curr_fact * par%surf(idx_dir)%get(idx) / par%g%get_len(idx, idx_dir)
 
-            ! capacitance
-            surf = 0.5 * par%g%get_surf(idx1, idx_dir)
-            eps  = par%eps%get(idx1)
-            len  = par%g%get_len(idx1, idx_dir)
-            cap  = surf * eps / len
+            ! fundamental solution delta
+            dxi = this%x(i)%get(idx2) - this%x(i)%get(idx1)
+            dxj = this%x(j)%get(idx2) - this%x(j)%get(idx1)
 
-            ! loop over the two edges in this direction
-            do l = 0, 1
-              ! first and second vertex indices
-              jdx1 = idx1 + l * eye(:,3-idx_dir)
-              jdx2 = idx2 + l * eye(:,3-idx_dir)
-
-              ! fundamental solution delta
-              dxi = this%x(i)%get(idx2) - this%x(i)%get(idx1)
-              dxj = this%x(j)%get(idx2) - this%x(j)%get(idx1)
-
-              ! update capacitance matrix
-              this%cap(i,j) = this%cap(i,j) + dxi * dxj * cap
-            end do
+            ! update capacitance matrix
+            this%cap(i,j) = this%cap(i,j) + dxi * dxj * cap
           end do
         end do
       end do
@@ -176,25 +166,26 @@ contains
       !! device parameters
     type(ramo_shockley),          intent(in)  :: ramo
       !! Ramo-Shockley data object
-    type(current_density),        intent(in)  :: cdens(2,2)
+    type(current_density),        intent(in)  :: cdens(:,:)
       !! electron/hole current density (edge direction, carrier index)
     type(voltage),                intent(in)  :: volt(:)
       !! terminal voltages
     type(current),                intent(in)  :: curr(:)
       !! terminal currents
 
-    integer, parameter :: eye(2,2) = reshape([1, 0, 0, 1], [2, 2])
-
-    integer           :: i, idx1(2), idx2(2), idx_dir, ci, ict, dum(0)
-    real, allocatable :: d(:,:)
+    integer               :: i, idx_dir, ci, ict, dum(0)
+    real, allocatable     :: d(:,:)
+    integer, allocatable  :: idx1(:), idx2(:), idx(:), idx_bnd(:,:)
+    logical               :: status
 
     ! init base
     call this%equation_init("ramo_shockley")
     this%par => par
 
     ! create variable selectors
+    allocate (this%cdens(par%g%idx_dim,2))
     do ci = par%ci0, par%ci1
-      do idx_dir = 1, 2
+      do idx_dir = 1, par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(cdens(idx_dir,ci), par%transport(IDX_EDGE, idx_dir))
       end do
     end do
@@ -205,12 +196,17 @@ contains
     call this%init_f(this%curr)
 
     ! init stencil
-    call this%st(1)%init(get_dummy_grid(), g2 = par%g, perm = [0, 0], off1 = [1, 1], off2 = [size(par%gx%x)-1,size(par%gy%x)  ])
-    call this%st(2)%init(get_dummy_grid(), g2 = par%g, perm = [0, 0], off1 = [1, 1], off2 = [size(par%gx%x),  size(par%gy%x)-1])
+    allocate (idx_bnd(2, par%g%idx_dim))
+    allocate (this%st(par%g%idx_dim))
+    do idx_dir= 1, par%g%idx_dim
+      call par%g%get_idx_bnd(IDX_EDGE, idx_dir, idx_bnd)
+      call this%st(idx_dir)%init(get_dummy_grid(), g2 = par%g, perm = [(0, i = 1, par%g%idx_dim)], off1 = idx_bnd(1,:), off2 = idx_bnd(2,:))
+    end do
 
     ! init jacobians
+    allocate (this%jaco_cdens(par%g%idx_dim,2))
     do ci = par%ci0, par%ci1
-      do idx_dir = 1, 2
+      do idx_dir = 1, par%g%idx_dim
         this%jaco_cdens(idx_dir,ci)%p => this%init_jaco_f(this%depend(this%cdens(idx_dir,ci)), st = [this%st(idx_dir)%get_ptr()], const = .true.)
       end do
     end do
@@ -219,15 +215,17 @@ contains
 
     ! set jaco_cdens entries
     allocate (d(size(par%contacts),1))
-    do idx_dir = 1, 2
+    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    do idx_dir = 1, par%g%idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
-        idx1 = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
-        idx2 = idx1 + eye(:,idx_dir)
+        idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
         do ict = 1, size(par%contacts)
-          d(ict,1) = par%tr_surf(idx_dir)%get(idx1) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
+          d(ict,1) = par%curr_fact * par%tr_surf(idx_dir)%get(idx) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
         end do
         do ci = par%ci0, par%ci1
-          call this%jaco_cdens(idx_dir,ci)%p%set(dum, idx1, CR_CHARGE(ci) * d)
+          call this%jaco_cdens(idx_dir,ci)%p%set(dum, idx, CR_CHARGE(ci) * d)
         end do
       end do
     end do
@@ -250,11 +248,10 @@ contains
     real, allocatable :: tmp(:)
 
     allocate (tmp(this%curr%n))
-
     ! calculate residuals
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
     do ci = this%par%ci0, this%par%ci1
-      do idx_dir = 1, 2
+      do idx_dir = 1, this%par%g%idx_dim
         call this%jaco_cdens(idx_dir,ci)%p%matr%mul_vec(this%cdens(idx_dir,ci)%get(), tmp, fact_y = 1.0)
       end do
     end do

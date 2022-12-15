@@ -4,10 +4,11 @@ module imref_m
   use device_params_m, only: device_params, CR_NAME, CR_CHARGE
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX
-  use grid_data_m,     only: grid_data2_real
+  use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
   use variable_m,      only: variable_real
+  use error_m,         only: assert_failed, program_error
 
   implicit none
 
@@ -18,7 +19,9 @@ module imref_m
     !! quasi-fermi potential
     integer       :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
-    real, pointer :: x(:,:) => null()
+    real, pointer :: x1(:)     => null()
+    real, pointer :: x2(:,:)   => null()
+    real, pointer :: x3(:,:,:) => null()
       !! direct pointer to data for easy access
   contains
     procedure :: init => imref_init
@@ -64,15 +67,27 @@ contains
     integer,             intent(in)  :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
 
-    type(grid_data2_real), pointer :: p
+    type(grid_data1_real), pointer :: p1
+    type(grid_data2_real), pointer :: p2
+    type(grid_data3_real), pointer :: p3
 
     ! init base
     call this%variable_init(CR_NAME(ci)//"imref", "V", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
     this%ci = ci
 
-    ! get pointer to data
-    p      => this%data%get_ptr2()
-    this%x => p%data
+    select case (par%g%idx_dim)
+      case (1)
+        p1 => this%data%get_ptr1()
+        this%x1 => p1%data
+      case (2)
+        p2 => this%data%get_ptr2()
+        this%x2 => p2%data
+      case (3)
+        p3 => this%data%get_ptr3()
+        this%x3 => p3%data
+      case default
+        call program_error("Maximal 3 dimensions allowed")
+    end select
   end subroutine
 
   subroutine calc_imref_init(this, par, pot, dens, iref)
@@ -87,7 +102,8 @@ contains
     type(imref),         target, intent(in)  :: iref
       !! imref variable
 
-    integer :: i, idx(2), iprov
+    integer               :: i, iprov
+    integer, allocatable  :: idx(:)
 
     ! init equation
     call this%equation_init("calc_"//iref%name)
@@ -119,8 +135,9 @@ contains
     !! evaluate imref calculation equation
     class(calc_imref), intent(inout) :: this
 
-    integer :: i, idx(2)
-    real    :: ch, pot, dens, iref
+    integer              :: i
+    real                 :: ch, pot, dens, iref
+    integer, allocatable :: idx(:)
 
     ch = CR_CHARGE(this%iref%ci)
 
@@ -176,10 +193,12 @@ contains
     !! evaluate density calculation equation
     class(calc_density), intent(inout) :: this
 
-    integer :: i, idx(2)
-    real    :: ch, pot, dens, iref
+    integer               :: i
+    real                  :: ch, pot, dens, iref
+    integer, allocatable  :: idx(:)
 
     ch = CR_CHARGE(this%iref%ci)
+    allocate (idx(this%par%g%idx_dim))
 
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)

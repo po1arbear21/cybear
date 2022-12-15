@@ -8,6 +8,7 @@ module continuity_m
   use res_equation_m,    only: res_equation
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
   use vselector_m,       only: vselector
+  use error_m,           only: assert_failed, program_error
 
   implicit none
 
@@ -16,25 +17,23 @@ module continuity_m
 
   type, extends(res_equation) :: continuity
     !! dn/dt + div j = 0
-
-    type(device_params), pointer :: par => null()
-      !! pointer to device parameters
-
     integer :: ci
       !! carrier index
 
-    type(vselector) :: dens
+    type(device_params), pointer :: par => null()
+      !! pointer to device parameters
+    type(vselector)              :: dens
       !! main variable: density
-    type(vselector) :: cdens(2)
+    type(vselector), allocatable :: cdens(:)
       !! dependencies: current densities in 2 directions
 
-    type(dirichlet_stencil)   :: st_dir
-    type(near_neighb_stencil) :: st_nn(2)
-    type(empty_stencil)       :: st_em
+    type(dirichlet_stencil)                :: st_dir
+    type(near_neighb_stencil), allocatable :: st_nn(:)
+    type(empty_stencil)                    :: st_em
 
-    type(jacobian), pointer :: jaco_dens     => null()
-    type(jacobian), pointer :: jaco_dens_t   => null()
-    type(jacobian_ptr)      :: jaco_cdens(2)
+    type(jacobian),     pointer     :: jaco_dens     => null()
+    type(jacobian),     pointer     :: jaco_dens_t   => null()
+    type(jacobian_ptr), allocatable :: jaco_cdens(:)
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -49,22 +48,26 @@ contains
       !! device parameters
     type(density),               intent(in)  :: dens
       !! electron/hole density
-    type(current_density),       intent(in)  :: cdens(2)
+    type(current_density),       intent(in)  :: cdens(:)
       !! electron/hole current density
 
-    integer, parameter :: eye(2,2) = reshape([1, 0, 0, 1], [2, 2])
-
-    integer :: i, idx1(2), idx2(2), ict, idx_dir, idens, icdens(2)
-    real    :: surf
+    integer              :: i, ict, idx_dir, idens, idx_dim
+    integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
+    logical              :: status
+    real                 :: surf
 
     ! init base
     call this%equation_init(CR_NAME(dens%ci)//"continuity")
     this%par => par
     this%ci  = dens%ci
 
+    idx_dim = par%g%idx_dim
+    allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim), icdens(idx_dim))
+    allocate (this%cdens(idx_dim), this%st_nn(idx_dim), this%jaco_cdens(idx_dim))
+
     ! init variable selectors
     call this%dens%init(dens, [(par%transport_vct(ict)%get_ptr(), ict = 0, size(par%contacts))])
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
 
@@ -73,33 +76,34 @@ contains
 
     ! init stencils
     call this%st_dir%init(par%g)
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       call this%st_nn(idx_dir)%init(par%g, IDX_VERTEX, 0, IDX_EDGE, idx_dir)
     end do
     call this%st_em%init()
 
     ! dependencies
     idens = this%depend(this%dens)
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
 
     ! init jacobians
     this%jaco_dens   => this%init_jaco_f(idens, st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .false.)
     this%jaco_dens_t => this%init_jaco_f(idens, st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .true. )
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .false.)
     end do
 
     ! loop over transport edges
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
-        ! get indices of first and second vertex
-        idx1 = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
-        idx2 = idx1 + eye(:,idx_dir)
+        ! get indices of edge, first and second vertex
+        idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
         ! get edge surface
-        surf = par%tr_surf(idx_dir)%get(idx1)
+        surf = par%tr_surf(idx_dir)%get(idx)
 
         ! set values if uncontacted
         if (par%ict%get(idx1) == 0) call this%jaco_cdens(idx_dir)%p%set(idx1, idx1,  surf)
@@ -127,14 +131,16 @@ contains
   subroutine continuity_eval(this)
     class(continuity), intent(inout) :: this
 
-    integer           :: i, ict, idx_dir, idx(2)
-    real, allocatable :: tmp(:)
+    integer              :: i, ict, idx_dir, idx_dim
+    integer, allocatable :: idx(:)
+    real,    allocatable :: tmp(:)
 
-    allocate(tmp(this%dens%n))
+    idx_dim = this%par%g%idx_dim
+    allocate(idx(idx_dim), tmp(this%dens%n))
 
     ! calculate residuals excluding boundary conditions
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
-    do idx_dir = 1, 2
+    do idx_dir = 1, idx_dim
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
     call this%f%set(tmp)

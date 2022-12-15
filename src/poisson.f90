@@ -2,7 +2,7 @@ module poisson_m
 
   use charge_density_m, only: charge_density
   use device_params_m,  only: device_params
-  use grid_m,           only: IDX_VERTEX, IDX_CELL
+  use grid_m,           only: IDX_VERTEX, IDX_CELL, IDX_EDGE
   use grid0D_m,         only: get_dummy_grid
   use jacobian_m,       only: jacobian
   use math_m,           only: eye_real
@@ -57,11 +57,11 @@ contains
     type(voltage),               intent(in)  :: volt(:)
       !! voltages for all contacts
 
-    integer, parameter :: eye_i(2,2) = reshape([1, 0, 0, 1], [2, 2])
-
-    integer           :: i, idx1(2), idx2(2), idx_dir, ict, j, jdx1(2), jdx2(2), dum(0)
-    real              :: cap
-    real, allocatable :: d_volt(:,:), eye(:,:)
+    integer               :: i,  idx_dir, ict, dum(0)
+    real                  :: cap
+    real, allocatable     :: d_volt(:,:), eye(:,:)
+    integer, allocatable  :: idx1(:), idx2(:), idx(:)
+    logical               :: status
 
     ! init base
     call this%equation_init("poisson")
@@ -92,33 +92,27 @@ contains
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(), this%st_em%get_ptr(),  &
       & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
 
-    ! loop over poisson cells
-    do i = 1, par%poisson(IDX_CELL,0)%n
-      ! get cell indices (= lower left vertex indices)
-      idx1 = par%poisson(IDX_CELL,0)%get_idx(i)
 
-      do idx_dir = 1, 2
-        ! get lower right or upper left vertex indices
-        idx2 = idx1 + eye_i(:,idx_dir)
+    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    ! loop over poisson edges
+    do idx_dir = 1, par%g%idx_dim
+      do i = 1, par%poisson(IDX_EDGE,idx_dir)%n
+        idx = par%poisson(IDX_EDGE,idx_dir)%get_idx(i)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
         ! capacitance
-        cap = 0.5 * par%g%get_surf(idx1, idx_dir) * par%eps%get(idx1) / par%g%get_len(idx1, idx_dir)
+        cap = par%eps(IDX_EDGE,idx_dir)%get(idx) * par%surf(idx_dir)%get(idx) / par%g%get_len(idx, idx_dir)
 
-        ! set jaco_pot entries for uncontacted vertices
-        do j = 0, 1
-          jdx1 = idx1 + j * eye_i(:,3-idx_dir)
-          jdx2 = idx2 + j * eye_i(:,3-idx_dir)
-
-          if (par%ict%get(jdx1) == 0) then
-            call this%jaco_pot%add(jdx1, jdx1,  cap)
-            call this%jaco_pot%add(jdx1, jdx2, -cap)
-          end if
-          if (par%ict%get(jdx2) == 0) then
-            call this%jaco_pot%add(jdx2, jdx1, -cap)
-            call this%jaco_pot%add(jdx2, jdx2,  cap)
-          end if
-        end do
-      end do
+        if (par%ict%get(idx1) == 0) then
+          call this%jaco_pot%add(idx1, idx1,  cap)
+          call this%jaco_pot%add(idx1, idx2, -cap)
+        end if
+        if (par%ict%get(idx2) == 0) then
+          call this%jaco_pot%add(idx2, idx1, -cap)
+          call this%jaco_pot%add(idx2, idx2,  cap)
+        end if
+       end do
     end do
 
     ! loop over uncontacted transport vertices
@@ -151,11 +145,11 @@ contains
     !! evaluate poisson equation
     class(poisson), intent(inout) :: this
 
-    real, allocatable :: tmp(:)
-    integer           :: ict, i, idx(2)
+    real,    allocatable  :: tmp(:)
+    integer               :: ict, i
+    integer, allocatable  :: idx(:)
 
     allocate (tmp(this%pot%n))
-
     ! calculate residuals (without phims)
     call this%jaco_pot%matr%mul_vec( this%pot%get(),  tmp              )
     call this%jaco_rho%matr%mul_vec( this%rho%get(),  tmp, fact_y = 1.0)

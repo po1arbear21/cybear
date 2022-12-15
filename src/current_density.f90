@@ -4,13 +4,14 @@ module current_density_m
   use device_params_m, only: device_params, CR_NAME, CR_CHARGE, DIR_NAME
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX, IDX_EDGE
-  use grid_data_m,     only: grid_data2_real
+  use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use math_m,          only: ber, dberdx
   use mobility_m,      only: mobility
   use potential_m,     only: potential
   use stencil_m,       only: dirichlet_stencil, near_neighb_stencil
   use variable_m,      only: variable_real
+  use error_m,         only: assert_failed, program_error
 
   implicit none
 
@@ -19,9 +20,12 @@ module current_density_m
 
   type, extends(variable_real) :: current_density
     !! electron/hole current density
-    integer       :: ci
+    integer                    :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
-    real, pointer :: x(:,:) => null()
+
+    real, pointer :: x1(:)     => null()
+    real, pointer :: x2(:,:)   => null()
+    real, pointer :: x3(:,:,:) => null()
       !! direct pointer to data for easy access
   contains
     procedure :: init => current_density_init
@@ -59,14 +63,28 @@ contains
     integer,                intent(in)  :: idx_dir
       !! edge direction
 
-    type(grid_data2_real), pointer :: p => null()
+    integer                        :: idx_dim
+    type(grid_data1_real), pointer :: p1
+    type(grid_data2_real), pointer :: p2
+    type(grid_data3_real), pointer :: p3
 
     call this%variable_init(CR_NAME(ci)//"cdens"//DIR_NAME(idx_dir), "1/cm^2/s", g = par%g, idx_type = IDX_EDGE, idx_dir = idx_dir)
     this%ci = ci
 
-    ! get pointer to data
-    p      => this%data%get_ptr2()
-    this%x => p%data
+    idx_dim = par%g%idx_dim
+    select case (idx_dim)
+    case (1)
+      p1 => this%data%get_ptr1()
+      this%x1 => p1%data
+    case (2)
+      p2 => this%data%get_ptr2()
+      this%x2 => p2%data
+    case (3)
+      p3 => this%data%get_ptr3()
+      this%x3 => p3%data
+    case default
+      call program_error("Maximal 3 dimensions allowed")
+    end select
   end subroutine
 
   subroutine calc_current_density_init(this, par, pot, dens, cdens, mob)
@@ -120,19 +138,23 @@ contains
     !! evaluate drift-diffusion equation
     class(calc_current_density), intent(inout) :: this
 
-    integer, parameter :: eye(2,2) = reshape([1, 0, 0, 1], [2, 2])
+    integer               :: i, idx_dir, idx_dim, ci
+    real                  :: pot1, pot2, ber1, ber2, dber1, dber2, dens1, dens2, len, mob, ch
+    integer, allocatable  :: idx(:), idx1(:), idx2(:)
+    logical               :: status
 
-    integer :: i, idx1(2), idx2(2), idx_dir, ci
-    real    :: ber1, ber2, dber1, dber2, pot1, pot2, dens1, dens2, len, mob, ch
-
+    idx_dim = this%par%g%idx_dim
     idx_dir = this%cdens%idx_dir
     ci      = this%cdens%ci
     ch      = CR_CHARGE(ci)
 
+    allocate (idx1(idx_dim), idx2(idx_dim))
+
     ! loop over transport edges
     do i = 1, this%par%transport(IDX_EDGE, idx_dir)%n
-      idx1 = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
-      idx2 = idx1 + eye(:,idx_dir)
+      idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
+      call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+      call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
       ! parameters
       len   = this%par%g%get_len(idx1, idx_dir)

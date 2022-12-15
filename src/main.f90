@@ -17,6 +17,7 @@ program main
   implicit none
 
   character(:), allocatable :: filename
+  integer                   :: idx_dir
   logical                   :: gummel_restart, gummel_once, gummel_enabled
   real                      :: T
   type(string)              :: dev_filename, ofilename
@@ -43,9 +44,9 @@ program main
   call ofile%init(ofilename%s)
 
   ! output grids
-  call dev%par%gx%output(ofile, unit = "nm")
-  call dev%par%gy%output(ofile, unit = "nm")
-  call dev%par%g%output( ofile, unit = "nm")
+  do idx_dir = 1, dev%par%g%idx_dim
+    call dev%par%g%g(idx_dir)%p%output(ofile, unit = "nm")
+  end do
 
   ! output variable data
   call dev%sys_full%output_info(ofile)
@@ -289,7 +290,6 @@ contains
       do ict = 1, size(dev%par%contacts)
         call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, dev%volt(ict)%x)
       end do
-      ! call input%init([(dev%volt(ict)%x, ict = 1, size(dev%par%contacts))])
 
       ! get source and drain contact ids
       call file%get(sids(si), "source", source)
@@ -342,7 +342,6 @@ contains
         resp = curr / power
         write (ofunit, "(4ES24.16)") denorm(f(i), "Hz"), denorm(power, "W/um"), denorm(dev%curr(idrn)%x, "A/um"), denorm(resp, "A/W")
       end do
-
       close (ofunit)
 
       deallocate (f, c, s)

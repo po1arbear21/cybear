@@ -4,8 +4,9 @@ module device_params_m
 
   use bin_search_m,  only: bin_search
   use contact_m,     only: CT_OHMIC, CT_GATE, contact
-  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
-  use grid_data_m,   only: grid_data2_int, grid_data2_real
+  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
+  use grid_data_m,   only: allocate_grid_data0_real, allocate_grid_data1_real, allocate_grid_data2_real, allocate_grid_data3_real, &
+    &                      allocate_grid_data0_int, allocate_grid_data1_int, grid_data_int, grid_data_real, grid_data2_int, grid_data2_real
   use grid_table_m,  only: grid_table
   use grid1D_m,      only: grid1D
   use error_m,       only: assert_failed, program_error
@@ -18,7 +19,7 @@ module device_params_m
   implicit none
 
   ! parameters
-  character(*), parameter :: DIR_NAME(2)  = [ "x", "y" ]
+  character(*), parameter :: DIR_NAME(3)  = [ "x", "y", "z"]
   integer,      parameter :: CR_ELEC      = 1
   integer,      parameter :: CR_HOLE      = 2
   character(*), parameter :: CR_NAME(2)   = [ "n", "p" ]
@@ -45,48 +46,53 @@ module device_params_m
       !! Caughey-Thomas reference density
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
+    real              :: curr_fact
 
-    type(grid1D)      :: gx, gy
-      !! x and y grids
+    type(grid1D)      :: g1D(3)
+      !! x, y, z grids
+    integer           :: ng1D
+      !! number of enabled 1D grids
+    integer           :: ig1D(3)
+      !! grid index translation table
     type(tensor_grid) :: g
-      !! 2D tensor grid based on gx and gy
+      !! tensor grid
 
-    type(grid_data2_real) :: surf(2)
+    class(grid_data_real), allocatable :: surf(:)
       !! adjoint volume surfaces
-    type(grid_data2_real) :: tr_surf(2)
+    class(grid_data_real), allocatable :: tr_surf(:)
       !! adjoint volume surfaces in transport region
-    type(grid_data2_real) :: vol
+    class(grid_data_real), allocatable :: vol
       !! adjoint volumes
-    type(grid_data2_real) :: tr_vol
+    class(grid_data_real), allocatable :: tr_vol
       !! adjoint volumes for transport region
 
-    type(grid_data2_real) :: eps
-      !! electrostatic permittivity
+    class(grid_data_real), allocatable  :: eps(:,:)
+      !! electrostatic permittivity (idx_type, idx_dir)
 
-    type(grid_table) :: poisson(4,0:2)
+    type(grid_table), allocatable :: poisson(:,:)
       !! poisson grid tables (idx_type, idx_dir)
-    type(grid_table) :: oxide(4,0:2)
+    type(grid_table), allocatable :: oxide(:,:)
       !! oxide grid tables (idx_type, idx_dir)
-    type(grid_table) :: transport(4,0:2)
+    type(grid_table), allocatable :: transport(:,:)
       !! transport grid tables (idx_type, idx_dir)
 
-    type(grid_data2_real) :: dop(4,0:2,2)
+    class(grid_data_real), allocatable :: dop(:,:,:)
       !! acceptor/donator concentration (idx_type, idx_dir, carrier index)
 
-    type(grid_data2_real) :: mob0(4,0:2,2)
+    class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
 
-    type(contact),    allocatable :: contacts(:)
+    type(contact),         allocatable :: contacts(:)
       !! device contacts
-    type(map_string_int)          :: contact_map
+    type(map_string_int)               :: contact_map
       !! get contact index by name
-    type(grid_data2_int)          :: ict
+    class(grid_data_int),  allocatable :: ict
       !! get contact index by grid indices
-    type(grid_table), allocatable :: poisson_vct(:)
+    type(grid_table),      allocatable :: poisson_vct(:)
       !! poisson vertices grouped by contacts (0:size(contacts))
-    type(grid_table), allocatable :: oxide_vct(:)
+    type(grid_table),      allocatable :: oxide_vct(:)
       !! oxide vertices grouped by contacts (0:size(contacts))
-    type(grid_table), allocatable :: transport_vct(:)
+    type(grid_table),      allocatable :: transport_vct(:)
       !! transport vertices grouped by contacts (0:size(contacts))
   contains
     procedure :: init     => device_params_init
@@ -97,22 +103,24 @@ contains
 
   subroutine device_params_init(this, file)
     !! initialize device parameters using device input file
-    class(device_params), intent(out) :: this
-    type(input_file),     intent(in)  :: file
+    class(device_params), target, intent(out) :: this
+    type(input_file),             intent(in)  :: file
       !! device input file
 
-    integer, parameter :: idx_dir0(4) = [ 0, 1, 1, 0]
-    integer, parameter :: idx_dir1(4) = [ 0, 2, 2, 0]
-    integer, parameter :: eye(2,2) = reshape([1, 0, 0, 1], [2,2])
-
-    integer                   :: i, i0, i1, ii, j, j0, j1, jj, idx(2), si, ci, nx, ny, idx_type, idx_dir
-    integer,      allocatable :: sids(:)
-    real                      :: vol, surf
-    real,         allocatable :: xbounds(:), ybounds(:)
+    integer                   :: i, i0(3), i1(3), ii, ijk(3), j, jj, k, kk, si, ci, n(3), dir, dir2
+    integer                   :: idx_type, idx_dir, idx_dir0(4), idx_dir1(4), idx_dir2
+    integer,      allocatable :: sids(:), idx_v(:), idx_e(:), idx_f(:), idx_c(:), idx(:)
+    real                      :: vol, surf, xyz_bounds(2,3)
+    real,         allocatable :: bounds(:)
     character(:), allocatable :: table_name0, table_name
 
     call init_transport_params()
     call init_grid()
+
+    idx_dir0 = [ 0, 1, 1, 0]
+    idx_dir1 = [ 0, this%g%idx_dim, this%g%idx_dim, 0]
+    allocate (idx_v(this%g%idx_dim), idx_e(this%g%idx_dim), idx_f(this%g%idx_dim), idx_c(this%g%idx_dim))
+
     call init_poisson()
     call init_transport()
     call init_doping()
@@ -142,6 +150,7 @@ contains
       call file%get(sid, "mob_max",   this%mob_max)
       call file%get(sid, "N_ref",     this%N_ref)
       call file%get(sid, "v_sat",     this%v_sat)
+      call file%get(sid, "curr_fact", this%curr_fact)
 
       ! make sure parameters are valid
       m4_assert(this%ci0 <= this%ci1)
@@ -155,8 +164,10 @@ contains
     end subroutine
 
     subroutine init_grid()
-      integer           :: si_gen, si_load, status_gen, status_load
-      real, allocatable :: x(:), y(:)
+      integer               :: si_gen, si_load, status_gen, status_load, dir
+      real, allocatable     :: xyz(:)
+      type(grid_ptr)        :: gptr(3)
+      logical               :: status
 
       ! find generate/load grid section ids
       call file%get_section("generate grid", si_gen, status = status_gen)
@@ -168,44 +179,57 @@ contains
       if (status_gen  > 0) call program_error("found multiple generate grid sections")
       if (status_load > 0) call program_error("found multiple load grid sections")
 
-      if (status_gen == 0) then
-        ! load grid parameters
-        call file%get(si_gen, "nx", nx)
-        call file%get(si_gen, "xbounds", xbounds)
-        call file%get(si_gen, "ny", ny)
-        call file%get(si_gen, "ybounds", ybounds)
+      this%ng1D = 0
+      do dir = 1, 3
+        if (status_gen == 0) then
+          ! load grid parameters
+          call file%get(si_gen, "n"//DIR_NAME(dir), n(dir), status = status)
+          if (.not. status) cycle
+          call file%get(si_gen, DIR_NAME(dir)//"bounds", bounds)
 
-        ! generate x, y values
-        x = linspace(xbounds(1), xbounds(2), nx)
-        y = linspace(ybounds(1), ybounds(2), ny)
-      elseif (status_load == 0) then
-        ! load grid values directly
-        call file%get(si_load, "x", x)
-        call file%get(si_load, "y", y)
-      end if
+          ! generate x, y values
+          if (allocated(xyz)) deallocate(xyz)
+          xyz = linspace(bounds(1), bounds(2), n(dir))
+        elseif (status_load == 0) then
 
-      ! init x, y, xy grids
-      call this%gx%init("x", x)
-      call this%gy%init("y", y)
-      call this%g%init("xy", [this%gx%get_ptr(), this%gy%get_ptr()])
+          ! load grid values directly
+          call file%get(si_load, DIR_NAME(dir), xyz, status = status)
+          if (.not. status) cycle
+        end if
+
+        this%ng1D = this%ng1D + 1
+        this%ig1D(this%ng1D) = dir
+
+        ! create grid
+        call this%g1D(dir)%init(DIR_NAME(dir), xyz)
+        gptr(this%ng1D) = this%g1D(dir)%get_ptr()
+      end do
+
+      call this%g%init("grid", gptr(1:this%ng1D))
     end subroutine
 
     subroutine init_poisson()
       real :: eps
 
       ! allocate grid data
-      call this%eps%init(this%g, IDX_CELL, 0)
-      do idx_dir = 1, 2
+      call allocate_grid_data2_real(this%eps, this%g%idx_dim, [1, 0], [4, this%g%idx_dim])
+      call this%eps(IDX_CELL,0)%init(this%g, IDX_CELL, 0)
+      call allocate_grid_data1_real(this%surf, this%g%idx_dim, 1, this%g%idx_dim)
+      do idx_dir = 1, this%g%idx_dim
+        call this%eps(IDX_EDGE,idx_dir)%init(this%g, IDX_EDGE, idx_dir)
         call this%surf(idx_dir)%init(this%g, IDX_EDGE, idx_dir)
       end do
+      call allocate_grid_data0_real(this%vol, this%g%idx_dim)
       call this%vol%init(this%g, IDX_VERTEX, 0)
 
       ! initialize poisson grid tables
+      allocate (this%poisson(4,0:this%g%idx_dim))
       do idx_type = 1, 4
         table_name0 = "poisson_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
           if (idx_dir > 0) then
-            table_name = table_name0//DIR_NAME(idx_dir)
+            dir = this%ig1D(idx_dir)
+            table_name = table_name0//DIR_NAME(dir)
           else
             table_name = table_name0
           end if
@@ -218,46 +242,86 @@ contains
 
       ! process all poisson sections
       do si = 1, size(sids)
-        call file%get(sids(si), "xbounds", xbounds)
-        call file%get(sids(si), "ybounds", ybounds)
-        call file%get(sids(si), "eps",     eps    )
+        ! get bounds
+        i0 = 1
+        i1 = 1
+        do idx_dir = 1, this%g%idx_dim
+          dir = this%ig1D(idx_dir)
+          call file%get(sids(si), DIR_NAME(dir)//"bounds", bounds)
+          xyz_bounds(:,dir) = bounds
+          i0(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(1,dir))
+          i1(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(2,dir)) - 1
+        end do
 
-        ! search bounds
-        i0 = bin_search(this%gx%x, xbounds(1))
-        i1 = bin_search(this%gx%x, xbounds(2)) - 1
-        j0 = bin_search(this%gy%x, ybounds(1))
-        j1 = bin_search(this%gy%x, ybounds(2)) - 1
+        ! get permittivity
+        call file%get(sids(si), "eps", eps)
 
         ! enable poisson in region
-        do j = j0, j1; do i = i0, i1
+        do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+          ijk = [i, j, k]
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            idx_c(idx_dir) = ijk(dir)
+          end do
+
           ! set permittivity for cell
-          call this%eps%set([i,j], eps)
+          call this%eps(IDX_CELL,0)%set(idx_c, eps)
 
           ! enable poisson for vertices and update adjoint volumes
-          vol = this%g%get_vol([i,j])
-          do jj = j, j+1; do ii = i, i+1
-            call this%poisson(IDX_VERTEX,0)%flags%set([ii,jj], .true.)
-            call this%vol%update([ii,jj], 0.25*vol)
-          end do; end do
+          vol = this%g%get_vol(idx_c)
+          do kk = 0, 1; do jj = 0, 1; do ii = 0, 1
+            ijk = [i+ii, j+jj, k+kk]
+            do idx_dir = 1, this%g%idx_dim
+              dir = this%ig1D(idx_dir)
+              idx_v(idx_dir) = ijk(dir)
+            end do
+            call this%poisson(IDX_VERTEX,0)%flags%set(idx_v, .true.)
+            call this%vol%update(idx_v, 0.125*vol)
+          end do; end do; end do
 
-          do idx_dir = 1, 2
-            ! enable poisson for edges
-            call this%poisson(IDX_EDGE,idx_dir)%flags%set([i,j],                  .true.)
-            call this%poisson(IDX_EDGE,idx_dir)%flags%set([i,j]+eye(:,3-idx_dir), .true.)
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            surf = this%g%get_surf(idx_c, idx_dir)
 
-            ! enable poisson for faces
-            call this%poisson(IDX_FACE,idx_dir)%flags%set([i,j],                  .true.)
-            call this%poisson(IDX_FACE,idx_dir)%flags%set([i,j]+eye(:,  idx_dir), .true.)
+            ! edges
+            do jj = 0, 1; do ii = 0, 1
+              if (dir == 1) then
+                ijk = [i, j+ii, k+jj]
+              elseif (dir == 2) then
+                ijk = [i+ii, j, k+jj]
+              else
+                ijk = [i+ii, j+jj, k]
+              end if
+              do idx_dir2 = 1, this%g%idx_dim
+                dir2 = this%ig1D(idx_dir2)
+                idx_e(idx_dir2) = ijk(dir2)
+              end do
 
-            ! update adjoint surfaces
-            surf = this%g%get_surf([i,j], idx_dir)
-            call this%surf(idx_dir)%update([i,j],                  0.5*surf)
-            call this%surf(idx_dir)%update([i,j]+eye(:,3-idx_dir), 0.5*surf)
+              call this%poisson(IDX_EDGE,idx_dir)%flags%set(idx_e, .true.)
+              call this%surf(idx_dir)%update(idx_e, 0.25*surf)
+              call this%eps(IDX_EDGE,idx_dir)%update(idx_e, 0.25*surf*eps)
+            end do; end do
+
+            ! faces
+            do ii = 0, 1
+              ijk = [i, j, k]
+              ijk(dir) = ijk(dir) + ii
+              do idx_dir2 = 1, this%g%idx_dim
+                dir2 = this%ig1D(idx_dir2)
+                idx_f(idx_dir2) = ijk(dir2)
+              end do
+
+              call this%poisson(IDX_FACE,idx_dir)%flags%set(idx_f, .true.)
+            end do
           end do
 
           ! enable poisson for cell
-          call this%poisson(IDX_CELL,0)%flags%set([i, j], .true.)
-        end do; end do
+          call this%poisson(IDX_CELL,0)%flags%set(idx_c, .true.)
+        end do; end do; end do
+      end do
+
+      do idx_dir = 1, this%g%idx_dim
+        call this%eps(IDX_EDGE,idx_dir)%set(this%eps(IDX_EDGE,idx_dir)%get() / this%surf(idx_dir)%get())
       end do
 
       ! finish initialization of poisson grid tables
@@ -270,17 +334,22 @@ contains
 
     subroutine init_transport()
       ! allocate grid data
-      do idx_dir = 1, 2
+      call allocate_grid_data1_real(this%tr_surf, this%g%idx_dim, 1, this%g%idx_dim)
+      call allocate_grid_data0_real(this%tr_vol, this%g%idx_dim)
+      do idx_dir = 1, this%g%idx_dim
         call this%tr_surf(idx_dir)%init(this%g, IDX_EDGE, idx_dir)
       end do
       call this%tr_vol%init(this%g, IDX_VERTEX, 0)
 
       ! initialize oxide and transport grid tables
+      allocate (this%oxide(4,0:this%g%idx_dim))
+      allocate (this%transport(4,0:this%g%idx_dim))
       do idx_type = 1, 4
         table_name0 = "oxide_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
           if (idx_dir > 0) then
-            table_name = table_name0//DIR_NAME(idx_dir)
+            dir = this%ig1D(idx_dir)
+            table_name = table_name0//DIR_NAME(dir)
           else
             table_name = table_name0
           end if
@@ -290,7 +359,8 @@ contains
         table_name0 = "transport_"//IDX_NAME(idx_type)(1:1)
         do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
           if (idx_dir > 0) then
-            table_name = table_name0//DIR_NAME(idx_dir)
+            dir = this%ig1D(idx_dir)
+            table_name = table_name0//DIR_NAME(dir)
           else
             table_name = table_name0
           end if
@@ -303,48 +373,78 @@ contains
 
       ! process all sections
       do si = 1, size(sids)
-        call file%get(sids(si), "xbounds", xbounds)
-        call file%get(sids(si), "ybounds", ybounds)
-
-        ! search bounds
-        i0 = bin_search(this%gx%x, xbounds(1))
-        i1 = bin_search(this%gx%x, xbounds(2)) - 1
-        j0 = bin_search(this%gy%x, ybounds(1))
-        j1 = bin_search(this%gy%x, ybounds(2)) - 1
+        do idx_dir = 1, this%g%idx_dim
+          dir = this%ig1D(idx_dir)
+          call file%get(sids(si), DIR_NAME(dir)//"bounds", bounds)
+          xyz_bounds(:,dir) = bounds
+          ! search bounds
+          i0(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(1,dir))
+          i1(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(2,dir)) - 1
+        end do
 
         ! enable transport in region
-        do j = j0, j1; do i = i0, i1
+        do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+          ijk = [i, j, k]
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            idx_c(idx_dir) = ijk(dir)
+          end do
+
           ! enable transport for vertices and update adjoint volumes
-          vol = this%g%get_vol([i,j])
-          do jj = j, j+1; do ii = i, i+1
-            call this%oxide(    IDX_VERTEX,0)%flags%set([ii,jj], .false.)
-            call this%transport(IDX_VERTEX,0)%flags%set([ii,jj], .true.)
-            call this%tr_vol%update([ii,jj], 0.25*vol)
-          end do; end do
+          vol = this%g%get_vol(idx_c)
+          do kk = 0, 1; do jj = 0, 1; do ii = 0, 1
+            ijk = [i+ii, j+jj, k+kk]
+            do idx_dir = 1, this%g%idx_dim
+              dir = this%ig1D(idx_dir)
+              idx_v(idx_dir) = ijk(dir)
+            end do
+            call this%oxide(    IDX_VERTEX,0)%flags%set(idx_v, .false.)
+            call this%transport(IDX_VERTEX,0)%flags%set(idx_v, .true.)
+            call this%tr_vol%update(idx_v, 0.125*vol)
+          end do; end do; end do
 
-          do idx_dir = 1, 2
-            ! enable transport for edges
-            call this%oxide(    IDX_EDGE,idx_dir)%flags%set([i,j],                  .false.)
-            call this%transport(IDX_EDGE,idx_dir)%flags%set([i,j],                  .true. )
-            call this%oxide(    IDX_EDGE,idx_dir)%flags%set([i,j]+eye(:,3-idx_dir), .false.)
-            call this%transport(IDX_EDGE,idx_dir)%flags%set([i,j]+eye(:,3-idx_dir), .true. )
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            surf = this%g%get_surf(idx_c, idx_dir)
 
-            ! enable transport for faces
-            call this%oxide(    IDX_FACE,idx_dir)%flags%set([i,j],                  .false.)
-            call this%transport(IDX_FACE,idx_dir)%flags%set([i,j],                  .true. )
-            call this%oxide(    IDX_FACE,idx_dir)%flags%set([i,j]+eye(:,  idx_dir), .false.)
-            call this%transport(IDX_FACE,idx_dir)%flags%set([i,j]+eye(:,  idx_dir), .true. )
+            ! edges
+            do jj = 0, 1; do ii = 0, 1
+              if (dir == 1) then
+                ijk = [i, j+ii, k+jj]
+              elseif (dir == 2) then
+                ijk = [i+ii, j, k+jj]
+              else
+                ijk = [i+ii, j+jj, k]
+              end if
+              do idx_dir2 = 1, this%g%idx_dim
+                dir2 = this%ig1D(idx_dir2)
+                idx_e(idx_dir2) = ijk(dir2)
+              end do
 
-            ! update adjoint surfaces
-            surf = this%g%get_surf([i,j], idx_dir)
-            call this%tr_surf(idx_dir)%update([i,j],                  0.5*surf)
-            call this%tr_surf(idx_dir)%update([i,j]+eye(:,3-idx_dir), 0.5*surf)
+              ! enable transport for edges
+              call this%oxide(    IDX_EDGE,idx_dir)%flags%set(idx_e, .false.)
+              call this%transport(IDX_EDGE,idx_dir)%flags%set(idx_e, .true. )
+              call this%tr_surf(idx_dir)%update(idx_e, 0.25*surf)
+            end do; end do
+
+            ! faces
+            do ii = 0, 1
+              ijk = [i, j, k]
+              ijk(dir) = ijk(dir) + ii
+              do idx_dir2 = 1, this%g%idx_dim
+                dir2 = this%ig1D(idx_dir2)
+                idx_f(idx_dir2) = ijk(dir2)
+              end do
+
+              call this%oxide(    IDX_FACE,idx_dir)%flags%set(idx_f, .false.)
+              call this%transport(IDX_FACE,idx_dir)%flags%set(idx_f, .true. )
+            end do
           end do
 
           ! enable transport for cell
-          call this%oxide(    IDX_CELL,0)%flags%set([i, j], .false.)
-          call this%transport(IDX_CELL,0)%flags%set([i, j], .true.)
-        end do; end do
+          call this%oxide(    IDX_CELL,0)%flags%set(idx_c, .false.)
+          call this%transport(IDX_CELL,0)%flags%set(idx_c, .true.)
+        end do; end do; end do
       end do
 
       ! finish initialization of oxide, transport grid tables
@@ -358,10 +458,12 @@ contains
 
     subroutine init_doping()
       integer           :: si_load, status
-      real              :: dop(2), dcon, acon, tr_vol, tr_surf, mob_min, mob_max, N_ref, alpha
+      real              :: dcon, acon, mob_min, mob_max, N_ref, alpha, tr_vol, tr_surf, dop(2)
       real, allocatable :: dop_ar(:)
 
       ! allocate grid data
+      call allocate_grid_data3_real(this%dop, this%g%idx_dim, [1, 0, this%ci0], [4, this%g%idx_dim, this%ci1])
+      call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%ci0], [4, this%g%idx_dim, this%ci1])
       do ci = this%ci0, this%ci1
         do idx_type = 1, 4
           do idx_dir = idx_dir0(idx_type), idx_dir1(idx_type)
@@ -392,67 +494,109 @@ contains
         ! set doping for edges and cells
         do ci = this%ci0, this%ci1
           do i = 1, this%transport(IDX_CELL,0)%n
-            idx = this%transport(IDX_CELL,0)%get_idx(i)
+            idx_c = this%transport(IDX_CELL,0)%get_idx(i)
 
             ! cell doping
-            dop(ci) = 0.25 * (this%dop(IDX_VERTEX,0,ci)%get(idx         ) &
-              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [1, 0]) &
-              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [0, 1]) &
-              &             + this%dop(IDX_VERTEX,0,ci)%get(idx + [1, 1]))
+            dop(ci) = 0
+            do kk = 0, 1; do jj = 0, 1; do ii = 0, 1
+              ijk = [ii, jj, kk]
+              do idx_dir = 1, this%g%idx_dim
+                dir = this%ig1D(idx_dir)
+                idx_v(idx_dir) = idx_c(idx_dir) + ijk(dir)
+              end do
+              dop(ci) = dop(ci) + 0.125 * this%dop(IDX_VERTEX,0,ci)%get(idx_v)
+            end do; end do; end do
+            call this%dop(IDX_CELL,0,ci)%set(idx_c, dop(ci))
 
             ! edges
-            do idx_dir = 1, 2
-              surf    = this%g%get_surf(idx, idx_dir)
-              tr_surf = this%tr_surf(idx_dir)%get(idx)
-              call this%dop(IDX_EDGE,idx_dir,ci)%update(idx,                  0.5*surf/tr_surf*dop(ci))
-              call this%dop(IDX_EDGE,idx_dir,ci)%update(idx+eye(:,3-idx_dir), 0.5*surf/tr_surf*dop(ci))
+            do idx_dir = 1, this%g%idx_dim
+              dir     = this%ig1D(idx_dir)
+              surf    = this%g%get_surf(idx_c, idx_dir)
+              tr_surf = this%tr_surf(idx_dir)%get(idx_c)
+              do jj = 0, 1; do ii = 0, 1
+                if (dir == 1) then
+                  ijk = [0, ii, jj]
+                elseif (dir == 2) then
+                  ijk = [ii, 0, jj]
+                else
+                  ijk = [ii, jj, 0]
+                end if
+                do idx_dir2 = 1, this%g%idx_dim
+                  dir2 = this%ig1D(idx_dir2)
+                  idx_e(idx_dir2) = idx_c(idx_dir2) + ijk(dir2)
+                end do
+                call this%dop(IDX_EDGE,idx_dir,ci)%update(idx_e, 0.25*surf/tr_surf*dop(ci))
+              end do; end do
             end do
-
-            ! save cell doping
-            call this%dop(IDX_CELL,0,ci)%set(idx, dop(ci))
           end do
         end do
       else
+
         ! process all doping sections
         do si = 1, size(sids)
-          call file%get(sids(si), "xbounds", xbounds)
-          call file%get(sids(si), "ybounds", ybounds)
+          i0 = 1
+          i1 = 1
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            call file%get(sids(si), DIR_NAME(dir)//"bounds", bounds)
+            xyz_bounds(:,dir) = bounds
+            i0(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(1,dir))
+            i1(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(2,dir)) - 1
+          end do
           if (this%ci0 == CR_ELEC) call file%get(sids(si), "dcon", dop(CR_ELEC))
           if (this%ci1 == CR_HOLE) call file%get(sids(si), "acon", dop(CR_HOLE))
 
-          ! search bounds
-          i0 = bin_search(this%gx%x, xbounds(1))
-          i1 = bin_search(this%gx%x, xbounds(2)) - 1
-          j0 = bin_search(this%gy%x, ybounds(1))
-          j1 = bin_search(this%gy%x, ybounds(2)) - 1
-
           ! set doping in region
-          do j = j0, j1; do i = i0, i1
-            vol = this%g%get_vol([i,j])
+          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+            ijk = [i, j, k]
+            do idx_dir = 1, this%g%idx_dim
+              dir = this%ig1D(idx_dir)
+              idx_c(idx_dir) = ijk(dir)
+            end do
+            vol = this%g%get_vol(idx_c)
 
             ! set doping on vertices
-            do jj = j, j+1; do ii = i, i+1
-              tr_vol = this%tr_vol%get([ii,jj])
-              do ci = this%ci0, this%ci1
-                call this%dop(IDX_VERTEX,0,ci)%update([ii,jj], 0.25*vol/tr_vol*dop(ci))
+            do kk = 0, 1; do jj = 0, 1; do ii = 0, 1
+              ijk = [i+ii, j+jj, k+kk]
+              do idx_dir = 1, this%g%idx_dim
+                dir = this%ig1D(idx_dir)
+                idx_v(idx_dir) = ijk(dir)
               end do
-            end do; end do
+              tr_vol = this%tr_vol%get(idx_v)
+              do ci = this%ci0, this%ci1
+                call this%dop(IDX_VERTEX,0,ci)%update(idx_v, 0.125*vol/tr_vol*dop(ci))
+              end do
+            end do; end do; end do
 
             ! set doping for edges
-            do idx_dir = 1, 2
-              surf    = this%g%get_surf([i,j], idx_dir)
-              tr_surf = this%tr_surf(idx_dir)%get([i,j])
-              do ci = this%ci0, this%ci1
-                call this%dop(IDX_EDGE,idx_dir,ci)%update([i,j],                  0.5*surf/tr_surf*dop(ci))
-                call this%dop(IDX_EDGE,idx_dir,ci)%update([i,j]+eye(:,3-idx_dir), 0.5*surf/tr_surf*dop(ci))
-              end do
+            do idx_dir = 1, this%g%idx_dim
+              dir = this%ig1D(idx_dir)
+              surf    = this%g%get_surf(idx_c, idx_dir)
+              tr_surf = this%tr_surf(idx_dir)%get(idx_c)
+
+              do jj = 0, 1; do ii = 0, 1
+                if (dir == 1) then
+                  ijk = [i, j+ii, k+jj]
+                elseif (dir == 2) then
+                  ijk = [i+ii, j, k+jj]
+                else
+                  ijk = [i+ii, j+jj, k]
+                end if
+                do idx_dir2 = 1, this%g%idx_dim
+                  dir2 = this%ig1D(idx_dir2)
+                  idx_e(idx_dir2) = ijk(dir2)
+                end do
+                do ci = this%ci0, this%ci1
+                  call this%dop(IDX_EDGE,idx_dir,ci)%update(idx_e, 0.25*surf/tr_surf*dop(ci))
+                end do
+              end do; end do
             end do
 
             ! set doping in cells
             do ci = this%ci0, this%ci1
-              call this%dop(IDX_CELL,0,ci)%set([i,j], dop(ci))
+              call this%dop(IDX_CELL,0,ci)%set(idx_c, dop(ci))
             end do
-          end do; end do
+          end do; end do; end do
         end do
       end if
 
@@ -475,7 +619,7 @@ contains
         end do
 
         ! mobility on edges
-        do idx_dir = 1, 2
+        do idx_dir = 1, this%g%idx_dim
           call this%mob0(IDX_EDGE,idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
 
           do i = 1, this%transport(IDX_EDGE,idx_dir)%n
@@ -493,6 +637,9 @@ contains
       real                              :: phims
       type(string)                      :: name, typename
       type(mapnode_string_int), pointer :: node
+
+      ! allocate grid data
+      call allocate_grid_data0_int(this%ict, this%g%idx_dim)
 
       ! get contact sections
       call file%get_sections("contact", sids)
@@ -525,6 +672,7 @@ contains
       ! init contacts
       allocate (this%contacts(nct))
       do si = 1, size(sids)
+
         ! lookup name
         call file%get(sids(si), "name", name)
         ict = this%contact_map%get(name)
@@ -540,25 +688,33 @@ contains
         end if
 
         ! bounds
-        call file%get(sids(si), "xbounds", xbounds)
-        call file%get(sids(si), "ybounds", ybounds)
-        i0 = bin_search(this%gx%x, xbounds(1))
-        i1 = bin_search(this%gx%x, xbounds(2))
-        j0 = bin_search(this%gy%x, ybounds(1))
-        j1 = bin_search(this%gy%x, ybounds(2))
+        i0 = 1
+        i1 = 1
+        do idx_dir = 1, this%g%idx_dim
+          dir = this%ig1D(idx_dir)
+          call file%get(sids(si), DIR_NAME(dir)//"bounds", bounds)
+          xyz_bounds(:,dir) = bounds
+          i0(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(1,dir))
+          i1(dir) = bin_search(this%g1D(dir)%x, xyz_bounds(2,dir))
+        end do
 
         ! phims
         if (ct_type == CT_OHMIC) then
-          outer: do j = j0, j1; do i = i0, i1
-              if (this%transport(IDX_VERTEX,0)%flags%get([i,j])) exit outer
-          end do; end do outer
-          if ((i > i1) .or. (j > j1)) call program_error("Ohmic contact "//name%s//" not in transport region")
+          outer: do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+            ijk = [i, j, k]
+            do idx_dir = 1, this%g%idx_dim
+              dir = this%ig1D(idx_dir)
+              idx_v(idx_dir) = ijk(dir)
+            end do
+            if (this%transport(IDX_VERTEX,0)%flags%get(idx_v)) exit outer
+          end do; end do; end do outer
+          if ((i > i1(1)) .or. (j > i1(2)).or. (k > i1(3))) call program_error("Ohmic contact "//name%s//" not in transport region")
           if ((this%ci0 == CR_ELEC) .and. (this%ci1 == CR_HOLE)) then
-            phims = asinh(0.5 * (this%dop(IDX_VERTEX,0,CR_ELEC)%get([i,j]) - this%dop(IDX_VERTEX,0,CR_HOLE)%get([i,j])) / this%n_intrin)
+            phims = asinh(0.5 * (this%dop(IDX_VERTEX,0,CR_ELEC)%get(idx_v) - this%dop(IDX_VERTEX,0,CR_HOLE)%get(idx_v)) / this%n_intrin)
           elseif (this%ci0 == CR_ELEC) then
-            phims = log(this%dop(IDX_VERTEX,0,CR_ELEC)%get([i,j]) / this%n_intrin)
+            phims = log(this%dop(IDX_VERTEX,0,CR_ELEC)%get(idx_v) / this%n_intrin)
           elseif (this%ci0 == CR_HOLE) then
-            phims = -log(this%dop(IDX_VERTEX,0,CR_HOLE)%get([i,j]) / this%n_intrin)
+            phims = -log(this%dop(IDX_VERTEX,0,CR_HOLE)%get(idx_v) / this%n_intrin)
           end if
         else
           call file%get(sids(si), "phims", phims)
@@ -577,26 +733,30 @@ contains
         end if
 
         ! update vertex tables
-        do j = j0, j1; do i = i0, i1
-          idx = [i, j]
-          ict0 = this%ict%get(idx)
+        do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+          ijk = [i, j, k]
+          do idx_dir = 1, this%g%idx_dim
+            dir = this%ig1D(idx_dir)
+            idx_v(idx_dir) = ijk(dir)
+          end do
+          ict0 = this%ict%get(idx_v)
           if ((ict0 /= 0) .and. (ict0 /= ict)) then
             call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
           end if
-          call this%ict%set(idx, ict)
-          if (this%poisson(IDX_VERTEX,0)%flags%get(idx)) then
-            call this%poisson_vct(ict)%flags%set(idx, .true. )
-            call this%poisson_vct(  0)%flags%set(idx, .false.)
+          call this%ict%set(idx_v, ict)
+          if (this%poisson(IDX_VERTEX,0)%flags%get(idx_v)) then
+            call this%poisson_vct(ict)%flags%set(idx_v, .true. )
+            call this%poisson_vct(  0)%flags%set(idx_v, .false.)
           end if
-          if (this%oxide(IDX_VERTEX,0)%flags%get(idx)) then
-            call this%oxide_vct(ict)%flags%set(idx, .true. )
-            call this%oxide_vct(  0)%flags%set(idx, .false.)
+          if (this%oxide(IDX_VERTEX,0)%flags%get(idx_v)) then
+            call this%oxide_vct(ict)%flags%set(idx_v, .true. )
+            call this%oxide_vct(  0)%flags%set(idx_v, .false.)
           end if
-          if (this%transport(IDX_VERTEX,0)%flags%get(idx)) then
-            call this%transport_vct(ict)%flags%set(idx, .true. )
-            call this%transport_vct(  0)%flags%set(idx, .false.)
+          if (this%transport(IDX_VERTEX,0)%flags%get(idx_v)) then
+            call this%transport_vct(ict)%flags%set(idx_v, .true. )
+            call this%transport_vct(  0)%flags%set(idx_v, .false.)
           end if
-        end do; end do
+        end do; end do; end do
       end do
 
       ! finish initialization of grid tables

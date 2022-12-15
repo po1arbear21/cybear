@@ -2,7 +2,7 @@ module approx_m
 
   use device_params_m, only: device_params, CR_ELEC, CR_HOLE
   use esystem_m,       only: esystem
-  use grid_m,          only: IDX_VERTEX, IDX_CELL
+  use grid_m,          only: IDX_VERTEX, IDX_CELL, IDX_EDGE
   use grid0D_m,        only: get_dummy_grid
   use imref_m,         only: imref
   use jacobian_m,      only: jacobian
@@ -36,8 +36,8 @@ module approx_m
     type(empty_stencil)       :: st_em
     type(near_neighb_stencil) :: st_nn
 
-    type(jacobian), pointer :: jaco_iref => null()
-    type(jacobian), pointer :: jaco_volt => null()
+    type(jacobian), pointer   :: jaco_iref => null()
+    type(jacobian), pointer   :: jaco_volt => null()
   contains
     procedure :: init => imref_approx_eq_init
     procedure :: eval => imref_approx_eq_eval
@@ -95,8 +95,9 @@ contains
     type(imref),         intent(in)    :: iref(:)
       !! electron/hole quasi-fermi potential
 
-    integer :: i, idx(2), ci
-    real    :: ireff(2), dop(2)
+    integer               :: i, ci
+    real                  :: ireff(2), dop(2)
+    integer, allocatable  :: idx(:)
 
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx = par%transport(IDX_VERTEX,0)%get_idx(i)
@@ -128,11 +129,11 @@ contains
     type(voltage),               intent(in)  :: volt(:)
       !! voltages for all contacts
 
-    integer, parameter :: eye_i(2,2) = reshape([1, 0, 0, 1], [2, 2])
-
-    integer           :: i, idx1(2), idx2(2), idx_dir, ict, j, jdx1(2), jdx2(2), dum(0)
-    real              :: eps, cap
-    real, allocatable :: d_volt(:,:), eye(:,:)
+    integer              :: i, idx_dir, ict, dum(0)
+    real                 :: eps, cap
+    real,    allocatable :: d_volt(:,:), eye(:,:)
+    integer, allocatable :: idx1(:), idx2(:), idx(:)
+    logical              :: status
 
     ! init base
     call this%equation_init("imref_approx_eq")
@@ -155,39 +156,32 @@ contains
 
     ! init jacos
     this%jaco_iref  => this%init_jaco_f(this%depend(this%iref ), st = [this%st_nn%get_ptr(), &
-      & (this%st_dir%get_ptr(),      ict = 1, size(par%contacts))], const = .true.)
+    & (this%st_dir%get_ptr(),      ict = 1, size(par%contacts))], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(),   &
-      & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
+    & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
 
     ! loop over transport cells
-    do i = 1, par%transport(IDX_CELL,0)%n
-      ! get cell indices (= lower left vertex indices)
-      idx1 = par%transport(IDX_CELL,0)%get_idx(i)
+    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    do idx_dir = 1, par%g%idx_dim
+      do i = 1, par%transport(IDX_EDGE,idx_dir)%n
+        idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+        call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
-      ! get "permittivity" (= mob * dens)
-      eps = par%mob0(IDX_CELL,0,iref%ci)%get(idx1) * max(par%n_intrin, par%dop(IDX_CELL,0,iref%ci)%get(idx1))
-
-      do idx_dir = 1, 2
-        ! get lower right or upper left vertex indices
-        idx2 = idx1 + eye_i(:,idx_dir)
+        ! get "permittivity" (= mob * dens)
+        eps = par%mob0(IDX_EDGE,idx_dir,iref%ci)%get(idx) * max(par%n_intrin, par%dop(IDX_EDGE,idx_dir,iref%ci)%get(idx))
 
         ! "capacitance" (= surf * mob * dens / len)
-        cap = 0.5 * par%g%get_surf(idx1, idx_dir) * eps / par%g%get_len(idx1, idx_dir)
+        cap = par%tr_surf(idx_dir)%get(idx) * eps / par%g%get_len(idx, idx_dir)
 
-        ! set jaco_iref entries for uncontacted vertices
-        do j = 0, 1
-          jdx1 = idx1 + j * eye_i(:,3-idx_dir)
-          jdx2 = idx2 + j * eye_i(:,3-idx_dir)
-
-          if (par%ict%get(jdx1) == 0) then
-            call this%jaco_iref%add(jdx1, jdx1,  cap)
-            call this%jaco_iref%add(jdx1, jdx2, -cap)
-          end if
-          if (par%ict%get(jdx2) == 0) then
-            call this%jaco_iref%add(jdx2, jdx1, -cap)
-            call this%jaco_iref%add(jdx2, jdx2,  cap)
-          end if
-        end do
+        if (par%ict%get(idx1) == 0) then
+          call this%jaco_iref%add(idx1, idx1,  cap)
+          call this%jaco_iref%add(idx1, idx2, -cap)
+        end if
+        if (par%ict%get(idx2) == 0) then
+          call this%jaco_iref%add(idx2, idx1, -cap)
+          call this%jaco_iref%add(idx2, idx2,  cap)
+        end if
       end do
     end do
 
@@ -218,7 +212,7 @@ contains
     allocate (tmp(this%iref%n))
 
     ! calculate residuals
-    call this%jaco_iref%matr%mul_vec( this%iref%get(),  tmp              )
+    call this%jaco_iref%matr%mul_vec(this%iref%get(), tmp              )
     call this%jaco_volt%matr%mul_vec(this%volt%get(), tmp, fact_y = 1.0)
     call this%f%set(tmp)
   end subroutine
