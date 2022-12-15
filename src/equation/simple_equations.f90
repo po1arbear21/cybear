@@ -447,13 +447,20 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine input_equation_apply(this, appl)
+  subroutine input_equation_apply(this, appl, only_appl)
     !! apply input parameters
     class(input_equation), intent(inout) :: this
     real,                  intent(in)    :: appl(:)
+    logical, optional,     intent(in)    :: only_appl
+      !! only set appl, leave mvar unchanged (default: false)
+
+    logical :: only_appl_
+
+    only_appl_ = .false.
+    if (present(only_appl)) only_appl_ = only_appl
 
     ! save input parameters
-    call this%mvar%set(appl)
+    if (.not. only_appl_) call this%mvar%set(appl)
     this%appl = appl
   end subroutine
 
