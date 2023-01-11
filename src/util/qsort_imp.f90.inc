@@ -1,15 +1,20 @@
-subroutine qsort_{}T{}(x, perm)
+subroutine qsort_{}T{}(x, perm, init_perm)
   m4_type(T),        intent(inout) :: x(:)
     !! array which should be sorted
-  integer, optional, intent(out)   :: perm(:)
+  integer, optional, intent(inout) :: perm(:)
     !! permutation array
+  logical, optional, intent(in)    :: init_perm
+    !! initialize permutation array by consecutive numbers (default: true)
 
   integer :: i
+  logical :: init_perm_
 
   ! init permutation array
   if (present(perm)) then
     m4_assert(size(x) == size(perm))
-    perm = [(i, i=1,size(x))]
+    init_perm_ = .true.
+    if (present(init_perm)) init_perm_ = init_perm
+    if (init_perm_) perm = [(i, i=1,size(x))]
   end if
 
   ! start recursive quick sort
