@@ -62,3 +62,6 @@ endif
 ifeq ($(USE_MPFR),true)
   M4FLAGS += -Dm4_mpfr
 endif
+ifeq ($(USE_TRIANGLE),true)
+  M4FLAGS += -Dm4_triangle
+endif

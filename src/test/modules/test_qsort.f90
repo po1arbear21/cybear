@@ -88,7 +88,7 @@ contains
 
     ! 32 elements
     block
-      integer :: ar(32), perm(32), e(32)
+      integer :: ar(32), perm(32), perm0(32), e(32)
 
       ! no double elements
       ar = [54,89,38,37,100,82,11,17,5,56,84,6,15,26,69,75,34,22,44,94,98,46,71,93,55,90,64,48,28,80,87,57]
@@ -109,6 +109,15 @@ contains
       call qsort(ar)
       e = [14,19,23,27,29,31,31,31,31,31,35,36,37,43,44,45,46,46,50,50,50,52,54,54,54,56,60,74,78,78,91,95]
       call tc%assert_eq(e, ar, "sort 32 elements with duplicates; test 3")
+
+      ar    = [50,54,48,89,46,71,23,56,36,29,92,43,19,78,45, 2,39,100,52,35,31,44,27,91,90,37,28,60,74,95,14,47]
+      perm0 = [23,89,56,27,84,36,57, 8,92,43,56,27, 8,43,65, 2,60, 63,76,45,64,86,54,78,64,76,48,59,39,47,50,97]
+      perm  = perm0
+      call qsort(ar, perm = perm, init_perm = .false.)
+      e = [2,14,19,23,27,28,29,31,35,36,37,39,43,44,45,46,47,48,50,52,54,56,60,71,74,78,89,90,91,92,95,100]
+      call tc%assert_eq(e, ar, "sort 32 elements with permutation provided (ar); test 4")
+      e = perm0([16,31,13,7,23,27,10,21,20,9,26,17,12,22,15,5,32,3,1,19,2,8,28,6,29,14,4,25,24,11,30,18])
+      call tc%assert_eq(e, perm, "sort 32 elements with permutation provided (perm); test 4")
     end block
 
     ! 37 real elements

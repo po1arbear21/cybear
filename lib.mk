@@ -151,6 +151,10 @@ ifeq ($(USE_MPFR),true)
   CINCLUDE += -I$(MPFRROOT)/include/$(COMPILER)_ilp64 -I$(GMPROOT)/include/$(COMPILER)_ilp64
 endif
 
+ifeq ($(USE_TRIANGLE),true)
+  LIBS += $(TRIANGLEROOT)/lib/$(COMPILER)_lp64/triangle.a
+endif
+
 # additional libraries
 ifeq ($(COMPILER), gnu)
   LIBS += -lgomp -lpthread -lm -ldl
