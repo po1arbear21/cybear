@@ -163,7 +163,7 @@ contains
   m4_include(../util/vector_imp.f90.inc)
 
   subroutine triang_grid_init(this, name, vert, icell)
-    !! initialize 1D grid
+    !! initialize triangle grid
     class(triang_grid), intent(out) :: this
     character(*),       intent(in)  :: name
       !! grid name
