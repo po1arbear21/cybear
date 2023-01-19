@@ -235,7 +235,7 @@ contains
     ! local variables
     integer                         :: i, it
     real                            :: err, abs_err, dx0
-    real,               allocatable :: f(:), dfdp(:,:), dx(:)
+    real,               allocatable :: f(:), dfdp(:,:), dx(:), xold(:)
     class(matrix_real), pointer     :: dfdx, dfdx_prec
     type(gmres_options)             :: gmres_opt_
     type(single_matop_real)         :: mulvec, precon
@@ -252,6 +252,7 @@ contains
     allocate (f(   size(x)        ), source = huge(err))
     allocate (dfdp(size(x),size(p)), source = 0.0 )
     allocate (dx(  size(x)        ), source = 0.0 )
+    allocate (xold(size(x)        ), source = 0.0 )
     nullify (dfdx, dfdx_prec)
 
     ! init iteration params
@@ -301,20 +302,21 @@ contains
         call dfdx%solve_vec(f, dx)
       end if
 
-      ! calculate new error
-      err     = maxval(abs(dx) / (abs(x) + opt%atol / opt%rtol))
-      abs_err = maxval(abs(dx))
-
       ! limit update
       dx0 = maxval(abs(dx) / opt%dx_lim, dim=1)
       if (dx0 > 1) dx = dx / dx0
 
       ! update solution
-      x = x - dx
+      xold = x
+      x    = x - dx
 
       ! limit solution to bounds if necessary
       where(x < opt%xmin) x = opt%xmin
       where(x > opt%xmax) x = opt%xmax
+
+      ! calculate new error
+      err     = maxval(abs(x-xold) / (abs(xold) + opt%atol / opt%rtol))
+      abs_err = maxval(abs(x-xold))
 
       if (opt%log) print "(A,I0,3ES25.16)", opt%msg, it, err, abs_err, maxval(abs(f))
     end do
