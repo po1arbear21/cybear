@@ -675,24 +675,13 @@ contains
 
         ! edge to XXX tests
         block
-          integer :: ie(nvert,nvert), ie_tmp(1), iv1, iv2, k, iv2_tmp(1)
+          integer :: ie(nvert,nvert), ii
 
-          ie = -1
           ! determine edge indices
-          do iv1 = 1, nvert
-            do iv2 = 1, nvert
-              NEIGHB: do j = 1, 100
-                call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, [iv1], j, ie_tmp, status)
-                if (.not. status) exit
-                do k = 1, 2
-                  call g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, ie_tmp, k, iv2_tmp, status)
-                  if (iv2_tmp(1) == iv2) then
-                    ie(iv1,iv2) = ie_tmp(1)
-                    exit NEIGHB
-                  end if
-                end do
-              end do NEIGHB
-            end do
+          ie = -1
+          do ii = 1, g%nedge
+            ie(g%edge2vert(1,ii),g%edge2vert(2,ii)) = ii
+            ie(g%edge2vert(2,ii),g%edge2vert(1,ii)) = ii
           end do
 
           ! E V
