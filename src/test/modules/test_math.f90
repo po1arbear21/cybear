@@ -363,18 +363,18 @@ contains
 
     ! polyg_area_2d, matlab example: https://de.mathworks.com/help/matlab/ref/polyarea.html
     block
-      integer :: i 
+      integer :: i
       real    :: t(9), p(2,9), A
 
       t = linspace(0.0, 2.0*PI, 9);
       do i=1, size(t)
         p(1, i) = 1.2*cos(t(i)) ! x
         p(2, i) = 1.2*sin(t(i)) ! y
-      end do 
+      end do
 
       A = polyg_area_2d(p)
       call tc%assert_eq(4.0729, A, 1e-4, "polyg_area_2d")
-    end block 
+    end block
 
     call tc%finish()
   end subroutine

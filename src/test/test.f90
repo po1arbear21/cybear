@@ -49,6 +49,9 @@ program test
   m4_ifdef({m4_mpfr},{
   use test_mpfr_m
   })
+  m4_ifdef({m4_triangle},{
+  use test_triangle_m
+  })
 
   implicit none
 
@@ -90,5 +93,6 @@ program test
   m4_ifdef({m4_mumps},{call test_mumps()})
   m4_ifdef({m4_quadpack},{call test_quadpack()})
   m4_ifdef({m4_mpfr},{call test_mpfr()})
+  m4_ifdef({m4_triangle},{call test_triangle()})
 
 end program
