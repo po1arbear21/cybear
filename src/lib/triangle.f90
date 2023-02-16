@@ -186,6 +186,8 @@ contains
     integer :: i
     real    :: xmin, xmax, ymin, ymax
 
+    nullify (pointlist, segmentlist, trianglelist, holelist)
+
     xmin = minval(this%xy%d(1:this%xy%n-1:2))
     xmax = maxval(this%xy%d(1:this%xy%n-1:2))
     ymin = minval(this%xy%d(2:this%xy%n:2))
@@ -238,7 +240,9 @@ contains
     call triangulate(triswitches, c_loc(c_in), c_loc(c_out), c_null_ptr)
 
     ! deallocate pointlist ....
-    deallocate (pointlist, segmentlist, holelist)
+    if (associated(pointlist)) deallocate(pointlist)
+    if (associated(segmentlist)) deallocate(segmentlist)
+    if (associated(holelist)) deallocate(holelist)
 
     ! extract triangulation from c_out
     call this%xy%reset()
