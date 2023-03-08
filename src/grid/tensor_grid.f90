@@ -6,6 +6,7 @@ module tensor_grid_m
   use error_m,       only: assert_failed
   use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, grid, grid_ptr
   use grid_data_m,   only: allocate_grid_data, grid_data_int
+  use hashmap_m,     only: hashmap_int
   use json_m,        only: json_array, json_object
   use output_file_m, only: output_file
   use vector_m,      only: vector_int
@@ -534,20 +535,22 @@ contains
       &                                            MULOP, MULOP, ADDOP, SELOP, &
       &                                            MULOP, MULOP, SELOP, ADDOP], [4, 4])
 
-    integer          :: i, i0, i1, j, j0, j1, k, op, bnd(2,this%idx_dim), max_neighb, isearch
-    integer          :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
-    integer          :: neighb_mul_n(size(this%g)), imul(size(this%g))
-    logical          :: select1, select2, status
-    type(vector_int) :: neighb(this%idx_dim), neighb_tmp(this%idx_dim), neighb_mul(size(this%g),this%idx_dim)
+    integer           :: i, i0, i1, j, j0, j1, k, op, bnd(2,this%idx_dim), max_neighb, isearch
+    integer           :: idx1(this%idx_dim), idx2(this%idx_dim), rtype1, rtype2, rdir1, rdir2
+    integer           :: imul(size(this%g)), nmul(size(this%g))
+    logical           :: select1, select2, status
+    type(vector_int)  :: vmul(size(this%g),this%idx_dim), key, vneighb
+    type(hashmap_int) :: hmap
 
     ! allocate memory
     do i = 1, this%idx_dim
-      call neighb(i)%init(0, c = 1024)
-      call neighb_tmp(i)%init(0, c = 16)
       do j = 1, size(this%g)
-        call neighb_mul(j,i)%init(0, c = 16)
+        call vmul(j,i)%init(0, c = 16)
       end do
     end do
+    call hmap%init()
+    call key%init(0, c = 16)
+    call vneighb%init(0, c = 16)
 
     ! search hint
     isearch = -1
@@ -564,10 +567,8 @@ contains
     call this%get_idx_bnd(idx1_type, idx1_dir, bnd)
     idx1 = bnd(1,:)
     do while (idx1(this%idx_dim) <= bnd(2,this%idx_dim))
-      ! clear temporary neighbour table
-      do i = 1, this%idx_dim
-        call neighb_tmp(i)%reset()
-      end do
+      ! clear temporary neighbour table (used as key in hmap)
+      call key%reset()
 
       ! loop over sub-grids
       j1 = 0
@@ -595,7 +596,7 @@ contains
 
             ! add neighbour to temporary table
             do k = 1, this%idx_dim
-              call neighb_tmp(k)%push(idx2(k)-idx1(k))
+              call key%push(idx2(k) - idx1(k))
             end do
           end do
 
@@ -603,11 +604,11 @@ contains
           if (op == SELOP) exit
         else ! MULOP, MULSELOP: tensor product of neighbours from all sub-grids
           do k = j0, j1
-            call neighb_mul(i,k)%reset()
+            call vmul(i,k)%reset()
           end do
           if ((op == MULSELOP) .and. (.not. select1 .and. .not. select2)) then
             do k = j0, j1
-              call neighb_mul(i,k)%push(idx1(k))
+              call vmul(i,k)%push(idx1(k))
             end do
           else
             do j = 1, max_neighb
@@ -616,20 +617,20 @@ contains
 
               ! save neighbours temporarily
               do k = j0, j1
-                call neighb_mul(i,k)%push(idx2(k))
+                call vmul(i,k)%push(idx2(k))
               end do
             end do
           end if
 
           ! number of neighbours for i-th sub-grid
-          neighb_mul_n(i) = neighb_mul(i,j0)%n
+          nmul(i) = vmul(i,j0)%n
         end if
       end do
 
       if ((op == MULOP) .or. (op == MULSELOP)) then
         ! perform tensor product
         imul = 1 ! select first combination
-        do while (imul(size(this%g)) <= neighb_mul_n(size(this%g)))
+        do while (imul(size(this%g)) <= nmul(size(this%g)))
           ! set idx2 by combining indices from sub-grids
           j1 = 0
           do i = 1, size(this%g)
@@ -637,44 +638,37 @@ contains
             j1 = j1 + this%g(i)%p%idx_dim
             do k = j0, j1
               ! select indices of imul(i)-th neighbour from i-th grid
-              idx2(k) = neighb_mul(i,k)%d(imul(i))
+              idx2(k) = vmul(i,k)%d(imul(i))
             end do
           end do
 
           ! add neighbour to temporary table
           do k = 1, this%idx_dim
-            call neighb_tmp(k)%push(idx2(k)-idx1(k))
+            call key%push(idx2(k)-idx1(k))
           end do
 
           ! select next combination
           imul(1) = imul(1) + 1
           do i = 1, size(this%g) - 1
-            if (imul(i) <= neighb_mul_n(i)) exit
+            if (imul(i) <= nmul(i)) exit
             imul(i  ) = 1
             imul(i+1) = imul(i+1) + 1
           end do
         end do
       end if
 
-      ! find neighb_tmp chunk in neighb; start search with previous position
-      status = .false.
-      if (isearch >= 0) status = check_chunk(isearch)
-      if (.not. status) then
-        do isearch = 0, neighb(1)%n - neighb_tmp(1)%n
-          status = check_chunk(isearch)
-          if (status) exit
-        end do
-      end if
+      ! check if same data already exists (use hashmap for constant time search)
+      call hmap%get(key%d(1:key%n), isearch, status = status)
 
       ! save new neighbour data
       if (.not. status) then
-        isearch = neighb(1)%n
-        i0      = isearch + 1
-        i1      = isearch + neighb_tmp(1)%n
-        do i = 1, this%idx_dim
-          call neighb(i)%push(neighb_tmp(i)%d(1:neighb_tmp(i)%n))
-        end do
+        isearch = vneighb%n / this%idx_dim
+        call vneighb%push(key%d(1:key%n))
+        call hmap%set(key%d(1:key%n), isearch)
       end if
+
+      i0 = isearch + 1
+      i1 = isearch + key%n / this%idx_dim
 
       ! save start/end indices of chunk
       call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%set(idx1, i0)
@@ -695,10 +689,7 @@ contains
     end do
 
     ! save neighb
-    allocate (this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(this%idx_dim,neighb(1)%n))
-    do i = 1, this%idx_dim
-      this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d(i,1:neighb(i)%n) = neighb(i)%d(1:neighb(i)%n)
-    end do
+    this%neighb(idx1_type,idx1_dir,idx2_type,idx2_dir)%d = reshape(vneighb%d(1:vneighb%n), [this%idx_dim, vneighb%n/this%idx_dim])
 
   contains
 
@@ -730,24 +721,6 @@ contains
         select = .true.
       end if
     end subroutine
-
-    function check_chunk(isearch) result(status)
-      integer, intent(in) :: isearch
-        !! check if neighb_tmp is compatible with neighb at this position (zero based)
-      logical             :: status
-
-      status = .false.
-
-      i0 = isearch + 1
-      i1 = isearch + neighb_tmp(1)%n
-      do i = i0, i1
-        do j = 1, this%idx_dim
-          if (neighb(j)%d(i) /= neighb_tmp(j)%d(i-isearch)) return
-        end do
-      end do
-
-      status = .true.
-    end function
 
   end subroutine
 
