@@ -21,7 +21,6 @@ contains
   procedure :: dense_{}T{}_transpose                        ! transposes this matrix inplace
   procedure :: dense_{}T{}_transpose2                       ! transpose this matrix into another
   generic   :: transpose  => dense_{}T{}_transpose, dense_{}T{}_transpose2
-  procedure :: mul_dense  => dense_{}T{}_mul_dense
   procedure :: eig        => dense_{}T{}_eig
   procedure :: output     => dense_{}T{}_output
 end type
@@ -99,12 +98,6 @@ interface
   module subroutine dense_{}T{}_transpose2(this, d2)
     class(dense_{}T), intent(in) :: this
     type(dense_{}T),  intent(out) :: d2
-  end subroutine
-
-  module subroutine dense_{}T{}_mul_dense(this, d2, d3)
-    class(dense_{}T), intent(in)  :: this
-    type(dense_{}T),  intent(in)  :: d2
-    type(dense_{}T),  intent(out) :: d3
   end subroutine
 
   module subroutine dense_{}T{}_eig(this, e, R, L, sort)

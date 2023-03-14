@@ -4,7 +4,7 @@ module expm_m
 
   use error_m,  only: assert_failed
   use lapack95
-  use matrix_m, only: dense_real, matrix_add
+  use matrix_m, only: dense_real, matrix_add, matrix_mul
 
   implicit none
 
@@ -80,7 +80,7 @@ contains
 
       ! Ak = As^k
       ! Ak = matmul(As, Ak)
-      call A_%mul_dense(Ak, Ak_)
+      call matrix_mul(A_, Ak, Ak_)
       Ak%d = Ak_%d
 
       ! B = sum_{k=1}^{q} (-1)^k * fact_k * As^k

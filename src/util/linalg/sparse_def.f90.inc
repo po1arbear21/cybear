@@ -26,7 +26,6 @@ contains
   procedure :: sparse_{}T{}_transpose2
   generic   :: transpose     => sparse_{}T{}_transpose, &
     &                           sparse_{}T{}_transpose2
-  procedure :: mul_sparse    => sparse_{}T{}_mul_sparse
   procedure :: input         => sparse_{}T{}_input
   procedure :: output        => sparse_{}T{}_output
   procedure :: nnz           => sparse_{}T{}_nnz

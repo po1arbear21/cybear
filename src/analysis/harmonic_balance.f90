@@ -15,6 +15,8 @@ module harmonic_balance_m
 
   implicit none
 
+  !FIXME: implement for dense system
+
   type harmonic_balance
     type(esystem), pointer :: sys => null()
       !! pointer to corresponding equation system

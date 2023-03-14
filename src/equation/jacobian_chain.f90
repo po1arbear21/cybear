@@ -61,10 +61,11 @@ contains
     ntab2 = jaco(2)%p%v2%ntab
 
     block
-      logical :: const(ntab1,ntab2), zero(ntab1,ntab2), valmsk(nval1,nval2,ntab1,ntab2)
+      logical :: const(ntab1,ntab2), zero(ntab1,ntab2), dense(ntab1,ntab2), valmsk(nval1,nval2,ntab1,ntab2)
 
       const  = .true.
       zero   = .true.
+      dense  = .false.
       valmsk = .false.
 
       select type (this)
@@ -76,6 +77,7 @@ contains
           do i = 1, size(jaco)
             const  = const  .and. jaco(i)%p%const
             zero   = zero   .and. jaco(i)%p%zero
+            dense  = dense  .or.  jaco(i)%p%dense
             valmsk = valmsk .or.  jaco(i)%p%valmsk
           end do
 
@@ -84,7 +86,7 @@ contains
           this%jaco1 => jaco(1)%p
           this%jaco2 => jaco(2)%p
 
-          ! perform pseudo matrix multiplication to figure out const, zero and valmsk flags
+          ! perform pseudo matrix multiplication to figure out const, zero, dense and valmsk flags
           do itab1 = 1, ntab1; do itab3 = 1, jaco(1)%p%v2%ntab
             if (jaco(1)%p%zero(itab1,itab3)) cycle
             do itab2 = 1, ntab2
@@ -93,6 +95,9 @@ contains
                 &  .and. jaco(1)%p%const(itab1,itab3) &
                 &  .and. jaco(2)%p%const(itab3,itab2)
               zero(itab1,itab2) = .false.
+              dense(itab1,itab2) = dense(itab1,itab2) &
+                & .or. jaco(1)%p%dense(itab1,itab3) &
+                & .or. jaco(2)%p%dense(itab3,itab2)
               do ival1 = 1, jaco(1)%p%v1%nval; do ival3 = 1, jaco(1)%p%v2%nval
                 do ival2 = 1, jaco(2)%p%v2%nval
                   valmsk(ival1,ival2,itab1,itab2) = valmsk(ival1,ival2,itab1,itab2) .or. &
@@ -105,7 +110,7 @@ contains
       end select
 
       ! initialize result matrix
-      call this%result%init(jaco(1)%p%v1, jaco(2)%p%v2, const, zero, valmsk)
+      call this%result%init(jaco(1)%p%v1, jaco(2)%p%v2, const, zero, dense, valmsk)
 
       ! set constant parts of result matrix
       call this%eval(nonconst = .false.)
