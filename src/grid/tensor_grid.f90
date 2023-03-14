@@ -657,14 +657,18 @@ contains
         end do
       end if
 
-      ! check if same data already exists (use hashmap for constant time search)
-      call hmap%get(key%d(1:key%n), isearch, status = status)
+      if (key%n > 0) then
+        ! check if same data already exists (use hashmap for constant time search)
+        call hmap%get(key%d(1:key%n), isearch, status = status)
 
-      ! save new neighbour data
-      if (.not. status) then
+        ! save new neighbour data
+        if (.not. status) then
+          isearch = vneighb%n / this%idx_dim
+          call vneighb%push(key%d(1:key%n))
+          call hmap%set(key%d(1:key%n), isearch)
+        end if
+      else
         isearch = vneighb%n / this%idx_dim
-        call vneighb%push(key%d(1:key%n))
-        call hmap%set(key%d(1:key%n), isearch)
       end if
 
       i0 = isearch + 1
