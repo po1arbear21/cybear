@@ -38,7 +38,7 @@ end type
 
 type spbuild_{}T
   !! Sparse matrix builder which is more flexible than simple CSR.
-  type(sparse_{}T), pointer     :: sp
+  type(sparse_{}T), pointer     :: sp => null()
     !! Non-owning pointer to sparse matrix this builder is tied to
   type(vector_int), allocatable :: cols(:)
     !! Column indices of non-zero elements in each row
