@@ -194,7 +194,9 @@ contains
 
       ! add matrices
       do k = 1, size(jaco)
-        if (this%dense(i,j)) then
+        if (this%dense(i,j) .and. jaco(k)%p%dense(i,j)) then
+          call matrix_add(jaco(k)%p%d(i,j)%p, this%d(i,j)%p)
+        elseif (this%dense(i,j)) then
           call matrix_add(jaco(k)%p%s(i,j)%p, this%d(i,j)%p)
         else
           call matrix_add(jaco(k)%p%s(i,j)%p, this%s(i,j)%p)
