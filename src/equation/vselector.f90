@@ -6,6 +6,7 @@ module vselector_m
   use grid_m,          only: grid
   use grid_data_m,     only: allocate_grid_data, grid_data_int
   use grid_table_m,    only: grid_table, grid_table_ptr
+  use ieee_arithmetic, only: ieee_is_finite
   use iso_fortran_env, only: int64, int32
   use util_m,          only: hash
   use variable_m,      only: variable, variable_ptr, variable_real, variable_cmplx
@@ -416,6 +417,7 @@ contains
     integer :: i, j
 
     m4_assert(size(x) == this%nval)
+    m4_assert(all(ieee_is_finite(x)))
 
     j = 1
     do i = 1, this%nvar
@@ -484,6 +486,7 @@ contains
     integer :: i, j
 
     m4_assert(size(dx) == this%nval)
+    m4_assert(all(ieee_is_finite(dx)))
 
     j = 1
     do i = 1, this%nval

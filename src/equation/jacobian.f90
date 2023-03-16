@@ -4,6 +4,7 @@ module jacobian_m
 
   use error_m,           only: assert_failed, program_error
   use hashmap_m,         only: hashmap_int
+  use ieee_arithmetic,   only: ieee_is_finite
   use jacobian_matrix_m, only: jacobian_matrix
   use stencil_m,         only: stencil_ptr, sparse_stencil, dynamic_stencil, full_stencil, dirichlet_stencil
   use vselector_m,       only: vselector
@@ -437,10 +438,11 @@ contains
       !! addition flag (default: false)
 
     integer :: itab2, i2, j, row, row0, row1, col, col0, col1, ival1, ival2
-    logical :: add_
+    logical :: add_, status
 
     m4_assert(size(d, dim=1) == this%matr%v1%nval)
     m4_assert(size(d, dim=2) == this%matr%v2%nval)
+    m4_assert(all(ieee_is_finite(d)))
 
     ! optional addition flag
     add_ = .false.
@@ -453,7 +455,8 @@ contains
     select type (st => this%st(itab1)%p)
     class is (sparse_stencil)
       ! get stencil dependency index
-      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j, status = status)
+      m4_assert(status) ! make sure idx2 is part of stencil
 
       ! edit derivatives
       if (add_) then
@@ -519,7 +522,9 @@ contains
       !! addition flag (default: false)
 
     integer :: itab2, i2, j, row, col
-    logical :: add_
+    logical :: add_, status
+
+    m4_assert(ieee_is_finite(d))
 
     ! optional addition flag
     add_ = .false.
@@ -532,7 +537,8 @@ contains
     select type (st => this%st(itab1)%p)
     class is (sparse_stencil)
       ! get stencil dependency index
-      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j, status = status)
+      m4_assert(status) ! make sure idx2 is part of stencil
 
       ! edit derivatives
       if (add_) then
