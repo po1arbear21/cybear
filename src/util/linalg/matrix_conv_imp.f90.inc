@@ -192,9 +192,6 @@ module subroutine sparse_to_dense_{}T{}(s, d, i0, j0)
   integer             :: i, i0_, j0_
   integer(SPARSE_IDX) :: j
 
-  m4_assert(.not. s%is_empty())
-  m4_assert(allocated(d%d))
-
   ! optional arguments
   i0_ = 1
   if (present(i0)) i0_ = i0
@@ -206,6 +203,8 @@ module subroutine sparse_to_dense_{}T{}(s, d, i0, j0)
     m4_assert((.not. present(i0)) .and. (.not. present(j0)))
     call d%init(s%nrows, ncols = s%ncols)
   end if
+
+  if (s%is_empty()) return
 
   ! insert values into dense matrix
   do i = 1, s%nrows
