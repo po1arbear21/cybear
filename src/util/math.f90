@@ -411,25 +411,25 @@ contains
     end if
   end function
 
-  function roots(p) result(r)
+  function roots(p) result(rts)
     !! Find complex roots of polynomial
     real, intent(in) :: p(:)
       !! coefficients of polynomial in reduced form: f(x) = p(1) + p(2) * x + p(3) * x**2 + ... + x**n
-    complex          :: r(size(p))
+    complex          :: rts(size(p))
       !! return roots of polynomial
 
     integer :: n, nz, i, perm(size(p))
-    real    :: real_r(size(p))
+    real    :: real_rts(size(p))
 
     ! get degree
     n = size(p)
     m4_assert(n > 0)
 
-    ! every leading zero in p is a zero in r
+    ! every leading zero in p is a zero in rts
     do nz = 0, n-1
       if (p(nz+1) /= 0) exit
     end do
-    r(1:nz) = 0
+    rts(1:nz) = 0
     n = n - nz
 
     ! calculate non-zero roots
@@ -437,7 +437,7 @@ contains
     case (0) ! constant: f(x) = 1 == 0
 
     case (1) ! linear: f(x) = p(nz+1) + x == 0
-      r(nz + 1) = - p(nz + 1)
+      rts(nz + 1) = - p(nz + 1)
 
     case (2) ! quadratic: f(x) = p(nz+1) + p(nz+2) * x + x**2 == 0
       block
@@ -448,15 +448,57 @@ contains
 
         ! add numbers of similar sign to prevent loss of accuracy
         if (p(nz + 2) >= 0) then
-          r(nz + 1) = - 0.5 * (sqrt(d) + p(nz + 2))
-          r(nz + 2) = p(nz + 1) / r(nz + 1)
+          rts(nz + 1) = - 0.5 * (sqrt(d) + p(nz + 2))
+          rts(nz + 2) = p(nz + 1) / rts(nz + 1)
         else
-          r(nz + 2) = 0.5 * (sqrt(d) - p(nz + 2))
-          r(nz + 1) = p(nz + 1) / r(nz + 2)
+          rts(nz + 2) = 0.5 * (sqrt(d) - p(nz + 2))
+          rts(nz + 1) = p(nz + 1) / rts(nz + 2)
         end if
       end block
 
-    case default ! default: f(x) = p(nz+1) + p(nz+2) * x + p(nz+3) * x**2 + ... + p(nz+n) * x**(n-1) + x**n
+    case (3) ! cubic: f(x) = p(nz+1) + p(nz+2) * x + p(nz+3) * x**2 + x**3 == 0
+      block
+        real :: q, r, d, A, t1, x2, y2, th, ph1, ph2, ph3
+
+        q = p(nz+2) / 3.0 - p(nz+3)**2 / 9.0
+        r = (p(nz+2) * p(nz+3) - 3 * p(nz+1)) / 6.0 - p(nz+3)**3 / 27.0
+
+        ! discriminant
+        d = r**2 + q**3
+
+        if (d > 0) then ! one real solution
+          A = (abs(r) + sqrt(d)) ** (1.0 / 3.0)
+
+          if (r >= 0) then
+            t1 = A - q/A
+          else
+            t1 = q/A - A
+          end if
+
+          x2 = - 0.5 * t1 - p(nz+3) / 3.0
+          y2 = 0.5 * sqrt(3.0) * (A + q/A)
+
+          rts(nz + 1) = t1 - p(nz+3) / 3.0
+          rts(nz + 2) = cmplx(x2,  y2)
+          rts(nz + 3) = cmplx(x2, -y2)
+        else ! three real solutions
+          if (q == 0) then
+            th = 0
+          else
+            th = acos(r / (-q) ** 1.5)
+          end if
+
+          ph1 = th / 3.0
+          ph2 = ph1 - 2 * PI / 3.0
+          ph3 = ph1 + 2 * PI / 3.0
+
+          rts(nz + 1) = 2 * sqrt(-q) * cos(ph1) - p(nz+3) / 3.0
+          rts(nz + 2) = 2 * sqrt(-q) * cos(ph2) - p(nz+3) / 3.0
+          rts(nz + 3) = 2 * sqrt(-q) * cos(ph3) - p(nz+3) / 3.0
+        end if
+      end block
+
+    case default ! default: f(x) = p(nz+1) + p(nz+2) * x + p(nz+3) * x**2 + ... + p(nz+n) * x**(n-1) + x**n == 0
       block
         real :: a(n,n), wr(n), wi(n)
 
@@ -474,16 +516,16 @@ contains
 
         ! construct complex roots
         do i = 1, n
-          r(nz + i) = cmplx(wr(i), wi(i))
+          rts(nz + i) = cmplx(wr(i), wi(i))
         end do
       end block
 
     end select
 
     ! sort by real part
-    real_r = real(r)
-    call qsort(real_r, perm = perm)
-    r = r(perm)
+    real_rts = real(rts)
+    call qsort(real_rts, perm = perm)
+    rts = rts(perm)
   end function
 
   function polyg_area_2d(p) result(A)
