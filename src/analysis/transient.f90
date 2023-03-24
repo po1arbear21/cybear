@@ -14,6 +14,8 @@ module transient_m
 
   implicit none
 
+  !FIXME: implement for dense system
+
   private
   public backward_euler, bdf2, mbdf2, trapezoidal, tr_bdf2, transient
 
@@ -42,6 +44,8 @@ module transient_m
       !! options for the iterative solver in each newton iteration (only used when nopt%it_solver == true)
     type(sparse_real)         :: df, dft, dfp, mat
       !! matrices
+    logical                   :: log
+      !! enable/disable logging (default: false)
   contains
     procedure :: init       => transient_init
     procedure :: run        => transient_run
@@ -116,7 +120,7 @@ module transient_m
 
 contains
 
-  subroutine transient_init(this, sys, t_0, t_1, delta_t, n, nopt, gopt, adaptive)
+  subroutine transient_init(this, sys, t_0, t_1, delta_t, n, nopt, gopt, adaptive, log)
     !! initialize the transient type
     class(transient),              intent(out)   :: this
     type(esystem),       target,   intent(inout) :: sys
@@ -135,6 +139,8 @@ contains
       !! options for the iterative solver in each newton iteration (only used when nopt%it_solver == true)
     logical,             optional, intent(in)    :: adaptive
       !! const (default, false) or adaptive (true) time-step (only used for tr-bdf2)
+    logical,             optional, intent(in)    :: log
+    !! enable/disable logging (default: false)
 
     ! set starting time
     this%t_0 = t_0
@@ -152,6 +158,10 @@ contains
     else
       m4_assert(.false.)
     end if
+
+    ! set logging
+    this%log = .false.
+    if (present(log)) this%log = log
 
     ! save pointer to equation system for later use
     this%sys => sys
@@ -245,6 +255,7 @@ contains
     do while (this%t(i) < this%t_1)
       ! next timestep
       call this%next_time(i)
+      if (this%log) print "(I0, ES25.16, x, A)", i, denorm(this%t(i), "fs"), "fs"
 
       ! solve system at current time
       call this%solve(i, input = input)

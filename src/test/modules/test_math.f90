@@ -348,7 +348,12 @@ contains
       ! f(x) = 2 - x - 2x² + x³ = (x+1)(x-1)(x-2)
       p3 = [ 2.0, -1.0, -2.0 ]
       r3 = roots(p3)
-      call tc%assert_eq(cmplx([-1.0, 1.0, 2.0]), r3, 1e-14, "roots 3")
+      call tc%assert_eq(cmplx([-1.0, 1.0, 2.0]), r3, 1e-14, "roots 3a")
+
+      ! f(x) = -2 + x - 2x² + x³ = (x+i)(x-i)(x-2)
+      p3 = [ -2.0, 1.0, -2.0 ]
+      r3 = roots(p3)
+      call tc%assert_eq([cmplx(0.0, -1.0), cmplx(0.0, 1.0), cmplx(2.0, 0.0)], r3, 1e-14, "roots 3b")
 
       ! f(x) = -36x + 49x³ - 14x⁵ + x⁷ = (x+3)(x+2)(x+1)x(x-1)(x-2)(x-3)
       p4 = [ 0.0, -36.0, 0.0, 49.0, 0.0, -14.0, 0.0]
@@ -363,18 +368,18 @@ contains
 
     ! polyg_area_2d, matlab example: https://de.mathworks.com/help/matlab/ref/polyarea.html
     block
-      integer :: i 
+      integer :: i
       real    :: t(9), p(2,9), A
 
       t = linspace(0.0, 2.0*PI, 9);
       do i=1, size(t)
         p(1, i) = 1.2*cos(t(i)) ! x
         p(2, i) = 1.2*sin(t(i)) ! y
-      end do 
+      end do
 
       A = polyg_area_2d(p)
       call tc%assert_eq(4.0729, A, 1e-4, "polyg_area_2d")
-    end block 
+    end block
 
     call tc%finish()
   end subroutine

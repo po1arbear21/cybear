@@ -9,7 +9,7 @@ module steady_state_m
   use grid_data_m,   only: grid_data_real, grid_data_cmplx
   use input_src_m,   only: input_src
   use json_m,        only: json_array, json_object
-  use matrix_m,      only: matrix_real, sparse_real
+  use matrix_m,      only: dense_real, matrix_real, sparse_real
   use newton_m,      only: newton, newton_opt
   use output_file_m, only: output_file
   use variable_m,    only: variable_real, variable_cmplx
@@ -65,7 +65,8 @@ contains
     type(array1_real),  allocatable :: rx(:)
     type(array1_cmplx), allocatable :: cx(:)
     type(newton_opt)                :: nopt_
-    type(sparse_real),  target      :: df, dfp
+    type(sparse_real),  target      :: df_s, dfp
+    type(dense_real),   target      :: df_d
     type(json_object),  pointer     :: obj, data
 
     ! save pointer to equation system for later use in select routine
@@ -128,8 +129,8 @@ contains
       ! release factorization
       if (nopt_%it_solver) then
         call dfp%destruct()
-      else
-        call df%destruct()
+      elseif (.not. sys%dense) then
+        call df_s%destruct()
       end if
 
       ! collect values
@@ -206,13 +207,27 @@ contains
 
       ! evaluate system to compute residuals, jacobian, and possible preconditioner
       if (nopt_%it_solver) then
-        call this%sys%eval(f = f, df = df, dfp = dfp)
+        if (sys%dense) then
+          call this%sys%eval(f = f, df = df_d, dfp = dfp)
+        else
+          call this%sys%eval(f = f, df = df_s, dfp = dfp)
+        end if
       else
-        call this%sys%eval(f = f, df = df)
+        if (sys%dense) then
+          call this%sys%eval(f = f, df = df_d)
+        else
+          call this%sys%eval(f = f, df = df_s)
+        end if
       end if
 
       ! output jacobian pointers
-      if (present(dfdx     )) dfdx      => df
+      if (present(dfdx     )) then
+        if (sys%dense) then
+          dfdx => df_d
+        else
+          dfdx => df_s
+        end if
+      end if
       if (present(dfdx_prec)) dfdx_prec => dfp
     end subroutine
 

@@ -1,14 +1,17 @@
 module test_analysis_m
 
-  use test_case_m,    only: test_case
-  use esystem_m,      only: esystem
-  use grid_data_m,    only: grid_data0_real
-  use jacobian_m,     only: jacobian, jacobian_ptr
-  use math_m,         only: PI, linspace, logspace
-  use res_equation_m, only: res_equation
-  use small_signal_m, only: small_signal
-  use stencil_m,      only: dirichlet_stencil
-  use variable_m,     only: variable_real
+  use test_case_m,        only: test_case
+  use eigenvalues_m,      only: eigenvalues
+  use esystem_m,          only: esystem
+  use grid_data_m,        only: grid_data0_real
+  use harmonic_balance_m, only: harmonic_balance
+  use jacobian_m,         only: jacobian, jacobian_ptr
+  use math_m,             only: PI, linspace, logspace
+  use res_equation_m,     only: res_equation
+  use small_signal_m,     only: small_signal
+  use stencil_m,          only: dirichlet_stencil
+  use transient_m,        only: transient
+  use variable_m,         only: variable_real
 
   implicit none
 

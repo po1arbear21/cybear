@@ -65,6 +65,7 @@ module matrix_m
   public block_ptr_cmplx
 
   public matrix_add
+  public matrix_mul
   public matrix_convert
   public matrix_diag
   public matrix_approx

@@ -511,6 +511,208 @@ module subroutine add_sparse3_{}T{}(s1, s2, s3, fact1, fact2)
   call matrix_add(s2, s3, fact = fact2)
 end subroutine
 
+module subroutine mul_dense_dense_{}T{}(d1, d2, result)
+  !! multiply two dense matrices: result <- d1 * d2
+  type(dense_{}T), intent(in)  :: d1
+    !! First dense matrix (unchanged)
+  type(dense_{}T), intent(in)  :: d2
+    !! Second dense matrix (unchanged)
+  type(dense_{}T), intent(out) :: result
+    !! Resulting dense matrix
+
+  ! init result matrix
+  call result%init(d1%nrows, ncols = d2%ncols)
+
+  ! matrix multiplication
+  call gemm(d1%d, d2%d, result%d)
+end subroutine
+
+module subroutine mul_dense_sparse_{}T{}(d1, s2, result)
+  !! multiply dense matrix by sparse matrix: result <- d1 * s2
+  type(dense_{}T),  intent(in)  :: d1
+    !! First matrix (dense, unchanged)
+  type(sparse_{}T), intent(in)  :: s2
+    !! Second matrix (sparse, unchanged)
+  type(dense_{}T),  intent(out) :: result
+    !! Resulting dense matrix
+
+  type(dense_{}T) :: tmp
+
+  ! convert sparse matrix to dense
+  call tmp%init(s2%nrows, ncols = s2%ncols)
+  call matrix_convert(s2, tmp)
+
+  ! perform dense-dense multiplication
+  call matrix_mul(d1, tmp, result)
+end subroutine
+
+module subroutine mul_sparse_dense_{}T{}(s1, d2, result)
+  !! multiply sparse matrix by dense matrix: result <- s1 * d2
+  type(sparse_{}T), intent(in)  :: s1
+    !! First matrix (sparse, unchanged)
+  type(dense_{}T),  intent(in)  :: d2
+    !! Second matrix (dense, unchanged)
+  type(dense_{}T),  intent(out) :: result
+    !! Resulting dense matrix
+
+  ! use sparse-raw matrix multiplication routine
+  call result%init(s1%nrows, ncols = d2%ncols)
+  call s1%mul_mat(d2%d, result%d)
+end subroutine
+
+module subroutine mul_sparse_sparse_{}T{}(s1, s2, result)
+  !! multiply two sparse matrices: result <- s1 * s2
+  type(sparse_{}T), intent(in)  :: s1
+    !! First sparse matrix (unchanged)
+  type(sparse_{}T), intent(in)  :: s2
+    !! Second sparse matrix (unchanged)
+  type(sparse_{}T), intent(out) :: result
+    !! Resulting sparse matrix
+
+  integer                          :: i, nthreads, ithread
+  integer(SPARSE_IDX)              :: j, k, icol0, icol1, ncol
+  integer(SPARSE_IDX), allocatable :: ops(:)
+  integer,             allocatable :: i1(:), col(:)
+  logical,             allocatable :: fil(:)
+  m4_type(T)                       :: next_val
+  m4_type(T),          allocatable :: val(:), val1(:)
+
+  ! check dimensions
+  m4_assert(s1%ncols == s2%nrows)
+
+  ! init result
+  call result%init(s1%nrows, ncols = s2%ncols)
+  if (s1%is_empty() .or. s2%is_empty()) then
+    ! return empty matrix if either s1 or s2 is empty
+    return
+  end if
+  allocate (result%ia(result%nrows + 1), source = int(0, kind = SPARSE_IDX))
+
+  ! multiplication operation counters for each result row
+  allocate (ops(0:s1%nrows), source = int(0, kind = SPARSE_IDX))
+
+  ! work in parallel
+  !$omp parallel default(none) &
+  !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil) &
+  !$omp shared(s1, s2, result, sort_, nthreads, i1, ops)
+
+    !$omp single
+    ! get actual number of threads
+    nthreads = omp_get_num_threads()
+
+    ! allocate upper work chunk index bounds
+    allocate (i1(0:nthreads), source = 0)
+    !$omp end single nowait
+
+    ! get current thread id
+    ithread = omp_get_thread_num() + 1
+
+    ! count number of multiplications per row
+    !$omp do schedule(dynamic)
+    do i = 1, s1%nrows
+      do j = s1%ia(i), s1%ia(i+1)-1
+        ops(i) = ops(i) + s2%ia(s1%ja(j)+1) - s2%ia(s1%ja(j))
+      end do
+    end do
+    !$omp end do
+
+    ! prefix sum (parallelization here probably not worth it)
+    !$omp single
+    do i = 2, s1%nrows
+      ops(i) = ops(i) + ops(i-1)
+    end do
+    !$omp end single
+
+    ! give every thread roughly the same number of ops
+    if (ithread < nthreads) then
+      ! equidistant index
+      j = nint(ops(s1%nrows) * (real(ithread) / real(nthreads)), kind = SPARSE_IDX)
+
+      ! find row index
+      i1(ithread) = bin_search(ops, j) - 1
+    else
+      i1(ithread) = s1%nrows
+    end if
+    !$omp barrier
+
+    ! get upper limit on memory required
+    j = ops(i1(ithread)) - ops(i1(ithread-1))
+    j = max(0, int(min(int(j, kind=int64), int(i1(ithread) - i1(ithread-1), kind=int64) * int(s2%ncols, kind=int64)), kind=int32))
+
+    ! allocate thread local memory
+    allocate (col(j))
+    allocate (val(j))
+    allocate (val1(s2%ncols))
+    allocate (fil( s2%ncols), source = .false.)
+
+    ! reset column counters
+    icol1 = 0
+    ncol  = 0
+
+    ! calculate result rows
+    do i = i1(ithread-1) + 1, i1(ithread)
+      ! loop over columns of first matrix
+      do j = s1%ia(i), s1%ia(i+1)-1
+        ! loop over columns of second matrix where the row is equal to column of the first matrix
+        do k = s2%ia(s1%ja(j)), s2%ia(s1%ja(j)+1)-1
+          ! calculate new value
+          next_val = s1%a(j) * s2%a(k)
+
+          ! check whether element already exists
+          if (fil(s2%ja(k))) then
+            ! update existing value
+            val1(s2%ja(k)) = val1(s2%ja(k)) + next_val
+          else
+            ! set new value and fill flag
+            val1(s2%ja(k)) = next_val
+            fil( s2%ja(k)) = .true.
+
+            ! save column index
+            ncol = ncol + 1
+            col(ncol) = s2%ja(k)
+          end if
+        end do
+      end do
+
+      ! update column pointers
+      icol0 = icol1 + 1
+      icol1 = ncol
+
+      ! sort column indices
+      call qsort(col(icol0:icol1))
+
+      ! save column pointers (at this point: indices to thread-local memory)
+      result%ia(i+1) = icol1 + 1
+
+      ! save values
+      val(icol0:icol1) = val1(col(icol0:icol1))
+
+      ! reset fill flag (where it was set)
+      if (i < i1(ithread)) fil(col(icol0:icol1)) = .false.
+    end do
+    !$omp barrier
+
+    !$omp single
+      ! update column pointers (change into indices to global memory)
+      result%ia(1) = 1
+      do i = 1, nthreads
+        result%ia(i1(i-1)+2:i1(i)+1) = result%ia(i1(i-1)+2:i1(i)+1) + (result%ia(i1(i-1)+1) - 1)
+      end do
+
+      ! allocate global arrays
+      allocate (result%ja(result%ia(result%nrows+1)-1))
+      allocate (result%a (result%ia(result%nrows+1)-1))
+    !$omp end single
+
+    ! copy thread-local data to global arrays
+    result%ja(result%ia(i1(ithread-1)+1):result%ia(i1(ithread)+1)-1) = col(1:ncol)
+    result%a( result%ia(i1(ithread-1)+1):result%ia(i1(ithread)+1)-1) = val(1:ncol)
+
+    ! deallocate thread-local memory (avoid memory leak due to openmp bug)
+    deallocate (val1, fil, col, val)
+  !$omp end parallel
+end subroutine
+
 ! fixme add testing
 module subroutine diag_arr_band_{}T{}(arr_in, b_out)
   !! creates a quadratic diagonal matrix given the diagonals as an array.

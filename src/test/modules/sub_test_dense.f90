@@ -283,7 +283,7 @@ contains
       call d1%init(mat1)
       call d2%init(mat2)
 
-      call d1%mul_dense(d2, d3)
+      call matrix_mul(d1, d2, d3)
       mat3 = matmul(mat1, mat2)
       call tc%assert_eq(d3%d, mat3, 1e-12, "mul dense")
     end block

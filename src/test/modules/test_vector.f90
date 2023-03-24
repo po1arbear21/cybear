@@ -70,7 +70,7 @@ contains
     call tc%assert_eq([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], vec%d(1:vec%n), "push_elems: d")
 
     ! test10: pop
-    call vec%pop
+    call vec%pop()
     call tc%assert_eq(19, vec%n, "pop")
     call tc%assert_eq(19, vec%back(), "pop: back")
 

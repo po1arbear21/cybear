@@ -11,6 +11,8 @@ module small_signal_m
 
   implicit none
 
+  !FIXME: implement for dense system
+
   private
   public small_signal
 

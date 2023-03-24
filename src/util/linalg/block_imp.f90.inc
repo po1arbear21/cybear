@@ -12,7 +12,6 @@ module subroutine block_{}T{}_init(this, row_dim, col_dim, diag, tridiag)
   logical, optional, intent(in)  :: tridiag
     !! tridiagonal block matrix flag (default: false)
 
-  ! local variables
   integer, allocatable :: col_dim_(:)
   integer              :: ib, i1, jb, j1
 
@@ -71,7 +70,6 @@ module subroutine block_{}T{}_destruct(this)
   class(block_{}T), intent(inout) :: this
     !! Block matrix
 
-  ! local variables
   integer :: ib, jb
 
   if (allocated(this%i0)) deallocate (this%i0)
@@ -80,16 +78,14 @@ module subroutine block_{}T{}_destruct(this)
   if (allocated(this%j1)) deallocate (this%j1)
 
   if (allocated(this%b)) then
-    do ib = 1, this%nbrows
-      do jb = 1, this%nbcols
-        if (.not. this%alc(ib,jb)) cycle
-        if (.not. associated(this%b(ib,jb)%p)) cycle
+    do ib = 1, this%nbrows; do jb = 1, this%nbcols
+      if (.not. this%alc(ib,jb)) cycle
+      if (.not. associated(this%b(ib,jb)%p)) cycle
 
-        call this%b(ib,jb)%p%destruct()
-        deallocate (this%b(ib,jb)%p)
-        this%alc(ib,jb) = .false.
-      end do
-    end do
+      call this%b(ib,jb)%p%destruct()
+      deallocate (this%b(ib,jb)%p)
+      this%alc(ib,jb) = .false.
+    end do; end do
     deallocate (this%b)
   end if
 
@@ -127,15 +123,12 @@ module subroutine block_{}T{}_reset(this, only_factorization)
   logical, optional, intent(in)    :: only_factorization
     !! reset only factorization data (default: false)
 
-  ! local variables
   integer :: ib, jb
 
-  do ib = 1, this%nbrows
-    do jb = 1, this%nbcols
-      if (.not. associated(this%b(ib,jb)%p)) cycle
-      call this%b(ib,jb)%p%reset(only_factorization = only_factorization)
-    end do
-  end do
+  do ib = 1, this%nbrows; do jb = 1, this%nbcols
+    if (.not. associated(this%b(ib,jb)%p)) cycle
+    call this%b(ib,jb)%p%reset(only_factorization = only_factorization)
+  end do; end do
 
   this%factorized = .false.
 end subroutine
@@ -148,18 +141,15 @@ module subroutine block_{}T{}_scale(this, fact)
   m4_type(T),       intent(in)    :: fact
     !! Scaling factor
 
-  ! local variables
   integer :: ib, jb
 
   m4_assert(.not. this%factorized)
   m4_assert(this%check_sizes())
 
-  do ib = 1, this%nbrows
-    do jb = 1, this%nbcols
-      if (.not. associated(this%b(ib,jb)%p)) cycle
-      call this%b(ib,jb)%p%scale(fact)
-    end do
-  end do
+  do ib = 1, this%nbrows; do jb = 1, this%nbcols
+    if (.not. associated(this%b(ib,jb)%p)) cycle
+    call this%b(ib,jb)%p%scale(fact)
+  end do; end do
 end subroutine
 
 module subroutine block_{}T{}_mul_vec(this, x, y, fact_y, trans)
@@ -174,9 +164,8 @@ module subroutine block_{}T{}_mul_vec(this, x, y, fact_y, trans)
   m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
   character,  optional, intent(in)    :: trans
-    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be "N", "T" or "C" (default: "N")
 
-  ! local variables
   character  :: trans_
   m4_type(T) :: one
   integer    :: ib, jb
@@ -189,14 +178,14 @@ module subroutine block_{}T{}_mul_vec(this, x, y, fact_y, trans)
   else
     y = 0
   end if
-  trans_ = 'N'
+  trans_ = "N"
   if (present(trans)) trans_ = trans
 
   ! real or complex 1
   one = 1
 
   associate (i0 => this%i0, i1 => this%i1, j0 => this%j0, j1 => this%j1)
-    if (trans_ == 'N') then
+    if (trans_ == "N") then
       do ib = 1, this%nbrows
         if (this%diag) then
           if (.not. associated(this%b(ib,ib)%p)) cycle
@@ -248,9 +237,8 @@ module subroutine block_{}T{}_mul_mat(this, x, y, fact_y, trans)
   m4_type(T), optional, intent(in)    :: fact_y
     !! If present, scale existing data in y and add result of multiplication
   character,  optional, intent(in)    :: trans
-    !! Transposed flag, must be 'N', 'T' or 'C' (default: 'N')
+    !! Transposed flag, must be "N", "T" or "C" (default: "N")
 
-  ! local variables
   character  :: trans_
   m4_type(T) :: one
   integer    :: ib, jb
@@ -263,14 +251,14 @@ module subroutine block_{}T{}_mul_mat(this, x, y, fact_y, trans)
   else
     y = 0
   end if
-  trans_ = 'N'
+  trans_ = "N"
   if (present(trans)) trans_ = trans
 
   ! real or complex 1
   one = 1
 
   associate (i0 => this%i0, i1 => this%i1, j0 => this%j0, j1 => this%j1)
-    if (trans_ == 'N') then
+    if (trans_ == "N") then
       do ib = 1, this%nbrows
         if (this%diag) then
           if (.not. associated(this%b(ib,ib)%p)) cycle
@@ -316,7 +304,6 @@ module subroutine block_{}T{}_factorize(this)
   class(block_{}T), intent(inout) :: this
     !! Block matrix
 
-  ! local variables
   integer :: ib
 
   m4_assert(.not. this%factorized)
@@ -343,11 +330,10 @@ module subroutine block_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
   m4_type(T),          intent(out) :: x(:)
     !! Store result in x
   character, optional, intent(in)  :: trans
-    !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! Transposed flag, must be "N", "C" or "T" (default: "N")
   logical,   optional, intent(in)  :: iter_refine
     !! Perform iterative refinement
 
-  ! local variables
   integer :: ib
 
   m4_assert(this%check_sizes())
@@ -371,11 +357,10 @@ module subroutine block_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   m4_type(T),          intent(out) :: x(:,:)
     !! store result in x
   character, optional, intent(in)  :: trans
-    !! transposed flag, must be 'N', 'C' or 'T' (default: 'N')
+    !! transposed flag, must be "N", "C" or "T" (default: "N")
   logical,   optional, intent(in)  :: iter_refine
     !! perform iterative refinement
 
-  ! local variables
   integer :: ib
 
   m4_assert(this%factorized)
@@ -465,10 +450,10 @@ module subroutine block_{}T{}_get_dense(this, ib, jb, p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
-    class is (dense_{}T)
-      p => b
-    class default
-      call program_error("Wrong matrix type given! (given: dense, block's type: something else)")
+  class is (dense_{}T)
+    p => b
+  class default
+    call program_error("Wrong matrix type given! (given: dense; block type: something else)")
   end select
 end subroutine
 
@@ -494,10 +479,10 @@ module subroutine block_{}T{}_get_sparse(this, ib, jb, p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
-    class is (sparse_{}T)
-      p => b
-    class default
-      call program_error("Wrong matrix type given! (given: SPARSE, block's type: something else)")
+  class is (sparse_{}T)
+    p => b
+  class default
+    call program_error("Wrong matrix type given! (given: SPARSE; block type: something else)")
   end select
 end subroutine
 
@@ -523,10 +508,10 @@ module subroutine block_{}T{}_get_band(this, ib, jb, p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
-    class is (band_{}T)
-      p => b
-    class default
-      call program_error("Wrong matrix type given! (given: BAND, block's type: something else)")
+  class is (band_{}T)
+    p => b
+  class default
+    call program_error("Wrong matrix type given! (given: BAND; block type: something else)")
   end select
 end subroutine
 
@@ -552,10 +537,10 @@ module subroutine block_{}T{}_get_block(this, ib, jb, p)
 
   ! set intent out pointer to block
   select type (b => this%b(ib,jb)%p)
-    class is (block_{}T)
-      p => b
-    class default
-      call program_error("Wrong matrix type given! (given: BLOCK, block's type: something else)")
+  class is (block_{}T)
+    p => b
+  class default
+    call program_error("Wrong matrix type given! (given: BLOCK; block type: something else)")
   end select
 end subroutine
 
@@ -585,14 +570,14 @@ module subroutine block_{}T{}_set(this, ib, jb, b, fact)
   ! copy block
   this%alc(ib,jb) = .true.
   select type (b)
-    class is (block_{}T)
-      allocate (block_{}T :: this%b(ib,jb)%p)
-      select type (this_b => this%b(ib,jb)%p)
-        type is (block_{}T)
-          call b%copy(this_b)
-      end select
-    class default
-      allocate (this%b(ib,jb)%p, source = b)
+  class is (block_{}T)
+    allocate (block_{}T :: this%b(ib,jb)%p)
+    select type (this_b => this%b(ib,jb)%p)
+    type is (block_{}T)
+      call b%copy(this_b)
+    end select
+  class default
+    allocate (this%b(ib,jb)%p, source = b)
   end select
 
   ! scaling
@@ -635,30 +620,28 @@ module subroutine block_{}T{}_copy(this, copy)
   ! initialize copy
   call copy%init(this%i1-this%i0+1, this%j1-this%j0+1, diag = this%diag, tridiag = this%tridiag)
 
-  do ib = 1, this%nbrows
-    do jb = 1, this%nbcols
-      if (this%alc(ib,jb)) then
-        ! deep copy
-        copy%alc(ib,jb) = .true.
+  do ib = 1, this%nbrows; do jb = 1, this%nbcols
+    if (this%alc(ib,jb)) then
+      ! deep copy
+      copy%alc(ib,jb) = .true.
 
-        select type (p => this%b(ib,jb)%p)
-          class is (block_{}T)
-            allocate (block_{}T :: copy%b(ib,jb)%p)
-            select type (copy_b => copy%b(ib,jb)%p)
-              type is (block_{}T)
-                call p%copy(copy_b)
-            end select
-
-          class default
-            allocate (copy%b(ib,jb)%p, source = p)
-
+      select type (p => this%b(ib,jb)%p)
+      class is (block_{}T)
+        allocate (block_{}T :: copy%b(ib,jb)%p)
+        select type (copy_b => copy%b(ib,jb)%p)
+        type is (block_{}T)
+          call p%copy(copy_b)
         end select
-      else
-        ! shallow copy (pointer only)
-        copy%b(ib,jb)%p => this%b(ib,jb)%p
-      end if
-    end do
-  end do
+
+      class default
+        allocate (copy%b(ib,jb)%p, source = p)
+
+      end select
+    else
+      ! shallow copy (pointer only)
+      copy%b(ib,jb)%p => this%b(ib,jb)%p
+    end if
+  end do; end do
 end subroutine
 
 module function block_{}T{}_block_allowed(this, ib, jb) result(tf)
@@ -673,10 +656,9 @@ module function block_{}T{}_block_allowed(this, ib, jb) result(tf)
   logical                      :: tf
     !! Is block (ib,jb) allowed to be used?
 
-  tf =      ((ib >= 1) .and. (ib <= this%nbrows)) &
-    & .and. ((jb >= 1) .and. (jb <= this%nbcols))
+  tf = ((ib >= 1) .and. (ib <= this%nbrows)) .and. ((jb >= 1) .and. (jb <= this%nbcols))
 
-  if      (this%diag   ) then
+  if (this%diag) then
     tf = tf .and. (ib == jb)
   else if (this%tridiag) then
     tf = tf .and. (abs(ib-jb) <= 1)
@@ -692,17 +674,16 @@ module function block_{}T{}_check_sizes(this) result(tf)
 
   integer :: ib, jb
 
-  do ib = 1, this%nbrows
-    do jb = 1, this%nbcols
-      if (associated(this%b(ib,jb)%p)) then
-        if (this%i1(ib)-this%i0(ib)+1 /= this%b(ib,jb)%p%nrows) call program_error('block (ib,jb)=(' // int2str(ib) // &
-          & ',' // int2str(jb) // ') has wrong nrows.')
+  do ib = 1, this%nbrows; do jb = 1, this%nbcols
+    if (.not. associated(this%b(ib,jb)%p)) cycle
 
-        if (this%j1(jb)-this%j0(jb)+1 /= this%b(ib,jb)%p%ncols) call program_error('block (ib,jb)=(' // int2str(ib) // &
-          & ',' // int2str(jb) // ') has wrong ncols.')
-      end if
-    end do
-  end do
+    if (this%b(ib,jb)%p%nrows /= this%i1(ib) - this%i0(ib) + 1) then
+      call program_error("block (ib,jb)=("//int2str(ib)//","//int2str(jb)//") has a wrong number of rows.")
+    end if
+    if (this%b(ib,jb)%p%ncols /= this%j1(jb) - this%j0(jb) + 1) then
+      call program_error("block (ib,jb)=("//int2str(ib)//","//int2str(jb)//") has a wrong number of cols.")
+    end if
+  end do; end do
 
   tf = .true.
 end function

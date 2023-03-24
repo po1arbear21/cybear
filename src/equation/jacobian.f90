@@ -4,8 +4,9 @@ module jacobian_m
 
   use error_m,           only: assert_failed, program_error
   use hashmap_m,         only: hashmap_int
+  use ieee_arithmetic,   only: ieee_is_finite
   use jacobian_matrix_m, only: jacobian_matrix
-  use stencil_m,         only: stencil_ptr, static_stencil, dynamic_stencil, dirichlet_stencil
+  use stencil_m,         only: stencil_ptr, sparse_stencil, dynamic_stencil, full_stencil, dirichlet_stencil
   use vselector_m,       only: vselector
 
   implicit none
@@ -13,15 +14,15 @@ module jacobian_m
   private
   public jacobian, jacobian_ptr
 
-  type static_data
-    !! derivative data for static stencils
+  type sparse_data
+    !! derivative data for sparse stencils
     real, allocatable :: d(:,:,:,:)
       !! derivatives (v1%nval x v2%nval x st%nmax x tab1%n)
     type(hashmap_int) :: hmap
       !! (i1, itab2, i2) -> j (= 3rd index in d)
   contains
-    procedure :: init     => static_data_init
-    procedure :: destruct => static_data_destruct
+    procedure :: init     => sparse_data_init
+    procedure :: destruct => sparse_data_destruct
   end type
 
   type jacobian
@@ -34,8 +35,8 @@ module jacobian_m
       !! stencils (v1%ntab)
     type(dirichlet_stencil)        :: dum_st
       !! dummy stencil (used if stencils were not specified by user)
-    type(static_data), allocatable :: sd(:)
-      !! derivatives for static stencils (v1%ntab)
+    type(sparse_data), allocatable :: sd(:)
+      !! derivatives for sparse stencils (v1%ntab)
   contains
     procedure :: init     => jacobian_init
     procedure :: destruct => jacobian_destruct
@@ -74,15 +75,15 @@ module jacobian_m
 
 contains
 
-  subroutine static_data_init(this, v1, v2, itab1, st)
-    class(static_data),    intent(out) :: this
+  subroutine sparse_data_init(this, v1, v2, itab1, st)
+    class(sparse_data),    intent(out) :: this
     type(vselector),       intent(in)  :: v1
       !! result variable selector
     type(vselector),       intent(in)  :: v2
       !! dependency variable selector
     integer,               intent(in)  :: itab1
       !! result table index
-    class(static_stencil), intent(in)  :: st
+    class(sparse_stencil), intent(in)  :: st
       !! stencil
 
     integer :: i1, itab2, i2, j, idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
@@ -115,8 +116,8 @@ contains
     end do
   end subroutine
 
-  subroutine static_data_destruct(this)
-    class(static_data), intent(inout) :: this
+  subroutine sparse_data_destruct(this)
+    class(sparse_data), intent(inout) :: this
 
     if (allocated(this%d)) deallocate(this%d)
     call this%hmap%destruct()
@@ -141,7 +142,7 @@ contains
       !! value mask for each block separately (v1%nval x v2%nval x v1%ntab x v2%ntab); default: use valmsk instead
 
     integer :: i, j, itab1, itab2
-    logical :: const_(v1%ntab,v2%ntab), zero_(v1%ntab,v2%ntab), valmsk_(v1%nval,v2%nval,v1%ntab,v2%ntab), status
+    logical :: const_(v1%ntab,v2%ntab), zero_(v1%ntab,v2%ntab), dense_(v1%ntab,v2%ntab), valmsk_(v1%nval,v2%nval,v1%ntab,v2%ntab), status
 
     ! stencil pointers
     if (present(st)) then
@@ -173,7 +174,7 @@ contains
         if (.not. associated(this%st(itab1)%p)) cycle
 
         select type (st_ptr => this%st(itab1)%p)
-        class is (static_stencil)
+        class is (sparse_stencil)
           block
             integer :: idx1(v1%g%idx_dim), idx2(v2%g%idx_dim)
 
@@ -201,12 +202,27 @@ contains
         class is (dynamic_stencil)
           zero_(itab1,:) = .false.
 
+        class is (full_stencil)
+          zero_(itab1,:) = .false.
+
         class default
-          call program_error("stencil type not supported; derive from static or dynamic stencil!")
+          call program_error("stencil type not supported; derive from sparse, dynamic or full stencil!")
         end select
       end do
     end if
     const_  = (const_ .or. zero_) ! zero blocks are also constant
+
+    ! dense flags
+    dense_ = .false.
+    do itab1 = 1, v1%ntab
+      ! do nothing for empty stencil
+      if (.not. associated(this%st(itab1)%p)) cycle
+
+      select type (st_ptr => this%st(itab1)%p)
+      class is (full_stencil)
+        dense_(itab1,:) = .true.
+      end select
+    end do
 
     ! value mask
     m4_assert(.not. (present(valmsk) .and. present(valmsk_tab)))
@@ -222,13 +238,13 @@ contains
     end if
 
     ! init matrix
-    call this%matr%init(v1, v2, const_, zero_, valmsk_)
+    call this%matr%init(v1, v2, const_, zero_, dense_, valmsk_)
 
-    ! allocate memory for derivatives of static stencil data
+    ! allocate memory for derivatives of sparse stencil data
     allocate (this%sd(v1%ntab))
     do itab1 = 1, v1%ntab
       select type (st_ptr => this%st(itab1)%p)
-      class is (static_stencil)
+      class is (sparse_stencil)
         call this%sd(itab1)%init(v1, v2, itab1, st_ptr)
       end select
     end do
@@ -276,7 +292,7 @@ contains
         if (all(.not. reset(itab1,:))) cycle
 
         select type (st => this%st(itab1)%p)
-        class is (static_stencil)
+        class is (sparse_stencil)
           if (all(reset(itab1,:))) then
             this%sd(itab1)%d = 0
             cycle
@@ -307,6 +323,13 @@ contains
             if (reset(itab1,itab2)) then
               call this%matr%s( itab1,itab2)%p%reset()
               call this%matr%sb(itab1,itab2)%reset()
+            end if
+          end do
+
+        class is (full_stencil)
+          do itab2 = 1, v2%ntab
+            if (reset(itab1,itab2)) then
+              call this%matr%d( itab1,itab2)%p%reset()
             end if
           end do
         end select
@@ -341,9 +364,9 @@ contains
         ! decide whether to process any blocks of this block row
         if (.not. any(set(itab1,:))) cycle
 
-        ! insert data into spbuilders for static stencils
+        ! insert data into spbuilders for sparse stencils
         select type (st => this%st(itab1)%p)
-        class is (static_stencil)
+        class is (sparse_stencil)
           ! reset blocks before saving values
           do itab2 = 1, v2%ntab
             if (set(itab1,itab2)) then
@@ -393,6 +416,7 @@ contains
 
         ! save data in sparse_matrix
         do itab2 = 1, v2%ntab
+          if (this%matr%dense(itab1,itab2)) cycle
           if (set(itab1,itab2)) call this%matr%sb(itab1,itab2)%save()
         end do
       end do
@@ -413,11 +437,12 @@ contains
     logical, optional, intent(in)    :: add
       !! addition flag (default: false)
 
-    integer :: itab2, i2, j, row, row0, col, col0, ival1, ival2
-    logical :: add_
+    integer :: itab2, i2, j, row, row0, row1, col, col0, col1, ival1, ival2
+    logical :: add_, status
 
     m4_assert(size(d, dim=1) == this%matr%v1%nval)
     m4_assert(size(d, dim=2) == this%matr%v2%nval)
+    m4_assert(all(ieee_is_finite(d)))
 
     ! optional addition flag
     add_ = .false.
@@ -428,9 +453,10 @@ contains
     i2    = this%matr%v2%tab(itab2)%p%get_flat(idx2)
 
     select type (st => this%st(itab1)%p)
-    class is (static_stencil)
+    class is (sparse_stencil)
       ! get stencil dependency index
-      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j, status = status)
+      m4_assert(status) ! make sure idx2 is part of stencil
 
       ! edit derivatives
       if (add_) then
@@ -458,6 +484,22 @@ contains
           end if
         end do
       end do
+
+    class is (full_stencil)
+      ! get start, end row
+      row0 = (i1 - 1) * this%matr%v1%nval
+      row1 = (i1    ) * this%matr%v1%nval - 1
+
+      ! get start, end col
+      col0 = (i2 - 1) * this%matr%v2%nval
+      col1 = (i2    ) * this%matr%v2%nval - 1
+
+      ! edit derivatives
+      if (add_) then
+        this%matr%d(itab1,itab2)%p%d(row0:row1,col0:col1) = this%matr%d(itab1,itab2)%p%d(row0:row1,col0:col1) + d
+      else
+        this%matr%d(itab1,itab2)%p%d(row0:row1,col0:col1) = d
+      end if
     end select
   end subroutine
 
@@ -480,7 +522,9 @@ contains
       !! addition flag (default: false)
 
     integer :: itab2, i2, j, row, col
-    logical :: add_
+    logical :: add_, status
+
+    m4_assert(ieee_is_finite(d))
 
     ! optional addition flag
     add_ = .false.
@@ -491,9 +535,10 @@ contains
     i2    = this%matr%v2%tab(itab2)%p%get_flat(idx2)
 
     select type (st => this%st(itab1)%p)
-    class is (static_stencil)
+    class is (sparse_stencil)
       ! get stencil dependency index
-      call this%sd(itab1)%hmap%get([i1, itab2, i2], j)
+      call this%sd(itab1)%hmap%get([i1, itab2, i2], j, status = status)
+      m4_assert(status) ! make sure idx2 is part of stencil
 
       ! edit derivatives
       if (add_) then
@@ -514,6 +559,20 @@ contains
         call this%matr%sb(itab1,itab2)%add(row, col, d)
       else
         call this%matr%sb(itab1,itab2)%set(row, col, d)
+      end if
+
+    class is (full_stencil)
+      ! get row index
+      row = (i1 - 1) * this%matr%v1%nval + ival1
+
+      ! get column index
+      col = (i2 - 1) * this%matr%v2%nval + ival2
+
+      ! edit derivative
+      if (add_) then
+        this%matr%d(itab1,itab2)%p%d(row,col) = this%matr%d(itab1,itab2)%p%d(row,col) + d
+      else
+        this%matr%d(itab1,itab2)%p%d(row,col) = d
       end if
     end select
   end subroutine
