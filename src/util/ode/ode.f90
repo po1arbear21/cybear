@@ -219,6 +219,7 @@ contains
           if (rejection_counter > opt%max_rejected) then
             print "(A,ES24.16)", "x0 = ", x0
             print "(A,ES24.16)", "x1 = ", x1
+            print "(A,ES24.16)", "x  = ", x
             do i = 1, nU
               print "(A,I1,A,ES24.16)", "U0(", i, ") = ", U0(i)
             end do

@@ -107,7 +107,6 @@ contains
     logical,           intent(inout) :: status
       !! output success (true) or fail (false)
 
-    ! local variables
     integer :: nU, nP
 
     m4_ignore(dfkdP)
@@ -225,7 +224,6 @@ contains
     real,    intent(out) :: z(:)
       !! output initial guess for z
 
-    ! local variables
     integer :: i, j, i0, i1
 
     ! use interpolation polynomial from previous step to extrapolate z(x) = U(x) - U_k
@@ -263,7 +261,6 @@ contains
     real, optional, intent(out) :: dfdP(:,:,:)
       !! output derivatives of f wrt parameters
 
-    ! local variables
     integer :: i, i0, i1
 
     i1 = 0
@@ -294,7 +291,6 @@ contains
     real,    intent(out) :: dhdz(:,:)
       !! output derivatives of h wrt z
 
-    ! local variables
     integer :: i, j, i0, i1, j0, j1
 
     dhdz = 0
@@ -336,7 +332,6 @@ contains
     real,    intent(out) :: dhdQ(3*nU,nU+nP)
       !! output derivatives of h wrt Q = [U0; P]
 
-    ! local variables
     integer :: i, j, i0, i1
     real    :: dhdUk(nU,nU), dhdP(nU,nP)
 
@@ -385,7 +380,6 @@ contains
     real,              intent(out) :: err
       !! output scalar error estimate
 
-    ! local variables
     integer :: i, i0, i1, ipiv(nU)
     real    :: eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
 
@@ -479,19 +473,24 @@ contains
     real,              intent(out) :: dxn
       !! output new step size
 
-    ! local variables
     real :: fac, dxn1, dxn2
 
-    ! get safety factor
-    fac = 0.9 * (2 * opt%newton_max_it + 1.0) / (2 * opt%newton_max_it + it)
+    if (err > 1.0) then
+      ! rejected step: reduce stepsize by factor of 2
+      dxn = 0.5 * dxk
+    else
+      ! get safety factor
+      fac = 0.9 * (2 * opt%newton_max_it + 1.0) / (2 * opt%newton_max_it + it)
 
-    ! estimate new step size by two different methods
-    dxn1 = fac * dxk * err**(-0.25)
-    dxn2 = dxn1 * dxk / dx_old * (err_old / err)**(0.25)
+      ! estimate new step size by two different methods
+      dxn1 = fac * dxk * err**(-0.25)
+      dxn2 = dxn1 * dxk / dx_old * (err_old / err)**(0.25)
 
-    ! take minimum of both results
-    dxn = min(dxn1, dxn2)
+      ! take minimum of both results
+      dxn = min(dxn1, dxn2)
+    end if
 
+    ! apply stepsize limiter
     if (abs(dxn) < opt%min_rx * abs(x+dxk)) then
       dxn = sign(opt%min_rx * abs(x+dxk), dxn)
     end if
