@@ -7,6 +7,7 @@ module variable_m
   use grid_data_m,     only: allocate_grid_data, grid_data_real, grid_data_cmplx
   use grid_table_m,    only: grid_table
   use grid0D_m,        only: get_dummy_grid
+  use ieee_arithmetic, only: ieee_is_finite
   use iso_fortran_env, only: int64, int32
   use json_m,          only: json_object
   use normalization_m, only: denorm, norm
@@ -241,6 +242,8 @@ contains
     real,                 intent(in)    :: d
       !! new value
 
+    m4_assert(ieee_is_finite(d))
+
     call this%data%set(idx, d)
   end subroutine
 
@@ -249,6 +252,8 @@ contains
     class(variable_real), intent(inout) :: this
     real,                 intent(in)    :: d(:)
       !! new values
+
+    m4_assert(all(ieee_is_finite(d)))
 
     call this%data%set(d)
   end subroutine
@@ -281,6 +286,8 @@ contains
     complex,               intent(in)    :: d
       !! new value
 
+    m4_assert(ieee_is_finite(d%re) .and. (ieee_is_finite(d%im)))
+
     call this%data%set(idx, d)
   end subroutine
 
@@ -289,6 +296,8 @@ contains
     class(variable_cmplx), intent(inout) :: this
     complex,               intent(in)    :: d(:)
       !! new values
+
+    m4_assert(all(ieee_is_finite(d%re) .and. (ieee_is_finite(d%im))))
 
     call this%data%set(d)
   end subroutine
