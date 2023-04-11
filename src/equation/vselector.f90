@@ -552,7 +552,7 @@ contains
 
     print "(A)", "  name: "//this%name
     print "(A)", "  vars:"
-    do i = 1, this%nval
+    do i = 1, this%nvar
       print "(A)", "    "//this%v(i)%p%name
     end do
     print "(A)", "  tab:"
