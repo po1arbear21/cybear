@@ -489,7 +489,7 @@ contains
     m4_assert(all(ieee_is_finite(dx)))
 
     j = 1
-    do i = 1, this%nval
+    do i = 1, this%nvar
       select type (v => this%v(i)%p)
       class is (variable_real)
         call v%data%update(idx, dx(j))
