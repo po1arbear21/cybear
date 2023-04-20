@@ -231,24 +231,6 @@ module subroutine dense_{}T{}_transpose2(this, d2)
   call d2%init(transpose(this%d))
 end subroutine
 
-module subroutine dense_{}T{}_mul_dense(this, d2, d3)
-  !! Multiply two dense matrices, store result in a third dense matrix.
-  !!  Operation: d3 <- this * d2
-
-  class(dense_{}T), intent(in)  :: this
-    !! Dense first matrix d1 (unchanged)
-  type(dense_{}T),  intent(in)  :: d2
-    !! Dense second matrix d2 (unchanged)
-  type(dense_{}T),  intent(out) :: d3
-    !! Output dense third matrix d3
-
-  ! init output matrix
-  call d3%init(this%nrows, ncols = d2%ncols)
-
-  ! multiply matrices
-  call gemm(this%d, d2%d, d3%d)
-end subroutine
-
 module subroutine dense_{}T{}_eig(this, e, R, L, sort)
   !! Perform a dense eigenvalue decomposition.
 

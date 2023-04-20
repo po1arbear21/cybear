@@ -547,11 +547,11 @@ contains
       call sbuild%save()
 
       ! C = A*E
-      call sA%mul_sparse(sE, sC)
+      call matrix_mul(sA, sE, sC)
       call tc%assert(sC%is_empty(), "mul sparse empty 1")
 
       ! C = E*A
-      call sE%mul_sparse(sA, sC)
+      call matrix_mul(sE, sA, sC)
       call tc%assert(sC%is_empty(), "mul sparse empty 2")
 
       ! C = A*B =
@@ -568,7 +568,7 @@ contains
       ia_exp = [1, 4, 5, 6, 8]
       ja_exp = [2, 3, 4, 2, 4, 1, 2]
 
-      call sA%mul_sparse(sB, sC)
+      call matrix_mul(sA, sB, sC)
 
       call tc%assert_eq(a_exp,  sC%a, 0.0,  "mul sparse 1: a")
       call tc%assert_eq(ia_exp, int(sC%ia), "mul sparse 1: ia")
@@ -581,7 +581,7 @@ contains
 
         call get_test_matrix3(n, sA)
         call get_test_matrix3(n, sB)
-        call sA%mul_sparse(sB, sC)
+        call matrix_mul(sA, sB, sC)
 
         call tc%assert_eq(8.913712864525120e+14, sum(sC%a), 1e2, "mul sparse 2")
       end block
@@ -591,7 +591,7 @@ contains
       call sA%input(file = "src/test/S1.test")
       call sB%input(file = "src/test/S2.test")
       call sE%input(file = "src/test/S3.test") ! expected S1 * S2
-      call sA%mul_sparse(sB, sC)
+      call matrix_mul(sA, sB, sC)
       call tc%assert_eq(int(sE%ia), int(sC%ia), "mul sparse 3: ia")
       call tc%assert_eq(sE%ja, sC%ja,           "mul sparse 3: ja")
       call tc%assert_eq(sE%a,  sC%a, 1e-14,     "mul sparse 3: a")

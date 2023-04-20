@@ -84,6 +84,32 @@ interface matrix_add
   end subroutine
 end interface
 
+interface matrix_mul
+  module subroutine mul_dense_dense_{}T{}(d1, d2, result)
+    type(dense_{}T), intent(in)  :: d1
+    type(dense_{}T), intent(in)  :: d2
+    type(dense_{}T), intent(out) :: result
+  end subroutine
+
+  module subroutine mul_dense_sparse_{}T{}(d1, s2, result)
+    type(dense_{}T),  intent(in)  :: d1
+    type(sparse_{}T), intent(in)  :: s2
+    type(dense_{}T),  intent(out) :: result
+  end subroutine
+
+  module subroutine mul_sparse_dense_{}T{}(s1, d2, result)
+    type(sparse_{}T), intent(in)  :: s1
+    type(dense_{}T),  intent(in)  :: d2
+    type(dense_{}T),  intent(out) :: result
+  end subroutine
+
+  module subroutine mul_sparse_sparse_{}T{}(s1, s2, result)
+    type(sparse_{}T), intent(in)  :: s1
+    type(sparse_{}T), intent(in)  :: s2
+    type(sparse_{}T), intent(out) :: result
+  end subroutine
+end interface
+
 interface matrix_diag
   module subroutine diag_arr_band_{}T{}(arr_in, b_out)
     m4_type(T),     intent(in)  :: arr_in(:)

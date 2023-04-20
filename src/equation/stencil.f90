@@ -10,8 +10,9 @@ module stencil_m
 
   private
   public stencil, stencil_ptr
+  public sparse_stencil
   public dynamic_stencil
-  public static_stencil
+  public full_stencil
   public empty_stencil
   public dirichlet_stencil
   public near_neighb_stencil
@@ -27,24 +28,24 @@ module stencil_m
     class(stencil), pointer :: p => null()
   end type
 
-  type, abstract, extends(stencil) :: static_stencil
-    !! abstract stationary stencil
+  type, abstract, extends(stencil) :: sparse_stencil
+    !! abstract sparse stencil
     !! derive from it for specific equations (or use dirichlet/nearest neighb stencils).
     !! use when exact stencil is known at initialization time.
     integer :: nmax
       !! maximum number of dependency points
   contains
-    procedure                               :: static_stencil_init
-    procedure(static_stencil_get), deferred :: get
+    procedure                               :: sparse_stencil_init
+    procedure(sparse_stencil_get), deferred :: get
   end type
 
   abstract interface
-    subroutine static_stencil_get(this, idx1, j, idx2, status)
+    subroutine sparse_stencil_get(this, idx1, j, idx2, status)
       !! get j-th dependency wrt idx1
       !! note that j-th dependency might not be used which is why there is a status:
       !!    e.g. for boundary boxes actual number of dependencies might be smaller than standard number of dependenc == nmax
-      import static_stencil
-      class(static_stencil), intent(in)  :: this
+      import sparse_stencil
+      class(sparse_stencil), intent(in)  :: this
       integer,               intent(in)  :: idx1(:)
         !! result indices. size: idx_dim1
       integer,               intent(in)  :: j
@@ -57,12 +58,17 @@ module stencil_m
   end interface
 
   type, extends(stencil) :: dynamic_stencil
-    !! placeholder to distinguish from static stencils.
+    !! placeholder to distinguish from sparse and full stencil.
     !! use when exact stencil is only known at evaluation time
-    !! (in contrast to static_stencil which is known at initialization time.)
+    !! (in contrast to sparse/full stencil which is known at initialization time.)
   end type
 
-  type, extends(static_stencil) :: empty_stencil
+  type, extends(stencil) :: full_stencil
+    !! placeholder to distinguish from sparse and dynamic stencil
+    !! use when stencil is given by the complete grid => dense jacobian
+  end type
+
+  type, extends(sparse_stencil) :: empty_stencil
     !! empty stencil with no neighbors.
     !! indicates no dependence on this variable
   contains
@@ -70,7 +76,7 @@ module stencil_m
     procedure :: get  => empty_stencil_get
   end type
 
-  type, extends(static_stencil) :: dirichlet_stencil
+  type, extends(sparse_stencil) :: dirichlet_stencil
     !! dirichlet stencil
     !!
     !! computation by: idx2 = perm(idx1) + off1:off2
@@ -98,7 +104,7 @@ module stencil_m
     procedure :: get  => dirichlet_stencil_get
   end type
 
-  type, extends(static_stencil) :: near_neighb_stencil
+  type, extends(sparse_stencil) :: near_neighb_stencil
     !! nearest neighbours stencil
     class(grid), pointer :: g => null()
       !! grid this stencil is defined on
@@ -126,9 +132,9 @@ contains
     ptr%p => this
   end function
 
-  subroutine static_stencil_init(this, nmax)
-    !! initialize static stencil
-    class(static_stencil), intent(out) :: this
+  subroutine sparse_stencil_init(this, nmax)
+    !! initialize sparse stencil
+    class(sparse_stencil), intent(out) :: this
     integer,               intent(in)  :: nmax
       !! maximum number of dependency points
 
@@ -139,7 +145,7 @@ contains
     !! initialize empty stencil
     class(empty_stencil), intent(out) :: this
 
-    call this%static_stencil_init(0)
+    call this%sparse_stencil_init(0)
   end subroutine
 
   subroutine empty_stencil_get(this, idx1, j, idx2, status)
@@ -202,7 +208,7 @@ contains
     end if
 
     ! init base
-    call this%static_stencil_init(product(off2_-off1_+1))
+    call this%sparse_stencil_init(product(off2_-off1_+1))
 
     ! optional perm
     if (associated(g2_, target=g1)) then
@@ -286,7 +292,7 @@ contains
     shift = 0
     if ((this%idx1_type == this%idx2_type) .and. (this%idx1_dir == this%idx2_dir)) shift = 1
 
-    call this%static_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir) + shift)
+    call this%sparse_stencil_init(g%get_max_neighb(idx1_type, idx1_dir, idx2_type, idx2_dir) + shift)
 
     ! set members
     this%g => g

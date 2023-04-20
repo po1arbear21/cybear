@@ -1,7 +1,9 @@
 m4_include(../util/macro.f90.inc)
 
 module jacobian_matrix_m
-  use matrix_m,    only: matrix_add, sparse_real, block_real, spbuild_real, sparse_ptr_real
+
+  use error_m,     only: assert_failed
+  use matrix_m,    only: matrix_add, matrix_mul, sparse_real, block_real, dense_real, dense_ptr_real, spbuild_real, sparse_ptr_real
   use vselector_m, only: vselector
 
   implicit none
@@ -18,16 +20,20 @@ module jacobian_matrix_m
       !! dependency variable selector
 
     type(sparse_ptr_real), allocatable :: s(:,:)
-      !! size: (v1%ntab, v2%ntab)
+      !! sparse blocks (v1%ntab x v2%ntab)
       !! size of matrix s(itab1,itab2): (v1%nvals(itab1), v2%nvals(itab2))
     type(spbuild_real),    allocatable :: sb(:,:)
-      !! size: (v1%ntab, v2%ntab)
-      !! size of matrix sb(itab1,itab2): (v1%nvals(itab1), v2%nvals(itab2))
+      !! corresponds to s
+    type(dense_ptr_real),  allocatable :: d(:,:)
+      !! dense blocks (v1%ntab x v2%ntab)
+      !! size of matrix d(itab1,itab2): (v1%nvals(itab1), v2%nvals(itab2))
 
     logical, allocatable :: const(:,:)
       !! const flags for each block (true means linear equation)
     logical, allocatable :: zero(:,:)
       !! zero flags for each block
+    logical, allocatable :: dense(:,:)
+      !! dense flags for each block (use s or d?)
     logical, allocatable :: valmsk(:,:,:,:)
       !! value masks for each block, false means entry is always zero, for all grid points (v1%nval x v2%nval x size(v1%tab) x size(v2%tab))
   contains
@@ -52,7 +58,7 @@ contains
   m4_define({T},{jacobian_matrix_ptr})
   m4_include(../util/vector_imp.f90.inc)
 
-  subroutine jacobian_matrix_init(this, v1, v2, const, zero, valmsk)
+  subroutine jacobian_matrix_init(this, v1, v2, const, zero, dense, valmsk)
     !! initialize jacobian matrix
     class(jacobian_matrix),  intent(out) :: this
     type(vselector), target, intent(in)  :: v1
@@ -63,6 +69,8 @@ contains
       !! const flags (v1%ntab x v2%ntab)
     logical,                 intent(in)  :: zero(:,:)
       !! zero flags (v1%ntab x v2%ntab)
+    logical,                 intent(in)  :: dense(:,:)
+      !! dense blocks? (v1%ntab x v2%ntab)
     logical,                 intent(in)  :: valmsk(:,:,:,:)
       !! value mask (v1%nval x v2%nval x v1%ntab x v2%ntab)
 
@@ -78,15 +86,22 @@ contains
     ! allocate flags
     this%const  = const
     this%zero   = zero
+    this%dense  = dense
     this%valmsk = valmsk
 
     ! init blocks as empty sparse matrices
     allocate (this%s( v1%ntab,v2%ntab))
     allocate (this%sb(v1%ntab,v2%ntab))
+    allocate (this%d( v1%ntab,v2%ntab))
     do itab1 = 1, v1%ntab; do itab2 = 1, v2%ntab
-      call this%get(itab1, itab2, this%s(itab1,itab2)%p)
-      call this%s( itab1,itab2)%p%init(v1%nvals(itab1), v2%nvals(itab2))
-      call this%sb(itab1,itab2)%init(this%s(itab1,itab2)%p, assume_unique=.true.)
+      if (dense(itab1,itab2)) then
+        call this%get(itab1, itab2, this%d(itab1,itab2)%p)
+        call this%d( itab1,itab2)%p%init(v1%nvals(itab1), v2%nvals(itab2))
+      else
+        call this%get(itab1, itab2, this%s(itab1,itab2)%p)
+        call this%s( itab1,itab2)%p%init(v1%nvals(itab1), v2%nvals(itab2))
+        call this%sb(itab1,itab2)%init(this%s(itab1,itab2)%p, assume_unique=.true.)
+      end if
     end do; end do
   end subroutine
 
@@ -98,6 +113,7 @@ contains
 
     if (allocated(this%const )) deallocate (this%const )
     if (allocated(this%zero  )) deallocate (this%zero  )
+    if (allocated(this%dense )) deallocate (this%dense )
     if (allocated(this%valmsk)) deallocate (this%valmsk)
 
     if (allocated(this%sb)) then
@@ -107,8 +123,9 @@ contains
       deallocate (this%sb)
     end if
     if (allocated(this%s)) deallocate (this%s)
+    if (allocated(this%d)) deallocate (this%d)
 
-    ! destruct base
+    ! destruct base (destructs individual blocks)
     call this%block_real%destruct()
   end subroutine
 
@@ -167,11 +184,23 @@ contains
     ! add matrices
     do i = i0, i1; do j = j0, j1
       ! reset matrix
-      if (reset_) call this%s(i,j)%p%reset()
+      if (reset_) then
+        if (this%dense(i,j)) then
+          call this%d(i,j)%p%reset()
+        else
+          call this%s(i,j)%p%reset()
+        end if
+      end if
 
       ! add matrices
       do k = 1, size(jaco)
-        call matrix_add(jaco(k)%p%s(i,j)%p, this%s(i,j)%p)
+        if (this%dense(i,j) .and. jaco(k)%p%dense(i,j)) then
+          call matrix_add(jaco(k)%p%d(i,j)%p, this%d(i,j)%p)
+        elseif (this%dense(i,j)) then
+          call matrix_add(jaco(k)%p%s(i,j)%p, this%d(i,j)%p)
+        else
+          call matrix_add(jaco(k)%p%s(i,j)%p, this%s(i,j)%p)
+        end if
       end do
     end do; end do
   end subroutine
@@ -193,7 +222,8 @@ contains
 
     integer           :: i, j, k, i0, i1, j0, j1
     logical           :: reset_
-    type(sparse_real) :: tmp
+    type(dense_real)  :: dtmp
+    type(sparse_real) :: stmp
 
     ! process optional arguments
     reset_ = .true.
@@ -216,13 +246,42 @@ contains
     ! multiply matrices
     do i = i0, i1; do j = j0, j1
       ! reset result
-      if (reset_) call this%s(i,j)%p%reset()
+      if (reset_) then
+        if (this%dense(i,j)) then
+          call this%d(i,j)%p%reset()
+        else
+          call this%s(i,j)%p%reset()
+        end if
+      end if
 
       ! loop over jaco1%ncols = jaco2%nrows
       do k = 1, jaco1%v2%ntab
-        call jaco1%s(i,k)%p%mul_sparse(jaco2%s(k,j)%p, tmp)
-        call matrix_add(tmp, this%s(i,j)%p)
+        if (jaco1%dense(i,k)) then
+          if (jaco2%dense(k,j)) then
+            call matrix_mul(jaco1%d(i,k)%p, jaco2%d(k,j)%p, dtmp)
+          else
+            call matrix_mul(jaco1%d(i,k)%p, jaco2%s(k,j)%p, dtmp)
+          end if
+          m4_assert(this%dense(i,j))
+          call matrix_add(dtmp, this%d(i,j)%p)
+        else
+          if (jaco2%dense(k,j)) then
+            call matrix_mul(jaco1%s(i,k)%p, jaco2%d(k,j)%p, dtmp)
+            m4_assert(this%dense(i,j))
+            call matrix_add(dtmp, this%d(i,j)%p)
+          else
+            call matrix_mul(jaco1%s(i,k)%p, jaco2%s(k,j)%p, stmp)
+            if (this%dense(i,j)) then
+              m4_assert(this%dense(i,j))
+              call matrix_add(stmp, this%d(i,j)%p)
+            else
+              m4_assert(.not. this%dense(i,j))
+              call matrix_add(stmp, this%s(i,j)%p)
+            end if
+          end if
+        end if
       end do
     end do; end do
   end subroutine
+
 end module

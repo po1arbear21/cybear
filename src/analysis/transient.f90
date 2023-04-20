@@ -14,6 +14,8 @@ module transient_m
 
   implicit none
 
+  !FIXME: implement for dense system
+
   private
   public backward_euler, bdf2, mbdf2, trapezoidal, tr_bdf2, transient
 

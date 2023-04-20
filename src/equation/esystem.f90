@@ -3,6 +3,7 @@ m4_include(../util/macro.f90.inc)
 module esystem_m
 
   use array_m,            only: array1_int
+  use color_m,            only: COL_DEFAULT, COL_MAGENTA
   use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, STATUS_DEP
@@ -10,7 +11,7 @@ module esystem_m
   use grid_table_m,       only: grid_table, grid_table_ptr
   use hashmap_m,          only: hashmap_int
   use json_m,             only: json_object
-  use matrix_m,           only: block_real, matrix_real, sparse_real, sparse_cmplx, matrix_convert
+  use matrix_m,           only: block_real, dense_real, dense_cmplx, matrix_real, matrix_cmplx, sparse_real, sparse_cmplx, matrix_convert
   use newton_m,           only: newton_opt, newton
   use output_file_m,      only: output_file
   use res_equation_m,     only: res_equation
@@ -63,6 +64,8 @@ module esystem_m
     integer              :: ninput
       !! total number of input values
 
+    logical                       :: dense
+      !! use dense df, dft
     type(block_real)              :: df
       !! derivatives of f wrt x
     logical,          allocatable :: dfconst(:,:)
@@ -117,12 +120,14 @@ module esystem_m
 
 contains
 
-  subroutine esystem_init(this, name, precon)
+  subroutine esystem_init(this, name, precon, dense)
     !! initialize equation system
     class(esystem),    intent(out) :: this
     character(*),      intent(in)  :: name
     logical, optional, intent(in)  :: precon
       !! should a preconditioner matrix be created? (default: false)
+    logical, optional, intent(in)  :: dense
+      !! use dense jacobian matrix instead of sparse
 
     logical :: precon_
 
@@ -132,6 +137,10 @@ contains
     precon_ = .false.
     if (present(precon)) precon_ = precon
     if (precon_) allocate(this%dfp)
+
+    ! dense jacobian?
+    this%dense = .false.
+    if (present(dense)) this%dense = dense
 
     ! init variable list
     call this%vars%init(0, c = 8)
@@ -675,12 +684,12 @@ contains
 
   subroutine esystem_eval(this, f, df, dfp)
     !! evaluate equations, get residuals, jacobians, and preconditioner
-    class(esystem),              intent(inout) :: this ! equation system
-    real,              optional, intent(out)   :: f(:)
+    class(esystem),               intent(inout) :: this ! equation system
+    real,               optional, intent(out)   :: f(:)
       !! output residuals
-    type(sparse_real), optional, intent(out)   :: df
+    class(matrix_real), optional, intent(out)   :: df
       !! output jacobian
-    type(sparse_real), optional, intent(out)   :: dfp
+    type(sparse_real),  optional, intent(out)   :: dfp
       !! output preconditioner jacobian
 
     integer :: i, j, k0, k1, ibl1, ibl2
@@ -787,7 +796,7 @@ contains
   end function
 
   subroutine esystem_solve(this, nopt, gopt)
-    !! solves equations system by newton-raphson method.
+    !! solves steady-state by newton-raphson method (deprecated, use analysis/steady_state instead)
     class(esystem),                intent(inout) :: this
     type(newton_opt),    optional, intent(in)    :: nopt
       !! options for the newton solver
@@ -798,6 +807,10 @@ contains
     real, allocatable         :: x(:)
     type(newton_opt)          :: nopt_
     type(sparse_real), target :: df, dfp
+
+    print "(A)", COL_MAGENTA//"esystem_solve is deprecated, use analysis/steady_state instead"//COL_DEFAULT
+
+    m4_assert(.not. this%dense)
 
     ! parse optional newton options
     if (present(nopt)) then
@@ -975,24 +988,36 @@ contains
   end subroutine
 
   subroutine esystem_get_df(this, df)
-    !! get df as sparse matrix
-    class(esystem),    intent(in)  :: this
-    type(sparse_real), intent(out) :: df
-      !! output sparse matrix
+    !! get jacobian
+    class(esystem),     intent(in)  :: this
+    class(matrix_real), intent(out) :: df
+      !! output sparse or dense matrix
 
-    call matrix_convert(this%df, df)          ! sparse_real <- block_real
+    select type (df)
+    class is (sparse_real)
+      call matrix_convert(this%df, df)          ! sparse_real <- block_real
+    class is (dense_real)
+      call matrix_convert(this%df, df)          ! dense_real <- block_real
+    end select
   end subroutine
 
   subroutine esystem_get_df_cmplx(this, df)
-    !! get df as complex sparse matrix
-    class(esystem),     intent(in)  :: this
-    type(sparse_cmplx), intent(out) :: df
-      !! output sparse matrix
+    !! get jacobian as complex matrix
+    class(esystem),      intent(in)  :: this
+    class(matrix_cmplx), intent(out) :: df
+      !! output sparse or dense matrix
 
-    type(sparse_real)  :: df_real
+    type(dense_real)  :: d
+    type(sparse_real) :: s
 
-    call matrix_convert(this%df, df_real)     ! sparse_real  <- block_real
-    call matrix_convert(df_real, df     )     ! sparse_cmplx <- sparse_real
+    select type (df)
+    class is (sparse_cmplx)
+      call matrix_convert(this%df, s) ! sparse_real  <- block_real
+      call matrix_convert(s, df)      ! sparse_cmplx <- sparse_real
+    class is (dense_cmplx)
+      call matrix_convert(this%df, d) ! dense_real  <- block_real
+      call matrix_convert(d, df)      ! dense_cmplx <- dense_real
+    end select
   end subroutine
 
   subroutine esystem_get_dfp(this, dfp)
@@ -1021,24 +1046,36 @@ contains
   end subroutine
 
   subroutine esystem_get_dft(this, dft)
-    !! get dft as sparse matrix
-    class(esystem),    intent(in)  :: this
-    type(sparse_real), intent(out) :: dft
-      !! output sparse matrix
+    !! get time derivative jacobian
+    class(esystem),     intent(in)  :: this
+    class(matrix_real), intent(out) :: dft
+      !! output sparse or dense matrix
 
-    call matrix_convert(this%dft, dft)        ! sparse_real <- block_real
+    select type (dft)
+    class is (sparse_real)
+      call matrix_convert(this%dft, dft)          ! sparse_real <- block_real
+    class is (dense_real)
+      call matrix_convert(this%dft, dft)          ! dense_real <- block_real
+    end select
   end subroutine
 
   subroutine esystem_get_dft_cmplx(this, dft)
-    !! get dft as complex sparse matrix
-    class(esystem),     intent(in)  :: this
-    type(sparse_cmplx), intent(out) :: dft
-      !! output sparse matrix
+    !! get time derivative jacobian as complex matrix
+    class(esystem),      intent(in)  :: this
+    class(matrix_cmplx), intent(out) :: dft
+      !! output sparse or dense matrix
 
-    type(sparse_real)  :: dft_real
+    type(dense_real)  :: d
+    type(sparse_real) :: s
 
-    call matrix_convert(this%dft, dft_real)   ! sparse_real  <- block_real
-    call matrix_convert(dft_real, dft     )   ! sparse_cmplx <- sparse_real
+    select type (dft)
+    class is (sparse_cmplx)
+      call matrix_convert(this%dft, s) ! sparse_real  <- block_real
+      call matrix_convert(s, dft)      ! sparse_cmplx <- sparse_real
+    class is (dense_cmplx)
+      call matrix_convert(this%dft, d) ! dense_real  <- block_real
+      call matrix_convert(d, dft)      ! dense_cmplx <- dense_real
+    end select
   end subroutine
 
   subroutine esystem_print(this)

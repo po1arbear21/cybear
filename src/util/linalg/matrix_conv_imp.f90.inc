@@ -9,17 +9,33 @@ module subroutine sparse_to_band_{}T{}(s, b, i0, j0)
   integer, optional, intent(in)    :: j0
     !! optional: col offset in second matrix (default 1)
 
-  integer             :: i, i0_, j0_
+  integer             :: i, i0_, j0_, nlower, nupper
   integer(SPARSE_IDX) :: j
-
-  m4_assert(.not. s%is_empty())
-  m4_assert(allocated(b%d))
 
   ! optional arguments
   i0_ = 1
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ! initialize
+  if (.not. allocated(b%d)) then
+    m4_assert((.not. present(i0)) .and. (.not. present(j0)))
+    m4_assert(s%nrows == s%ncols)
+
+    ! get nlower, nupper
+    nlower = 0
+    nupper = 0
+    do i = 1, s%nrows
+      do j = s%ia(i), s%ia(i+1)-1
+        nupper = max(nupper, s%ja(j) - i)
+        nlower = max(nlower, i - s%ja(j))
+      end do
+    end do
+
+    ! initialize band matrix
+    call b%init(s%nrows, nlower, nupper = nupper)
+  end if
 
   ! insert values into band matrix
   do i = 1, s%nrows
@@ -48,6 +64,12 @@ module subroutine band_to_dense_{}T{}(b, d, i0, j0)
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ! initialize if necessary
+  if (.not. allocated(d%d)) then
+    m4_assert((.not. present(i0)) .and. (.not. present(j0)))
+    call d%init(b%nrows)
+  end if
 
   ! insert elements into dense matrix
   do j = 1, b%ncols
@@ -83,11 +105,17 @@ module recursive subroutine block_to_dense_{}T{}(b, d, i0, j0)
 
   m4_assert(b%check_sizes())
 
+  ! initialize if necessary
+  if (.not. allocated(d%d)) then
+    m4_assert((.not. present(i0)) .and. (.not. present(j0)))
+    call d%init(b%nrows, ncols = b%ncols)
+  end if
+
   ! insert elements blockwise
   associate (bi0 => b%i0, bj0 => b%j0)
     do ib = 1, b%nbrows
       ! determine range for column blocks
-      if      (b%diag   ) then
+      if (b%diag) then
         jb0 = ib
       else if (b%tridiag) then
         jb0 = [ib-1, ib+1]
@@ -136,6 +164,12 @@ module subroutine dense_to_dense_{}T{}(d1, d2, i0, j0)
   j0_ = 1
   if (present(j0)) j0_ = j0
 
+  ! initialize if necessary
+  if (.not. allocated(d2%d)) then
+    m4_assert((.not. present(i0)) .and. (.not. present(j0)))
+    call d2%init(d1%nrows, ncols = d1%ncols)
+  end if
+
   ! end indices
   i1 = i0_ + d1%nrows - 1
   j1 = j0_ + d1%ncols - 1
@@ -158,14 +192,19 @@ module subroutine sparse_to_dense_{}T{}(s, d, i0, j0)
   integer             :: i, i0_, j0_
   integer(SPARSE_IDX) :: j
 
-  m4_assert(.not. s%is_empty())
-  m4_assert(allocated(d%d))
-
   ! optional arguments
   i0_ = 1
   if (present(i0)) i0_ = i0
   j0_ = 1
   if (present(j0)) j0_ = j0
+
+  ! initialize if necessary
+  if (.not. allocated(d%d)) then
+    m4_assert((.not. present(i0)) .and. (.not. present(j0)))
+    call d%init(s%nrows, ncols = s%ncols)
+  end if
+
+  if (s%is_empty()) return
 
   ! insert values into dense matrix
   do i = 1, s%nrows
@@ -222,6 +261,8 @@ module subroutine band_to_spbuild_{}T{}(b, sb, i0, j0, struct, drop_zeros)
   j0_ = 1
   if (present(j0)) j0_ = j0
 
+  m4_assert(associated(sb%sp))
+
   ! insert values
   do j = 1, b%ncols
     do i = -b%nupper, b%nlower
@@ -229,7 +270,7 @@ module subroutine band_to_spbuild_{}T{}(b, sb, i0, j0, struct, drop_zeros)
       if ((k < 1) .or. (k > b%nrows)) cycle
 
       ! check structure
-      if      (present(struct)) then
+      if (present(struct)) then
         if (.not. struct(k,j)) cycle
       else if (drop_zeros_) then
         if (b%d(i,j) == 0) cycle
@@ -270,6 +311,7 @@ module subroutine block_to_spbuild_{}T{}(b, sb, i0, j0, struct, drop_zeros)
   if (present(j0)) j0_ = j0
 
   m4_assert(b%check_sizes())
+  m4_assert(associated(sb%sp))
 
   ! insert elements blockwise
   associate (bi0 => b%i0, bi1 => b%i1, bj0 => b%j0, bj1 => b%j1)
@@ -287,30 +329,30 @@ module subroutine block_to_spbuild_{}T{}(b, sb, i0, j0, struct, drop_zeros)
         if (.not. associated(b%b(ib,jb)%p)) cycle
 
         select type (m => b%b(ib,jb)%p)
-          class is (block_{}T)
-            if (present(struct)) then
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-            else
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-            end if
-          type is (band_{}T)
-            if (present(struct)) then
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-            else
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-            end if
-          type is (dense_{}T)
-            if (present(struct)) then
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-            else
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-            end if
-          type is (sparse_{}T)
-            if (present(struct)) then
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
-            else
-              call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
-            end if
+        class is (block_{}T)
+          if (present(struct)) then
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
+          else
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
+          end if
+        type is (band_{}T)
+          if (present(struct)) then
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
+          else
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
+          end if
+        type is (dense_{}T)
+          if (present(struct)) then
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
+          else
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
+          end if
+        type is (sparse_{}T)
+          if (present(struct)) then
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, struct = struct(bi0(ib):bi1(ib), bj0(jb):bj1(jb)))
+          else
+            call matrix_convert(m, sb, i0 = i0_+bi0(ib)-1, j0 = j0_+bj0(jb)-1, drop_zeros = drop_zeros)
+          end if
         end select
       end do
     end do
@@ -351,6 +393,8 @@ module subroutine dense_to_spbuild_{}T{}(d, sb, i0, j0, struct, drop_zeros)
   if (present(struct)) then
     m4_assert(size(d%d, 1) == size(struct, 1) .and. size(d%d, 2) == size(struct, 2))
   end if
+
+  m4_assert(associated(sb%sp))
 
   ! insert values
   do i = 1, d%nrows
@@ -399,6 +443,8 @@ module subroutine sparse_to_spbuild_{}T{}(s, sb, i0, j0, struct, drop_zeros)
   j0_ = 1
   if (present(j0)) j0_ = j0
 
+  m4_assert(associated(sb%sp))
+
   ! insert values into second sparse matrix
   do i = 1, s%nrows
     do j = s%ia(i), s%ia(i+1)-1
@@ -416,6 +462,7 @@ module subroutine sparse_to_spbuild_{}T{}(s, sb, i0, j0, struct, drop_zeros)
 end subroutine
 
 m4_divert(m4_ifelse(T,cmplx,0,-1))
+
   module subroutine to_real_band(bc_in, br_out)
     !! Convert band complex matrix to real by ignoring imaginary part.
     type(band_cmplx), intent(in)  :: bc_in
@@ -453,7 +500,9 @@ m4_divert(m4_ifelse(T,cmplx,0,-1))
       allocate (sr_out%a( size(sc_in%a ,kind=SPARSE_IDX)), source = real(sc_in%a))
     end if
   end subroutine
+
 m4_divert(m4_ifelse(T,real,0,-1))
+
   module subroutine to_cmplx_band(br_in, bc_out)
     !! Convert band real matrix to complex.
     type(band_real),  intent(in)  :: br_in
@@ -491,4 +540,5 @@ m4_divert(m4_ifelse(T,real,0,-1))
       allocate (sc_out%a( size(sr_in%a ,kind=SPARSE_IDX)), source = cmplx(sr_in%a))
     end if
   end subroutine
+
 m4_divert(0)
