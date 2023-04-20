@@ -134,8 +134,8 @@ contains
 
       ! extract result and derivative from dual number
       call this%mob%set(idx1, mob%x)
-      call this%jaco_iref%set(idx1, idx1, - mob%dx(1))
-      call this%jaco_iref%set(idx1, idx2,   mob%dx(1))
+      call this%jaco_iref%set(idx, idx1, - mob%dx(1))
+      call this%jaco_iref%set(idx, idx2,   mob%dx(1))
     end do
   end subroutine
 

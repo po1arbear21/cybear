@@ -92,8 +92,8 @@ contains
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(), this%st_em%get_ptr(),  &
       & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
 
-
     allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+
     ! loop over poisson edges
     do idx_dir = 1, par%g%idx_dim
       do i = 1, par%poisson(IDX_EDGE,idx_dir)%n
@@ -120,7 +120,7 @@ contains
       idx1 = par%transport_vct(0)%get_idx(i)
 
       ! set jaco_rho entries
-      call this%jaco_rho%set(idx1, idx1, - par%vol%get(idx1))
+      call this%jaco_rho%set(idx1, idx1, - par%tr_vol%get(idx1))
     end do
 
     ! loop over contacted vertices

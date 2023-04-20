@@ -171,18 +171,18 @@ contains
       dber2 = ch * dberdx(ch * (pot2 - pot1))
 
       ! set current density
-      call this%cdens%set(idx1, - mob * (ber1 * dens2 - ber2 * dens1) / len)
+      call this%cdens%set(idx, - mob * (ber1 * dens2 - ber2 * dens1) / len)
 
       ! set jaco_pot entries
-      call this%jaco_pot%set(idx1, idx1, - mob * (dber1 * dens2 + dber2 * dens1) / len)
-      call this%jaco_pot%set(idx1, idx2,   mob * (dber1 * dens2 + dber2 * dens1) / len)
+      call this%jaco_pot%set(idx, idx1, - mob * (dber1 * dens2 + dber2 * dens1) / len)
+      call this%jaco_pot%set(idx, idx2,   mob * (dber1 * dens2 + dber2 * dens1) / len)
 
       ! set jaco_dens entries
-      call this%jaco_dens%set(idx1, idx1,   mob * ber2 / len)
-      call this%jaco_dens%set(idx1, idx2, - mob * ber1 / len)
+      call this%jaco_dens%set(idx, idx1,   mob * ber2 / len)
+      call this%jaco_dens%set(idx, idx2, - mob * ber1 / len)
 
       ! set jaco_mob entries
-      call this%jaco_mob%set(idx1, idx1, -(ber1 * dens2 - ber2 * dens1) / len)
+      call this%jaco_mob%set(idx, idx, -(ber1 * dens2 - ber2 * dens1) / len)
     end do
   end subroutine
 

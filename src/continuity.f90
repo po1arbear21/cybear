@@ -106,8 +106,8 @@ contains
         surf = par%tr_surf(idx_dir)%get(idx)
 
         ! set values if uncontacted
-        if (par%ict%get(idx1) == 0) call this%jaco_cdens(idx_dir)%p%set(idx1, idx1,  surf)
-        if (par%ict%get(idx2) == 0) call this%jaco_cdens(idx_dir)%p%set(idx2, idx1, -surf)
+        if (par%ict%get(idx1) == 0) call this%jaco_cdens(idx_dir)%p%set(idx1, idx,  surf)
+        if (par%ict%get(idx2) == 0) call this%jaco_cdens(idx_dir)%p%set(idx2, idx, -surf)
       end do
     end do
 

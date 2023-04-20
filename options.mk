@@ -18,7 +18,7 @@ IDXSIZE = 32
 # USE_MUMPS    = true
 # USE_QUADPACK = true
 # USE_MPFR     = true
-# USE_TRIANGLE = true
+USE_TRIANGLE = true
 
 # python 3
 PYTHON = python3
