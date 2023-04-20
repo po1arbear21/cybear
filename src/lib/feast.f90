@@ -302,6 +302,7 @@ contains
     else if ( info >   100                    ) then
       print *, '[FEAST ERROR] Problem with ith value of the input FEAST parameter (i.e fpm(i)). i: '//int2str(info-100)
     else if ((info >=    1) .and. (info <=  7)) then
+      check_info = .true.
       print *, '[FEAST WARNING] '//WARNING_X(info)
     else if ((info >=   -3) .and. (info <= -1)) then
       print *, '[FEAST ERROR] '//ERROR_NEG_X(info)

@@ -7,11 +7,13 @@ module test_analysis_m
   use harmonic_balance_m, only: harmonic_balance
   use jacobian_m,         only: jacobian, jacobian_ptr
   use math_m,             only: PI, linspace, logspace
+  use qsort_m
   use res_equation_m,     only: res_equation
   use small_signal_m,     only: small_signal
   use stencil_m,          only: dirichlet_stencil
   use transient_m,        only: transient
   use variable_m,         only: variable_real
+  use normalization_m,    only: denorm, norm, init_normconst
 
   implicit none
 
@@ -274,8 +276,10 @@ contains
     type(dt_phi)       :: dt_ph(1:Np)
     type(dt_omega)     :: dt_om(1:Np)
     type(dt_omega0)    :: dt_om0
-    type(esystem)      :: es
+    type(esystem)      :: sys
     type(test_case)    :: tc
+
+    call init_normconst(300.0)
 
     call tc%init("analysis")
 
@@ -297,30 +301,72 @@ contains
     call dt_om0%init(om(0), om(1:Np), torque, cpl, cpl_torque)
 
     ! forced oscillation
-    call es%init("es")
+    call sys%init("sys")
     do i = 1, Np
-      call es%add_equation(dt_ph(i))
-      call es%add_equation(dt_om(i))
+      call sys%add_equation(dt_ph(i))
+      call sys%add_equation(dt_om(i))
     end do
-    call es%add_equation(dt_om0)
-    call es%provide(torque, input=.true.)
-    call es%init_final()
+    call sys%add_equation(dt_om0)
+    call sys%provide(torque, input=.true.)
+    call sys%init_final()
 
     ! test small-signal
     block
       integer, parameter   :: Ns = 501
+      ! integer :: funit
       real,    allocatable :: f(:)
       complex, allocatable :: s(:)
       type(small_signal)   :: ac
 
-      f = logspace(0.1, 10.0, Ns)
+      f = logspace(norm(1e12, "Hz"), norm(1e16, "Hz"), Ns)
       s = (0.0, 1.0) * 2 * PI * f
-      call ac%run_analysis(es, s)
 
-      do i = 1, Ns
-        call ac%select_abs(1, i)
-        ! print "(2ES24.16)", f(i), om(0)%x
-      end do
+      call ac%run_analysis(sys, s)
+
+      ! open (newunit = funit, file = "test_analysis_ac.csv", status = "replace", action = "write")
+      ! do i = 1, Ns
+      !   call ac%select_abs(1, i)
+      !   write (funit, "(2ES24.16)") denorm(f(i), "Hz"), denorm(om(0)%x/(2*PI), "Hz")
+      ! end do
+      ! close (funit)
+    end block
+
+    ! test eigenvalues
+    block
+      type(eigenvalues)    :: ev
+      integer, allocatable :: iperm(:)
+      complex, allocatable :: s0(:), s(:)
+      real,    allocatable :: rs(:)
+
+      call ev%run_dense(sys)
+
+      ! sort eigenvalues first by real, second by imaginary part
+      s  = ev%s
+      rs = s%re + 1e-10*s%im
+      allocate(iperm(11))
+      call qsort(rs, perm = iperm)
+      s  = ev%s(iperm)
+
+      ! expected eigenvalues
+      s0 = [(-29.477027751781566,0.0000000000000000),(-2.3758873640866458,-31.080669491471138),(-2.3758873640866458,31.080669491471138) ,&
+        &   (-2.3041691892613754,-24.760886319459313),(-2.3041691892613754,24.760886319459313),(-2.2094222878019485,-18.452485263367521)   ,&
+        &   (-2.2094222878019485,18.452485263367521),(-2.0942062971115272,-12.168953613072720),(-2.0942062971115272,12.168953613072720) ,&
+        &   (-2.0278009858477133,-5.8635875624516389),(-2.0278009858477133,5.8635875624516389)]
+
+      call tc%assert_eq(s0, s, 1e-9, "ev")
+
+      m4_divert(m4_ifdef({m4_feast},0,-1))
+
+      ! get eigenvalues in left complex half-plane
+      call ev%run_feast(sys, 12, abcd = cmplx([1.0, 1.0, -1.0, 1.0]))
+      s  = ev%s
+      rs = s%re + 1e-10*s%im
+      call qsort(rs, perm = iperm)
+      s  = ev%s(iperm)
+
+      call tc%assert_eq(s0, s, 1e-8, "ev_feast")
+
+      m4_divert(0)
     end block
 
     call tc%finish()
