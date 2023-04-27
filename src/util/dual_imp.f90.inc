@@ -388,6 +388,15 @@ elemental function dual_exp_{}N{}(x) result(r)
   r%dx = r%x * x%dx
 end function
 
+elemental function dual_expm1_{}N{}(x) result(r)
+  !! compute exp(x) - 1
+  type(dual_{}N), intent(in) :: x
+  type(dual_{}N)             :: r
+
+  r%x  = expm1(x%x)
+  r%dx = exp(x%x) * x%dx
+end function
+
 elemental function dual_log_{}N{}(x) result(r)
   !! compute natural logarithm of dual number
   type(dual_{}N), intent(in) :: x
@@ -395,6 +404,15 @@ elemental function dual_log_{}N{}(x) result(r)
 
   r%x  = log(x%x)
   r%dx = x%dx / x%x
+end function
+
+elemental function dual_log1p_{}N{}(x) result(r)
+  !! compute log(x + 1)
+  type(dual_{}N), intent(in) :: x
+  type(dual_{}N)             :: r
+
+  r%x  = log1p(x%x)
+  r%dx = x%dx / (1.0 + x%x)
 end function
 
 elemental function dual_sin_{}N{}(x) result(r)

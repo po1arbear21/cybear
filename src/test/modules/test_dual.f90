@@ -220,8 +220,24 @@ contains
       y(1:) = exp([x, x])
 
       do i = 0, 2
-        call tc%assert_eq(7.38905609893065, y(i)%x    , tol, "exp value"     )
+        call tc%assert_eq(7.38905609893065, y(i)%x,     tol, "exp value"     )
         call tc%assert_eq(7.38905609893065, y(i)%dx(1), tol, "exp derivative")
+      end do
+    end block
+
+    ! test expm1
+    block
+      integer :: i
+      type(dual_1) :: x, y(0:2)
+
+      call x%init(2.0, 1)
+
+      y(0  ) = expm1(x)
+      y(1:2) = expm1([x, x])
+
+      do i = 0, 2
+        call tc%assert_eq(6.38905609893065, y(i)%x,     tol, "expm1 value")
+        call tc%assert_eq(7.38905609893065, y(i)%dx(1), tol, "expm1 derivative")
       end do
     end block
 
@@ -236,8 +252,24 @@ contains
       y(1:) = log([x, x])
 
       do i = 0, 2
-        call tc%assert_eq(0.6931471805599453, y(i)%x    , tol, "log value"     )
+        call tc%assert_eq(0.6931471805599453, y(i)%x,     tol, "log value"     )
         call tc%assert_eq(0.5               , y(i)%dx(1), tol, "log derivative")
+      end do
+    end block
+
+    ! test log1p
+    block
+      integer      :: i
+      type(dual_1) :: x, y(0:2)
+
+      call x%init(2.0, 1)
+
+      y(0)  = log1p(x)
+      y(1:) = log1p([x, x])
+
+      do i = 0, 2
+        call tc%assert_eq(1.0986122886681096, y(i)%x,     tol, "log1p value"     )
+        call tc%assert_eq(0.3333333333333333, y(i)%dx(1), tol, "log1p derivative")
       end do
     end block
 

@@ -3,13 +3,14 @@ m4_include(macro.f90.inc)
 module dual_m
 
   use error_m, only: assert_failed
+  use math_m,  only: expm1, log1p
 
   implicit none
 
   private
 
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public abs, cos, dot_product, exp, log, sin, sqrt, sum, tan
+  public abs, cos, dot_product, exp, expm1, log, log1p, sin, sqrt, sum, tan
 
   ! maximum supported dimension
   m4_define({m4_max_dim},{8})

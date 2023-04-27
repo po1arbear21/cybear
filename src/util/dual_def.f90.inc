@@ -72,8 +72,16 @@ interface exp
   module procedure :: dual_exp_{}N
 end interface
 
+interface expm1
+  module procedure :: dual_expm1_{}N
+end interface
+
 interface log
   module procedure :: dual_log_{}N
+end interface
+
+interface log1p
+  module procedure :: dual_log1p_{}N
 end interface
 
 interface sin
