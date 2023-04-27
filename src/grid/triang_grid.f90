@@ -69,6 +69,7 @@ module triang_grid_m
     procedure :: get_neighb     => triang_grid_get_neighb
     procedure :: output         => triang_grid_output
     procedure :: output_plotmtv => triang_grid_output_plotmtv
+    procedure :: adjoint        => triang_grid_adjoint
   end type
 
   type node
@@ -640,6 +641,49 @@ contains
     end associate
 
     call pmtv%close()
+  end subroutine
+
+  subroutine triang_grid_adjoint(this, ic, len, surf)
+    class(triang_grid), intent(in) :: this
+    integer,            intent(in) :: ic
+      !! triangle cell index
+    real,               intent(out) :: len(:)
+      !! output: 3 triangle egdes lengths
+    real,               intent(out) :: surf(:)
+      !! output: adjoint surfaces per edge (3)
+
+    integer :: iv1, iv2, ie
+    real    :: R
+      !! circumscribed radius
+    real    :: p(2,3)
+      !! vertex coordinates, size = (dim=2, 3)
+    integer :: ii
+
+    call this%get_cell([ic], p)
+
+    ! get edge lengths
+    do ii = 1, 3
+      ie  = this%cell2edge(ii,ic)
+      iv1 = this%edge2vert( 1,ie)
+      iv2 = this%edge2vert( 2,ie)
+
+      p(:,1) = this%vert(:,iv1)
+      p(:,2) = this%vert(:,iv2)
+
+      len(ii) = sqrt((p(1,2) - p(1,1))**2 + (p(2,2) - p(2,1))**2)
+    end do
+
+    ! circumradius
+    R = (len(2)*len(1)*len(3))/sqrt((len(1)+len(2)+len(3))*(len(1)+len(2)-len(3))*(len(1)-len(2)+len(3))*(-len(1)+len(2)+len(3)))
+
+    ! adjoint surface parts
+    do ii = 1, 3
+      if (R <= len(ii)*0.5) then
+        surf(ii) = 0
+      else
+        surf(ii) = sqrt(R**2 - (len(ii)*0.5)**2)
+      end if
+    end do
   end subroutine
 
 end module
