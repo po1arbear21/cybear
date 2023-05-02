@@ -1,5 +1,11 @@
 module contact_m
 
+  use carrier_m,       only: CR_ELEC, CR_HOLE
+  use newton_m,        only: newton1D, newton1D_opt
+  use grid_data_m,     only: grid_data_real
+  use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
+  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
+
   implicit none
 
   private
@@ -18,6 +24,80 @@ module contact_m
       !! type of contact (CT_OHMIC, CT_GATE)
     real                      :: phims
       !! metal-semiconductor workfunction difference
+  contains
+    procedure :: set_phims_ohmic => contact_set_phims_ohmic
   end type
+
+contains
+
+  subroutine contact_set_phims_ohmic(this, ci0, ci1, dcon, acon, degen, edos, band_edge, n_intrin)
+    class(contact),        intent(inout) :: this
+    integer,               intent(in)    :: ci0, ci1
+    real,                  intent(in)    :: dcon, acon
+    logical,               intent(in)    :: degen
+    real,                  intent(in)    :: edos(2), band_edge(2), n_intrin
+
+    real               :: IF12, dIF12, phims0
+    type(newton1D_opt) :: opt
+
+    if ((ci0 == CR_ELEC) .and. (ci1 == CR_HOLE)) then
+      if (degen) then
+        if (dcon > acon) then
+          call inv_fermi_dirac_integral_1h(dcon / edos(CR_ELEC), IF12, dIF12)
+          phims0 = band_edge(CR_ELEC) + IF12
+        else
+          call inv_fermi_dirac_integral_1h(acon / edos(CR_HOLE), IF12, dIF12)
+          phims0 = band_edge(CR_HOLE) - IF12
+        end if
+        call opt%init()
+        call newton1D(phims_newton, [dcon, acon], opt, phims0, this%phims)
+      else
+        this%phims = asinh(0.5 * (dcon - acon) / n_intrin)
+      end if
+    elseif (ci0 == CR_ELEC) then
+      if (degen) then
+        call inv_fermi_dirac_integral_1h(dcon / edos(CR_ELEC), IF12, dIF12)
+        this%phims = band_edge(CR_ELEC) + IF12
+      else
+        this%phims = log(dcon / n_intrin)
+      end if
+    elseif (ci1 == CR_HOLE) then
+      if (degen) then
+        call inv_fermi_dirac_integral_1h(acon / edos(CR_HOLE), IF12, dIF12)
+        this%phims = band_edge(CR_HOLE) - IF12
+      else
+        this%phims = -log(acon / n_intrin)
+      end if
+    end if
+
+  contains
+
+    subroutine phims_newton(x, p, f, dfdx, dfdp)
+      real,              intent(in)  :: x
+        !! argument (phims)
+      real,              intent(in)  :: p(:)
+        !! parameters (dcon, acon)
+      real,              intent(out) :: f
+        !! output function value
+      real,    optional, intent(out) :: dfdx
+        !! optional output derivative of f wrt x
+      real,    optional, intent(out) :: dfdp(:)
+        !! optional output derivatives of f wrt p
+
+      real :: Fn, dFn, Fp, dFp
+
+      call fermi_dirac_integral_1h(x - band_edge(CR_ELEC), Fn, dFn)
+      call fermi_dirac_integral_1h(band_edge(CR_HOLE) - x, Fp, dFp)
+
+      f = edos(CR_ELEC) * Fn - edos(CR_HOLE) * Fp - p(1) + p(2)
+      if (present(dfdx)) then
+        dfdx = edos(CR_ELEC) * dFn + edos(CR_HOLE) * dFp
+      end if
+      if (present(dfdp)) then
+        dfdp(1) = -1
+        dfdp(2) = +1
+      end if
+    end subroutine
+  end subroutine
 
 end module

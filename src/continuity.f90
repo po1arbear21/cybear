@@ -9,6 +9,7 @@ module continuity_m
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
   use vselector_m,       only: vselector
   use error_m,           only: assert_failed, program_error
+  use distributions_m,   only: fermi_dirac_integral_1h
 
   implicit none
 
@@ -26,6 +27,9 @@ module continuity_m
       !! main variable: density
     type(vselector), allocatable :: cdens(:)
       !! dependencies: current densities in 2 directions
+
+    real, allocatable :: b(:)
+      !! right-hand side
 
     type(dirichlet_stencil)                :: st_dir
     type(near_neighb_stencil), allocatable :: st_nn(:)
@@ -54,7 +58,7 @@ contains
     integer              :: i, ict, idx_dir, idens, idx_dim
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
-    real                 :: surf
+    real                 :: surf, F12, dF12
 
     ! init base
     call this%equation_init(CR_NAME(dens%ci)//"continuity")
@@ -124,6 +128,17 @@ contains
       end if
     end do
 
+    ! boundary conditions
+    allocate (this%b(size(par%contacts)))
+    do ict = 1, size(par%contacts)
+      if (par%degen) then
+        call fermi_dirac_integral_1h(- CR_CHARGE(this%ci) * (par%contacts(ict)%phims - par%band_edge(this%ci)), F12, dF12)
+        this%b(ict) = par%edos(this%ci) * F12
+      else
+        this%b(ict) = par%n_intrin * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims)
+      end if
+    end do
+
     ! finish initialization
     call this%init_final()
   end subroutine
@@ -149,7 +164,7 @@ contains
     do ict = 1, size(this%par%contacts)
       do i = 1, this%par%transport_vct(ict)%n
         idx = this%par%transport_vct(ict)%get_idx(i)
-        call this%f%update(idx, [-this%par%n_intrin * exp(- CR_CHARGE(this%ci) * this%par%contacts(ict)%phims)])
+        call this%f%update(idx, [-this%b(ict)])
       end do
     end do
   end subroutine

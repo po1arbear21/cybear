@@ -35,6 +35,10 @@ module region_m
     procedure :: point_test => region_contact_point_test
   end type
 
+  type region_ptr
+    class(region), pointer :: p => null()
+  end type
+
 contains
 
   subroutine region_init(this, file, sid, gtype)
@@ -136,9 +140,12 @@ contains
     case ("x")
       t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1))
     case ("xy")
-      t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. (this%xyz(2,1) <= point(2)) .and.(this%xyz(2,2) >= point(2))
+      t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. &
+        & (this%xyz(2,1) <= point(2)) .and. (this%xyz(2,2) >= point(2))
     case ("xyz")
-      t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. (this%xyz(2,1) <= point(2)) .and.(this%xyz(2,2) >= point(2)) .and. (this%xyz(3,1) <= point(3)) .and. (this%xyz(3,2) >= point(3))
+      t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. &
+        & (this%xyz(2,1) <= point(2)) .and. (this%xyz(2,2) >= point(2)) .and. &
+        & (this%xyz(3,1) <= point(3)) .and. (this%xyz(3,2) >= point(3))
     case("tr_xy")
       n_intersection = 0
       p0x = point(1)
@@ -208,9 +215,12 @@ contains
     case ("x")
       t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1))
     case ("xy")
-      t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. (this%xyz(2,1) - TOL <= point(2)) .and.(this%xyz(2,2) + TOL >= point(2))
+      t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. &
+        & (this%xyz(2,1) - TOL <= point(2)) .and. (this%xyz(2,2) + TOL >= point(2))
     case ("xyz")
-      t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. (this%xyz(2,1) - TOL <= point(2)) .and.(this%xyz(2,2) + TOL >= point(2)) .and. (this%xyz(3,1) - TOL <= point(3)) .and. (this%xyz(3,2) + TOL >= point(3))
+      t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. &
+        & (this%xyz(2,1) - TOL <= point(2)) .and. (this%xyz(2,2) + TOL >= point(2)) .and. &
+        & (this%xyz(3,1) - TOL <= point(3)) .and. (this%xyz(3,2) + TOL >= point(3))
     case("tr_xy")
       p0x = point(1)
       p0y = point(2)

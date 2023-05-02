@@ -9,6 +9,7 @@ module imref_m
   use potential_m,     only: potential
   use variable_m,      only: variable_real
   use error_m,         only: assert_failed, program_error
+  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
 
   implicit none
 
@@ -135,10 +136,11 @@ contains
     !! evaluate imref calculation equation
     class(calc_imref), intent(inout) :: this
 
-    integer              :: i
-    real                 :: ch, pot, dens, iref
+    integer              :: i, ci
+    real                 :: ch, pot, dens, iref, IF12, dIF12
     integer, allocatable :: idx(:)
 
+    ci = this%iref%ci
     ch = CR_CHARGE(this%iref%ci)
 
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
@@ -147,11 +149,18 @@ contains
       ! calculate imref
       pot  = this%pot%get(idx)
       dens = this%dens%get(idx)
-      iref = pot + ch * log(dens / this%par%n_intrin)
-      call this%iref%set(idx, iref)
+      if (this%par%degen) then
+        call inv_fermi_dirac_integral_1h(dens / this%par%edos(ci), IF12, dIF12)
+        iref = pot - this%par%band_edge(ci) + ch * IF12
 
-      ! set jaco_dens entries
-      call this%jaco_dens%set(idx, idx, ch / dens)
+        call this%iref%set(idx, iref)
+        call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%edos(ci))
+      else
+        iref = pot + ch * log(dens / this%par%n_intrin)
+
+        call this%iref%set(idx, iref)
+        call this%jaco_dens%set(idx, idx, ch / dens)
+      end if
     end do
   end subroutine
 
@@ -193,11 +202,12 @@ contains
     !! evaluate density calculation equation
     class(calc_density), intent(inout) :: this
 
-    integer               :: i
-    real                  :: ch, pot, dens, iref
+    integer               :: i, ci
+    real                  :: ch, pot, dens, iref, F12, dF12
     integer, allocatable  :: idx(:)
 
-    ch = CR_CHARGE(this%iref%ci)
+    ci = this%iref%ci
+    ch = CR_CHARGE(ci)
     allocate (idx(this%par%g%idx_dim))
 
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
@@ -206,12 +216,20 @@ contains
       ! calculate density
       pot  = this%pot%get(idx)
       iref = this%iref%get(idx)
-      dens = this%par%n_intrin * exp(ch * (iref - pot))
-      call this%dens%set(idx, dens)
+      if (this%par%degen) then
+        call fermi_dirac_integral_1h(ch * (iref - pot + this%par%band_edge(ci)), F12, dF12)
+        dens = this%par%edos(ci) * F12
 
-      ! set jacobian entries
-      call this%jaco_pot%set( idx, idx, -ch*dens)
-      call this%jaco_iref%set(idx, idx,  ch*dens)
+        call this%dens%set(idx, dens)
+        call this%jaco_pot%set( idx, idx, - ch * this%par%edos(ci) * dF12)
+        call this%jaco_iref%set(idx, idx,   ch * this%par%edos(ci) * dF12)
+      else
+        dens = this%par%n_intrin * exp(ch * (iref - pot))
+
+        call this%dens%set(idx, dens)
+        call this%jaco_pot%set( idx, idx, - ch*dens)
+        call this%jaco_iref%set(idx, idx,   ch*dens)
+      end if
     end do
   end subroutine
 

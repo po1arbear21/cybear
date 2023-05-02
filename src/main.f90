@@ -159,38 +159,6 @@ contains
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
 
 block
-  use eigenvalues_m
-
-  type(eigenvalues) :: ev
-  integer :: funit, i
-
-  call ev%run(dev%sys_full)
-
-  print *, ev%s
-
-  open (newunit = funit, file = "s.csv", status = "replace", action = "write")
-
-  write (funit, "(A)") "% linetype=0 markertype=3"
-  do i = 1, size(ev%s)
-    write (funit,"(2ES24.16)") denorm(real(ev%s(i)), "1/s"), denorm(imag(ev%s(i))/(2*PI), "Hz")
-  end do
-  ! do ii = 1, dev%par%gtr%nedge
-  !   i1 = dev%par%gtr%edge2vert(1, ii)
-  !   i2 = dev%par%gtr%edge2vert(2, ii)
-  !   call dev%par%gtr%get_vertex([i1], xy1)
-  !   call dev%par%gtr%get_vertex([i2], xy2)
-
-  !   write (funit, "(3ES24.16)") denorm(xy1(1), "nm"), denorm(xy1(2), "nm"), denorm(dev%pot%x1(i1), "V")
-  !   write (funit, "(3ES24.16)") denorm(xy2(1), "nm"), denorm(xy2(2), "nm"), denorm(dev%pot%x1(i2), "V")
-  !   write (funit, *)
-  ! end do
-  ! write (funit, "(A)") "$ END"
-
-  close (funit)
-
-  stop
-end block
-block
   use grid_m
   integer :: ii, funit, idx_dir, i1, i2
   integer, allocatable :: idx(:), idx1(:), idx2(:)
@@ -228,7 +196,7 @@ block
   !   print "(2I6,2ES24.16)", ii, 2, denorm(dev%par%eps(IDX_EDGE,1)%get([ii,2]), "eps0")
   ! end do
   ! do ii = 1, dev%par%g1D(2)%n-1
-  !   print "(2I6,2ES24.16)", 25, ii, denorm(dev%par%eps(IDX_EDGE,2)%get([25,ii]), "eps0")
+  !   print "(2I6,2ES24.16)", 25, ii, denorm(dev%par%dop(IDX_VERTEX, 0, 1)%get([25,ii]), "1/cm^3")
   ! end do
   ! do ii = 1, dev%par%g1D(2)%n-1
   !   print "(2I6,2ES24.16)", 1, ii, denorm(dev%par%eps(IDX_EDGE,2)%get([1,ii]), "eps0")
@@ -263,9 +231,11 @@ block
   ! open (newunit = funit, file = "trxyz", status = "replace", action = "write")
   ! write (funit, "(A)") "$ DATA=CURVE3D"
   ! write (funit, *)
-  ! do idx_dir = 1, dev%par%g%idx_dim
-  !   do ii = 1, dev%par%poisson(IDX_EDGE,idx_dir)%n
-  !     idx = dev%par%poisson(IDX_EDGE,idx_dir)%get_idx(ii)
+  ! ! do idx_dir = 1, dev%par%g%idx_dim
+  !   idx_dir = 1
+  !   do ii = 1,  dev%par%gtr%nedge!dev%par%poisson(IDX_EDGE,idx_dir)%n
+  !     ! idx = dev%par%poisson(IDX_EDGE,idx_dir)%get_idx(ii)
+  !     idx = [ii, 10]
   !     call dev%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
   !     call dev%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
@@ -274,30 +244,30 @@ block
   !     write (funit, "(3ES24.16)") denorm(p(1,2), "nm"), denorm(p(2,2), "nm"), denorm(dev%pot%get(idx2), "V")
   !     write (funit, *)
   !   end do
-  ! end do
+  ! ! end do
 
   ! write (funit, "(A)") "$ END"
   ! close (funit)
 
 
-  open (newunit = funit, file = "mob0_trxyz", status = "replace", action = "write")
+  ! open (newunit = funit, file = "mob0_trxyz", status = "replace", action = "write")
 
-  write (funit, "(A)") "$ DATA=CURVE3D"
-  write (funit, *)
-  do ii = 1, dev%par%gtr%nedge
-    write (funit, "(A)") "%"
-    i1 = dev%par%gtr%edge2vert(1, ii)
-    i2 = dev%par%gtr%edge2vert(2, ii)
-    call dev%par%gtr%get_vertex([i1], xy1)
-    call dev%par%gtr%get_vertex([i2], xy2)
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! write (funit, *)
+  ! do ii = 1, dev%par%gtr%nedge
+  !   write (funit, "(A)") "%"
+  !   i1 = dev%par%gtr%edge2vert(1, ii)
+  !   i2 = dev%par%gtr%edge2vert(2, ii)
+  !   call dev%par%gtr%get_vertex([i1], xy1)
+  !   call dev%par%gtr%get_vertex([i2], xy2)
 
-    write (funit, "(3ES24.16)") denorm(xy1(1), "nm"), denorm(xy1(2), "nm"), denorm(dev%par%mob0(IDX_EDGE,1,1)%get([ii,1]), "cm^2/V/s")
-    write (funit, "(3ES24.16)") denorm(xy2(1), "nm"), denorm(xy2(2), "nm"), denorm(dev%par%mob0(IDX_EDGE,1,1)%get([ii,1]), "cm^2/V/s")
-    write (funit, *)
-  end do
-  write (funit, "(A)") "$ END"
+  !   write (funit, "(3ES24.16)") denorm(xy1(1), "nm"), denorm(xy1(2), "nm"), denorm(dev%par%(IDX_EDGE,1,1)%get([ii,1]), "cm^2/V/s")
+  !   write (funit, "(3ES24.16)") denorm(xy2(1), "nm"), denorm(xy2(2), "nm"), denorm(dev%par%mob0(IDX_EDGE,1,1)%get([ii,1]), "cm^2/V/s")
+  !   write (funit, *)
+  ! end do
+  ! write (funit, "(A)") "$ END"
 
-  close (funit)
+  ! close (funit)
 
   ! open (newunit = funit, file = "dconz_trxyz", status = "replace", action = "write")
 
@@ -316,24 +286,24 @@ block
 
   ! close (funit)
 
-  open (newunit = funit, file = "trxyz", status = "replace", action = "write")
+!   open (newunit = funit, file = "trxyz", status = "replace", action = "write")
 
-  write (funit, "(A)") "$ DATA=CURVE3D"
-  write (funit, *)
-  do ii = 1, dev%par%gtr%nedge
-    write (funit, "(A)") "%"
-    i1 = dev%par%gtr%edge2vert(1, ii)
-    i2 = dev%par%gtr%edge2vert(2, ii)
-    call dev%par%gtr%get_vertex([i1], xy1)
-    call dev%par%gtr%get_vertex([i2], xy2)
+!   write (funit, "(A)") "$ DATA=CURVE3D"
+!   write (funit, *)
+!   do ii = 1, dev%par%gtr%nedge
+!     write (funit, "(A)") "%"
+!     i1 = dev%par%gtr%edge2vert(1, ii)
+!     i2 = dev%par%gtr%edge2vert(2, ii)
+!     call dev%par%gtr%get_vertex([i1], xy1)
+!     call dev%par%gtr%get_vertex([i2], xy2)
 
-    write (funit, "(3ES24.16)") denorm(xy1(1), "nm"), denorm(xy1(2), "nm"), denorm(dev%pot%x2(i1,9), "V")
-    write (funit, "(3ES24.16)") denorm(xy2(1), "nm"), denorm(xy2(2), "nm"), denorm(dev%pot%x2(i2,9), "V")
-    write (funit, *)
-  end do
-  write (funit, "(A)") "$ END"
+!     write (funit, "(3ES24.16)") denorm(xy1(1), "nm"), denorm(xy1(2), "nm"), denorm(dev%pot%x2(i1,9), "V")
+!     write (funit, "(3ES24.16)") denorm(xy2(1), "nm"), denorm(xy2(2), "nm"), denorm(dev%pot%x2(i2,9), "V")
+!     write (funit, *)
+!   end do
+!   write (funit, "(A)") "$ END"
 
-  close (funit)
+!   close (funit)
 end block
     end do
   end subroutine
