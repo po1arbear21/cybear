@@ -110,11 +110,11 @@ contains
 
       ! estimate potential
       if ((par%ci0 == CR_ELEC) .and. (par%ci1 == CR_HOLE)) then
-        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + asinh(0.5 * (dop(CR_ELEC) - dop(CR_HOLE)) / par%n_intrin))
+        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + asinh(0.5 * (dop(CR_ELEC) - dop(CR_HOLE)) / par%smc%n_intrin))
       elseif (par%ci0 == CR_ELEC) then
-        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(CR_ELEC)/par%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(CR_ELEC)/par%smc%n_intrin, 1.0)))
       elseif (par%ci0 == CR_HOLE) then
-        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(CR_HOLE)/par%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(CR_HOLE)/par%smc%n_intrin, 1.0)))
       end if
     end do
   end subroutine
@@ -169,7 +169,7 @@ contains
         call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
         ! get "permittivity" (= mob * dens)
-        eps = par%mob0(IDX_EDGE,idx_dir,iref%ci)%get(idx) * max(par%n_intrin, par%dop(IDX_EDGE,idx_dir,iref%ci)%get(idx))
+        eps = par%mob0(IDX_EDGE,idx_dir,iref%ci)%get(idx) * max(par%smc%n_intrin, par%dop(IDX_EDGE,idx_dir,iref%ci)%get(idx))
 
         ! "capacitance" (= surf * mob * dens / len)
         cap = par%tr_surf(idx_dir)%get(idx) * eps / par%g%get_len(idx, idx_dir)

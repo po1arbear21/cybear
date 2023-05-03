@@ -149,14 +149,14 @@ contains
       ! calculate imref
       pot  = this%pot%get(idx)
       dens = this%dens%get(idx)
-      if (this%par%degen) then
-        call inv_fermi_dirac_integral_1h(dens / this%par%edos(ci), IF12, dIF12)
-        iref = pot - this%par%band_edge(ci) + ch * IF12
+      if (this%par%smc%degen) then
+        call inv_fermi_dirac_integral_1h(dens / this%par%smc%edos(ci), IF12, dIF12)
+        iref = pot - this%par%smc%band_edge(ci) + ch * IF12
 
         call this%iref%set(idx, iref)
-        call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%edos(ci))
+        call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%smc%edos(ci))
       else
-        iref = pot + ch * log(dens / this%par%n_intrin)
+        iref = pot + ch * log(dens / this%par%smc%n_intrin)
 
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch / dens)
@@ -216,15 +216,15 @@ contains
       ! calculate density
       pot  = this%pot%get(idx)
       iref = this%iref%get(idx)
-      if (this%par%degen) then
-        call fermi_dirac_integral_1h(ch * (iref - pot + this%par%band_edge(ci)), F12, dF12)
-        dens = this%par%edos(ci) * F12
+      if (this%par%smc%degen) then
+        call fermi_dirac_integral_1h(ch * (iref - pot + this%par%smc%band_edge(ci)), F12, dF12)
+        dens = this%par%smc%edos(ci) * F12
 
         call this%dens%set(idx, dens)
-        call this%jaco_pot%set( idx, idx, - ch * this%par%edos(ci) * dF12)
-        call this%jaco_iref%set(idx, idx,   ch * this%par%edos(ci) * dF12)
+        call this%jaco_pot%set( idx, idx, - ch * this%par%smc%edos(ci) * dF12)
+        call this%jaco_iref%set(idx, idx,   ch * this%par%smc%edos(ci) * dF12)
       else
-        dens = this%par%n_intrin * exp(ch * (iref - pot))
+        dens = this%par%smc%n_intrin * exp(ch * (iref - pot))
 
         call this%dens%set(idx, dens)
         call this%jaco_pot%set( idx, idx, - ch*dens)

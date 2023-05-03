@@ -2,58 +2,37 @@ m4_include(util/macro.f90.inc)
 
 module device_params_m
 
-  use bin_search_m,  only: bin_search
-  use carrier_m
-  use contact_m,     only: CT_OHMIC, CT_GATE, contact
-  use error_m,       only: assert_failed, program_error
-  use grid_m,        only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
-  use grid_data_m,   only: allocate_grid_data0_real, allocate_grid_data1_real, allocate_grid_data2_real, allocate_grid_data3_real, &
-  &                        allocate_grid_data0_int, allocate_grid_data1_int, grid_data_int, grid_data_real, grid_data2_int, grid_data2_real
-  use grid_table_m,  only: grid_table
-  use grid1D_m,      only: grid1D
-  use input_m,       only: input_file
-  use map_m,         only: map_string_int, mapnode_string_int
-  use math_m,        only: linspace
-  use qsort_m,       only: qsort
-  use region_m,      only: region, region_ptr, region_poisson, region_transport, region_doping, region_contact
-  use string_m,      only: string, new_string
-  use tensor_grid_m, only: tensor_grid
-  use triang_grid_m, only: triang_grid
-  use triangle_m,    only: triangulation
-  use vector_m,      only: vector_real
-  use grid_generator_m
+  use bin_search_m,     only: bin_search
+  use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use error_m,          only: assert_failed, program_error
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
+  use grid_data_m,      only: allocate_grid_data0_real, allocate_grid_data1_real, allocate_grid_data2_real, &
+    &                         allocate_grid_data3_real, allocate_grid_data0_int, allocate_grid_data1_int, &
+    &                         grid_data_int, grid_data_real, grid_data2_int, grid_data2_real
+  use grid_generator_m, only: DIR_NAME, generate_cartesian_grid, generate_triangle_grid
+  use grid_table_m,     only: grid_table
+  use grid1D_m,         only: grid1D
+  use input_m,          only: input_file
+  use map_m,            only: map_string_int, mapnode_string_int
+  use math_m,           only: linspace
+  use qsort_m,          only: qsort
+  use region_m,         only: region, region_ptr, region_poisson, region_transport, region_doping, region_contact
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, CR_NAME, CR_CHARGE, semiconductor
+  use string_m,         only: string, new_string
+  use tensor_grid_m,    only: tensor_grid
+  use triang_grid_m,    only: triang_grid
+  use triangle_m,       only: triangulation
+  use vector_m,         only: vector_real
 
   implicit none
 
   type device_params
     !! device geometry and material parameters
 
-    real              :: n_intrin
-      !! intrinsic carrier density
-    real              :: edos(2)
-      !! effective density of states Nc, Nv
-    real              :: band_gap
-      !! band gap
-    real              :: band_edge(2)
-      !! conduction/valence band edge
     integer           :: ci0, ci1
       !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
-    real, allocatable :: mass(:)
-      !! effective mass
-    logical           :: degen
-      !! degenerate case: Fermi-Dirac statistics
-    real, allocatable :: alpha(:)
-      !! Caughey-Thomas alpha parameter
-    real, allocatable :: beta(:)
-      !! Caughey-Thomas beta parameter
-    real, allocatable :: mob_min(:)
-      !! Caughey-Thomas minimal mobility
-    real, allocatable :: mob_max(:)
-      !! Caughey-Thomas maximal mobility
-    real, allocatable :: N_ref(:)
-      !! Caughey-Thomas reference density
-    real, allocatable :: v_sat(:)
-      !! Caughey-Thomas saturation velocity
+
+    type(semiconductor) :: smc
     real              :: curr_fact
     integer           :: dim
       !! grid dimension
@@ -135,9 +114,6 @@ contains
     class(device_params), target, intent(out) :: this
     type(input_file),             intent(in)  :: file
 
-    integer,      allocatable ::  idx_v(:), idx_v1(:), idx_v2(:), idx_e(:), idx_f(:), idx_c(:)
-    integer                   ::  idx_dir0(4), idx_dir1(4)
-
     call this%init_transport_params(file)
 
     ! get grid type ("x", "xy", "xyz", "tr_xy", "tr_xyz")
@@ -188,31 +164,31 @@ contains
     this%ci1 = CR_HOLE
     if (.not. elec) this%ci0 = CR_HOLE
     if (.not. hole) this%ci1 = CR_ELEC
-    call file%get(sid, "N_c",       this%edos(CR_ELEC))
-    call file%get(sid, "N_v",       this%edos(CR_HOLE))
-    call file%get(sid, "E_gap",     this%band_gap)
-    this%n_intrin = sqrt(this%edos(CR_ELEC) * this%edos(CR_HOLE) * exp(-this%band_gap))
-    this%band_edge(CR_ELEC) =   0.5 * this%band_gap + 0.5 * log(this%edos(CR_ELEC) / this%edos(CR_HOLE))
-    this%band_edge(CR_HOLE) = - 0.5 * this%band_gap + 0.5 * log(this%edos(CR_ELEC) / this%edos(CR_HOLE))
-    call file%get(sid, "mass",      this%mass)
-    call file%get(sid, "degen",     this%degen)
-    call file%get(sid, "alpha",     this%alpha)
-    call file%get(sid, "beta",      this%beta)
-    call file%get(sid, "mob_min",   this%mob_min)
-    call file%get(sid, "mob_max",   this%mob_max)
-    call file%get(sid, "N_ref",     this%N_ref)
-    call file%get(sid, "v_sat",     this%v_sat)
+    call file%get(sid, "N_c",       this%smc%edos(CR_ELEC))
+    call file%get(sid, "N_v",       this%smc%edos(CR_HOLE))
+    call file%get(sid, "E_gap",     this%smc%band_gap)
+    this%smc%n_intrin = sqrt(this%smc%edos(CR_ELEC) * this%smc%edos(CR_HOLE) * exp(-this%smc%band_gap))
+    this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
+    this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
+    call file%get(sid, "mass",      this%smc%mass)
+    call file%get(sid, "degen",     this%smc%degen)
+    call file%get(sid, "alpha",     this%smc%alpha)
+    call file%get(sid, "beta",      this%smc%beta)
+    call file%get(sid, "mob_min",   this%smc%mob_min)
+    call file%get(sid, "mob_max",   this%smc%mob_max)
+    call file%get(sid, "N_ref",     this%smc%N_ref)
+    call file%get(sid, "v_sat",     this%smc%v_sat)
     call file%get(sid, "curr_fact", this%curr_fact)
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
-    m4_assert(size(this%mass) == 2)
-    m4_assert(size(this%alpha) == 2)
-    m4_assert(size(this%beta) == 2)
-    m4_assert(size(this%mob_min) == 2)
-    m4_assert(size(this%mob_max) == 2)
-    m4_assert(size(this%N_ref) == 2)
-    m4_assert(size(this%v_sat) == 2)
+    m4_assert(size(this%smc%mass) == 2)
+    m4_assert(size(this%smc%alpha) == 2)
+    m4_assert(size(this%smc%beta) == 2)
+    m4_assert(size(this%smc%mob_min) == 2)
+    m4_assert(size(this%smc%mob_max) == 2)
+    m4_assert(size(this%smc%N_ref) == 2)
+    m4_assert(size(this%smc%v_sat) == 2)
   end subroutine
 
   subroutine device_params_init_regions(this, file)
@@ -282,7 +258,7 @@ contains
     type(input_file),             intent(in)    :: file
 
     real, allocatable :: max_dxyz(:), max_areadz(:)
-    real              :: max_dx, max_dy, max_dz, max_area
+    real              :: max_dz, max_area
     integer           :: i
 
     select case(this%gtype%s)
@@ -533,7 +509,6 @@ contains
     integer,       allocatable :: idx_e(:), idx_c(:), idx_v(:), idx_f(:)
     integer,       allocatable :: idx_v1(:), idx_v2(:)
     character(:),  allocatable :: table_name0, table_name
-    character(32), allocatable :: idx_dir_name(:)
     integer                    :: i0(3), i1(3), idx_type, i, j, k, ii, jj, kk, si, idx_dir, idx_dir2, idx_dir0(4), idx_dir1(4), ijk(3)
     real                       :: len, surf, vol, p(2,3), mid(2), edge(3), trsurf(3)
 
@@ -917,10 +892,10 @@ contains
     acon = 0
     dcon = 0
     do ci = this%ci0, this%ci1
-      mob_min = this%mob_min(ci)
-      mob_max = this%mob_max(ci)
-      N_ref   = this%N_ref(ci)
-      alpha   = this%alpha(ci)
+      mob_min = this%smc%mob_min(ci)
+      mob_max = this%smc%mob_max(ci)
+      N_ref   = this%smc%N_ref(ci)
+      alpha   = this%smc%alpha(ci)
 
       ! mobility in cells
       call this%mob0(IDX_CELL,0,ci)%init(this%g, IDX_CELL, 0)
@@ -1030,7 +1005,7 @@ contains
           if ((i > i1(1)) .or. (j > i1(2)).or. (k > i1(3))) call program_error("Ohmic contact "//name%s//" not in transport region")
           dcon = this%dop(IDX_VERTEX,0,CR_ELEC)%get(idx_v)
           acon = this%dop(IDX_VERTEX,0,CR_HOLE)%get(idx_v)
-          call this%contacts(ict)%set_phims_ohmic(CR_ELEC, CR_HOLE, dcon, acon, this%degen, this%edos, this%band_edge, this%n_intrin)
+          call this%contacts(ict)%set_phims_ohmic(CR_ELEC, CR_HOLE, dcon, acon, this%smc)
         else
           this%contacts(ict)%phims = this%reg_ct(si)%phims
         end if
@@ -1084,7 +1059,7 @@ contains
             if (ct_type == CT_OHMIC) then
               dcon = this%dop(IDX_VERTEX,0,CR_ELEC)%get(idx_v)
               acon = this%dop(IDX_VERTEX,0,CR_HOLE)%get(idx_v)
-              call this%contacts(ict)%set_phims_ohmic(CR_ELEC, CR_HOLE, dcon, acon, this%degen, this%edos, this%band_edge, this%n_intrin)
+              call this%contacts(ict)%set_phims_ohmic(CR_ELEC, CR_HOLE, dcon, acon, this%smc)
             else
               this%contacts(ict)%phims = this%reg_ct(si)%phims
             end if

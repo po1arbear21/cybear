@@ -122,8 +122,8 @@ contains
 
       ! parameters
       mob0  = this%par%mob0(IDX_EDGE,this%mob%idx_dir,this%mob%ci)%get(idx1)
-      v_sat = this%par%v_sat(this%mob%ci)
-      beta  = this%par%beta( this%mob%ci)
+      v_sat = this%par%smc%v_sat(this%mob%ci)
+      beta  = this%par%smc%beta( this%mob%ci)
       len   = this%par%g%get_len(idx1, this%mob%idx_dir)
 
       ! delta imref

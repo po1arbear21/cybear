@@ -176,7 +176,7 @@ contains
       dens(2) = this%dens%get(idx2)
       mob   = this%mob%get(idx1)
 
-      if (this%par%degen) then
+      if (this%par%smc%degen) then
         ! generalized Scharfetter-Gummel
         call this%eval_degen(len, pot, dens, mob, j, djdpot, djddens, djdmob)
       else
@@ -264,7 +264,7 @@ contains
 
     ci   = this%cdens%ci
     ch   = CR_CHARGE(ci)
-    edos = this%par%edos(ci)
+    edos = this%par%smc%edos(ci)
 
     ! initial guess
     call this%eval_sg(len, pot, dens, mob, jsg, djsgdpot, djsgddens, djsgdmob)

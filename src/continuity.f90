@@ -131,11 +131,11 @@ contains
     ! boundary conditions
     allocate (this%b(size(par%contacts)))
     do ict = 1, size(par%contacts)
-      if (par%degen) then
-        call fermi_dirac_integral_1h(- CR_CHARGE(this%ci) * (par%contacts(ict)%phims - par%band_edge(this%ci)), F12, dF12)
-        this%b(ict) = par%edos(this%ci) * F12
+      if (par%smc%degen) then
+        call fermi_dirac_integral_1h(- CR_CHARGE(this%ci) * (par%contacts(ict)%phims - par%smc%band_edge(this%ci)), F12, dF12)
+        this%b(ict) = par%smc%edos(this%ci) * F12
       else
-        this%b(ict) = par%n_intrin * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims)
+        this%b(ict) = par%smc%n_intrin * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims)
       end if
     end do
 
