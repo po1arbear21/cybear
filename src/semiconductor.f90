@@ -5,7 +5,11 @@ module semiconductor_m
   integer,      parameter :: CR_ELEC      = 1
   integer,      parameter :: CR_HOLE      = 2
   character(*), parameter :: CR_NAME(2)   = [ "n", "p" ]
-  real,         parameter :: CR_CHARGE(2) = [ -1.0, +1.0 ]
+  real,         parameter :: CR_CHARGE(2) = [ -1.0, 1.0 ]
+
+  integer,      parameter :: DOP_DCON      = 1
+  integer,      parameter :: DOP_ACON      = 2
+  real,         parameter :: DOP_CHARGE(2) = [ 1.0, -1.0]
 
   type semiconductor
     real              :: n_intrin

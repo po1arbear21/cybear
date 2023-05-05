@@ -1,15 +1,17 @@
 module mobility_m
 
-  use device_params_m, only: device_params, CR_NAME, DIR_NAME
+  use device_params_m,  only: device_params
   use dual_m
-  use equation_m,      only: equation
-  use grid_m,          only: IDX_VERTEX, IDX_EDGE
-  use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
-  use imref_m,         only: imref
-  use jacobian_m,      only: jacobian
-  use stencil_m,       only: near_neighb_stencil
-  use variable_m,      only: variable_real
-  use error_m,         only: assert_failed, program_error
+  use equation_m,       only: equation
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE
+  use grid_data_m,      only: grid_data1_real, grid_data2_real, grid_data3_real
+  use grid_generator_m, only: DIR_NAME
+  use imref_m,          only: imref
+  use jacobian_m,       only: jacobian
+  use semiconductor_m,  only: CR_NAME
+  use stencil_m,        only: near_neighb_stencil
+  use variable_m,       only: variable_real
+  use error_m,          only: assert_failed, program_error
 
   implicit none
 

@@ -2,22 +2,23 @@ m4_include(util/macro.f90.inc)
 
 module current_density_m
 
-  use density_m,       only: density
-  use device_params_m, only: device_params, CR_NAME, CR_CHARGE, DIR_NAME
-  use equation_m,      only: equation
-  use grid_m,          only: IDX_VERTEX, IDX_EDGE
-  use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
-  use jacobian_m,      only: jacobian
-  use math_m,          only: ber, dberdx
-  use mobility_m,      only: mobility
-  use potential_m,     only: potential
-  use stencil_m,       only: dirichlet_stencil, near_neighb_stencil
-  use variable_m,      only: variable_real
-  use error_m,         only: assert_failed, program_error
-  use radau5_m,        only: ode_options, ode_result, radau5
-  use newton_m,        only: newton1D, newton1D_opt
-  use distributions_m, only: fermi_dirac_integral_1h, fermi_dirac_integral_m1h, inv_fermi_dirac_integral_1h
-  use dual_m,          only: dual_1
+  use density_m,        only: density
+  use device_params_m,  only: device_params
+  use distributions_m,  only: fermi_dirac_integral_1h, fermi_dirac_integral_m1h, inv_fermi_dirac_integral_1h
+  use equation_m,       only: equation
+  use error_m,          only: assert_failed, program_error
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE
+  use grid_data_m,      only: grid_data1_real, grid_data2_real, grid_data3_real
+  use grid_generator_m, only: DIR_NAME
+  use jacobian_m,       only: jacobian
+  use math_m,           only: ber, dberdx
+  use mobility_m,       only: mobility
+  use newton_m,         only: newton1D, newton1D_opt
+  use potential_m,      only: potential
+  use radau5_m,         only: ode_options, ode_result, radau5
+  use semiconductor_m,  only: CR_NAME, CR_CHARGE
+  use stencil_m,        only: dirichlet_stencil, near_neighb_stencil
+  use variable_m,       only: variable_real
 
   implicit none
 
@@ -26,13 +27,16 @@ module current_density_m
 
   type, extends(variable_real) :: current_density
     !! electron/hole current density
-    integer                    :: ci
+
+    integer :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
 
     real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
     real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
     real, pointer :: x3(:,:,:) => null()
-      !! direct pointer to data for easy access
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
     procedure :: init => current_density_init
   end type
@@ -72,16 +76,16 @@ contains
     integer,                intent(in)  :: idx_dir
       !! edge direction
 
-    integer                        :: idx_dim
     type(grid_data1_real), pointer :: p1
     type(grid_data2_real), pointer :: p2
     type(grid_data3_real), pointer :: p3
 
+    ! init base
     call this%variable_init(CR_NAME(ci)//"cdens"//DIR_NAME(idx_dir), "1/cm^2/s", g = par%g, idx_type = IDX_EDGE, idx_dir = idx_dir)
     this%ci = ci
 
-    idx_dim = par%g%idx_dim
-    select case (idx_dim)
+    ! get pointer to data
+    select case (par%g%idx_dim)
     case (1)
       p1 => this%data%get_ptr1()
       this%x1 => p1%data
@@ -154,12 +158,9 @@ contains
 
     idx_dim = this%par%g%idx_dim
     idx_dir = this%cdens%idx_dir
-    ! ci      = this%cdens%ci
-    ! ch      = CR_CHARGE(ci)
-
     allocate (idx1(idx_dim), idx2(idx_dim))
 
-    ! loop over transport edges
+    ! loop over transport edges in parallel
     !$omp parallel do default(none) schedule(dynamic) &
     !$omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
     !$omp shared(this,idx_dir,idx_dim)
@@ -177,10 +178,10 @@ contains
       mob   = this%mob%get(idx1)
 
       if (this%par%smc%degen) then
-        ! generalized Scharfetter-Gummel
+        ! generalized Scharfetter-Gummel (slow)
         call this%eval_degen(len, pot, dens, mob, j, djdpot, djddens, djdmob)
       else
-        ! Scharfetter-Gummel
+        ! Scharfetter-Gummel (fast)
         call this%eval_sg(len, pot, dens, mob, j, djdpot, djddens, djdmob)
       end if
 
@@ -341,6 +342,7 @@ contains
     end subroutine
 
     subroutine ode_fun(x, U, P, f, dfdU, dfdP)
+      !! ode right-hand side
       real,           intent(in)  :: x
         !! x coordinate
       real,           intent(in)  :: U(:)

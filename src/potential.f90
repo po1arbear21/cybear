@@ -13,10 +13,13 @@ module potential_m
 
   type, extends(variable_real) :: potential
     !! electrostatic potential
+
     real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
     real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
     real, pointer :: x3(:,:,:) => null()
-      !! direct pointer to data for easy access
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
     procedure :: init => potential_init
   end type

@@ -66,7 +66,9 @@ contains
     ! init base
     call this%equation_init("poisson")
     this%par => par
+
     eye = eye_real(size(par%contacts))
+    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
 
     ! create variable selectors
     call this%pot%init(pot, [par%oxide_vct(     0)%get_ptr(), &                              ! uncontacted oxide vertices
@@ -84,15 +86,13 @@ contains
     call this%st_nn%init(par%g, IDX_VERTEX, 0, IDX_VERTEX, 0)
     call this%st_em%init()
 
-    ! init jacos
+    ! init jacobians
     this%jaco_pot  => this%init_jaco_f(this%depend(this%pot ), st = [this%st_nn%get_ptr(), this%st_nn%get_ptr(),  &
       & (this%st_dir%get_ptr(),      ict = 1, size(par%contacts))], const = .true.)
     this%jaco_rho  => this%init_jaco_f(this%depend(this%rho ), st = [this%st_em%get_ptr(), this%st_dir%get_ptr(), &
       & (this%st_em%get_ptr(),       ict = 1, size(par%contacts))], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(), this%st_em%get_ptr(),  &
       & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
-
-    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
 
     ! loop over poisson edges
     do idx_dir = 1, par%g%idx_dim
@@ -150,6 +150,7 @@ contains
     integer, allocatable  :: idx(:)
 
     allocate (tmp(this%pot%n))
+
     ! calculate residuals (without phims)
     call this%jaco_pot%matr%mul_vec( this%pot%get(),  tmp              )
     call this%jaco_rho%matr%mul_vec( this%rho%get(),  tmp, fact_y = 1.0)

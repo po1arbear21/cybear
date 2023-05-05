@@ -1,6 +1,6 @@
 module approx_m
 
-  use device_params_m, only: device_params, CR_ELEC, CR_HOLE
+  use device_params_m, only: device_params
   use esystem_m,       only: esystem
   use grid_m,          only: IDX_VERTEX, IDX_CELL, IDX_EDGE
   use grid0D_m,        only: get_dummy_grid
@@ -10,6 +10,7 @@ module approx_m
   use matrix_m,        only: sparse_real
   use potential_m,     only: potential
   use res_equation_m,  only: res_equation
+  use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
   use stencil_m,       only: dirichlet_stencil, empty_stencil, near_neighb_stencil
   use voltage_m,       only: voltage
   use vselector_m,     only: vselector
@@ -87,7 +88,7 @@ contains
   end subroutine
 
   subroutine approx_potential(par, pot, iref)
-    !! approximate potential in transport region based on doping and previously approximated imrefs
+    !! approximate potential in transport region based on doping and previously approximated imrefs (FIXME: better approximation)
     type(device_params), intent(in)    :: par
       !! device parameters
     type(potential),     intent(inout) :: pot
@@ -99,22 +100,24 @@ contains
     real                  :: ireff(2), dop(2)
     integer, allocatable  :: idx(:)
 
+    ! loop over uncontacted transport vertices
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx = par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! get doping and imrefs
+      dop(DOP_DCON) = par%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
+      dop(DOP_ACON) = par%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
       do ci = par%ci0, par%ci1
-        dop(ci) = par%dop(IDX_VERTEX,0,ci)%get(idx)
         ireff(ci) = iref(ci)%get(idx)
       end do
 
       ! estimate potential
       if ((par%ci0 == CR_ELEC) .and. (par%ci1 == CR_HOLE)) then
-        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + asinh(0.5 * (dop(CR_ELEC) - dop(CR_HOLE)) / par%smc%n_intrin))
+        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + asinh(0.5 * (dop(DOP_DCON) - dop(DOP_ACON)) / par%smc%n_intrin))
       elseif (par%ci0 == CR_ELEC) then
-        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(CR_ELEC)/par%smc%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(DOP_DCON)/par%smc%n_intrin, 1.0)))
       elseif (par%ci0 == CR_HOLE) then
-        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(CR_HOLE)/par%smc%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(DOP_ACON)/par%smc%n_intrin, 1.0)))
       end if
     end do
   end subroutine
@@ -154,7 +157,7 @@ contains
     call this%st_nn%init(par%g, IDX_VERTEX, 0, IDX_VERTEX, 0)
     call this%st_em%init()
 
-    ! init jacos
+    ! init jacobians
     this%jaco_iref  => this%init_jaco_f(this%depend(this%iref ), st = [this%st_nn%get_ptr(), &
     & (this%st_dir%get_ptr(),      ict = 1, size(par%contacts))], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(),   &

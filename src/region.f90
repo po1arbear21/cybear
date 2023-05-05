@@ -1,9 +1,10 @@
 module region_m
 
-  use error_m,  only: program_error
-  use input_m,  only: input_file
-  use math_m,   only: PI
-  use string_m, only: string
+  use error_m,         only: program_error
+  use input_m,         only: input_file
+  use math_m,          only: PI
+  use semiconductor_m, only: DOP_DCON, DOP_ACON
+  use string_m,        only: string
 
   implicit none
 
@@ -17,20 +18,24 @@ module region_m
 
   type, extends(region) :: region_poisson
     real :: eps
+      !! permittivity
   end type
 
   type, extends(region) :: region_transport
   end type
 
   type, extends(region) :: region_doping
-    real :: dcon
-    real :: acon
+    real :: dop(2)
+      !! donor/acceptor concentration
   end type
 
   type, extends(region) :: region_contact
-    real         :: phims
     type(string) :: name
+      !! contact name
     type(string) :: type
+      !! contact type ("ohmic" or "gate")
+    real         :: phims
+      !! metal-semiconductor workfunction difference (one value per contact)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -50,7 +55,7 @@ contains
     real, allocatable :: tmpx(:), tmpy(:), tmpz(:)
     logical           :: st
 
-    !get bounds
+    ! get bounds
     select case(gtype%s)
     case ("x")
       call file%get(sid, "x", tmpx)
@@ -58,8 +63,8 @@ contains
 
       allocate (this%xyz(1,2))
       this%xyz(1,:) = tmpx
-    case ("xy")
 
+    case ("xy")
       call file%get(sid, "x", tmpx)
       if (size(tmpx) /= 2) call program_error("region x bounds must be an array of size 2")
       call file%get(sid, "y", tmpy)
@@ -68,8 +73,8 @@ contains
       allocate (this%xyz(2,2))
       this%xyz(1,:) = tmpx
       this%xyz(2,:) = tmpy
-    case("xyz")
 
+    case("xyz")
       call file%get(sid, "x", tmpx)
       if (size(tmpx) /= 2) call program_error("region x bounds must be an array of size 2")
       call file%get(sid, "y", tmpy)
@@ -81,6 +86,7 @@ contains
       this%xyz(1,:) = tmpx
       this%xyz(2,:) = tmpy
       this%xyz(3,:) = tmpz
+
     case("tr_xy")
       call file%get(sid, "x", tmpx)
       if (size(tmpx) < 2) call program_error("region x bounds must be an array of at least size 2")
@@ -90,6 +96,7 @@ contains
       allocate (this%xyz(2,size(tmpx)))
       this%xyz(1,:) = tmpx
       this%xyz(2,:) = tmpy
+
     case("tr_xyz")
       call file%get(sid, "x", tmpx)
       if (size(tmpx) < 2) call program_error("region x bounds must be an array of at least size 2")
@@ -102,35 +109,41 @@ contains
       this%xyz(1,:) = tmpx
       this%xyz(2,:) = tmpy
       this%xyz(3,1:2) = tmpz
+
     end select
 
     select type(this)
     class is (region_poisson)
-        ! get permittivity
-        call file%get(sid, "eps", this%eps)
+      ! get permittivity
+      call file%get(sid, "eps", this%eps)
+
     class is (region_doping)
-        ! get ND, NA
-        call file%get(sid, "dcon", this%dcon, status = st)
-        if (.not. st) this%dcon = 0
-        call file%get(sid, "acon", this%acon, status = st)
-        if (.not. st) this%acon = 0
+      ! get ND, NA
+      call file%get(sid, "dcon", this%dop(DOP_DCON), status = st)
+      if (.not. st) this%dop(DOP_DCON) = 0
+      call file%get(sid, "acon", this%dop(DOP_ACON), status = st)
+      if (.not. st) this%dop(DOP_ACON) = 0
+
     class is (region_contact)
-        call file%get(sid, "phims", this%phims, status = st)
-        if (.not. st) this%phims = 0
-        call file%get(sid, "name",  this%name)
-        call file%get(sid, "type",  this%type)
+      ! get name, type and phims
+      call file%get(sid, "name",  this%name)
+      call file%get(sid, "type",  this%type)
+      call file%get(sid, "phims", this%phims, status = st)
+      if (.not. st) this%phims = 0
+
     end select
 
   end subroutine
 
   function region_point_test(this, gtype, point) result(t)
-    !! check if point is inside region
+    !! check if point is inside region (triangular grid: count ray intersections with boundary)
     class(region), intent(in) :: this
     type(string),  intent(in) :: gtype
       !! grid type
     real,          intent(in) :: point(:)
 
     real, parameter :: e2 = 2.7182818284590452353602874713/2, d(2) = [cos(e2), sin(e2)]
+      !! avoid d || region boundary by using strange angle (FIXME: zero determinant still possible in edge case)
 
     logical :: t
     real    :: k, s, p0x, p0y, p1x, p1y, p2x, p2y, dx, dy, ex, ey, fx, fy, det
@@ -139,13 +152,16 @@ contains
     select case(gtype%s)
     case ("x")
       t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1))
+
     case ("xy")
       t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. &
         & (this%xyz(2,1) <= point(2)) .and. (this%xyz(2,2) >= point(2))
+
     case ("xyz")
       t = (this%xyz(1,1) <= point(1)) .and. (this%xyz(1,2) >= point(1)) .and. &
         & (this%xyz(2,1) <= point(2)) .and. (this%xyz(2,2) >= point(2)) .and. &
         & (this%xyz(3,1) <= point(3)) .and. (this%xyz(3,2) >= point(3))
+
     case("tr_xy")
       n_intersection = 0
       p0x = point(1)
@@ -165,13 +181,15 @@ contains
         det = dx*ey - dy*ex
         if (det == 0) call program_error("zero determinant, d must be changed")
 
+        ! check whether intersection point lies within segment
         k = -(ex*fy - ey*fx)/det
         s = (dx*fy - dy*fx)/det
-        if ((s>=0) .and. (s<=1) .and. (k>=0)) n_intersection = n_intersection +1
-
+        if ((s >= 0) .and. (s <= 1) .and. (k >= 0)) n_intersection = n_intersection +1
       end do
 
+      ! point inside region if number of intersections uneven
       t = (mod(n_intersection,2) == 1)
+
     case("tr_xyz")
       n_intersection = 0
       p0x = point(1)
@@ -191,21 +209,26 @@ contains
         det = dx*ey - dy*ex
         if (det == 0) call program_error("zero determinant, d must be changed")
 
+        ! check whether intersection point lies within segment
         k = -(ex*fy - ey*fx)/det
         s = (dx*fy - dy*fx)/det
         if ((s>=0) .and. (s<=1) .and. (k>=0)) n_intersection = n_intersection +1
       end do
+
+      ! point inside region if number of intersections uneven and within z boundaries
       t = (mod(n_intersection,2) == 1) .and. (this%xyz(3,1) <= point(3)) .and. (this%xyz(3,2) >= point(3))
+
     end select
   end function
 
   function region_contact_point_test(this, gtype, point) result(t)
-    !! check if point is inside contact region
+    !! check if point is inside contact region (triangular grids: check "tube" around polygonal chain)
     class(region_contact), intent(in) :: this
     type(string),          intent(in) :: gtype
       !! grid type
     real,                  intent(in) :: point(:)
      !! to check
+
     logical         :: t, t1
     real, parameter :: TOL = 1e-10
     real            :: x, y, dx, dy, p0x, p0y, p1x, p1y, p2x, p2y, ex, ey, fx, fy, det, k, s, L, d, e
@@ -214,13 +237,16 @@ contains
     select case(gtype%s)
     case ("x")
       t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1))
+
     case ("xy")
       t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. &
         & (this%xyz(2,1) - TOL <= point(2)) .and. (this%xyz(2,2) + TOL >= point(2))
+
     case ("xyz")
       t = (this%xyz(1,1) - TOL <= point(1)) .and. (this%xyz(1,2) + TOL >= point(1)) .and. &
         & (this%xyz(2,1) - TOL <= point(2)) .and. (this%xyz(2,2) + TOL >= point(2)) .and. &
         & (this%xyz(3,1) - TOL <= point(3)) .and. (this%xyz(3,2) + TOL >= point(3))
+
     case("tr_xy")
       p0x = point(1)
       p0y = point(2)
@@ -256,6 +282,7 @@ contains
         if ((d <= TOL) .and. (e >= -TOL) .and. (e <= L+TOL)) return
       end do
       t = .false.
+
     case("tr_xyz")
       p0x = point(1)
       p0y = point(2)

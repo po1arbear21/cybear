@@ -1,13 +1,14 @@
 module charge_density_m
 
   use density_m,       only: density
-  use device_params_m, only: CR_CHARGE, CR_ELEC, CR_HOLE, device_params
+  use device_params_m, only: device_params
   use equation_m,      only: equation
+  use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
+  use semiconductor_m, only: CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE
   use variable_m,      only: variable_real
-  use error_m,         only: assert_failed, program_error
 
   implicit none
 
@@ -15,11 +16,14 @@ module charge_density_m
   public charge_density, calc_charge_density
 
   type, extends(variable_real) :: charge_density
-    !! charge density
+    !! charge density including electrons, holes and ionized dopants
+
     real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
     real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
     real, pointer :: x3(:,:,:) => null()
-      !! direct pointer to data for easy access
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
     procedure :: init => charge_density_init
   end type
@@ -54,17 +58,17 @@ contains
 
     ! get pointer to data
     select case (par%g%idx_dim)
-      case (1)
-        p1 => this%data%get_ptr1()
-        this%x1 => p1%data
-      case (2)
-        p2 => this%data%get_ptr2()
-        this%x2 => p2%data
-      case (3)
-        p3 => this%data%get_ptr3()
-        this%x3 => p3%data
-      case default
-        call program_error("Maximal 3 dimensions allowed")
+    case (1)
+      p1 => this%data%get_ptr1()
+      this%x1 => p1%data
+    case (2)
+      p2 => this%data%get_ptr2()
+      this%x2 => p2%data
+    case (3)
+      p3 => this%data%get_ptr3()
+      this%x3 => p3%data
+    case default
+      call program_error("Maximal 3 dimensions allowed")
     end select
   end subroutine
 
@@ -123,7 +127,10 @@ contains
       ! get charge density
       rho = 0
       do ci = this%par%ci0, this%par%ci1
-        rho = rho + CR_CHARGE(ci) * (this%dens(ci)%get(idx) - this%par%dop(IDX_VERTEX,0,ci)%get(idx))
+        rho = rho + CR_CHARGE(ci) * this%dens(ci)%get(idx)
+      end do
+      do ci = DOP_DCON, DOP_ACON
+        rho = rho + DOP_CHARGE(ci) * this%par%dop(IDX_VERTEX,0,ci)%get(idx)
       end do
       call this%rho%set(idx, rho)
     end do

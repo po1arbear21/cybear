@@ -5,7 +5,7 @@ module device_m
   use current_m,         only: current
   use current_density_m, only: current_density, calc_current_density
   use density_m,         only: density
-  use device_params_m,   only: device_params, CR_NAME
+  use device_params_m,   only: device_params
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
@@ -14,6 +14,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
+  use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
   use error_m,           only: assert_failed, program_error
 
@@ -28,41 +29,41 @@ module device_m
     type(device_params) :: par
       !! device geometry + material parameters
 
-    type(potential)                       :: pot
+    type(potential)                    :: pot
       !! electrostatic potential
-    type(density)                         :: dens(2)
+    type(density)                      :: dens(2)
       !! electron/hole density (carrier index)
-    type(current_density), allocatable    :: cdens(:,:)
+    type(current_density), allocatable :: cdens(:,:)
       !! electron/hole current density (direction, carrier index)
-    type(imref)                           :: iref(2)
+    type(imref)                        :: iref(2)
       !! electron/hole quasi-fermi potential (carrier index)
-    type(mobility),        allocatable    :: mob(:,:)
+    type(mobility),        allocatable :: mob(:,:)
       !! electron/hole mobility (direction, carrier index)
-    type(charge_density)                  :: rho
+    type(charge_density)               :: rho
       !! charge density
-    type(voltage),         allocatable    :: volt(:)
+    type(voltage),         allocatable :: volt(:)
       !! terminal voltages
-    type(current),         allocatable    :: curr(:)
+    type(current),         allocatable :: curr(:)
       !! terminal currents
 
     type(ramo_shockley) :: ramo
       !! Ramo-Shockley data object
 
-    type(poisson)                            :: poiss
+    type(poisson)                           :: poiss
       !! poisson equation
-    type(continuity)                         :: contin(2)
+    type(continuity)                        :: contin(2)
       !! electron/hole continuity equation (carrier index)
-    type(ramo_shockley_current)              :: ramo_curr
+    type(ramo_shockley_current)             :: ramo_curr
       !! Ramo-Shockley current equation
-    type(calc_imref)                         :: calc_iref(2)
+    type(calc_imref)                        :: calc_iref(2)
       !! calculate electron/hole imref from potential and density (carrier index)
-    type(calc_density)                       :: calc_dens(2)
+    type(calc_density)                      :: calc_dens(2)
       !! calculate electron/hole density from potential and imref (carrier index)
-    type(calc_mobility),        allocatable  :: calc_mob(:,:)
+    type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
-    type(calc_charge_density)                :: calc_rho
+    type(calc_charge_density)               :: calc_rho
       !! calculate charge density from electron/hole density and doping concentrations
-    type(calc_current_density), allocatable  :: calc_cdens(:,:)
+    type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
 
     type(esystem) :: sys_nlpe

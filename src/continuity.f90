@@ -2,14 +2,15 @@ module continuity_m
 
   use current_density_m, only: current_density
   use density_m,         only: density
-  use device_params_m,   only: device_params, CR_CHARGE, CR_NAME
+  use device_params_m,   only: device_params
+  use distributions_m,   only: fermi_dirac_integral_1h
+  use error_m,           only: assert_failed, program_error
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use jacobian_m,        only: jacobian, jacobian_ptr
   use res_equation_m,    only: res_equation
+  use semiconductor_m,   only: CR_CHARGE, CR_NAME
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
   use vselector_m,       only: vselector
-  use error_m,           only: assert_failed, program_error
-  use distributions_m,   only: fermi_dirac_integral_1h
 
   implicit none
 
@@ -18,6 +19,7 @@ module continuity_m
 
   type, extends(res_equation) :: continuity
     !! dn/dt + div j = 0
+
     integer :: ci
       !! carrier index
 
@@ -92,10 +94,16 @@ contains
     end do
 
     ! init jacobians
-    this%jaco_dens   => this%init_jaco_f(idens, st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .false.)
-    this%jaco_dens_t => this%init_jaco_f(idens, st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .true. )
+    this%jaco_dens   => this%init_jaco_f(idens, &
+      & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, size(par%contacts))], &
+      & const = .true., dtime = .false.)
+    this%jaco_dens_t => this%init_jaco_f(idens, &
+      & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], &
+      & const = .true., dtime = .true. )
     do idx_dir = 1, idx_dim
-      this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], const = .true., dtime = .false.)
+      this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), &
+        & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], &
+        & const = .true., dtime = .false.)
     end do
 
     ! loop over transport edges
@@ -118,7 +126,7 @@ contains
     ! loop over transport vertices
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx1 = par%transport(IDX_VERTEX,0)%get_idx(i)
-      ict = par%ict%get(idx1)
+      ict  = par%ict%get(idx1)
       if (ict == 0) then
         ! set adjoint volume for time derivative factor
         call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
@@ -128,7 +136,7 @@ contains
       end if
     end do
 
-    ! boundary conditions
+    ! boundary conditions => set b to density on contacts
     allocate (this%b(size(par%contacts)))
     do ict = 1, size(par%contacts)
       if (par%smc%degen) then
@@ -144,6 +152,7 @@ contains
   end subroutine
 
   subroutine continuity_eval(this)
+    !! evaluate continuity equation
     class(continuity), intent(inout) :: this
 
     integer              :: i, ict, idx_dir, idx_dim

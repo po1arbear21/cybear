@@ -3,7 +3,7 @@ module ramo_shockley_m
   use charge_density_m,  only: charge_density
   use current_m,         only: current
   use current_density_m, only: current_density
-  use device_params_m,   only: device_params, CR_CHARGE
+  use device_params_m,   only: device_params
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX, IDX_EDGE, IDX_CELL
   use grid_data_m,       only: grid_data_real, allocate_grid_data1_real
@@ -14,6 +14,7 @@ module ramo_shockley_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
+  use semiconductor_m,   only: CR_CHARGE
   use stencil_m,         only: dirichlet_stencil
   use voltage_m,         only: voltage
   use vselector_m,       only: vselector
@@ -248,6 +249,7 @@ contains
     real, allocatable :: tmp(:)
 
     allocate (tmp(this%curr%n))
+
     ! calculate residuals
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
     do ci = this%par%ci0, this%par%ci1

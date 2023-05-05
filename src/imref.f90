@@ -1,15 +1,16 @@
 module imref_m
 
   use density_m,       only: density
-  use device_params_m, only: device_params, CR_NAME, CR_CHARGE
+  use device_params_m, only: device_params
+  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
+  use semiconductor_m, only: CR_NAME, CR_CHARGE
   use variable_m,      only: variable_real
   use error_m,         only: assert_failed, program_error
-  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
 
   implicit none
 
@@ -18,18 +19,22 @@ module imref_m
 
   type, extends(variable_real) :: imref
     !! quasi-fermi potential
-    integer       :: ci
+
+    integer :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
+
     real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
     real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
     real, pointer :: x3(:,:,:) => null()
-      !! direct pointer to data for easy access
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
     procedure :: init => imref_init
   end type
 
   type, extends(equation) :: calc_imref
-    !! iref = pot +/- V_T * log(dens / n_intrin)
+    !! iref = pot +/- V_T * log(dens / n_intrin) or equivalent formula for degenerate case
 
     type(device_params), pointer :: par  => null()
     type(potential),     pointer :: pot  => null()
@@ -44,7 +49,7 @@ module imref_m
   end type
 
   type, extends(equation) :: calc_density
-    !! dens = n_intrin * exp(+/- (iref - pot) / V_T)
+    !! dens = n_intrin * exp(+/- (iref - pot) / V_T) or equivalent formula for degenerate case
 
     type(device_params), pointer :: par  => null()
     type(potential),     pointer :: pot  => null()
@@ -76,6 +81,7 @@ contains
     call this%variable_init(CR_NAME(ci)//"imref", "V", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
     this%ci = ci
 
+    ! get pointer to data
     select case (par%g%idx_dim)
       case (1)
         p1 => this%data%get_ptr1()

@@ -1,10 +1,11 @@
 module density_m
 
-  use device_params_m, only: device_params, CR_NAME
+  use device_params_m, only: device_params
+  use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
+  use semiconductor_m, only: CR_NAME
   use variable_m,      only: variable_real
-  use error_m,         only: assert_failed, program_error
 
   implicit none
 
@@ -13,12 +14,16 @@ module density_m
 
   type, extends(variable_real) :: density
     !! electron/hole density
-    integer       :: ci
+
+    integer :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
+
     real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
     real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
     real, pointer :: x3(:,:,:) => null()
-      !! direct pointer to data for easy access
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
     procedure :: init => density_init
   end type
@@ -32,10 +37,12 @@ contains
       !! device parameters
     integer,             intent(in)  :: ci
       !! carrier index (CR_ELEC, CR_HOLE)
+
     type(grid_data1_real), pointer :: p1
     type(grid_data2_real), pointer :: p2
     type(grid_data3_real), pointer :: p3
 
+    ! init base
     call this%variable_init(CR_NAME(ci)//"dens", "1/cm^3", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
     this%ci = ci
 
