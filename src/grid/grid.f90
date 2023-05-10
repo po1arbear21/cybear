@@ -29,10 +29,14 @@ module grid_m
       !! grid dimension = number of coordinates per point
     integer                   :: idx_dim
       !! index dimension = number of indices per point
-    integer,      allocatable :: face_dim(:)
-      !! number of points per face depending on direction (1:idx_dim)
-    integer                   :: cell_dim
-      !! number of points per cell
+    integer,      allocatable :: face_nvert(:)
+      !! number of vertices per face depending on face direction (1:idx_dim)
+    integer                   :: cell_nvert
+      !! number of vertices per cell
+    integer,      allocatable :: cell_nedge(:)
+      !! number of edges per cell depending on edge direction (1:idx_dim)
+    integer                   :: max_cell_nedge
+      !! maxval(cell_nedge)
   contains
     procedure :: grid_init
     procedure :: get_ptr     => grid_get_ptr
@@ -49,6 +53,7 @@ module grid_m
     procedure(grid_get_vol),        deferred :: get_vol
     procedure(grid_get_max_neighb), deferred :: get_max_neighb
     procedure(grid_get_neighb),     deferred :: get_neighb
+    procedure(grid_get_adjoint),    deferred :: get_adjoint
     procedure(grid_output),         deferred :: output
   end type
 
@@ -74,9 +79,9 @@ module grid_m
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! vertex' grid indices. size: (idx_dim)
+        !! vertex grid indices. size: (idx_dim)
       real,        intent(out) :: p(:)
-        !! output: vertex' coordinates. size: (dim)
+        !! output: vertex coordinates. size: (dim)
     end subroutine
 
     subroutine grid_get_edge(this, idx, idx_dir, p)
@@ -84,11 +89,11 @@ module grid_m
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! edge's indices. size: (idx_dim)
+        !! edge indices. size: (idx_dim)
       integer,     intent(in)  :: idx_dir
-        !! edge's direction
+        !! edge direction
       real,        intent(out) :: p(:,:)
-        !! output: edge's coordinates. size: (dim, 2)
+        !! output: edge coordinates. size: (dim, 2)
     end subroutine
 
     subroutine grid_get_face(this, idx, idx_dir, p)
@@ -96,11 +101,11 @@ module grid_m
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! face's indices. size: (idx_dim)
+        !! face indices. size: (idx_dim)
       integer,     intent(in)  :: idx_dir
-        !! face's direction
+        !! face direction
       real,        intent(out) :: p(:,:)
-        !! output: face's coordinates. size: (dim, face_dim(idx_dir))
+        !! output: face coordinates. size: (dim, face_nvert(idx_dir))
     end subroutine
 
     subroutine grid_get_cell(this, idx, p)
@@ -108,9 +113,9 @@ module grid_m
       import grid
       class(grid), intent(in)  :: this
       integer,     intent(in)  :: idx(:)
-        !! cell's indices. size: (idx_dim)
+        !! cell indices. size: (idx_dim)
       real,        intent(out) :: p(:,:)
-        !! output: cell's coordinates. size: (dim, cell_dim)
+        !! output: cell coordinates. size: (dim, cell_nvert)
     end subroutine
 
     function grid_get_len(this, idx, idx_dir) result(len)
@@ -138,11 +143,11 @@ module grid_m
     end function
 
     function grid_get_vol(this, idx) result(vol)
-      !! get single cell's volume
+      !! get single cell volume
       import grid
       class(grid), intent(in) :: this
       integer,     intent(in) :: idx(:)
-        !! cell's indices. size: (idx_dim)
+        !! cell indices. size: (idx_dim)
       real                    :: vol
         !! return cell volume
     end function
@@ -189,6 +194,20 @@ module grid_m
         !! does j-th neighbor exist?
     end subroutine
 
+    subroutine grid_get_adjoint(this, idx, len, surf, vol)
+      !! get adjoint grid information per cell
+      import grid
+      class(grid),    intent(in)  :: this
+      integer,        intent(in)  :: idx(:)
+        !! cell indices. size: (idx_dim)
+      real, optional, intent(out) :: len(:,:)
+        !! edge lengths (max_cell_nedge, idx_dim)
+      real, optional, intent(out) :: surf(:,:)
+        !! adjoint surface parts per edge (max_cell_nedge, idx_dim)
+      real, optional, intent(out) :: vol(:)
+        !! adjoint volume parts per vertex (cell_nvert)
+    end subroutine
+
     subroutine grid_output(this, of, unit)
       !! output grid
       import grid, output_file
@@ -202,7 +221,7 @@ module grid_m
 
 contains
 
-  subroutine grid_init(this, name, dim, idx_dim, face_dim, cell_dim)
+  subroutine grid_init(this, name, dim, idx_dim, face_nvert, cell_nvert, cell_nedge)
     !! initialize grid
     class(grid),  intent(out) :: this
     character(*), intent(in) :: name
@@ -211,22 +230,29 @@ contains
       !! grid dimension = number of coordinates per point
     integer,      intent(in)  :: idx_dim
       !! index dimension = number of indices per point
-    integer,      intent(in)  :: face_dim(:)
-      !! number of points per face depending on direction (idx_dim)
-    integer,      intent(in)  :: cell_dim
-      !! number of points per cell
+    integer,      intent(in)  :: face_nvert(:)
+      !! number of vertices per face depending on face direction (1:idx_dim)
+    integer,      intent(in)  :: cell_nvert
+      !! number of vertices per cell
+    integer,      intent(in)  :: cell_nedge(:)
+      !! number of edges per cell depending on edge direction (1:idx_dim)
 
-    m4_assert(          dim  >= 0      )
-    m4_assert(      idx_dim  >= 0      )
-    m4_assert(size(face_dim) == idx_dim)
-    m4_assert(all( face_dim  >= 0)     )
-    m4_assert(     cell_dim  >= 0      )
+    m4_assert(          dim    >= 0      )
+    m4_assert(      idx_dim    >= 0      )
+    m4_assert(size(face_nvert) == idx_dim)
+    m4_assert(all( face_nvert  >= 0)     )
+    m4_assert(     cell_nvert  >= 0      )
+    m4_assert(size(cell_nedge) == idx_dim)
+    m4_assert(all( cell_nedge  >= 0)     )
 
-    this%name     =     name
-    this%dim      =      dim
-    this%idx_dim  =  idx_dim
-    this%face_dim = face_dim
-    this%cell_dim = cell_dim
+    this%name       =     name
+    this%dim        =      dim
+    this%idx_dim    =  idx_dim
+    this%face_nvert = face_nvert
+    this%cell_nvert = cell_nvert
+    this%cell_nedge = cell_nedge
+
+    this%max_cell_nedge = maxval(cell_nedge)
   end subroutine
 
   function grid_get_ptr(this) result(ptr)

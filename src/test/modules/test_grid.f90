@@ -88,10 +88,11 @@ contains
       call g%init("g")
 
       ! testing attributes
-      call tc%assert_eq(0,      g%dim,       "grid0D: dim")
-      call tc%assert_eq(0,      g%idx_dim,   "grid0D: idx_dim")
-      call tc%assert_eq(0, size(g%face_dim), "grid0D: face_dim")
-      call tc%assert_eq(0,      g%cell_dim,  "grid0D: cell_dim")
+      call tc%assert_eq(0,      g%dim,         "grid0D: dim")
+      call tc%assert_eq(0,      g%idx_dim,     "grid0D: idx_dim")
+      call tc%assert_eq(0, size(g%face_nvert), "grid0D: face_nvert")
+      call tc%assert_eq(0,      g%cell_nvert,  "grid0D: cell_nvert")
+      call tc%assert_eq(0, size(g%cell_nedge), "grid0D: cell_nedge")
 
       ! get_idx_bnd
       call g%get_idx_bnd(IDX_VERTEX, 0, bnd)
@@ -122,11 +123,12 @@ contains
 
       ! check attributes
       block
-        call tc%assert_eq( 1,  g%dim,      "grid1D: dim")
-        call tc%assert_eq( 1,  g%idx_dim,  "grid1D: idx_dim")
-        call tc%assert_eq([1], g%face_dim, "grid1D: face_dim")
-        call tc%assert_eq( 2,  g%cell_dim, "grid1D: cell_dim")
-        call tc%assert_eq( x,  g%x, 0.0,   "grid1D: x")
+        call tc%assert_eq( 1,  g%dim,        "grid1D: dim")
+        call tc%assert_eq( 1,  g%idx_dim,    "grid1D: idx_dim")
+        call tc%assert_eq([1], g%face_nvert, "grid1D: face_nvert")
+        call tc%assert_eq( 2,  g%cell_nvert, "grid1D: cell_nvert")
+        call tc%assert_eq([1], g%cell_nedge, "grid1D: cell_nedge")
+        call tc%assert_eq( x,  g%x, 0.0,     "grid1D: x")
       end block
 
       ! get_idx_bnd
@@ -437,46 +439,53 @@ contains
 
     subroutine test_triang_grid()
       !! testing triang_grid_m
-      integer, parameter :: nvert=7, ncell=6
+      integer, parameter :: nvert = 10, ncell = 9
       type(triang_grid)  :: g
       real               :: vert(2,nvert)
       integer            :: icell(3,ncell)
 
       ! init grid
-      vert(:,1) = [0,  0]
-      vert(:,2) = [1,  1]
-      vert(:,3) = [2,  0]
-      vert(:,4) = [0, -2]
-      vert(:,5) = [1,  0]
-      vert(:,6) = [0,  1]
-      vert(:,7) = [0,  2]
+      vert(:, 1) = [2.0, 1.0]
+      vert(:, 2) = [3.0, 2.0]
+      vert(:, 3) = [4.0, 1.5]
+      vert(:, 4) = [4.5, 2.5]
+      vert(:, 5) = [3.0, 4.0]
+      vert(:, 6) = [1.5, 3.0]
+      vert(:, 7) = [0.5, 4.5]
+      vert(:, 8) = [1.5, 5.0]
+      vert(:, 9) = [3.5, 6.0]
+      vert(:,10) = [5.0, 4.5]
 
-      icell(:,1) = [1, 4, 5]
-      icell(:,2) = [5, 3, 2]
-      icell(:,3) = [5, 4, 3]
-      icell(:,4) = [1, 2, 6]
-      icell(:,5) = [1, 5, 2]
-      icell(:,6) = [6, 2, 7]
+      icell(:,1) = [1, 2,  6]
+      icell(:,2) = [2, 5,  6]
+      icell(:,3) = [2, 4,  5]
+      icell(:,4) = [2, 3,  4]
+      icell(:,5) = [5, 4, 10]
+      icell(:,6) = [7, 6,  8]
+      icell(:,7) = [6, 5,  8]
+      icell(:,8) = [5, 9,  8]
+      icell(:,9) = [9, 5, 10]
 
       call g%init("g", vert, icell)
 
       ! testing attributes
-      call tc%assert_eq( 2,  g%dim,      "triang_grid: dim")
-      call tc%assert_eq( 1,  g%idx_dim,  "triang_grid: idx_dim")
-      call tc%assert_eq([2], g%face_dim, "triang_grid: face_dim")
-      call tc%assert_eq( 3,  g%cell_dim, "triang_grid: cell_dim")
+      call tc%assert_eq( 2,  g%dim,        "triang_grid: dim")
+      call tc%assert_eq( 1,  g%idx_dim,    "triang_grid: idx_dim")
+      call tc%assert_eq([2], g%face_nvert, "triang_grid: face_nvert")
+      call tc%assert_eq( 3,  g%cell_nvert, "triang_grid: cell_nvert")
+      call tc%assert_eq([3], g%cell_nedge, "triang_grid: cell_nedge")
 
       ! testing get_icell
       block
         integer :: itr
 
-        call g%get_icell([0.5, -0.1], itr)
+        call g%get_icell([2.0, 2.0], itr)
         call tc%assert_eq(1, itr, "triang_grid: get_icell 1")
-        call g%get_icell([1.0, -0.3], itr)
+        call g%get_icell([3.2, 2.5], itr)
         call tc%assert_eq(3, itr, "triang_grid: get_icell 3")
-        call g%get_icell([0.5, 0.8], itr)
+        call g%get_icell([3.5, 2.0], itr)
         call tc%assert_eq(4, itr, "triang_grid: get_icell 4")
-        call g%get_icell([0.5, 1.2], itr)
+        call g%get_icell([1.0, 4.0], itr)
         call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
       end block
 
@@ -490,14 +499,14 @@ contains
         call tc%assert_eq([1,nvert], bnd,        "triang_grid: idx_bnd_1: IDX_VERTEX")
 
         call g%get_idx_bnd(IDX_EDGE, 1, bnd_n)
-        call tc%assert_eq([1,12], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_EDGE")
+        call tc%assert_eq([1,18], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_EDGE")
         call g%get_idx_bnd(IDX_EDGE, 1, bnd)
-        call tc%assert_eq( [1,12],  bnd,      "triang_grid: idx_bnd_1: IDX_EDGE")
+        call tc%assert_eq([1,18], bnd,        "triang_grid: idx_bnd_1: IDX_EDGE")
 
         call g%get_idx_bnd(IDX_FACE, 1, bnd_n)
-        call tc%assert_eq([1,12], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_FACE")
+        call tc%assert_eq([1,18], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_FACE")
         call g%get_idx_bnd(IDX_FACE, 1, bnd)
-        call tc%assert_eq([1,12], bnd,        "triang_grid: idx_bnd_1: IDX_FACE")
+        call tc%assert_eq([1,18], bnd,        "triang_grid: idx_bnd_1: IDX_FACE")
 
         call g%get_idx_bnd(IDX_CELL, 0, bnd_n)
         call tc%assert_eq([1,ncell], bnd_n(:,1), "triang_grid: idx_bnd_n: IDX_CELL")
@@ -532,7 +541,7 @@ contains
       ! get_vol
       block
         integer         :: ic
-        real, parameter :: vol(6) = [1.0, 0.5, 1.0, 0.5, 0.5, 0.5]
+        real, parameter :: vol(9) = [1.25, 1.5, 1.5, 0.625, 1.875, 1.0, 1.5, 1.75, 1.875]
 
         do ic = 1, ncell
           call tc%assert_eq(vol(ic), g%get_vol([ic]), 5e-16, "triang_grid: get_vol "//int2str(ic))
@@ -541,19 +550,19 @@ contains
 
       ! get_max_neighb
       block
-        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "triang_grid: get_max_neighb V V")
-        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "triang_grid: get_max_neighb V E")
-        call tc%assert_eq(5, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "triang_grid: get_max_neighb V F")
-        call tc%assert_eq(4, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "triang_grid: get_max_neighb V C")
+        call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0), "triang_grid: get_max_neighb V V")
+        call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE,   1), "triang_grid: get_max_neighb V E")
+        call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE,   1), "triang_grid: get_max_neighb V F")
+        call tc%assert_eq(6, g%get_max_neighb(IDX_VERTEX, 0, IDX_CELL,   0), "triang_grid: get_max_neighb V C")
 
         call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb E V")
-        call tc%assert_eq(7, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb E E")
-        call tc%assert_eq(7, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb E F")
+        call tc%assert_eq(9, g%get_max_neighb(IDX_EDGE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb E E")
+        call tc%assert_eq(9, g%get_max_neighb(IDX_EDGE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb E F")
         call tc%assert_eq(2, g%get_max_neighb(IDX_EDGE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb E C")
 
         call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_VERTEX, 0), "triang_grid: get_max_neighb F V")
-        call tc%assert_eq(7, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb F E")
-        call tc%assert_eq(7, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb F F")
+        call tc%assert_eq(9, g%get_max_neighb(IDX_FACE,   1, IDX_EDGE,   1), "triang_grid: get_max_neighb F E")
+        call tc%assert_eq(9, g%get_max_neighb(IDX_FACE,   1, IDX_FACE,   1), "triang_grid: get_max_neighb F F")
         call tc%assert_eq(2, g%get_max_neighb(IDX_FACE,   1, IDX_CELL,   0), "triang_grid: get_max_neighb F C")
 
         call tc%assert_eq(3, g%get_max_neighb(IDX_CELL,   0, IDX_VERTEX, 0), "triang_grid: get_max_neighb C V")
@@ -574,7 +583,7 @@ contains
 
         ! V V
         idx1     = [1]
-        exp_idx2 = reshape([2, 4, 5, 6], [1, 4])
+        exp_idx2 = reshape([2, 6], [1, 2])
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
           if (.not. status) exit
@@ -585,7 +594,7 @@ contains
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V V, idx1: "//int2str(idx1(1)))
 
         idx1     = [5]
-        exp_idx2 = reshape([1, 2, 3, 4], [1, 4])
+        exp_idx2 = reshape([2, 4, 6, 8, 9, 10], [1, 6])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
@@ -597,7 +606,7 @@ contains
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V V, idx1: "//int2str(idx1(1)))
 
         idx1     = [7]
-        exp_idx2 = reshape([2, 6], [1, 2])
+        exp_idx2 = reshape([6, 8], [1, 2])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
@@ -616,7 +625,7 @@ contains
           if (.not. status) exit
           nidx2 = nidx2+1
         end do
-        call tc%assert_eq(4, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
+        call tc%assert_eq(2, nidx2, "triang_grid: get_neighb V E, idx1: "//int2str(idx1(1)))
 
         idx1  = [2]
         nidx2 = 0
@@ -625,20 +634,20 @@ contains
           if (.not. status) exit
           nidx2 = nidx2+1
         end do
-        call tc%assert_eq(5, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
+        call tc%assert_eq(5, nidx2, "triang_grid: get_neighb V E, idx1: "//int2str(idx1(1)))
 
-        idx1  = [3]
+        idx1  = [5]
         nidx2 = 0
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, 1, idx1, j, idx2, status)
           if (.not. status) exit
           nidx2 = nidx2+1
         end do
-        call tc%assert_eq(3, nidx2, "triang_grid: get_neighb V E, nidx2: "//int2str(idx1(1)))
+        call tc%assert_eq(6, nidx2, "triang_grid: get_neighb V E, idx1: "//int2str(idx1(1)))
 
         ! V C
-        idx1     = [1]
-        exp_idx2 = reshape([1, 4, 5], [1, 3])
+        idx1     = [6]
+        exp_idx2 = reshape([1, 2, 6, 7], [1, 4])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -650,7 +659,7 @@ contains
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V C, idx1: "//int2str(idx1(1)))
 
         idx1     = [4]
-        exp_idx2 = reshape([1, 3], [1, 2])
+        exp_idx2 = reshape([3, 4, 5], [1, 3])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -662,7 +671,7 @@ contains
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb V C, idx1: "//int2str(idx1(1)))
 
         idx1     = [5]
-        exp_idx2 = reshape([1, 2, 3, 5], [1, 4])
+        exp_idx2 = reshape([2, 3, 5, 7, 8, 9], [1, 6])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_VERTEX, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -711,7 +720,7 @@ contains
 
           ! E E
           idx1     = [ie(1,2)]
-          exp_idx2 = reshape([ie(1,6), ie(1,5), ie(1,4), ie(2,7), ie(2,6), ie(2,5), ie(2,3)], [1, 7])
+          exp_idx2 = reshape([ie(1,6), ie(2,3), ie(2,4), ie(2,5), ie(2,6)], [1, 5])
           call qsort(exp_idx2(1,:))
           call idx2_vec%reset()
           do j = 1, 100
@@ -724,7 +733,7 @@ contains
           call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E E, idx1: "//int2str(idx1(1)))
 
           idx1     = [ie(6,7)]
-          exp_idx2 = reshape([ie(6,1), ie(6,2), ie(7,2)], [1, 3])
+          exp_idx2 = reshape([ie(6,1), ie(6,2), ie(6,5), ie(6,8), ie(7,8)], [1, 5])
           call qsort(exp_idx2(1,:))
           call idx2_vec%reset()
           do j = 1, 100
@@ -736,9 +745,9 @@ contains
           call qsort(idx2_arr(1,:))
           call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E E, idx1: "//int2str(idx1(1)))
 
-          ! E V
+          ! E C
           idx1     = [ie(1,2)]
-          exp_idx2 = reshape([4, 5], [1, 2])
+          exp_idx2 = reshape([1], [1, 1])
           call idx2_vec%reset()
           do j = 1, 100
             call g%get_neighb(IDX_EDGE, 1, IDX_CELL, 0, idx1, j, idx2, status)
@@ -749,8 +758,8 @@ contains
           call qsort(idx2_arr(1,:))
           call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb E C, idx1: "//int2str(idx1(1)))
 
-          idx1     = [ie(6,7)]
-          exp_idx2 = reshape([6], [1, 1])
+          idx1     = [ie(5,6)]
+          exp_idx2 = reshape([2, 7], [1, 2])
           call idx2_vec%reset()
           do j = 1, 100
             call g%get_neighb(IDX_EDGE, 1, IDX_CELL, 0, idx1, j, idx2, status)
@@ -763,18 +772,6 @@ contains
 
         ! C V
         idx1     = [1]
-        exp_idx2 = reshape([1, 4, 5], [1, 3])
-        call idx2_vec%reset()
-        do j = 1, 100
-          call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
-          if (.not. status) exit
-          call idx2_vec%push(idx2(1))
-        end do
-        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
-        call qsort(idx2_arr(1,:))
-        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
-
-        idx1     = [4]
         exp_idx2 = reshape([1, 2, 6], [1, 3])
         call idx2_vec%reset()
         do j = 1, 100
@@ -786,8 +783,20 @@ contains
         call qsort(idx2_arr(1,:))
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
 
+        idx1     = [4]
+        exp_idx2 = reshape([2, 3, 4], [1, 3])
+        call idx2_vec%reset()
+        do j = 1, 100
+          call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
+          if (.not. status) exit
+          call idx2_vec%push(idx2(1))
+        end do
+        idx2_arr = reshape(idx2_vec%to_array(), [1, idx2_vec%n])
+        call qsort(idx2_arr(1,:))
+        call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C V, idx1: "//int2str(idx1(1)))
+
         idx1     = [5]
-        exp_idx2 = reshape([1, 2, 5], [1, 3])
+        exp_idx2 = reshape([4, 5, 10], [1, 3])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx1, j, idx2, status)
@@ -828,7 +837,7 @@ contains
 
         ! C C
         idx1     = [1]
-        exp_idx2 = reshape([3, 5], [1, 2])
+        exp_idx2 = reshape([2], [1, 1])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -840,7 +849,7 @@ contains
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C C, idx1: "//int2str(idx1(1)))
 
         idx1     = [5]
-        exp_idx2 = reshape([1, 2, 4], [1, 3])
+        exp_idx2 = reshape([3, 9], [1, 2])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -851,8 +860,8 @@ contains
         call qsort(idx2_arr(1,:))
         call tc%assert_eq(exp_idx2(1,:), idx2_arr(1,:), "triang_grid: get_neighb C C, idx1: "//int2str(idx1(1)))
 
-        idx1     = [6]
-        exp_idx2 = reshape([4], [1, 1])
+        idx1     = [2]
+        exp_idx2 = reshape([1, 3, 7], [1, 3])
         call idx2_vec%reset()
         do j = 1, 100
           call g%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx1, j, idx2, status)
@@ -885,10 +894,11 @@ contains
 
       ! check attributes
       block
-        call tc%assert_eq(      3, tg%dim,      "tensor_grid: dim")
-        call tc%assert_eq(      3, tg%idx_dim,  "tensor_grid: idx_dim")
-        call tc%assert_eq([4,4,4], tg%face_dim, "tensor_grid: face_dim")
-        call tc%assert_eq(      8, tg%cell_dim, "tensor_grid: cell_dim")
+        call tc%assert_eq(      3, tg%dim,        "tensor_grid: dim")
+        call tc%assert_eq(      3, tg%idx_dim,    "tensor_grid: idx_dim")
+        call tc%assert_eq([4,4,4], tg%face_nvert, "tensor_grid: face_nvert")
+        call tc%assert_eq(      8, tg%cell_nvert, "tensor_grid: cell_nvert")
+        call tc%assert_eq([4,4,4], tg%cell_nedge, "tensor_grid: cell_nedge")
       end block
 
       ! get_idx_bnd
@@ -1522,6 +1532,56 @@ contains
         call tc%assert_eq([nx2  ,ny2  ,nz2+1], idx2, "tensor_grid: get_neighb C C 5 6")
         call tg%get_neighb(IDX_CELL, 0, IDX_CELL, 0, idx(:,5), 7, idx2, status)
         call tc%assert(                .not. status, "tensor_grid: get_neighb C C 5 7")
+      end block
+
+      ! get_adjoint
+      block
+        real              :: len_tr_z(  6,2), surf_tr_z(  6,2), vol_tr_z(  6)
+        real              :: len_z_tr(  6,2), surf_z_tr(  6,2), vol_z_tr(  6)
+        real              :: len_tr_z_e(6,2), surf_tr_z_e(6,2), vol_tr_z_e(6)
+        real              :: len_z_tr_e(6,2), surf_z_tr_e(6,2), vol_z_tr_e(6)
+        type(triang_grid) :: gtr
+        type(tensor_grid) :: gtr_z, gz_tr
+
+        real, parameter :: vol(9) = [1.25, 1.5, 1.5, 0.625, 1.875, 1.0, 1.5, 1.75, 1.875]
+
+        ! init grids
+        call gtr%init("gtr", reshape([3.0, 4.0, 3.5, 6.0, 1.5, 5.0],[2,3]), reshape([1, 2, 3],[3,1]))
+        call gz%init("z", [0.0, 2.0, 5.0])
+        call gtr_z%init("gtr_z", [gtr%get_ptr(), gz%get_ptr()])
+        call gz_tr%init("gz_tr", [gz%get_ptr(), gtr%get_ptr()])
+
+        ! test tr z
+        len_tr_z_e( 1:6,1) = [ 2.0615528128088303e+00, 2.2360679774997898e+00, 1.8027756377319946e+00, &
+          &                    2.0615528128088303e+00, 2.2360679774997898e+00, 1.8027756377319946e+00  ]
+        len_tr_z_e( 1:3,2) = [ 3.0000000000000000e+00, 3.0000000000000000e+00, 3.0000000000000000e+00  ]
+        surf_tr_z_e(1:6,1) = [ 8.8352263406092746e-01, 5.9894677968744348e-01, 1.1589271956848539e+00, &
+          &                    8.8352263406092746e-01, 5.9894677968744348e-01, 1.1589271956848539e+00  ]
+        surf_tr_z_e(1:3,2) = [ 1.3035714285714288e+00, 1.0535714285714286e+00, 1.1428571428571430e+00  ]
+        vol_tr_z_e( 1:6  ) = [ 1.9553571428571432e+00, 1.5803571428571428e+00, 1.7142857142857144e+00, &
+          &                    1.9553571428571432e+00, 1.5803571428571428e+00, 1.7142857142857144e+00  ]
+        call gtr_z%get_adjoint([1,2], len = len_tr_z, surf = surf_tr_z, vol = vol_tr_z)
+        call tc%assert_eq( len_tr_z_e(1:6,1),  len_tr_z(1:6,1), 1e-14, "tensor_grid: get_adjoint len tr z 1")
+        call tc%assert_eq( len_tr_z_e(1:3,2),  len_tr_z(1:3,2), 1e-14, "tensor_grid: get_adjoint len tr z 2")
+        call tc%assert_eq(surf_tr_z_e(1:6,1), surf_tr_z(1:6,1), 1e-14, "tensor_grid: get_adjoint surf tr z 1")
+        call tc%assert_eq(surf_tr_z_e(1:3,2), surf_tr_z(1:3,2), 1e-14, "tensor_grid: get_adjoint surf tr z 2")
+        call tc%assert_eq( vol_tr_z_e(1:6  ),  vol_tr_z(1:6  ), 1e-14, "tensor_grid: get_adjoint vol tr z")
+
+        ! test z tr
+        len_z_tr_e( 1:3,1) = [ 3.0000000000000000e+00, 3.0000000000000000e+00, 3.0000000000000000e+00  ]
+        len_z_tr_e( 1:6,2) = [ 2.0615528128088303e+00, 2.0615528128088303e+00, 2.2360679774997898e+00, &
+          &                    2.2360679774997898e+00, 1.8027756377319946e+00, 1.8027756377319946e+00  ]
+        surf_z_tr_e(1:3,1) = [ 1.3035714285714288e+00, 1.0535714285714286e+00, 1.1428571428571430e+00  ]
+        surf_z_tr_e(1:6,2) = [ 8.8352263406092746e-01, 8.8352263406092746e-01, 5.9894677968744348e-01, &
+          &                    5.9894677968744348e-01, 1.1589271956848539e+00, 1.1589271956848539e+00  ]
+        vol_z_tr_e( 1:6  ) = [ 1.9553571428571432e+00, 1.9553571428571432e+00, 1.5803571428571428e+00, &
+          &                    1.5803571428571428e+00, 1.7142857142857144e+00, 1.7142857142857144e+00  ]
+        call gz_tr%get_adjoint([2,1], len = len_z_tr, surf = surf_z_tr, vol = vol_z_tr)
+        call tc%assert_eq( len_z_tr_e(1:3,1),  len_z_tr(1:3,1), 1e-14, "tensor_grid: get_adjoint len z tr 1")
+        call tc%assert_eq( len_z_tr_e(1:6,2),  len_z_tr(1:6,2), 1e-14, "tensor_grid: get_adjoint len z tr 2")
+        call tc%assert_eq(surf_z_tr_e(1:3,1), surf_z_tr(1:3,1), 1e-14, "tensor_grid: get_adjoint surf z tr 1")
+        call tc%assert_eq(surf_z_tr_e(1:6,2), surf_z_tr(1:6,2), 1e-14, "tensor_grid: get_adjoint surf z tr 2")
+        call tc%assert_eq( vol_z_tr_e(1:6  ),  vol_z_tr(1:6  ), 1e-14, "tensor_grid: get_adjoint vol z tr")
       end block
     end subroutine
 

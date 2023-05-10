@@ -245,6 +245,7 @@ contains
     call this%unit_const%insert(new_string("1/m^3/s" ), 1 /        meter**3  / second )
 
     call this%unit_const%insert(new_string("kg"    ),  kilogram                          )
+    call this%unit_const%insert(new_string("1/kg"  ),  1 / kilogram                      )
     call this%unit_const%insert(new_string("kg/m^3"),  kilogram       /        meter **3 )
     call this%unit_const%insert(new_string("g/cm^3"), (kilogram/KILO) / (CENTI*meter)**3 )
 

@@ -67,9 +67,9 @@ module triang_grid_m
     procedure :: get_vol        => triang_grid_get_vol
     procedure :: get_max_neighb => triang_grid_get_max_neighb
     procedure :: get_neighb     => triang_grid_get_neighb
+    procedure :: get_adjoint    => triang_grid_get_adjoint
     procedure :: output         => triang_grid_output
     procedure :: output_plotmtv => triang_grid_output_plotmtv
-    procedure :: adjoint        => triang_grid_adjoint
   end type
 
   type node
@@ -188,7 +188,7 @@ contains
     type(vector_int), allocatable :: vert2edge(:), vert2cell(:)
 
     ! init base
-    call this%grid_init(name, 2, 1, [2], 3)
+    call this%grid_init(name, 2, 1, [2], 3, [3])
 
     ! save vertices and cell-vertex table
     m4_assert(size(vert,  dim = 1) == 2)
@@ -424,7 +424,7 @@ contains
       !! output face coordinates; size = (dim=2, 2)
 
     m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    m4_assert(all(shape(p) == [this%dim, this%face_dim]))
+    m4_assert(all(shape(p) == [this%dim, this%face_nvert(1)]))
 
     call this%get_edge(idx, idx_dir, p)
   end subroutine
@@ -435,10 +435,10 @@ contains
     integer,            intent(in)  :: idx(:)
       !! cell indices; size = (idx_dim=1)
     real,               intent(out) :: p(:,:)
-      !! output: cell coordinates; size = (dim=2, cell_dim=3)
+      !! output: cell coordinates; size = (dim=2, cell_nvert=3)
 
     m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
+    m4_assert(all(shape(p) == [this%dim, this%cell_nvert]))
 
     p(:,1) = this%vert(:,this%cell2vert(1,idx(1)))
     p(:,2) = this%vert(:,this%cell2vert(2,idx(1)))
@@ -594,6 +594,86 @@ contains
     idx2(1) = i2
   end subroutine
 
+  subroutine triang_grid_get_adjoint(this, idx, len, surf, vol)
+    class(triang_grid), intent(in)  :: this
+    integer,            intent(in)  :: idx(:)
+      !! cell indices. size: (idx_dim=1)
+    real, optional,     intent(out) :: len(:,:)
+      !! edge lengths (max_cell_nedge=3, idx_dim=1)
+    real, optional,     intent(out) :: surf(:,:)
+      !! adjoint surface parts per edge (max_cell_nedge=3, idx_dim=1)
+    real, optional,     intent(out) :: vol(:)
+      !! adjoint volume parts per vertex (cell_nvert=3)
+
+    integer :: iv1, iv2, ie, ii, jv1, jv2, jv3
+    real    :: p(2,3), len_(3), surf_(3), R
+
+    ! get vertex coordinates
+    call this%get_cell(idx, p)
+
+    ! get edge lengths
+    do ii = 1, 3
+      ie  = this%cell2edge(ii,idx(1))
+      iv1 = this%edge2vert( 1,ie)
+      iv2 = this%edge2vert( 2,ie)
+
+      p(:,1) = this%vert(:,iv1)
+      p(:,2) = this%vert(:,iv2)
+
+      len_(ii) = sqrt((p(1,2) - p(1,1))**2 + (p(2,2) - p(2,1))**2)
+    end do
+    if (present(len)) then
+      len(:,1) = len_
+    end if
+
+    ! circumscribed radius
+    R = (len_(1) * len_(2) * len_(3)) / sqrt((len_(1) + len_(2) + len_(3)) * ( len_(1) + len_(2) - len_(3)) * &
+      &                                      (len_(1) - len_(2) + len_(3)) * (-len_(1) + len_(2) + len_(3)))
+
+    ! adjoint surface parts
+    do ii = 1, 3
+      if (R <= 0.5 * len_(ii)) then
+        surf_(ii) = 0
+      else
+        surf_(ii) = sqrt(R**2 - (0.5 * len_(ii))**2)
+      end if
+    end do
+    if (present(surf)) then
+      surf(:,1) = surf_
+    end if
+
+    ! adjoint volume parts
+    if (present(vol)) then
+      vol = 0
+
+      jv1 = this%cell2vert(1,idx(1))
+      jv2 = this%cell2vert(2,idx(1))
+      jv3 = this%cell2vert(3,idx(1))
+
+      do ii = 1, 3
+        ie = this%cell2edge(ii,idx(1))
+        iv1 = this%edge2vert(1,ie)
+        iv2 = this%edge2vert(2,ie)
+
+        if (iv1 == jv1) then
+          vol(1) = vol(1) + 0.5 * len_(ii) * surf_(ii)
+        elseif (iv1 == jv2) then
+          vol(2) = vol(2) + 0.5 * len_(ii) * surf_(ii)
+        else
+          vol(3) = vol(3) + 0.5 * len_(ii) * surf_(ii)
+        end if
+
+        if (iv2 == jv1) then
+          vol(1) = vol(1) + 0.5 * len_(ii) * surf_(ii)
+        elseif (iv2 == jv2) then
+          vol(2) = vol(2) + 0.5 * len_(ii) * surf_(ii)
+        else
+          vol(3) = vol(3) + 0.5 * len_(ii) * surf_(ii)
+        end if
+      end do
+    end if
+  end subroutine
+
   subroutine triang_grid_output(this, of, unit)
     !! output triangle grid
     class(triang_grid),     intent(in)    :: this
@@ -641,49 +721,6 @@ contains
     end associate
 
     call pmtv%close()
-  end subroutine
-
-  subroutine triang_grid_adjoint(this, ic, len, surf)
-    class(triang_grid), intent(in) :: this
-    integer,            intent(in) :: ic
-      !! triangle cell index
-    real,               intent(out) :: len(:)
-      !! output: 3 triangle egdes lengths
-    real,               intent(out) :: surf(:)
-      !! output: adjoint surfaces per edge (3)
-
-    integer :: iv1, iv2, ie
-    real    :: R
-      !! circumscribed radius
-    real    :: p(2,3)
-      !! vertex coordinates, size = (dim=2, 3)
-    integer :: ii
-
-    call this%get_cell([ic], p)
-
-    ! get edge lengths
-    do ii = 1, 3
-      ie  = this%cell2edge(ii,ic)
-      iv1 = this%edge2vert( 1,ie)
-      iv2 = this%edge2vert( 2,ie)
-
-      p(:,1) = this%vert(:,iv1)
-      p(:,2) = this%vert(:,iv2)
-
-      len(ii) = sqrt((p(1,2) - p(1,1))**2 + (p(2,2) - p(2,1))**2)
-    end do
-
-    ! circumradius
-    R = (len(2)*len(1)*len(3))/sqrt((len(1)+len(2)+len(3))*(len(1)+len(2)-len(3))*(len(1)-len(2)+len(3))*(-len(1)+len(2)+len(3)))
-
-    ! adjoint surface parts
-    do ii = 1, 3
-      if (R <= len(ii)*0.5) then
-        surf(ii) = 0
-      else
-        surf(ii) = sqrt(R**2 - (len(ii)*0.5)**2)
-      end if
-    end do
   end subroutine
 
 end module
