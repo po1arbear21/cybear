@@ -27,6 +27,7 @@ module grid0D_m
     procedure :: get_vol        => grid0D_get_vol
     procedure :: get_max_neighb => grid0D_get_max_neighb
     procedure :: get_neighb     => grid0D_get_neighb
+    procedure :: get_adjoint    => grid0D_get_adjoint
     procedure :: output         => grid0D_output
   end type
 
@@ -39,7 +40,7 @@ contains
     !! used in variable(grid=optional).
     type(grid0D), pointer :: ptr
 
-    if (.not. allocated(dum_grid%face_dim)) call dum_grid%init("dummy")
+    if (.not. allocated(dum_grid%face_nvert)) call dum_grid%init("dummy")
     ptr => dum_grid
   end function
 
@@ -49,10 +50,10 @@ contains
     character(*),  intent(in)  :: name
       !! grid name
 
-    integer :: face_dim(0)
+    integer :: face_nvert(0), cell_nedge(0)
 
     ! init base
-    call this%grid_init(name, 0, 0, face_dim, 0)
+    call this%grid_init(name, 0, 0, face_nvert, 0, cell_nedge)
   end subroutine
 
   subroutine grid0D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)
@@ -118,7 +119,7 @@ contains
     integer,       intent(in)  :: idx_dir
       !! face direction
     real,          intent(out) :: p(:,:)
-      !! output face coordinates (dim x face_dim(idx_dir))
+      !! output face coordinates (dim x face_nvert(idx_dir))
 
     m4_assert(size(idx) == 0)
     m4_assert(size(p,1) == 0)
@@ -135,7 +136,7 @@ contains
     integer,       intent(in)  :: idx(:)
       !! cell indices
     real,          intent(out) :: p(:,:)
-      !! output cell coordinates (dim x cell_dim)
+      !! output cell coordinates (dim x cell_nvert)
 
     m4_assert(size(idx) == 0)
     m4_assert(size(p,1) == 0)
@@ -262,6 +263,42 @@ contains
 
     idx2(:) = 0
     status  = .false.
+  end subroutine
+
+  subroutine grid0D_get_adjoint(this, idx, len, surf, vol)
+    !! get adjoint grid information per cell
+    class(grid0D),  intent(in)  :: this
+    integer,        intent(in)  :: idx(:)
+      !! cell indices. size: (idx_dim)
+    real, optional, intent(out) :: len(:,:)
+      !! edge lengths (max_cell_nedge, idx_dim)
+    real, optional, intent(out) :: surf(:,:)
+      !! adjoint surface parts per edge (max_cell_nedge, idx_dim)
+    real, optional, intent(out) :: vol(:)
+      !! adjoint volume parts per vertex (cell_nvert)
+
+    m4_assert(size(idx) == 0)
+
+    m4_ignore(this)
+    m4_ignore(idx)
+
+    if (present(len)) then
+      m4_assert(size(len,1)  == 0)
+      m4_assert(size(len,2)  == 0)
+
+      m4_ignore(len)
+    end if
+    if (present(surf)) then
+      m4_assert(size(surf,1) == 0)
+      m4_assert(size(surf,2) == 0)
+
+      m4_ignore(surf)
+    end if
+    if (present(vol)) then
+      m4_assert(size(vol) == 0)
+
+      m4_ignore(vol)
+    end if
   end subroutine
 
   subroutine grid0D_output(this, of, unit)

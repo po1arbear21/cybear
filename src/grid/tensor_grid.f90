@@ -41,6 +41,7 @@ module tensor_grid_m
     procedure :: get_vol        => tensor_grid_get_vol
     procedure :: get_max_neighb => tensor_grid_get_max_neighb
     procedure :: get_neighb     => tensor_grid_get_neighb
+    procedure :: get_adjoint    => tensor_grid_get_adjoint
     procedure :: output         => tensor_grid_output
 
     procedure, private :: init_neighb      => tensor_grid_init_neighb
@@ -59,8 +60,8 @@ contains
     logical, optional,  intent(in)  :: no_neighbours
       !! do not compute neighbour table (grid can not be used in conjunction with jacobians)
 
-    integer              :: i, j, j0, j1, k, dim, idx_dim, cell_dim
-    integer, allocatable :: face_dim(:)
+    integer              :: i, j, j0, j1, k, dim, idx_dim, cell_nvert
+    integer, allocatable :: face_nvert(:), cell_nedge(:)
     logical              :: no_neighbours_
 
     ! get dimension and index dimension
@@ -71,29 +72,44 @@ contains
       idx_dim = idx_dim + g(i)%p%idx_dim
     end do
 
-    ! get number of points per face
-    allocate (face_dim(idx_dim))
+    ! get number of vertices per face
+    allocate (face_nvert(idx_dim))
     j1 = 0
     do i = 1, size(g)
       j0 = j1 + 1
       j1 = j1 + g(i)%p%idx_dim
       do j = j0, j1
-        face_dim(j) = g(i)%p%face_dim(j-j0+1)
+        face_nvert(j) = g(i)%p%face_nvert(j-j0+1)
         do k = 1, size(g)
           if (k == i) cycle
-          face_dim(j) = face_dim(j) * g(k)%p%cell_dim
+          face_nvert(j) = face_nvert(j) * g(k)%p%cell_nvert
         end do
       end do
     end do
 
-    ! get number of points per cell
-    cell_dim = 1
+    ! get number of vertices per cell
+    cell_nvert = 1
     do i = 1, size(g)
-      cell_dim = cell_dim * g(i)%p%cell_dim
+      cell_nvert = cell_nvert * g(i)%p%cell_nvert
+    end do
+
+    ! get number of edges per cell
+    allocate (cell_nedge(idx_dim))
+    j1 = 0
+    do i = 1, size(g)
+      j0 = j1 + 1
+      j1 = j1 + g(i)%p%idx_dim
+      do j = j0, j1
+        cell_nedge(j) = g(i)%p%cell_nedge(j-j0+1)
+        do k = 1, size(g)
+          if (k == i) cycle
+          cell_nedge(j) = cell_nedge(j) * g(k)%p%cell_nvert
+        end do
+      end do
     end do
 
     ! init base
-    call this%grid_init(name, dim, idx_dim, face_dim, cell_dim)
+    call this%grid_init(name, dim, idx_dim, face_nvert, cell_nvert, cell_nedge)
 
     ! save sub-grid pointers
     this%g = g
@@ -210,13 +226,13 @@ contains
     integer,            intent(in)  :: idx_dir
       !! face direction
     real,               intent(out) :: p(:,:)
-      !! output face coordinates (dim x face_dim(idx_dir))
+      !! output face coordinates (dim x face_nvert(idx_dir))
 
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1, rdir
-    real    :: tmp(this%dim,this%face_dim(idx_dir))
+    real    :: tmp(this%dim,this%face_nvert(idx_dir))
 
     m4_assert(this%idx_allowed(IDX_FACE, idx_dir, idx=idx))
-    m4_assert(all(shape(p) == [this%dim, this%face_dim(idx_dir)]))
+    m4_assert(all(shape(p) == [this%dim, this%face_nvert(idx_dir)]))
 
     ! tensor product point counter
     c = 1
@@ -234,18 +250,18 @@ contains
 
       ! get face or cell points for i-th grid
       if ((rdir < 1) .or. (rdir > this%g(i)%p%idx_dim)) then
-        n = this%g(i)%p%cell_dim
+        n = this%g(i)%p%cell_nvert
         call this%g(i)%p%get_cell(idx(j0:j1), tmp(i0:i1,1:n))
       else
-        n = this%g(i)%p%face_dim(rdir)
+        n = this%g(i)%p%face_nvert(rdir)
         call this%g(i)%p%get_face(idx(j0:j1), rdir, tmp(i0:i1,1:n))
       end if
 
       ! tensor product of points (combine points from this grid with all points from other grids)
       m = 0
-      do j = 1, this%face_dim(idx_dir)/(n*c) ! repeat until result points are filled
-        do k = 1, n                          ! loop over all n points from this grid
-          do l = 1, c                        ! replicate point c times
+      do j = 1, this%face_nvert(idx_dir)/(n*c) ! repeat until result points are filled
+        do k = 1, n                            ! loop over all n points from this grid
+          do l = 1, c                          ! replicate point c times
             m = m + 1
             p(i0:i1,m) = tmp(i0:i1,k)
           end do
@@ -263,13 +279,13 @@ contains
     integer,            intent(in)  :: idx(:)
       !! cell indices
     real,               intent(out) :: p(:,:)
-      !! output cell coordinates (dim x cell_dim)
+      !! output cell coordinates (dim x cell_nvert)
 
     integer :: i, j, k, l, m, n, c, i0, i1, j0, j1
-    real    :: tmp(this%dim,this%cell_dim)
+    real    :: tmp(this%dim,this%cell_nvert)
 
     m4_assert(this%idx_allowed(IDX_CELL, 0, idx=idx))
-    m4_assert(all(shape(p) == [this%dim, this%cell_dim]))
+    m4_assert(all(shape(p) == [this%dim, this%cell_nvert]))
 
     ! tensor product point counter
     c = 1
@@ -283,14 +299,14 @@ contains
       j1 = j1 + this%g(i)%p%idx_dim
 
       ! get cell for i-th grid
-      n = this%g(i)%p%cell_dim
+      n = this%g(i)%p%cell_nvert
       call this%g(i)%p%get_cell(idx(j0:j1), tmp(i0:i1,1:n))
 
       ! tensor product of points (combine points from this grid with all points from other grids)
       m = 0
-      do j = 1, this%cell_dim/(n*c) ! repeat until result points are filled
-        do k = 1, n                 ! loop over all n points from this grid
-          do l = 1, c               ! replicate point c times
+      do j = 1, this%cell_nvert/(n*c) ! repeat until result points are filled
+        do k = 1, n                   ! loop over all n points from this grid
+          do l = 1, c                 ! replicate point c times
             m = m + 1
             p(i0:i1,m) = tmp(i0:i1,k)
           end do
@@ -452,6 +468,113 @@ contains
     status = .true.
   end subroutine
 
+  subroutine tensor_grid_get_adjoint(this, idx, len, surf, vol)
+    !! get adjoint grid information per cell
+    class(tensor_grid), intent(in)  :: this
+    integer,            intent(in)  :: idx(:)
+      !! cell indices. size: (idx_dim)
+    real, optional,     intent(out) :: len(:,:)
+      !! edge lengths (max_cell_nedge, idx_dim)
+    real, optional,     intent(out) :: surf(:,:)
+      !! adjoint surface parts per edge (max_cell_nedge, idx_dim)
+    real, optional,     intent(out) :: vol(:)
+      !! adjoint volume parts per vertex (cell_nvert)
+
+    integer :: i, i0, i1, isurf, ivol, j
+    integer :: idx_dir, idx0(this%idx_dim), idx2(this%idx_dim)
+    logical :: status
+    real    :: gi_surf(this%max_cell_nedge,this%idx_dim), gi_vol(this%cell_nvert)
+
+    if (present(len)) then
+      m4_assert(size(len,1) == this%max_cell_nedge)
+      m4_assert(size(len,2) == this%idx_dim)
+
+      do idx_dir = 1, this%idx_dim
+        do j = 1, this%cell_nedge(idx_dir)
+          call this%get_neighb(IDX_CELL, 0, IDX_EDGE, idx_dir, idx, j, idx2, status)
+          len(j,idx_dir)  = this%get_len(idx2, idx_dir)
+        end do
+      end do
+    end if
+
+    if (present(surf)) then
+      m4_assert(size(surf,1) == this%max_cell_nedge)
+      m4_assert(size(surf,2) == this%idx_dim)
+
+      surf = 1.0
+
+      ! loop over subgrids, idx_dir range for i-th grid given by i0:i1
+      i1 = 0
+      do i = 1, size(this%g)
+        associate (gi => this%g(i)%p)
+          i0 = i1 + 1
+          i1 = i1 + gi%idx_dim
+
+          ! get adjoint cell information for i-th subgrid
+          call gi%get_adjoint(idx(i0:i1), surf = gi_surf(1:gi%max_cell_nedge,1:gi%idx_dim), vol = gi_vol(1:gi%cell_nvert))
+
+          ! loop over all edge directions
+          do idx_dir = 1, this%idx_dim
+            isurf = 0
+            ivol  = 0
+            idx2  = huge(idx2)
+
+            ! loop over all edges in this direction
+            do j = 1, this%cell_nedge(idx_dir)
+              ! get edge
+              idx0 = idx2
+              call this%get_neighb(IDX_CELL, 0, IDX_EDGE, idx_dir, idx, j, idx2, status)
+
+              if ((idx_dir >= i0) .and. (idx_dir <= i1)) then
+                ! update surf index if necessary
+                if (any(idx2(i0:i1) /= idx0(i0:i1))) isurf = mod(isurf, gi%cell_nedge(idx_dir - i0 + 1)) + 1
+
+                ! update surf
+                surf(j,idx_dir) = surf(j,idx_dir) * gi_surf(isurf,idx_dir - i0 + 1)
+              else
+                ! update vol index if necessary
+                if (any(idx2(i0:i1) /= idx0(i0:i1))) ivol  = mod(ivol, gi%cell_nvert) + 1
+
+                ! update surf
+                surf(j,idx_dir) = surf(j,idx_dir) * gi_vol(ivol)
+              end if
+            end do
+          end do
+        end associate
+      end do
+    end if
+
+    if (present(vol)) then
+      m4_assert(size(idx) == this%idx_dim)
+      m4_assert(size(vol) == this%cell_nvert)
+
+      vol = 1.0
+
+      i1 = 0
+      do i = 1, size(this%g)
+        associate (gi => this%g(i)%p)
+          i0 = i1 + 1
+          i1 = i1 + gi%idx_dim
+
+          ! get adjoint cell information for i-th subgrid
+          call gi%get_adjoint(idx(i0:i1), vol = gi_vol(1:gi%cell_nvert))
+
+          ivol = 0
+          idx2 = huge(idx2)
+
+          ! loop over all vertices
+          do j = 1, this%cell_nvert
+            idx0 = idx2
+            call this%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx, j, idx2, status)
+
+            if (any(idx2(i0:i1) /= idx0(i0:i1))) ivol = mod(ivol, gi%cell_nvert) + 1
+            vol(j) = vol(j) * gi_vol(ivol)
+          end do
+        end associate
+      end do
+    end if
+  end subroutine
+
   subroutine tensor_grid_output(this, of, unit)
     !! output tensor grid
     class(tensor_grid),     intent(in)    :: this
@@ -551,9 +674,6 @@ contains
     call hmap%init()
     call key%init(0, c = 16)
     call vneighb%init(0, c = 16)
-
-    ! search hint
-    isearch = -1
 
     ! allocate memory
     call this%neighb_i0(idx1_type,idx1_dir,idx2_type,idx2_dir)%init(this, idx1_type, idx1_dir)
