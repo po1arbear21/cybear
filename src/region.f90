@@ -1,5 +1,6 @@
 module region_m
 
+  use contact_m,       only: CT_OHMIC, CT_GATE
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
@@ -32,8 +33,8 @@ module region_m
   type, extends(region) :: region_contact
     type(string) :: name
       !! contact name
-    type(string) :: type
-      !! contact type ("ohmic" or "gate")
+    integer      :: type
+      !! contact type (CT_OHMIC or CT_GATE)
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
   contains
@@ -54,6 +55,7 @@ contains
 
     real, allocatable :: tmpx(:), tmpy(:), tmpz(:)
     logical           :: st
+    type(string)      :: type
 
     ! get bounds
     select case(gtype%s)
@@ -127,7 +129,14 @@ contains
     class is (region_contact)
       ! get name, type and phims
       call file%get(sid, "name",  this%name)
-      call file%get(sid, "type",  this%type)
+      call file%get(sid, "type",  type)
+      if (type%s == "ohmic") then
+        this%type = CT_OHMIC
+      elseif (type%s == "gate") then
+        this%type = CT_GATE
+      else
+        call program_error("unknown contact type "//type%s)
+      end if
       call file%get(sid, "phims", this%phims, status = st)
       if (.not. st) this%phims = 0
 

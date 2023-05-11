@@ -1,0 +1,76 @@
+module stabilization_intfc
+
+  implicit none
+
+  interface
+
+    subroutine fd_int_1h(x, f, dfdx)
+      !! fermi-dirac integral for j = 1/2
+      real, intent(in)  :: x
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+    end subroutine
+
+    subroutine inv_fd_int_1h(f, x, dxdf)
+      !! inverse fermi-dirac integral for j = 1/2
+      real, intent(in)  :: f
+      real, intent(out) :: x
+      real, intent(out) :: dxdf
+    end subroutine
+
+    subroutine fd_int_m1h(x, f, dfdx)
+      !! fermi-dirac integral for j = -1/2
+      real, intent(in)  :: x
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+    end subroutine
+
+    subroutine get_current_sg(ch, dx, pot, dens, mob, j, djdpot, djddens, djdmob)
+      !! get Scharfetter-Gummel current
+      real, intent(in)  :: ch
+        !! carrier charge (+/- 1)
+      real, intent(in)  :: dx
+        !! edge length
+      real, intent(in)  :: pot(2)
+        !! potentials at edge endpoints
+      real, intent(in)  :: dens(2)
+        !! densities at edge endpoints
+      real, intent(in)  :: mob
+        !! mobility (constant along edge)
+      real, intent(out) :: j
+        !! output current density
+      real, intent(out) :: djdpot(2)
+        !! derivatives of j wrt pot
+      real, intent(out) :: djddens(2)
+        !! derivatives of j wrt pot
+      real, intent(out) :: djdmob
+        !! derivatives of j wrt mob
+    end subroutine
+
+    subroutine get_current(ch, edos, dx, pot, dens, mob, j, djdpot, djddens, djdmob)
+      !! get current in degenerate case
+      real, intent(in)  :: ch
+        !! carrier charge (+/- 1)
+      real, intent(in)  :: edos
+        !! effective density of states
+      real, intent(in)  :: dx
+        !! edge length
+      real, intent(in)  :: pot(2)
+        !! potentials at edge endpoints
+      real, intent(in)  :: dens(2)
+        !! densities at edge endpoints
+      real, intent(in)  :: mob
+        !! mobility (constant along edge)
+      real, intent(out) :: j
+        !! output current density
+      real, intent(out) :: djdpot(2)
+        !! derivatives of j wrt pot
+      real, intent(out) :: djddens(2)
+        !! derivatives of j wrt pot
+      real, intent(out) :: djdmob
+        !! derivatives of j wrt mob
+    end subroutine
+
+  end interface
+
+end module

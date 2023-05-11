@@ -1,0 +1,239 @@
+!!!library stabilization_lib
+
+m4_include(util/macro.f90.inc)
+
+subroutine fd_int_1h(x, f, dfdx)
+
+  use distributions_m, only: fermi_dirac_integral_1h
+
+  implicit none
+
+  real, intent(in)  :: x
+  real, intent(out) :: f
+  real, intent(out) :: dfdx
+
+  call fermi_dirac_integral_1h(x, f, dfdx)
+end subroutine
+
+subroutine inv_fd_int_1h(f, x, dxdf)
+
+  use distributions_m, only: inv_fermi_dirac_integral_1h
+
+  implicit none
+
+  real, intent(in)  :: f
+  real, intent(out) :: x
+  real, intent(out) :: dxdf
+
+  call inv_fermi_dirac_integral_1h(f, x, dxdf)
+end subroutine
+
+subroutine fd_int_m1h(x, f, dfdx)
+
+  use distributions_m, only: fermi_dirac_integral_m1h
+
+  implicit none
+
+  real, intent(in)  :: x
+  real, intent(out) :: f
+  real, intent(out) :: dfdx
+
+  call fermi_dirac_integral_m1h(x, f, dfdx)
+end subroutine
+
+subroutine get_current_sg(ch, dx, pot, dens, mob, j, djdpot, djddens, djdmob)
+
+  use math_m, only: ber, dberdx
+
+  implicit none
+
+  real, intent(in)  :: ch
+    !! carrier charge (+/- 1)
+  real, intent(in)  :: dx
+    !! edge length
+  real, intent(in)  :: pot(2)
+    !! potentials at edge endpoints
+  real, intent(in)  :: dens(2)
+    !! densities at edge endpoints
+  real, intent(in)  :: mob
+    !! mobility (constant along edge)
+  real, intent(out) :: j
+    !! output current density
+  real, intent(out) :: djdpot(2)
+    !! derivatives of j wrt pot
+  real, intent(out) :: djddens(2)
+    !! derivatives of j wrt pot
+  real, intent(out) :: djdmob
+    !! derivatives of j wrt mob
+
+  real :: ber1, ber2, dber1, dber2
+
+  ber1  = ber(ch * (pot(1) - pot(2)))
+  ber2  = ber(ch * (pot(2) - pot(1)))
+  dber1 = ch * dberdx(ch * (pot(1) - pot(2)))
+  dber2 = ch * dberdx(ch * (pot(2) - pot(1)))
+
+  j = - mob * (ber1 * dens(2) - ber2 * dens(1)) / dx
+
+  djdpot(1) = - mob * (dber1 * dens(2) + dber2 * dens(1)) / dx
+  djdpot(2) =   mob * (dber1 * dens(2) + dber2 * dens(1)) / dx
+
+  djddens(1)  =   mob * ber2 / dx
+  djddens(2)  = - mob * ber1 / dx
+
+  djdmob = -(ber1 * dens(2) - ber2 * dens(1)) / dx
+end subroutine
+
+subroutine get_current(ch, edos, dx, pot, dens, mob, j, djdpot, djddens, djdmob)
+
+  use distributions_m, only: fermi_dirac_integral_m1h, inv_fermi_dirac_integral_1h
+  use newton_m,        only: newton1D, newton1D_opt
+  use ode_m,           only: ode_options, ode_result
+  use radau5_m,        only: radau5
+
+  implicit none
+
+  real, intent(in)  :: ch
+    !! carrier charge (+/- 1)
+  real, intent(in)  :: edos
+    !! effective density of states
+  real, intent(in)  :: dx
+    !! edge length
+  real, intent(in)  :: pot(2)
+    !! potentials at edge endpoints
+  real, intent(in)  :: dens(2)
+    !! densities at edge endpoints
+  real, intent(in)  :: mob
+    !! mobility (constant along edge)
+  real, intent(out) :: j
+    !! output current density
+  real, intent(out) :: djdpot(2)
+    !! derivatives of j wrt pot
+  real, intent(out) :: djddens(2)
+    !! derivatives of j wrt pot
+  real, intent(out) :: djdmob
+    !! derivatives of j wrt mob
+
+  real               :: jj, jj0, djjdp(3), nn(2)
+  type(newton1D_opt) :: newt_opt
+  type(ode_options)  :: ode_opt
+  type(ode_result)   :: ode_res1, ode_res2
+
+  ! use Scharfetter-Gummel as initial guess
+  call get_current_sg(ch, dx, pot, dens, mob, j, djdpot, djddens, djdmob)
+
+  ! normalize
+  jj0 = j * dx / (mob * edos)
+  nn  = dens / edos
+
+  ! newton iteration
+  call ode_opt%init(1, atol = [minval(nn*1e-14)], rtol = [1e-10], max_rejected = 20)
+  call newt_opt%init()
+  call newton1D(residual, [pot(2) - pot(1), nn(1), nn(2)], newt_opt, jj0, jj, djjdp)
+
+  ! extract solution + derivatives
+  j       = jj * mob * edos / dx
+  djdpot  = [-1.0, 1.0] * djjdp(1) * mob * edos / dx
+  djddens = djjdp(2:3) * mob / dx
+  djdmob  = jj * edos / dx
+
+contains
+
+  subroutine residual(x, p, f, dfdx, dfdp)
+    real,              intent(in)  :: x
+      !! argument (jj)
+    real,              intent(in)  :: p(:)
+      !! parameters (pot(2) - pot(1), nn(1), nn(2))
+    real,              intent(out) :: f
+      !! output function value
+    real,    optional, intent(out) :: dfdx
+      !! optional output derivative of f wrt x
+    real,    optional, intent(out) :: dfdp(:)
+      !! optional output derivatives of f wrt p
+
+    real :: nnr(2), djj(2), dpot(2), dnn0(2)
+
+    if (p(2) < p(3) * 1e-3) then
+      ! solve ode from left to right
+      call radau5(ode, 0.0, 1.0, [1.0], [p(2)], [p(1), x], ode_opt, ode_res1)
+      nnr( 1) = ode_res1%Usmp(    1,  1)
+      djj( 1) = ode_res1%dUsmpdP( 1,2,1)
+      dpot(1) = ode_res1%dUsmpdP( 1,1,1)
+      dnn0(1) = ode_res1%dUsmpdU0(1,1,1)
+      nnr( 2) = p(3)
+      djj( 2) = 0
+      dpot(2) = 0
+      dnn0(2) = 1
+    elseif (p(3) < p(2) * 1e-3) then
+      ! solve ode from right to left
+      call radau5(ode, 1.0, 0.0, [0.0], [p(3)], [p(1), x], ode_opt, ode_res2)
+      nnr( 1) = p(2)
+      djj( 1) = 0
+      dpot(1) = 0
+      dnn0(1) = 1
+      nnr( 2) = ode_res2%Usmp(    1,  1)
+      djj( 2) = ode_res2%dUsmpdP( 1,2,1)
+      dpot(2) = ode_res2%dUsmpdP( 1,1,1)
+      dnn0(2) = ode_res2%dUsmpdU0(1,1,1)
+    else
+      ! solve ode from left to center and from right to center
+      call radau5(ode, 0.0, 0.5, [0.5], [p(2)], [p(1), x], ode_opt, ode_res1)
+      call radau5(ode, 1.0, 0.5, [0.5], [p(3)], [p(1), x], ode_opt, ode_res2)
+      nnr( 1) = ode_res1%Usmp(    1,  1)
+      djj( 1) = ode_res1%dUsmpdP( 1,2,1)
+      dpot(1) = ode_res1%dUsmpdP( 1,1,1)
+      dnn0(1) = ode_res1%dUsmpdU0(1,1,1)
+      nnr( 2) = ode_res2%Usmp(    1,  1)
+      djj( 2) = ode_res2%dUsmpdP( 1,2,1)
+      dpot(2) = ode_res2%dUsmpdP( 1,1,1)
+      dnn0(2) = ode_res2%dUsmpdU0(1,1,1)
+    end if
+
+    ! residual
+    f = nnr(1) - nnr(2)
+    if (present(dfdx)) dfdx = djj(1) - djj(2)
+    if (present(dfdp)) dfdp = [dpot(1) - dpot(2), dnn0(1), -dnn0(2)]
+  end subroutine
+
+  subroutine ode(x, U, P, f, dfdU, dfdP)
+    real,           intent(in)  :: x
+      !! x coordinate
+    real,           intent(in)  :: U(:)
+      !! state (nn)
+    real,           intent(in)  :: P(:)
+      !! parameters (pot(2) - pot(1), jj)
+    real, optional, intent(out) :: f(:)
+      !! output dnn/dx
+    real, optional, intent(out) :: dfdU(:,:)
+      !! output derivative of f wrt nn
+    real, optional, intent(out) :: dfdP(:,:)
+      !! output derivative of f wrt P
+
+    real :: eta, deta, Fm1h, dFm12, alpha, dalpha, fsg, dfsg
+
+    m4_ignore(x)
+
+    ! get "degeneracy-factor" (~1 for small densities; < 1 for large densities)
+    call inv_fermi_dirac_integral_1h(U(1), eta, deta)
+    call fermi_dirac_integral_m1h(eta, Fm1h, dFm12)
+    alpha = Fm1h / U(1)
+    dalpha = (dFm12 * deta - alpha) / U(1)
+
+    ! Scharfetter-Gummel
+    fsg  = - ch * P(1) * U(1) - P(2)
+    dfsg = - ch * P(1)
+
+    ! scale Scharfetter-Gummel by degeneracy factor
+    if (present(f)) then
+      f(1) = alpha * fsg
+    end if
+    if (present(dfdU)) then
+      dfdU(1,1) = dalpha * fsg + alpha * dfsg
+    end if
+    if (present(dfdp)) then
+      dfdp(1,1) = - alpha * ch * U(1)
+      dfdp(1,2) = - alpha
+    end if
+  end subroutine
+
+end subroutine

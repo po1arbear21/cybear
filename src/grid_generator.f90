@@ -1,7 +1,9 @@
 module grid_generator_m
 
+  use error_m,       only: program_error
   use grid_m,        only: grid, grid_ptr
   use grid1D_m,      only: grid1D
+  use input_m,       only: input_file
   use tensor_grid_m, only: tensor_grid
   use triang_grid_m, only: triang_grid
   use triangle_m,    only: triangulation
@@ -13,93 +15,86 @@ module grid_generator_m
   implicit none
 
   private
-  public  :: DIR_NAME, generate_cartesian_grid, generate_triangle_grid
+  public  :: DIR_NAME, generate_1D_grid, generate_triangle_grid
 
    ! parameters
   character(*), parameter :: DIR_NAME(3)  = [ "x", "y", "z"]
 
 contains
 
-  subroutine generate_cartesian_grid(dim, reg, max_dxyz, g1D, tg, g)
-    !! create grids "x", "xy", "xyz"
-    integer,                    intent(in)  :: dim
-      !! grid dimension
-    type(region_ptr),           intent(in)  :: reg(:)
+  subroutine generate_1D_grid(file, load, dir, reg, g1D, gptr, ngptr)
+    !! create 1D grid x, y, or z
+    type(input_file),     intent(in)    :: file
+      !! device file
+    logical,              intent(in)    :: load
+      !! load or generate?
+    integer,              intent(in)    :: dir
+      !! axis direction
+    type(region_ptr),     intent(in)    :: reg(:)
       !! pointers to all regions
-    real,                       intent(in)  :: max_dxyz(:)
-      !! [max_dx, max_dy, max_dz]
-    type(grid1D),      target,  intent(out) :: g1D(:)
-      !! output x, y, z grid
-    type(tensor_grid), target,  intent(out) :: tg
-      !! output tensor grid
-    class(grid),       pointer, intent(out) :: g
-      !! output pointer to tg
+    type(grid1D), target, intent(out)   :: g1D
+      !! output newly generated 1D grid
+    type(grid_ptr),       intent(inout) :: gptr(:)
+      !! save pointer to g1D in gptr (used to create tensor grid afterwards)
+    integer,              intent(inout) :: ngptr
+      !! number of already used gptr entries (gets increased by 1)
 
-    integer           :: i
-    real, allocatable :: x0(:), xyz(:)
-    type(grid_ptr)    :: gptr(3)
+    real              :: max_dx
+    real, allocatable :: x0(:), x(:)
 
-    do i = 1, dim
-      ! get bounds
-      call get_bounds(i, reg, x0)
-      if (allocated(xyz)) deallocate(xyz)
-      call generate_axis(x0, max_dxyz(i), xyz)
-
-      call g1D(i)%init(DIR_NAME(i), xyz)
-      gptr(i) = g1D(i)%get_ptr()
-    end do
-    if (dim > 1) then
-      call tg%init("grid", gptr(1:dim))
-      g => tg
+    ! load or generate axis
+    if (load) then
+      call file%get("grid", DIR_NAME(dir), x)
     else
-      g => g1D(1)
+      call file%get("grid", "max_d"//DIR_NAME(dir), max_dx)
+      call get_bounds(dir, reg, x0)
+      call generate_axis(x0, max_dx, x)
     end if
+
+    ! initialize grid
+    call g1D%init(DIR_NAME(dir), x)
+
+    ! update pointer list
+    ngptr         =  ngptr + 1
+    gptr(ngptr)%p => g1D
   end subroutine
 
-  subroutine generate_triangle_grid(dim, reg, max_areadz, tr, gtr, g1D, tg, g)
-    !! create triangle grid "tr_xy", "tr_xyz"
-    integer,                    intent(in)  :: dim
-      !! grid dimension
-    type(region_ptr),           intent(in)  :: reg(:)
-      !! region pointer
-    real,                       intent(in)  :: max_areadz(:)
-      !! [max_area, max_dz]
-    type(triangulation),        intent(out) :: tr
+  subroutine generate_triangle_grid(file, load, reg, tr, gtr, gptr, ngptr)
+    !! create triangle grid
+    type(input_file),          intent(in)    :: file
+      !! device file
+    logical,                   intent(in)    :: load
+      !! load or generate? (load not implemented yet)
+    type(region_ptr),          intent(in)    :: reg(:)
+      !! pointers to all regions
+    type(triangulation),       intent(out)   :: tr
       !! output triangulation
-    type(triang_grid), target,  intent(out) :: gtr
+    type(triang_grid), target, intent(out)   :: gtr
       !! output corresponding triangle grid
-    type(grid1D),      target,  intent(out) :: g1D(:)
-      !! output z grid
-    type(tensor_grid), target,  intent(out) :: tg
-      !! output tensor grid
-    class(grid),       pointer, intent(out) :: g
-      !! output pointer to gtr or tg
+    type(grid_ptr),            intent(inout) :: gptr(:)
+      !! save pointer to g1D in gptr (used to create tensor grid afterwards)
+    integer,                   intent(inout) :: ngptr
+      !! number of already used gptr entries (gets increased by 1)
 
-    integer           :: i
-    real, allocatable :: z0(:), z(:)
-    type(grid_ptr)    :: gptr(2)
+    integer :: i
+    real    :: max_area
 
-    ! triangle grid
-    call tr%init()
-    do i = 1, size(reg)
-      call tr%add_polygon(reg(i)%p%xyz(1,:), reg(i)%p%xyz(2,:), closed = .true.)
-    end do
-    call tr%triangulate(max_area = max_areadz(1))
-    call tr%get_grid("tr", gtr)
-    g => gtr
-    gptr(1) = gtr%get_ptr()
-
-    ! add z axis if gtype == "tr_xyz"
-    if (dim == 3) then
-      call get_bounds(dim, reg, z0)
-      call generate_axis(z0, max_areadz(2), z)
-      call g1D(3)%init(DIR_NAME(3), z)
-      gptr(2) = g1D(3)%get_ptr()
-
-      ! tensor grid
-      call tg%init("grid", gptr(1:2))
-      g => tg
+    ! load or generate triangle grid
+    if (load) then
+      call program_error("loading triangle grid not implemented yet")
+    else
+      call tr%init()
+      do i = 1, size(reg)
+        call tr%add_polygon(reg(i)%p%xyz(1,:), reg(i)%p%xyz(2,:), closed = .true.)
+      end do
+      call file%get("grid", "max_area", max_area)
+      call tr%triangulate(max_area = max_area)
+      call tr%get_grid("tr", gtr)
     end if
+
+    ! update pointer list
+    ngptr = ngptr + 1
+    gptr(ngptr)%p => gtr
   end subroutine
 
   subroutine get_bounds(dim, reg, x0)

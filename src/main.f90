@@ -157,6 +157,162 @@ contains
       gummel_enabled = .true.
 
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
+
+! block
+  ! use normalization_m
+  ! use grid_m
+
+  ! integer :: i, j, i1, i2, funit, idx(2), idx1(2), idx2(2)
+  ! ! real    :: p1(3), p2(3)
+
+  ! call ss%select(1)
+
+  ! open (newunit = funit, file = "pot_x.csv", status = "replace", action = "write")
+  ! do i = 1, dev%par%g1D(1)%n
+  !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(1)%x(i), "nm"), denorm(dev%pot%x1(i), "V")
+  ! end do
+  ! close (funit)
+
+  ! open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
+  ! do i = 1, dev%par%g1D(2)%n
+  !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(2)%x(i), "nm"), denorm(dev%pot%x2(11,i), "V")
+  ! end do
+  ! close (funit)
+
+  ! open (newunit = funit, file = "pot_z_14_11.csv", status = "replace", action = "write")
+  ! do i = 1, dev%par%g1D(3)%n
+  !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(3)%x(i), "nm"), denorm(dev%pot%x3(14,11,i), "V")
+  ! end do
+  ! close (funit)
+  ! open (newunit = funit, file = "pot_z_5_11.csv", status = "replace", action = "write")
+  ! do i = 1, dev%par%g1D(3)%n
+  !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(3)%x(i), "nm"), denorm(dev%pot%x3(5,11,i), "V")
+  ! end do
+  ! close (funit)
+  ! open (newunit = funit, file = "pot_z_14_5.csv", status = "replace", action = "write")
+  ! do i = 1, dev%par%g1D(3)%n
+  !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(3)%x(i), "nm"), denorm(dev%pot%x3(14,5,i), "V")
+  ! end do
+  ! close (funit)
+  ! open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
+  !   idx1 = [i,   j]
+  !   idx2 = [i+1, j]
+  !   if (i < dev%par%g1D(1)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+
+  !   idx1 = [i, j  ]
+  !   idx2 = [i, j+1]
+  !   if (j < dev%par%g1D(2)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+  ! end do; end do
+  ! write (funit, "(A)") "$ END"
+  ! close (funit)
+  ! open (newunit = funit, file = "pot_xy_20.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
+  !   idx1 = [i,   j, 20]
+  !   idx2 = [i+1, j, 20]
+  !   if (i < dev%par%g1D(1)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+
+  !   idx1 = [i, j,   20]
+  !   idx2 = [i, j+1, 20]
+  !   if (j < dev%par%g1D(2)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+  ! end do; end do
+  ! write (funit, "(A)") "$ END"
+  ! close (funit)
+  ! open (newunit = funit, file = "pot_xy_30.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
+  !   idx1 = [i,   j, 30]
+  !   idx2 = [i+1, j, 30]
+  !   if (i < dev%par%g1D(1)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+
+  !   idx1 = [i, j,   30]
+  !   idx2 = [i, j+1, 30]
+  !   if (j < dev%par%g1D(2)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+  ! end do; end do
+  ! write (funit, "(A)") "$ END"
+  ! close (funit)
+
+  ! open (newunit = funit, file = "pot_tr.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do i = 1, dev%par%poisson(IDX_EDGE,1)%n
+  !   idx(1:1) = dev%par%poisson(IDX_EDGE,1)%get_idx(i)
+  !   call dev%par%g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx(1:1), 1, idx1(1:1), status)
+  !   call dev%par%g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx(1:1), 2, idx2(1:1), status)
+  !   call dev%par%g%get_vertex(idx1(1:1), p1)
+  !   call dev%par%g%get_vertex(idx2(1:1), p2)
+  !   write (funit, "(3ES24.16)") denorm(p1(1), "nm"), denorm(p1(2), "nm"), denorm(dev%pot%get(idx1(1:1)), "V")
+  !   write (funit, "(3ES24.16)") denorm(p2(1), "nm"), denorm(p2(2), "nm"), denorm(dev%pot%get(idx2(1:1)), "V")
+  !   write (funit, *)
+  ! end do
+  ! close (funit)
+
+  ! open (newunit = funit, file = "pot_tr_z_10.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do i = 1, dev%par%gtr%nedge
+  !   idx(1) = i
+  !   idx(2) = 10
+  !   call dev%par%g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx(1:2), 1, idx1(1:2), status)
+  !   call dev%par%g%get_neighb(IDX_EDGE, 1, IDX_VERTEX, 0, idx(1:2), 2, idx2(1:2), status)
+  !   call dev%par%g%get_vertex(idx1(1:2), p1)
+  !   call dev%par%g%get_vertex(idx2(1:2), p2)
+  !   write (funit, "(3ES24.16)") denorm(p1(1), "nm"), denorm(p1(2), "nm"), denorm(dev%pot%get(idx1(1:2)), "V")
+  !   write (funit, "(3ES24.16)") denorm(p2(1), "nm"), denorm(p2(2), "nm"), denorm(dev%pot%get(idx2(1:2)), "V")
+  !   write (funit, *)
+  ! end do
+  ! close (funit)
+
+  ! stop
+! end block
     end do
   end subroutine
 
