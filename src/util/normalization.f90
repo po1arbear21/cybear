@@ -120,21 +120,30 @@ contains
       !! temperature
 
     ! constants
-    real, parameter :: EC     = 1.602176634e-19               ! elementary charge         [ As   ]
+    real, parameter :: EC = 1.602176634e-19
+      !! elementary charge [ As ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?e
-    real, parameter :: EM     = 9.1093837015e-31              ! electron rest mass        [ kg   ]
+    real, parameter :: EM = 9.1093837015e-31
+      !! electron rest mass [ kg ]
       !! rel err: 3e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?me
-    real, parameter :: PLANCK = 6.62607015e-34 / (2*PI*EC)    ! reduced Planck's constant [ eVs  ]
+    real, parameter :: PLANCK = 6.62607015e-34 / (2*PI*EC)
+      !! reduced Planck constant [ eVs ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?h
-    real, parameter :: BOLTZ  = 1.380649e-23/EC               ! Boltzmann's constant      [ eV/K ]
+    real, parameter :: BOLTZ = 1.380649e-23/EC
+      !! Boltzmann constant [ eV/K ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?k
-    real, parameter :: EPS0   = 8.8541878128e-12              ! vacuum permittivity       [ F/m  ]
+    real, parameter :: EPS0 = 8.8541878128e-12
+      !! vacuum permittivity [ F/m ]
       !! rel err: 1.5e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?ep0
+    real, parameter :: MU0 = 1.25663706212e-6
+      !! vacuum permeability [ N/A² ]
+      !! rel err: 1.5e-10
+      !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?mu0
 
     ! metric prefixes: INVERSE values for normalization
     real, parameter :: TERA = 1e-12
@@ -150,16 +159,23 @@ contains
     real, parameter :: FEMTO = 1e15
 
     ! local variables
-    real :: meter, second, kilogram, volt, ampere, kelvin, diel
+    real :: ampere, coulomb, diel, farad, henry, hertz, kelvin, kilogram, meter, ohm, permby, second, volt, watt
 
     ! basic units
     volt     = BOLTZ * T
     meter    = PLANCK / sqrt(EM / EC * volt)
     second   = PLANCK / volt
+    hertz    = 1.0 / second
     kilogram = EM
     ampere   = EC / second
+    coulomb  = ampere * second
+    farad    = coulomb / volt
+    ohm      = volt / ampere
+    henry    = ohm * second
+    watt     = volt * ampere
     kelvin   = T
     diel     = sqrt(EM * EC / volt) / (PLANCK * EPS0)
+    permby   = henry / meter / MU0
 
     ! initialize map
     call this%unit_const%init()
@@ -225,13 +241,11 @@ contains
     call this%unit_const%insert(new_string("1/ps"), 1 / (PICO *second) )
     call this%unit_const%insert(new_string("1/fs"), 1 / (FEMTO*second) )
 
-    associate (hertz => 1 / second)
-      call this%unit_const%insert(new_string("Hz" ),      hertz )
-      call this%unit_const%insert(new_string("kHz"), KILO*hertz )
-      call this%unit_const%insert(new_string("MHz"), MEGA*hertz )
-      call this%unit_const%insert(new_string("GHz"), GIGA*hertz )
-      call this%unit_const%insert(new_string("THz"), TERA*hertz )
-    end associate
+    call this%unit_const%insert(new_string("Hz" ),      hertz )
+    call this%unit_const%insert(new_string("kHz"), KILO*hertz )
+    call this%unit_const%insert(new_string("MHz"), MEGA*hertz )
+    call this%unit_const%insert(new_string("GHz"), GIGA*hertz )
+    call this%unit_const%insert(new_string("THz"), TERA*hertz )
 
     call this%unit_const%insert(new_string("m/s"    ),         meter     / second    )
     call this%unit_const%insert(new_string("cm/s"   ),  (CENTI*meter)    / second    )
@@ -303,83 +317,89 @@ contains
     call this%unit_const%insert(new_string("A/V/pm^2"), ampere / volt / (PICO *meter)**2 )
     call this%unit_const%insert(new_string("A/V/fm^2"), ampere / volt / (FEMTO*meter)**2 )
 
-    associate (coulomb => ampere * second)
-      call this%unit_const%insert(new_string("C"     ), coulomb                    )
-      call this%unit_const%insert(new_string("C/m"   ), coulomb /        meter     )
-      call this%unit_const%insert(new_string("C/cm"  ), coulomb / (CENTI*meter)    )
-      call this%unit_const%insert(new_string("C/mm"  ), coulomb / (MILLI*meter)    )
-      call this%unit_const%insert(new_string("C/um"  ), coulomb / (MICRO*meter)    )
-      call this%unit_const%insert(new_string("C/nm"  ), coulomb / (NANO *meter)    )
-      call this%unit_const%insert(new_string("C/pm"  ), coulomb / (PICO *meter)    )
-      call this%unit_const%insert(new_string("C/fm"  ), coulomb / (FEMTO*meter)    )
-      call this%unit_const%insert(new_string("C/m^2" ), coulomb / (      meter)**2 )
-      call this%unit_const%insert(new_string("C/cm^2"), coulomb / (CENTI*meter)**2 )
-      call this%unit_const%insert(new_string("C/mm^2"), coulomb / (MILLI*meter)**2 )
-      call this%unit_const%insert(new_string("C/um^2"), coulomb / (MICRO*meter)**2 )
-      call this%unit_const%insert(new_string("C/nm^2"), coulomb / (NANO *meter)**2 )
-      call this%unit_const%insert(new_string("C/pm^2"), coulomb / (PICO *meter)**2 )
-      call this%unit_const%insert(new_string("C/fm^2"), coulomb / (FEMTO*meter)**2 )
-      call this%unit_const%insert(new_string("C/m^3" ), coulomb / (      meter)**3 )
-      call this%unit_const%insert(new_string("C/cm^3"), coulomb / (CENTI*meter)**3 )
-      call this%unit_const%insert(new_string("C/mm^3"), coulomb / (MILLI*meter)**3 )
-      call this%unit_const%insert(new_string("C/um^3"), coulomb / (MICRO*meter)**3 )
-      call this%unit_const%insert(new_string("C/nm^3"), coulomb / (NANO *meter)**3 )
-      call this%unit_const%insert(new_string("C/pm^3"), coulomb / (PICO *meter)**3 )
-      call this%unit_const%insert(new_string("C/fm^3"), coulomb / (FEMTO*meter)**3 )
-    end associate
+    call this%unit_const%insert(new_string("C"     ), coulomb                    )
+    call this%unit_const%insert(new_string("C/m"   ), coulomb /        meter     )
+    call this%unit_const%insert(new_string("C/cm"  ), coulomb / (CENTI*meter)    )
+    call this%unit_const%insert(new_string("C/mm"  ), coulomb / (MILLI*meter)    )
+    call this%unit_const%insert(new_string("C/um"  ), coulomb / (MICRO*meter)    )
+    call this%unit_const%insert(new_string("C/nm"  ), coulomb / (NANO *meter)    )
+    call this%unit_const%insert(new_string("C/pm"  ), coulomb / (PICO *meter)    )
+    call this%unit_const%insert(new_string("C/fm"  ), coulomb / (FEMTO*meter)    )
+    call this%unit_const%insert(new_string("C/m^2" ), coulomb / (      meter)**2 )
+    call this%unit_const%insert(new_string("C/cm^2"), coulomb / (CENTI*meter)**2 )
+    call this%unit_const%insert(new_string("C/mm^2"), coulomb / (MILLI*meter)**2 )
+    call this%unit_const%insert(new_string("C/um^2"), coulomb / (MICRO*meter)**2 )
+    call this%unit_const%insert(new_string("C/nm^2"), coulomb / (NANO *meter)**2 )
+    call this%unit_const%insert(new_string("C/pm^2"), coulomb / (PICO *meter)**2 )
+    call this%unit_const%insert(new_string("C/fm^2"), coulomb / (FEMTO*meter)**2 )
+    call this%unit_const%insert(new_string("C/m^3" ), coulomb / (      meter)**3 )
+    call this%unit_const%insert(new_string("C/cm^3"), coulomb / (CENTI*meter)**3 )
+    call this%unit_const%insert(new_string("C/mm^3"), coulomb / (MILLI*meter)**3 )
+    call this%unit_const%insert(new_string("C/um^3"), coulomb / (MICRO*meter)**3 )
+    call this%unit_const%insert(new_string("C/nm^3"), coulomb / (NANO *meter)**3 )
+    call this%unit_const%insert(new_string("C/pm^3"), coulomb / (PICO *meter)**3 )
+    call this%unit_const%insert(new_string("C/fm^3"), coulomb / (FEMTO*meter)**3 )
 
-    associate (ohm => volt / ampere)
-      call this%unit_const%insert(new_string("A/V" ), 1 / ohm )
+    call this%unit_const%insert(new_string("A/V" ), 1 / ohm )
 
-      call this%unit_const%insert(new_string("MOhm"), MEGA *ohm )
-      call this%unit_const%insert(new_string("kOhm"), KILO *ohm )
-      call this%unit_const%insert(new_string("V/A" ),       ohm )
-      call this%unit_const%insert(new_string("Ohm" ),       ohm )
-      call this%unit_const%insert(new_string("mOhm"), MILLI*ohm )
-      call this%unit_const%insert(new_string("uOhm"), MICRO*ohm )
-      call this%unit_const%insert(new_string("nOhm"), NANO *ohm )
-      call this%unit_const%insert(new_string("pOhm"), PICO *ohm )
-      call this%unit_const%insert(new_string("fOhm"), FEMTO*ohm )
-    end associate
+    call this%unit_const%insert(new_string("MOhm"), MEGA *ohm )
+    call this%unit_const%insert(new_string("kOhm"), KILO *ohm )
+    call this%unit_const%insert(new_string("V/A" ),       ohm )
+    call this%unit_const%insert(new_string("Ohm" ),       ohm )
+    call this%unit_const%insert(new_string("mOhm"), MILLI*ohm )
+    call this%unit_const%insert(new_string("uOhm"), MICRO*ohm )
+    call this%unit_const%insert(new_string("nOhm"), NANO *ohm )
+    call this%unit_const%insert(new_string("pOhm"), PICO *ohm )
+    call this%unit_const%insert(new_string("fOhm"), FEMTO*ohm )
 
-    associate (farad => ampere * second / volt)
-      call this%unit_const%insert(new_string("F" ),       farad )
-      call this%unit_const%insert(new_string("mF"), MILLI*farad )
-      call this%unit_const%insert(new_string("uF"), MICRO*farad )
-      call this%unit_const%insert(new_string("nF"), NANO *farad )
-      call this%unit_const%insert(new_string("pF"), PICO *farad )
-      call this%unit_const%insert(new_string("fF"), FEMTO*farad )
-    end associate
+    call this%unit_const%insert(new_string("F" ),       farad )
+    call this%unit_const%insert(new_string("mF"), MILLI*farad )
+    call this%unit_const%insert(new_string("uF"), MICRO*farad )
+    call this%unit_const%insert(new_string("nF"), NANO *farad )
+    call this%unit_const%insert(new_string("pF"), PICO *farad )
+    call this%unit_const%insert(new_string("fF"), FEMTO*farad )
 
-    associate (henry => volt * second / ampere)
-      call this%unit_const%insert(new_string("H" ),       henry )
-      call this%unit_const%insert(new_string("mH"), MILLI*henry )
-      call this%unit_const%insert(new_string("uH"), MICRO*henry )
-      call this%unit_const%insert(new_string("nH"), NANO *henry )
-      call this%unit_const%insert(new_string("pH"), PICO *henry )
-      call this%unit_const%insert(new_string("fH"), FEMTO*henry )
-    end associate
+    call this%unit_const%insert(new_string("F/m" ),       farad / meter )
+    call this%unit_const%insert(new_string("mF/m"), MILLI*farad / meter )
+    call this%unit_const%insert(new_string("uF/m"), MICRO*farad / meter )
+    call this%unit_const%insert(new_string("nF/m"), NANO *farad / meter )
+    call this%unit_const%insert(new_string("pF/m"), PICO *farad / meter )
+    call this%unit_const%insert(new_string("fF/m"), FEMTO*farad / meter )
 
-    associate (watt => volt * ampere)
-      call this%unit_const%insert(new_string("W" ),       watt )
-      call this%unit_const%insert(new_string("mW"), MILLI*watt )
-      call this%unit_const%insert(new_string("uW"), MICRO*watt )
-      call this%unit_const%insert(new_string("nW"), NANO *watt )
-      call this%unit_const%insert(new_string("pW"), PICO *watt )
-      call this%unit_const%insert(new_string("fW"), FEMTO*watt )
+    call this%unit_const%insert(new_string("H" ),       henry )
+    call this%unit_const%insert(new_string("mH"), MILLI*henry )
+    call this%unit_const%insert(new_string("uH"), MICRO*henry )
+    call this%unit_const%insert(new_string("nH"), NANO *henry )
+    call this%unit_const%insert(new_string("pH"), PICO *henry )
+    call this%unit_const%insert(new_string("fH"), FEMTO*henry )
 
-      call this%unit_const%insert(new_string("W/m" ), watt / (        meter) )
-      call this%unit_const%insert(new_string("W/cm"), watt / (CENTI * meter) )
-      call this%unit_const%insert(new_string("W/mm"), watt / (MILLI * meter) )
-      call this%unit_const%insert(new_string("W/um"), watt / (MICRO * meter) )
-      call this%unit_const%insert(new_string("W/nm"), watt / (NANO  * meter) )
-      call this%unit_const%insert(new_string("W/pm"), watt / (PICO  * meter) )
-      call this%unit_const%insert(new_string("W/fm"), watt / (FEMTO * meter) )
+    call this%unit_const%insert(new_string("H/m" ),       henry / meter )
+    call this%unit_const%insert(new_string("mH/m"), MILLI*henry / meter )
+    call this%unit_const%insert(new_string("uH/m"), MICRO*henry / meter )
+    call this%unit_const%insert(new_string("nH/m"), NANO *henry / meter )
+    call this%unit_const%insert(new_string("pH/m"), PICO *henry / meter )
+    call this%unit_const%insert(new_string("fH/m"), FEMTO*henry / meter )
 
-      call this%unit_const%insert(new_string("A/W"), ampere / watt)
-    end associate
+    call this%unit_const%insert(new_string("W" ),       watt )
+    call this%unit_const%insert(new_string("mW"), MILLI*watt )
+    call this%unit_const%insert(new_string("uW"), MICRO*watt )
+    call this%unit_const%insert(new_string("nW"), NANO *watt )
+    call this%unit_const%insert(new_string("pW"), PICO *watt )
+    call this%unit_const%insert(new_string("fW"), FEMTO*watt )
+
+    call this%unit_const%insert(new_string("W/m" ), watt / (        meter) )
+    call this%unit_const%insert(new_string("W/cm"), watt / (CENTI * meter) )
+    call this%unit_const%insert(new_string("W/mm"), watt / (MILLI * meter) )
+    call this%unit_const%insert(new_string("W/um"), watt / (MICRO * meter) )
+    call this%unit_const%insert(new_string("W/nm"), watt / (NANO  * meter) )
+    call this%unit_const%insert(new_string("W/pm"), watt / (PICO  * meter) )
+    call this%unit_const%insert(new_string("W/fm"), watt / (FEMTO * meter) )
+
+    call this%unit_const%insert(new_string("A/W"), ampere / watt)
 
     call this%unit_const%insert(new_string("eps0"), diel)
+
+    call this%unit_const%insert(new_string("mu0"), permby)
 
     call this%unit_const%insert(new_string("K"), kelvin)
   end subroutine
