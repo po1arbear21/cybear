@@ -60,7 +60,6 @@ contains
   elemental function heaviside(x) result(h)
     !! heaviside step function
     real, intent(in) :: x
-      !! evaluation value
     real             :: h
 
     if      (x < 0) then
@@ -84,7 +83,6 @@ contains
   elemental function ber(x) result(b)
     !! bernoulli function ber(x) = x / (exp(x) - 1)
     real, intent(in) :: x
-      !! evaluation value
     real             :: b
 
     if (abs(x) > 1e-6) then
@@ -95,22 +93,30 @@ contains
   end function
 
   elemental function dberdx(x) result(dbdx)
-    !! derivative of bernoulli function
+    !! derivative of bernoulli function (max rel. error ~ 3e-15 at x = 0.075; FIXME: improve)
     real, intent(in) :: x
-      !! evaluation value
     real             :: dbdx
 
-    if (abs(x) > 1e-6) then
+    if (x < 0) then
+      dbdx = dberdx(-x) - 1
+    elseif (x > 1e2) then
+      dbdx = (1 - x) * exp(-x)
+    elseif (x > 0.075) then
       dbdx = (2.0 * exp(-0.5 * x) * sinh(0.5 * x) - x) / (4.0 * sinh(0.5 * x)**2)
+    elseif (x > 0.025) then
+      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2*(1.0/810 - x**2*(1.0/68040 + x**2/6123600)))) - 1)
+    elseif (x > 1e-3) then
+      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2*(1.0/810 - x**2/68040))) - 1)
+    elseif (x > 1e-5) then
+      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2/810)) - 1)
     else
-      dbdx = -0.5 + x / 6.0
+      dbdx = 0.5 * (tanh(x/3) - 1)
     end if
   end function
 
   elemental function phi1(x) result(phi)
     !! phi1(x) = (exp(x) - 1) / x = 1 / ber(x)
     real, intent(in) :: x
-      !! evaluation value
     real             :: phi
 
     phi = 1.0 / ber(x)
@@ -119,7 +125,6 @@ contains
   elemental function dphi1dx(x) result(dphidx)
     !! derivative of phi1(x)
     real, intent(in) :: x
-      !! evaluation value
     real             :: dphidx
 
     dphidx = - dberdx(x) / (ber(x)**2)
@@ -128,7 +133,6 @@ contains
   elemental function phi2(x) result(phi)
     !! phi2(x) = (exp(x) - 1 - x) / x**2
     real, intent(in) :: x
-      !! evaluation value
     real             :: phi
 
     ! local variables
@@ -152,7 +156,6 @@ contains
   elemental function dphi2dx(x) result(dphidx)
     !! derivative of phi2(x)
     real, intent(in) :: x
-      !! evaluation value
     real             :: dphidx
 
     ! local variables
@@ -176,7 +179,6 @@ contains
   elemental function m_expm1(x) result(e)
     !! exp(x) - 1; accurate even for x close to 0
     real, intent(in) :: x
-      !! evaluation value
     real             :: e
 
     if (ieee_class(x) == IEEE_POSITIVE_INF) then
@@ -197,7 +199,6 @@ contains
   elemental function m_log1p(x) result(l)
     !! log(1 + x); accurate even for x close to 0
     real, intent(in) :: x
-      !! evaluation value
     real             :: l
 
     real :: u, d
