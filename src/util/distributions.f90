@@ -3,7 +3,8 @@ m4_include(macro.f90.inc)
 module distributions_m
 
   use, intrinsic :: ieee_arithmetic
-  use math_m, only: expm1, PI
+  use error_m, only: assert_failed
+  use math_m,  only: expm1, PI
   m4_ifdef({m4_quadpack},{use quadpack_m, only: quadpack_int})
 
   implicit none
@@ -220,7 +221,7 @@ contains
     !! inverse of fermi-dirac integral for j = 1/2
     !! Reference: Fukushima, T. (2015, App. Math. Comp., 259, 698-707)
     real, intent(in) :: y
-      !! fermi-dirac integral value
+      !! fermi-dirac integral value (> 0)
     real, intent(out) :: x
       !! output argument of fermi-dirac integral
     real, intent(out) :: dxdy
@@ -257,6 +258,8 @@ contains
 
     real    :: dy
     complex :: xx, yy, s, t, v, w, z
+
+    m4_assert(y > 0)
 
     dy = y * 1e-32
 

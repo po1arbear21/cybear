@@ -98,7 +98,7 @@ contains
     real             :: dbdx
 
     if (x < 0) then
-      dbdx = dberdx(-x) - 1
+      dbdx = - dberdx(-x) - 1
     elseif (x > 1e2) then
       dbdx = (1 - x) * exp(-x)
     elseif (x > 0.075) then
