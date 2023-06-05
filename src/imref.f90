@@ -162,8 +162,7 @@ contains
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%smc%edos(ci))
       else
-        iref = pot + ch * log(dens / this%par%smc%n_intrin)
-
+        iref = pot + ch * (0.5 * this%par%smc%band_gap + log(dens / sqrt(this%par%smc%edos(1) * this%par%smc%edos(2))))
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch / dens)
       end if
@@ -230,7 +229,7 @@ contains
         call this%jaco_pot%set( idx, idx, - ch * this%par%smc%edos(ci) * dF12)
         call this%jaco_iref%set(idx, idx,   ch * this%par%smc%edos(ci) * dF12)
       else
-        dens = this%par%smc%n_intrin * exp(ch * (iref - pot))
+        dens = sqrt(this%par%smc%edos(1) * this%par%smc%edos(2)) * exp(ch * (iref - pot) - 0.5 * this%par%smc%band_gap)
 
         call this%dens%set(idx, dens)
         call this%jaco_pot%set( idx, idx, - ch*dens)

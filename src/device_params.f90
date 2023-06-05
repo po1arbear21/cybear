@@ -64,14 +64,16 @@ module device_params_m
       !! get contact index by name
     class(grid_data_int),  allocatable :: ict
       !! get contact index by grid indices
+    integer                            :: nct
+      !! number of contacts
     type(grid_table),      allocatable :: contacted(:)
-      !! contacted vertices (1:size(contacts))
+      !! contacted vertices (1:nct)
     type(grid_table),      allocatable :: poisson_vct(:)
-      !! poisson vertices grouped by contacts (0:size(contacts))
+      !! poisson vertices grouped by contacts (0:nct)
     type(grid_table),      allocatable :: oxide_vct(:)
-      !! oxide vertices grouped by contacts (0:size(contacts))
+      !! oxide vertices grouped by contacts (0:nct)
     type(grid_table),      allocatable :: transport_vct(:)
-      !! transport vertices grouped by contacts (0:size(contacts))
+      !! transport vertices grouped by contacts (0:nct)
 
     type(string)              :: gtype
       !! grid type ("x", "xy", "xyz", "tr_xy", "tr_xyz")
@@ -775,6 +777,7 @@ contains
       nct = nct + 1
       call this%contact_map%insert(this%reg_ct(ri)%name, nct)
     end do
+    this%nct = nct
     allocate (this%contacts(nct))
 
     ! allocate/initialize grid data

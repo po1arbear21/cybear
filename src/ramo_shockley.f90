@@ -91,7 +91,7 @@ contains
     ! provide variables
     call rho%reset()
     call sys%provide(rho, input = .false.)
-    nct = size(par%contacts)
+    nct = par%nct
     do i = 1, nct
       call sys%provide(volt(i), input = .true.)
     end do
@@ -215,14 +215,14 @@ contains
     this%jaco_curr => this%init_jaco_f(this%depend(this%curr), const = .true.)
 
     ! set jaco_cdens entries
-    allocate (d(size(par%contacts),1))
+    allocate (d(par%nct,1))
     allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
     do idx_dir = 1, par%g%idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
         idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
         call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
         call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
-        do ict = 1, size(par%contacts)
+        do ict = 1, par%nct
           d(ict,1) = par%curr_fact * par%tr_surf(idx_dir)%get(idx) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
         end do
         do ci = par%ci0, par%ci1
@@ -235,7 +235,7 @@ contains
     call this%jaco_volt%set(dum, dum, - ramo%cap)
 
     ! set jaco_curr entries
-    call this%jaco_curr%set(dum, dum, eye_real(size(par%contacts)))
+    call this%jaco_curr%set(dum, dum, eye_real(par%nct))
 
     ! finish initialization
     call this%init_final()

@@ -72,7 +72,7 @@ contains
     allocate (this%cdens(idx_dim), this%st_nn(idx_dim), this%jaco_cdens(idx_dim))
 
     ! init variable selectors
-    call this%dens%init(dens, [(par%transport_vct(ict)%get_ptr(), ict = 0, size(par%contacts))])
+    call this%dens%init(dens, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
     do idx_dir = 1, idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
@@ -95,14 +95,14 @@ contains
 
     ! init jacobians
     this%jaco_dens   => this%init_jaco_f(idens, &
-      & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, size(par%contacts))], &
+      & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, par%nct)], &
       & const = .true., dtime = .false.)
     this%jaco_dens_t => this%init_jaco_f(idens, &
-      & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], &
+      & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
       & const = .true., dtime = .true. )
     do idx_dir = 1, idx_dim
       this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), &
-        & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, size(par%contacts))], &
+        & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end do
 
@@ -137,13 +137,13 @@ contains
     end do
 
     ! boundary conditions => set b to density on contacts
-    allocate (this%b(size(par%contacts)))
-    do ict = 1, size(par%contacts)
+    allocate (this%b(par%nct))
+    do ict = 1, par%nct
       if (par%smc%degen) then
         call fermi_dirac_integral_1h(- CR_CHARGE(this%ci) * (par%contacts(ict)%phims - par%smc%band_edge(this%ci)), F12, dF12)
         this%b(ict) = par%smc%edos(this%ci) * F12
       else
-        this%b(ict) = par%smc%n_intrin * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims)
+        this%b(ict) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
       end if
     end do
 

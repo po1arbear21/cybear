@@ -136,7 +136,15 @@ contains
       bounded = .true.
       call fun(xmin, p, fmin)
       call fun(xmax, p, fmax)
-      if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
+      if ((fmin == 0) .and. (fmax == 0)) then
+        x = 0.5 * (xmin + xmax)
+      elseif (fmin == 0) then
+        x = xmin
+      elseif (fmax == 0) then
+        x = xmax
+      else
+        if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
+      end if
     end if
 
     ! newton iteration with bisection stabilization
@@ -261,6 +269,8 @@ contains
 
     ! start values
     x = x0
+    where(x < opt%xmin) x = opt%xmin
+    where(x > opt%xmax) x = opt%xmax
 
     ! newton-raphson iteration
     do while (any(err > opt%rtol) .and. any(abs(f) > opt%ftol))

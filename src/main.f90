@@ -57,6 +57,32 @@ program main
   call load_iteration_params("gummel params",      1,               opt_gum )
   call load_iteration_params("full newton params", dev%sys_full%n,  opt_full)
 
+  opt_nlpe%msg = "NLPE: "
+  opt_dd%msg   = "DD: "
+  opt_gum%msg  = "Gummel: "
+  opt_full%msg = "Newton: "
+
+  block
+    integer :: ci, idens, itab, ibl, i0, i1
+    do ci = dev%par%ci0, dev%par%ci1
+      idens = dev%sys_full%search_main_var(dev%dens(ci)%name)
+      do itab = 1, size(dev%sys_full%res2block(idens)%d)
+        ibl = dev%sys_full%res2block(idens)%d(itab)
+        i0 = dev%sys_full%i0(ibl)
+        i1 = dev%sys_full%i1(ibl)
+        opt_full%xmin(i0:i1) = 1e-30
+      end do
+
+      idens = dev%sys_dd(ci)%search_main_var(dev%dens(ci)%name)
+      do itab = 1, size(dev%sys_dd(ci)%res2block(idens)%d)
+        ibl = dev%sys_dd(ci)%res2block(idens)%d(itab)
+        i0 = dev%sys_dd(ci)%i0(ibl)
+        i1 = dev%sys_dd(ci)%i1(ibl)
+        opt_dd%xmin(i0:i1) = 1e-30
+      end do
+    end do
+  end block
+
   ! solve
   call solve_steady_state()
   call solve_small_signal()
@@ -122,7 +148,7 @@ contains
     type(polygon_src)    :: input
     type(steady_state)   :: ss
 
-    allocate (Vi(size(dev%par%contacts),2))
+    allocate (Vi(dev%par%nct,2))
 
     call file%get_sections("steady state", sids)
     do si = 1, size(sids)
@@ -132,8 +158,9 @@ contains
 
       ! voltage input source
       ict_sweep = 0
-      do ict = 1, size(dev%par%contacts)
+      do ict = 1, dev%par%nct
         call file%get(sids(si), "N_"//dev%par%contacts(ict)%name, nsweep, status = status)
+        if (status) status = (nsweep > 1)
         if (status) then
           if (ict_sweep /= 0) call program_error("only one voltage sweep per steady-state section allowed")
           ict_sweep = ict
@@ -158,11 +185,11 @@ contains
 
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
 
-! block
-  ! use normalization_m
-  ! use grid_m
+block
+  use normalization_m
+  use grid_m
 
-  ! integer :: i, j, i1, i2, funit, idx(2), idx1(2), idx2(2)
+  integer :: i, j, i1, i2, funit, idx(2), idx1(2), idx2(2)
   ! ! real    :: p1(3), p2(3)
 
   ! call ss%select(1)
@@ -194,35 +221,35 @@ contains
   !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(3)%x(i), "nm"), denorm(dev%pot%x3(14,5,i), "V")
   ! end do
   ! close (funit)
-  ! open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
-  ! write (funit, "(A)") "$ DATA=CURVE3D"
-  ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
-  !   idx1 = [i,   j]
-  !   idx2 = [i+1, j]
-  !   if (i < dev%par%g1D(1)%n) then
-  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
-  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
-  !       &                         denorm(dev%pot%get(idx1), "V")
-  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
-  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
-  !       &                         denorm(dev%pot%get(idx2), "V")
-  !     write (funit, *)
-  !   end if
+  open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
+  write (funit, "(A)") "$ DATA=CURVE3D"
+  do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
+    idx1 = [i,   j]
+    idx2 = [i+1, j]
+    if (i < dev%par%g1D(1)%n) then
+      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+        &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+        &                         denorm(dev%pot%get(idx1), "V")
+      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+        &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+        &                         denorm(dev%pot%get(idx2), "V")
+      write (funit, *)
+    end if
 
-  !   idx1 = [i, j  ]
-  !   idx2 = [i, j+1]
-  !   if (j < dev%par%g1D(2)%n) then
-  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
-  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
-  !       &                         denorm(dev%pot%get(idx1), "V")
-  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
-  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
-  !       &                         denorm(dev%pot%get(idx2), "V")
-  !     write (funit, *)
-  !   end if
-  ! end do; end do
-  ! write (funit, "(A)") "$ END"
-  ! close (funit)
+    idx1 = [i, j  ]
+    idx2 = [i, j+1]
+    if (j < dev%par%g1D(2)%n) then
+      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+        &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+        &                         denorm(dev%pot%get(idx1), "V")
+      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+        &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+        &                         denorm(dev%pot%get(idx2), "V")
+      write (funit, *)
+    end if
+  end do; end do
+  write (funit, "(A)") "$ END"
+  close (funit)
   ! open (newunit = funit, file = "pot_xy_20.csv", status = "replace", action = "write")
   ! write (funit, "(A)") "$ DATA=CURVE3D"
   ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
@@ -311,8 +338,8 @@ contains
   ! end do
   ! close (funit)
 
-  ! stop
-! end block
+  stop
+end block
     end do
   end subroutine
 
@@ -335,10 +362,10 @@ contains
       call file%get(sids(si), "name", name)
 
       ! get DC voltages
-      do ict = 1, size(dev%par%contacts)
+      do ict = 1, dev%par%nct
         call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, dev%volt(ict)%x)
       end do
-      call input%init([(dev%volt(ict)%x, ict = 1, size(dev%par%contacts))])
+      call input%init([(dev%volt(ict)%x, ict = 1, dev%par%nct)])
 
       ! get frequency
       call file%get(sids(si), "f0", f0)
@@ -379,7 +406,7 @@ contains
     type(steady_state)     :: ss
     type(newton_opt)       :: opt_hb
 
-    allocate (c(size(dev%par%contacts),0:1), s(size(dev%par%contacts),1))
+    allocate (c(dev%par%nct,0:1), s(dev%par%nct,1))
 
     call file%get_sections("harmonic balance", sids)
     do si = 1, size(sids)
@@ -388,7 +415,7 @@ contains
       call file%get(sids(si), "name", name)
 
       ! get input source
-      do ict = 1, size(dev%par%contacts)
+      do ict = 1, dev%par%nct
         call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, volt)
         if (size(volt) /= 3) call program_error("3 values for voltage expected (c0, c1, s1 coefficients)")
 
@@ -444,7 +471,7 @@ contains
     call file%get_sections("responsivity", sids)
     do si = 1, size(sids)
       ! get DC voltages
-      do ict = 1, size(dev%par%contacts)
+      do ict = 1, dev%par%nct
         call file%get(sids(si), "V_"//dev%par%contacts(ict)%name, dev%volt(ict)%x)
       end do
 
@@ -473,9 +500,9 @@ contains
       call file%get(sids(si), "output", ofile)
 
       ! init input source
-      allocate (c(size(dev%par%contacts),0:1))
-      allocate (s(size(dev%par%contacts),1))
-      c(   :,0) = [(dev%volt(ict)%x, ict = 1, size(dev%par%contacts))]
+      allocate (c(dev%par%nct,0:1))
+      allocate (s(dev%par%nct,1))
+      c(   :,0) = [(dev%volt(ict)%x, ict = 1, dev%par%nct)]
       c(   :,1) = 0
       s(   :,1) = 0
       s(isrc,1) = VA
@@ -544,6 +571,7 @@ contains
       do ci = dev%par%ci0, dev%par%ci1
         iref0(:,ci) = dev%iref(ci)%get()
         call ss_dd(ci)%run(dev%sys_dd(ci), nopt = opt_dd)
+        call ss_dd(ci)%select(1)
         call dev%calc_iref(ci)%eval()
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:,ci)))
         error = max(error, err_iref(ci))

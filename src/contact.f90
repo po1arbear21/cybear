@@ -1,10 +1,14 @@
+m4_include(util/macro.f90.inc)
+
 module contact_m
 
-  use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_CHARGE, semiconductor
-  use newton_m,        only: newton1D, newton1D_opt
-  use grid_data_m,     only: grid_data_real
-  use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
+  use ieee_arithmetic, only: ieee_is_finite
   use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
+  use error_m,         only: assert_failed, program_error
+  use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
+  use grid_data_m,     only: grid_data_real
+  use newton_m,        only: newton1D, newton1D_opt
+  use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_CHARGE, semiconductor
 
   implicit none
 
@@ -40,7 +44,7 @@ contains
     type(semiconductor),   intent(in)    :: smc
       !! semiconductor parameters
 
-    real               :: IF12, dIF12, phims0, dop_eff
+    real               :: IF12, dIF12, phims0, dop_eff, L
     type(newton1D_opt) :: opt
 
     ! effective doping (dcon - acon)
@@ -62,23 +66,41 @@ contains
         call newton1D(phims_newton, [dop_eff], opt, phims0, this%phims)
       else
         ! analytic solution
-        this%phims = asinh(0.5 * dop_eff / smc%n_intrin)
+        if (dop_eff == 0) then
+          this%phims = 0
+        else
+          L = 0.5 * smc%band_gap + log(abs(dop_eff) / sqrt(smc%edos(1) * smc%edos(2)))
+          if (L < 9) then
+            this%phims = asinh(0.5 * exp(L))
+          else
+            ! avoid overflow, approximation is exact up to machine precision for L >= 9
+            this%phims = L + exp(-2 * L)
+          end if
+          this%phims = sign(this%phims, dop_eff)
+        end if
       end if
     elseif (ci0 == CR_ELEC) then
+      m4_assert(dop_eff > 0)
+
       if (smc%degen) then
         call inv_fermi_dirac_integral_1h(dop_eff / smc%edos(CR_ELEC), IF12, dIF12)
         this%phims = smc%band_edge(CR_ELEC) + IF12
       else
-        this%phims = log(dop_eff / smc%n_intrin)
+        this%phims = 0.5 * smc%band_gap + log(dop_eff / sqrt(smc%edos(1) * smc%edos(2)))
       end if
     elseif (ci1 == CR_HOLE) then
+      m4_assert(dop_eff < 0)
+
       if (smc%degen) then
         call inv_fermi_dirac_integral_1h(dop_eff / smc%edos(CR_HOLE), IF12, dIF12)
         this%phims = smc%band_edge(CR_HOLE) - IF12
       else
-        this%phims = -log(dop_eff / smc%n_intrin)
+        this%phims = -0.5 * smc%band_gap - log(- dop_eff / sqrt(smc%edos(1) * smc%edos(2)))
       end if
     end if
+
+    ! safety check
+    m4_assert(ieee_is_finite(this%phims))
 
   contains
 

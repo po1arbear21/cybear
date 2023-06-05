@@ -1,19 +1,26 @@
+m4_include(util/macro.f90.inc)
+
 module approx_m
 
-  use device_params_m, only: device_params
-  use esystem_m,       only: esystem
-  use grid_m,          only: IDX_VERTEX, IDX_CELL, IDX_EDGE
-  use grid0D_m,        only: get_dummy_grid
-  use imref_m,         only: imref
-  use jacobian_m,      only: jacobian
-  use math_m,          only: eye_real
-  use matrix_m,        only: sparse_real
-  use potential_m,     only: potential
-  use res_equation_m,  only: res_equation
-  use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
-  use stencil_m,       only: dirichlet_stencil, empty_stencil, near_neighb_stencil
-  use voltage_m,       only: voltage
-  use vselector_m,     only: vselector
+  use charge_density_m, only: charge_density
+  use contact_m,        only: CT_OHMIC
+  use device_params_m,  only: device_params
+  use error_m,          only: assert_failed, program_error
+  use esystem_m,        only: esystem
+  use grid_m,           only: IDX_VERTEX, IDX_CELL, IDX_EDGE
+  use grid0D_m,         only: get_dummy_grid
+  use ieee_arithmetic,  only: ieee_is_finite
+  use imref_m,          only: imref
+  use jacobian_m,       only: jacobian
+  use math_m,           only: eye_real
+  use matrix_m,         only: sparse_real
+  use poisson_m,        only: poisson
+  use potential_m,      only: potential
+  use res_equation_m,   only: res_equation
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
+  use stencil_m,        only: dirichlet_stencil, empty_stencil, near_neighb_stencil
+  use voltage_m,        only: voltage
+  use vselector_m,      only: vselector
 
   implicit none
 
@@ -72,32 +79,30 @@ contains
     end do
     call sys%init_final()
 
-    ! memory
+    ! solve for imref
     allocate (x(sys%n), f(sys%n))
-
-    ! evaluate system
     call sys%eval(f = f, df = df)
-
-    ! solve
     call df%factorize()
     call df%solve_vec(-f, x)
-    call df%destruct()
-
-    ! save values
     call sys%set_x(x)
+
+    ! free memory
+    call eq%destruct()
+    call df%destruct()
+    call sys%destruct()
   end subroutine
 
   subroutine approx_potential(par, pot, iref)
-    !! approximate potential in transport region based on doping and previously approximated imrefs (FIXME: better approximation)
-    type(device_params), intent(in)    :: par
+    !! approximate potential in transport region based on doping and previously approximated imrefs
+    type(device_params),  intent(in)    :: par
       !! device parameters
-    type(potential),     intent(inout) :: pot
+    type(potential),      intent(inout) :: pot
       !! potential variable
-    type(imref),         intent(in)    :: iref(:)
-      !! electron/hole quasi-fermi potential
+    type(imref),          intent(in)    :: iref(:)
+
 
     integer               :: i, ci
-    real                  :: ireff(2), dop(2)
+    real                  :: ireff(2), dop(2), dop_eff, L, p
     integer, allocatable  :: idx(:)
 
     ! loop over uncontacted transport vertices
@@ -110,16 +115,29 @@ contains
       do ci = par%ci0, par%ci1
         ireff(ci) = iref(ci)%get(idx)
       end do
+      dop_eff = dop(DOP_DCON) - dop(DOP_ACON)
 
       ! estimate potential
       if ((par%ci0 == CR_ELEC) .and. (par%ci1 == CR_HOLE)) then
-        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + asinh(0.5 * (dop(DOP_DCON) - dop(DOP_ACON)) / par%smc%n_intrin))
+        p = 0
+        if (dop_eff /= 0) then
+          L = 0.5 * par%smc%band_gap + log(abs(dop_eff) / sqrt(par%smc%edos(1) * par%smc%edos(2)))
+          if (L < 9) then
+            p = asinh(0.5 * exp(L))
+          else
+            p = L + exp(-2 * L)
+          end if
+        end if
+        call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + sign(p, dop_eff))
       elseif (par%ci0 == CR_ELEC) then
-        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(DOP_DCON)/par%smc%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(DOP_DCON)/max(par%smc%n_intrin,1e-30), 1.0)))
       elseif (par%ci0 == CR_HOLE) then
-        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(DOP_ACON)/par%smc%n_intrin, 1.0)))
+        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(DOP_ACON)/max(par%smc%n_intrin,1e-30), 1.0)))
       end if
     end do
+
+    ! safety check
+    m4_assert(all(ieee_is_finite(pot%get())))
   end subroutine
 
   subroutine imref_approx_eq_init(this, par, iref, volt)

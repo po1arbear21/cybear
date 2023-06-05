@@ -108,9 +108,9 @@ contains
       end do
     end do
     call this%rho%init(this%par)
-    allocate (this%volt(size(this%par%contacts)))
-    allocate (this%curr(size(this%par%contacts)))
-    do ict = 1, size(this%par%contacts)
+    allocate (this%volt(this%par%nct))
+    allocate (this%curr(this%par%nct))
+    do ict = 1, this%par%nct
       call this%volt(ict)%init("V_"//this%par%contacts(ict)%name)
       call this%curr(ict)%init("I_"//this%par%contacts(ict)%name)
     end do
@@ -140,7 +140,7 @@ contains
       call this%sys_nlpe%add_equation(this%calc_dens(ci))
       call this%sys_nlpe%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
     end do
-    do ict = 1, size(this%par%contacts)
+    do ict = 1, this%par%nct
       call this%sys_nlpe%provide(this%volt(ict))
     end do
     call this%sys_nlpe%init_final()
@@ -173,7 +173,7 @@ contains
       call this%sys_full%add_equation(this%calc_iref(ci))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
-    do ict = 1, size(this%par%contacts)
+    do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
     end do
 

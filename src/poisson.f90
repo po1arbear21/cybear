@@ -124,7 +124,7 @@ contains
     end do
 
     ! loop over contacted vertices
-    do ict = 1, size(par%contacts)
+    do ict = 1, par%nct
       d_volt = - eye(ict:ict,:)
       do i = 1, par%poisson_vct(ict)%n
         idx1 = par%poisson_vct(ict)%get_idx(i)
@@ -158,7 +158,7 @@ contains
     call this%f%set(tmp)
 
     ! phims
-    do ict = 1, size(this%par%contacts)
+    do ict = 1, this%par%nct
       do i = 1, this%par%poisson_vct(ict)%n
         idx = this%par%poisson_vct(ict)%get_idx(i)
         call this%f%update(idx, [-this%par%contacts(ict)%phims])

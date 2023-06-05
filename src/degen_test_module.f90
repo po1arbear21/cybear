@@ -2,467 +2,550 @@ m4_include(util/macro.f90.inc)
 
 module degen_test_module_m
 
-  use distributions_m, only: fermi_dirac_integral_1h, fermi_dirac_integral_m1h, inv_fermi_dirac_integral_1h
+  use distributions_m
   use dual_m
-  use device_params_m
+  use error_m
+  use ieee_arithmetic
   use math_m
-  use normalization_m
-  use newton_m
   use radau5_m
 
   implicit none
 
-  integer, parameter :: ci = CR_ELEC
-  integer, parameter :: N = 1001
-  real               :: ch
-  real               :: edos
+  real, parameter :: alpha = sqrt(0.125)
+  real, parameter :: etaF = -16.0
 
 contains
 
-  subroutine degen_test_eval()
-    integer            :: i, idens, funit_dj
-    real               :: len, Efield0, Efield1, pot(2), mob
-    real               :: j, djdpot(2), djdmob
-    real, allocatable  :: Efield(:), dens(:,:), djddens(:,:,:)
+  subroutine degen_test()
+    integer, parameter :: Neta2 = 101
 
-    call init_normconst(300.0)
+    integer           :: ieta2
+    real              :: dpot, eta(2)
+    real, allocatable :: eta2(:), j(:), djdeta(:,:), djddpot(:)
 
-    ch   = CR_CHARGE(ci)
-    edos = norm(3e19, "1/cm^3")
-    len  = norm(0.1, "um")
+    allocate (eta2(Neta2), j(Neta2), djdeta(2,Neta2), djddpot(Neta2))
+    eta2 = linspace(-100.0, 100.0, Neta2)
 
-    Efield0    = - 20 / len
-    Efield1    =   20 / len
-    Efield     = linspace(Efield0, Efield1, N)
-    allocate (dens(2,4), djddens(2,0:4,N))
-    dens(:,1)  = norm([1e18, 1e0 ], "1/cm^3")
-    dens(:,2)  = norm([1e19, 1e18], "1/cm^3")
-    dens(:,3)  = norm([1e20, 1e18], "1/cm^3")
-    dens(:,4)  = norm([1e21, 1e18], "1/cm^3")
-    mob        = norm(1430.0, "cm^2/V/s")
+    dpot   = 50.0
+    eta(1) = -10.0
 
-    ! $omp parallel do schedule(dynamic) private(i,idens,pot,j,djdpot,djdmob) shared(len,dens,mob,djddens)
-    do i = 1, N
-      print *, i
-      pot = [1.0, -1.0] * 0.5 * len * Efield(i)
-      call eval_sg(len, pot, dens(:,1), mob, j, djdpot, djddens(:,0,i), djdmob)
-      do idens = 1, size(dens, 2)
-        call eval_degen(len, pot, dens(:,idens), mob, j, djdpot, djddens(:,idens,i), djdmob)
-      end do
+    do ieta2 = 1, Neta2
+      eta(2) = eta2(ieta2)
+
+      call get_current(eta, dpot, j(ieta2), djdeta(:,ieta2), djddpot(ieta2))
+
+      ! call fermi_dirac_integral_1h(eta2(ieta2), j(ieta2), djddpot(ieta2))
+      ! j(ieta2) = dpot * j(ieta2)
+
+      print "(2ES24.16)", eta2(ieta2), j(ieta2)
     end do
-    ! $omp end parallel do
-    print *, "done"
 
-    open (newunit = funit_dj, file = "../tex/SISPAD2023/dj.csv", status = "replace", action = "write")
-    write (funit_dj, "(A)") "dphi j1_sg j2_sg j1_1e18 j2_1e18 j1_1e19 j2_1e19 j1_1e20 j2_1e20 j1_1e21 j2_1e21"
-    do i = 1, N
-      pot = [1.0, -1.0] * 0.5 * len * Efield(i)
-      write (funit_dj, "(3ES24.16)", advance = "no") pot(2) - pot(1), djddens(:,0,i) * len / mob
-      do idens = 1, size(dens, 2)
-        write (funit_dj, "(2ES24.16)", advance = "no") djddens(:,idens,i) * len / mob
-      end do
-      write (funit_dj, *)
-    end do
-    close (funit_dj)
   end subroutine
 
-  subroutine eval_sg(len, pot, dens, mob, j, djdpot, djddens, djdmob)
-    !! Scharfetter-Gummel stabilization
-    real,                        intent(in)  :: len
-      !! edge length
-    real,                        intent(in)  :: pot(2)
-      !! potential at edge endpoints
-    real,                        intent(in)  :: dens(2)
-      !! density at edge endpoints
-    real,                        intent(in)  :: mob
-      !! mobility
-    real,                        intent(out) :: j
-      !! output current density
-    real,                        intent(out) :: djdpot(2)
-      !! output derivatives of j wrt pot
-    real,                        intent(out) :: djddens(2)
-      !! output derivatives of j wrt dens
-    real,                        intent(out) :: djdmob
-      !! output derivatives of j wrt mob
+  function get_current_sg(n, dpot) result(j)
+    real, intent(in)  :: n(2)
+    real, intent(in)  :: dpot
+    real              :: j
 
-    real :: ber1, ber2, dber1, dber2
+    j = ber(dpot) * n(1) - ber(-dpot) * n(2)
+  end function
 
-    ber1  = ber(ch * (pot(1) - pot(2)))
-    ber2  = ber(ch * (pot(2) - pot(1)))
-    dber1 = ch * dberdx(ch * (pot(1) - pot(2)))
-    dber2 = ch * dberdx(ch * (pot(2) - pot(1)))
+  subroutine get_current(eta, dpot, j, djdeta, djddpot)
+    real, intent(in)  :: eta(2)
+    real, intent(in)  :: dpot
+    real, intent(out) :: j
+    real, intent(out) :: djdeta(2)
+    real, intent(out) :: djddpot
 
-    j = - mob * (ber1 * dens(2) - ber2 * dens(1)) / len
+    integer           :: dir
+    logical           :: small_eta
+    real              :: deta, jmin, jmax, jsgn, n(2), dndeta(2), t, nc
+    type(ode_options) :: opt
 
-    djdpot(1) = - mob * (dber1 * dens(2) + dber2 * dens(1)) / len
-    djdpot(2) =   mob * (dber1 * dens(2) + dber2 * dens(1)) / len
+    deta = eta(2) - eta(1)
+    call fermi_dirac_integral_1h(eta(1), n(1), dndeta(1))
+    call fermi_dirac_integral_1h(eta(2), n(2), dndeta(2))
 
-    djddens(1)  =   mob * ber2 / len
-    djddens(2)  = - mob * ber1 / len
+    if (all(eta <= etaF)) then
+      ! special case: 1/F12(eta) ~ exp(-eta) + sqrt(1/8) -> Bernoulli iteration
+      j = get_current_sg(n, dpot)
+      small_eta = .true.
+      call get_current_newton(j, djdeta, djddpot)
+    else
+      ! get jmin, jmax by slope (detadx must be equal to deta for some x in [0, 1])
+      jmin = min(n(1), n(2)) * abs(dpot - deta)
+      jmax = max(n(1), n(2)) * abs(dpot - deta)
+      jsgn = sign(1.0, dpot - deta)
+      if (jsgn < 0) then
+        ! correct sign and swap jmin, jmax
+        t    = jmin
+        jmin = - jmax
+        jmax = - t
+      end if
 
-    djdmob = -(ber1 * dens(2) - ber2 * dens(1)) / len
-  end subroutine
+      ! determine shooting direction and reduce j range further if possible
+      if (dpot < 0) then
+        if (eta(2) > eta(1)) then
+          dir  = 1
+          jmax = min(jmax, dpot * n(2))
+        elseif (eta(2) >= eta(1) + dpot) then
+          dir  = 0
+          jmin = max(jmin, dpot * n(2))
+          jmax = min(jmax, 0.0)
+        else
+          dir  = -1
+          call fermi_dirac_integral_1h(eta(1) + 0.5 * dpot, nc, t)
+          jmin = max(jmin, 0.0)
+          jmax = min(jmax, abs(dpot - deta) * nc)
+        end if
+      else
+        if (eta(2) < eta(1)) then
+          dir  = -1
+          jmin = max(jmin, dpot * n(1))
+        elseif (eta(2) <= eta(1) + dpot) then
+          dir  = 0
+          jmin = max(jmin, 0.0)
+          jmax = min(jmax, dpot * n(1))
+        else
+          dir  = 1
+          call fermi_dirac_integral_1h(eta(2) - 0.5 * dpot, nc, t)
+          jmin = max(jmin, - abs(dpot - deta) * nc)
+          jmax = min(jmax, 0.0)
+        end if
+      end if
 
-  subroutine eval_degen_old(len, pot, dens, mob, j, djdpot, djddens, djdmob)
-    !! Generalized Scharfetter-Gummel stabilization for degenerate case
-    real,                        intent(in)  :: len
-      !! edge length
-    real,                        intent(in)  :: pot(2)
-      !! potential at edge endpoints
-    real,                        intent(in)  :: dens(2)
-      !! density at edge endpoints
-    real,                        intent(in)  :: mob
-      !! mobility
-    real,                        intent(out) :: j
-      !! output current density
-    real,                        intent(out) :: djdpot(2)
-      !! output derivatives of j wrt pot
-    real,                        intent(out) :: djddens(2)
-      !! output derivatives of j wrt dens
-    real,                        intent(out) :: djdmob
-      !! output derivatives of j wrt mob
+      t = 1e-10 * (max(abs(eta(1)), abs(eta(2)), abs(dpot)) + 1)
+      if ((abs(deta - dpot) < t) .or. (abs(deta) < t)) then
+        ! eta changes approximately linear
+        j         = 0.5 * (n(1) + n(2)) * (dpot - deta)
+        djddpot   = 0.5 * (n(1) + n(2))
+        djdeta(1) = 0.5 * (dndeta(1) * (dpot - deta) + (n(1) + n(2)))
+        djdeta(2) = 0.5 * (dndeta(2) * (dpot - deta) - (n(1) + n(2)))
+      else
+        if (dir == 0) then
+          j = jmin
+          if (dpot > 0) j = jmax
+        else
+          j = get_current_sg(n, dpot)
+        end if
 
-    integer            :: num_eval
-    real               :: jsg, djsgdpot(2), djsgddens(2), djsgdmob
-    real               :: jj0, jj, djjdp(3), nn(2)
-    type(newton1D_opt) :: newt_opt
-    type(ode_options)  :: ode_opt
-    type(ode_result)   :: ode_res1, ode_res2
-
-    ! initial guess
-    call eval_sg(len, pot, dens, mob, jsg, djsgdpot, djsgddens, djsgdmob)
-    jj0 = jsg * len / (mob * edos)
-    nn  = dens / edos
-
-    ! solve with newton iteration
-    call ode_opt%init(1, atol = [minval(nn*1e-14)], rtol = [1e-10], max_rejected = 50)
-    call newt_opt%init()
-    call newton1D(newton_fun, [pot(2) - pot(1), nn(1), nn(2)], newt_opt, jj0, jj, djjdp)
-
-    ! extract solution + derivatives
-    j       = jj * mob * edos / len
-    djdpot  = [-1.0, 1.0] * djjdp(1) * mob * edos / len
-    djddens = djjdp(2:3) * mob / len
-    djdmob  = jj * edos / len
+        call get_current_newton(j, djdeta, djddpot)
+      end if
+    end if
 
   contains
 
-    subroutine newton_fun(x, p, f, dfdx, dfdp)
-      real,              intent(in)  :: x
-        !! argument (jj)
-      real,              intent(in)  :: p(:)
-        !! parameters (pot(2) - pot(1), nn(1), nn(2))
-      real,              intent(out) :: f
-        !! output function value
-      real,    optional, intent(out) :: dfdx
-        !! optional output derivative of f wrt x
-      real,    optional, intent(out) :: dfdp(:)
-        !! optional output derivatives of f wrt p
+    subroutine get_current_newton(j, djdeta, djddpot)
+      real,    intent(inout) :: j
+      real,    intent(out)   :: djdeta(2)
+      real,    intent(out)   :: djddpot
 
-      real :: nnr(2), djj(2), dpot(2), dnn0(2)
+      integer :: it
+      logical :: status
+      real    :: atol, rtol, dj, err, err0, f, dfdj, dfdeta(2), dfddpot, fmin, fmax, jmin0, jmax0, smin, smax, s
 
-      if (p(2) < p(3) * 1e-3) then
-        ! solve ode from left to right
-        call radau5(ode_fun, 0.0, 1.0, [1.0], [p(2)], [p(1), x], ode_opt, ode_res1)
-        nnr( 1) = ode_res1%Usmp(    1,  1)
-        djj( 1) = ode_res1%dUsmpdP( 1,2,1)
-        dpot(1) = ode_res1%dUsmpdP( 1,1,1)
-        dnn0(1) = ode_res1%dUsmpdU0(1,1,1)
-        nnr( 2) = p(3)
-        djj( 2) = 0
-        dpot(2) = 0
-        dnn0(2) = 1
-      elseif (p(3) < p(2) * 1e-3) then
-        ! solve ode from right to left
-        call radau5(ode_fun, 1.0, 0.0, [0.0], [p(3)], [p(1), x], ode_opt, ode_res2)
-        nnr( 1) = p(2)
-        djj( 1) = 0
-        dpot(1) = 0
-        dnn0(1) = 1
-        nnr( 2) = ode_res2%Usmp(    1,  1)
-        djj( 2) = ode_res2%dUsmpdP( 1,2,1)
-        dpot(2) = ode_res2%dUsmpdP( 1,1,1)
-        dnn0(2) = ode_res2%dUsmpdU0(1,1,1)
-      else
-        ! solve ode from left to center and from right to center
-        call radau5(ode_fun, 0.0, 0.5, [0.5], [p(2)], [p(1), x], ode_opt, ode_res1)
-        call radau5(ode_fun, 1.0, 0.5, [0.5], [p(3)], [p(1), x], ode_opt, ode_res2)
-        nnr( 1) = ode_res1%Usmp(    1,  1)
-        djj( 1) = ode_res1%dUsmpdP( 1,2,1)
-        dpot(1) = ode_res1%dUsmpdP( 1,1,1)
-        dnn0(1) = ode_res1%dUsmpdU0(1,1,1)
-        nnr( 2) = ode_res2%Usmp(    1,  1)
-        djj( 2) = ode_res2%dUsmpdP( 1,2,1)
-        dpot(2) = ode_res2%dUsmpdP( 1,1,1)
-        dnn0(2) = ode_res2%dUsmpdU0(1,1,1)
+      ! clear
+      djdeta  = 0
+      djddpot = 0
+
+      if (.not. small_eta) then
+        ! init ode options
+        call opt%init(1, atol = [1e-16], rtol = [1e-14], max_rejected = 200)
+
+        ! lower bound
+        jmin0 = - huge(1.0)
+        do while (.true.)
+          call residual(jmin, status, f = fmin)
+          if (status) exit
+          jmin  = jmin + max(abs(jmin) * 1e-15, 1e-100)
+          jmin0 = jmin
+        end do
+        if (fmin == 0) then
+          j = jmin
+          goto 100
+        end if
+
+        ! upper bound
+        jmax0 = huge(1.0)
+        do while (.true.)
+          call residual(jmax, status, f = fmax)
+          if (status) exit
+          jmax  = jmax - max(abs(jmax) * 1e-15, 1e-100)
+          jmax0 = jmax
+        end do
+        if (fmax == 0) then
+          j = jmax
+          goto 100
+        end if
+
+        ! widen bounds if necessary
+        smin = sign(1.0, fmin)
+        smax = sign(1.0, fmax)
+        do while (smin == smax)
+          if (abs(fmin) < abs(fmax)) then
+            if (jmin == jmin0) then
+              j = jmin
+              goto 100
+            end if
+
+            j = jmin - max(abs(jmin) * 1e-12, 1e-100)
+            do while (.true.)
+              call residual(j, status, f = f)
+              if (status) exit
+              j     = j + max(abs(j) * 1e-15, 1e-100)
+              jmin0 = j
+            end do
+            if (f == 0) goto 100
+
+            jmax = jmin
+            fmax = fmin
+            jmin = j
+            fmin = f
+            smin = sign(1.0, fmin)
+          else
+            if (jmax == jmax0) then
+              j = jmax
+              goto 100
+            end if
+
+            j = jmax + max(abs(jmax) * 1e-10, 1e-100)
+            do while (.true.)
+              call residual(j, status, f = f)
+              if (status) exit
+              j     = j - max(abs(j) * 1e-15, 1e-100)
+              jmax0 = j
+            end do
+            if (f == 0) goto 100
+
+            jmin = jmax
+            fmin = fmax
+            jmax = j
+            fmax = f
+            smax = sign(1.0, fmax)
+          end if
+          j = 0.5 * (jmin + jmax)
+        end do
       end if
 
-      ! residual
-      f = nnr(1) - nnr(2)
-      if (present(dfdx)) dfdx = djj(1) - djj(2)
-      if (present(dfdp)) dfdp = [dpot(1) - dpot(2), dnn0(1), -dnn0(2)]
+      ! tolerances
+      atol = max(1e-16 * abs(j), 1e-100)
+      rtol = 1e-14
+      err0 = huge(1.0)
+      if (.not. small_eta) then
+        err  = 0.5 * (jmax - jmin)
+      else
+        err = 0.5 * err0
+      end if
+
+      ! newton iteration
+      it = 0
+      do while ((err > atol) .and. (err > abs(j) * rtol))
+        it = it + 1
+
+        ! bisection
+        if (.not. small_eta) then
+          if ((j < jmin) .or. (j > jmax) .or. (err0 <= err)) then
+            j = 0.5 * (jmin + jmax)
+          end if
+        end if
+
+        ! evaluate residual
+        call residual(j, status, f = f, dfdj = dfdj)
+        if (.not. status) call program_error("could not evaluate residual, even though jmin <= j <= jmax")
+        if (f == 0) goto 100
+
+        ! calculate newton update and new error
+        dj   = f / dfdj
+        err0 = err
+        err  = abs(dj)
+
+        ! update bounds
+        if (.not. small_eta) then
+          s = sign(1.0, f)
+          if (s * smax > 0) then
+            jmax = j
+            fmax = f
+          else
+            jmin = j
+            fmin = f
+          end if
+        end if
+
+        ! update solution
+        j = j - dj
+
+        ! print "(I6,2ES24.16)", it, j, err
+
+        ! exit if close to solution
+        if (.not. small_eta) then
+          if (((jmax - jmin) < 0.5 * abs(jmin + jmax) * rtol) .or. (0.5 * (jmax - jmin) < atol)) then
+            j = 0.5 * (jmax + jmin)
+            goto 100
+          end if
+        end if
+      end do
+
+      ! calculate derivatives and return
+      100 call residual(j, status, dfdj = dfdj, dfdeta = dfdeta, dfddpot = dfddpot)
+      if (.not. status) call program_error("could not evaluate residual at solution")
+      djdeta  = - dfdeta / dfdj
+      djddpot = - dfddpot / dfdj
     end subroutine
 
-    subroutine ode_fun(x, U, P, f, dfdU, dfdP)
+    subroutine residual(j, status, f, dfdj, dfdeta, dfddpot)
+      real,           intent(in)  :: j
+      logical,        intent(out) :: status
+      real, optional, intent(out) :: f
+      real, optional, intent(out) :: dfdj
+      real, optional, intent(out) :: dfdeta(2)
+      real, optional, intent(out) :: dfddpot
+
+      if (small_eta) then
+        call residual_small_eta(j, status, f = f, dfdj = dfdj, dfdeta = dfdeta, dfddpot = dfddpot)
+      else
+        call residual_shooting(j, status, f = f, dfdj = dfdj, dfdeta = dfdeta, dfddpot = dfddpot)
+      end if
+    end subroutine
+
+    subroutine residual_small_eta(j, status, f, dfdj, dfdeta, dfddpot)
+      real,           intent(in)  :: j
+      logical,        intent(out) :: status
+      real, optional, intent(out) :: f
+      real, optional, intent(out) :: dfdj
+      real, optional, intent(out) :: dfdeta(2)
+      real, optional, intent(out) :: dfddpot
+
+      real :: arg, B1, B2, dB1, dB2, e(2)
+
+      e = exp(eta)
+      status = ieee_is_finite(j)
+
+      ! shifted bernoulli argument
+      arg = dpot - alpha * j
+      B1  = ber(   -arg)
+      B2  = ber(    arg)
+      dB1 = dberdx(-arg)
+      dB2 = dberdx( arg)
+
+      if (present(f)) then
+        f = j - B1 * e(1) + B2 * e(2)
+      end if
+      if (present(dfdj)) then
+        dfdj = 1 + alpha * (dB1 * e(1) + dB2 * e(2))
+      end if
+      if (present(dfdeta)) then
+        dfdeta(1) = - B1 * e(1)
+        dfdeta(2) =   B2 * e(2)
+      end if
+      if (present(dfddpot)) then
+        dfddpot = - dB1 * e(1) + dB2 * e(2)
+      end if
+    end subroutine
+
+    subroutine residual_shooting(j, status, f, dfdj, dfdeta, dfddpot)
+      real,           intent(in)  :: j
+      logical,        intent(out) :: status
+      real, optional, intent(out) :: f
+      real, optional, intent(out) :: dfdj
+      real, optional, intent(out) :: dfdeta(2)
+      real, optional, intent(out) :: dfddpot
+
+      real :: e, e2, dedeta, de2de, dedj, de2dj, deddpot, de2ddpot, xknee
+
+      status = .true.
+
+      if (dir > 0) then
+        ! solve ode from left to right
+        call solve_ode(0.0, 1.0, eta(1), j, status, e, dedeta, dedj, deddpot)
+        if (.not. status) return
+
+        if (present(f)) then
+          f = e - eta(2)
+        end if
+        if (present(dfdj)) then
+          dfdj = dedj
+        end if
+        if (present(dfdeta)) then
+          dfdeta(1) = dedeta
+          dfdeta(2) = - 1.0
+        end if
+        if (present(dfddpot)) then
+          dfddpot = deddpot
+        end if
+      elseif (dir < 0) then
+        ! solve ode from right to left
+        call solve_ode(1.0, 0.0, eta(2), j, status, e, dedeta, dedj, deddpot)
+        if (.not. status) return
+
+        if (present(f)) then
+          f = e - eta(1)
+        end if
+        if (present(dfdj)) then
+          dfdj = dedj
+        end if
+        if (present(dfdeta)) then
+          dfdeta(1) = - 1.0
+          dfdeta(2) = dedeta
+        end if
+        if (present(dfddpot)) then
+          dfddpot = deddpot
+        end if
+      else
+        xknee = 0.5
+        if (dpot < 0) then
+          xknee = (eta(2) - eta(1)) / dpot
+          call solve_ode(0.0, xknee, eta(1), j, status, e, dedeta, dedj, deddpot)
+          if (.not. status) return
+          call solve_ode(xknee, 1.0, e, j, status, e2, de2de, de2dj, de2ddpot)
+          if (.not. status) return
+
+          if (present(f)) then
+            f = e2 - eta(2)
+          end if
+          if (present(dfdj)) then
+            dfdj = de2dj + de2de * dedj
+          end if
+          if (present(dfdeta)) then
+            dfdeta(1) = de2de * dedeta
+            dfdeta(2) = - 1.0
+          end if
+          if (present(dfddpot)) then
+            dfddpot = de2ddpot + de2de * deddpot
+          end if
+        elseif (dpot > 0) then
+          xknee = 1 - (eta(2) - eta(1)) / dpot
+          call solve_ode(1.0, xknee, eta(2), j, status, e, dedeta, dedj, deddpot)
+          if (.not. status) return
+          call solve_ode(xknee, 0.0, e, j, status, e2, de2de, de2dj, de2ddpot)
+          if (.not. status) return
+
+          if (present(f)) then
+            f = e2 - eta(1)
+          end if
+          if (present(dfdj)) then
+            dfdj = de2dj + de2de * dedj
+          end if
+          if (present(dfdeta)) then
+            dfdeta(1) = - 1.0
+            dfdeta(2) = de2de * dedeta
+          end if
+          if (present(dfddpot)) then
+            dfddpot = de2ddpot + de2de * deddpot
+          end if
+        end if
+
+      end if
+    end subroutine
+
+    recursive subroutine solve_ode(x0, x1, eta0, j, status, eta1, deta1deta0, deta1dj, deta1ddpot)
+      real,    intent(in)  :: x0
+      real,    intent(in)  :: x1
+      real,    intent(in)  :: eta0
+      real,    intent(in)  :: j
+      logical, intent(out) :: status
+      real,    intent(out) :: eta1
+      real,    intent(out) :: deta1deta0
+      real,    intent(out) :: deta1dj
+      real,    intent(out) :: deta1ddpot
+
+      real             :: deta1dx(1)
+      type(dual_3)     :: dl_B, dl_dpot, dl_eta0, dl_eta1, dl_j, dl_t, dl_t1, dl_t2, dl_xF
+      type(ode_result) :: result
+
+      status = .true.
+
+      if (eta0 < etaF) then
+        ! use dual numbers to avoid most of the manual derivative calculations
+        call dl_eta0%init(eta0, i = 1)
+        call dl_dpot%init(dpot, i = 2)
+        call dl_j%init(      j, i = 3)
+        dl_t = dl_dpot - alpha * dl_j
+
+        ! find x where eta crosses etaF
+        dl_t1 = dl_t * exp(   etaF) - dl_j
+        dl_t2 = dl_t * exp(dl_eta0) - dl_j
+        if (((dl_t1%x > 0) .and. (dl_t2%x > 0)) .or. ((dl_t1%x < 0) .and. (dl_t2%x < 0))) then
+          if (abs(dl_t%x) < 1e-6) then
+            dl_xF = x0 +      (exp(    dl_eta0) - exp(    etaF)) /      dl_j     &
+              &   + dl_t    * (exp(2 * dl_eta0) - exp(2 * etaF)) / (2 * dl_j**2) &
+              &   + dl_t**2 * (exp(3 * dl_eta0) - exp(3 * etaF)) / (3 * dl_j**3)
+          else
+            dl_xF = x0 + log(dl_t1 / dl_t2) / dl_t
+          end if
+
+          if (((x1 > x0) .and. (dl_xF%x >= x0) .and. (dl_xF%x < x1)) .or. &
+            & ((x1 < x0) .and. (dl_xF%x <= x0) .and. (dl_xF%x > x1))) then
+            ! go from (xF,etaF) to (x1,eta1) using ode solver
+            call solve_ode(dl_xF%x, x1, etaF, j, status, eta1, deta1deta0, deta1ddpot, deta1dj)
+            if (.not. status) return
+            call detadx(x1, [eta1], [dpot, j], status, f = deta1dx)
+            if (.not. status) return
+            deta1deta0 =            - deta1dx(1) * dl_xF%dx(1)
+            deta1ddpot = deta1ddpot - deta1dx(1) * dl_xF%dx(2)
+            deta1dj    = deta1dj    - deta1dx(1) * dl_xF%dx(3)
+          else
+            ! stay below -16
+            dl_B%x  = ber(   dl_t%x * (x1 - x0))
+            dl_B%dx = dberdx(dl_t%x * (x1 - x0)) * dl_t%dx
+            dl_eta1 = dl_eta0 + log1p((dl_t - dl_j * exp(-dl_eta0)) * (x1 - x0) / dl_B)
+
+            eta1       = dl_eta1%x
+            deta1deta0 = dl_eta1%dx(1)
+            deta1ddpot = dl_eta1%dx(2)
+            deta1dj    = dl_eta1%dx(3)
+          end if
+        else
+          ! stay constant (avoid numerical issues)
+          eta1       = eta0
+          deta1deta0 = 1
+          deta1ddpot = 0
+          deta1dj    = 0
+        end if
+      else
+        ! go from (x0,eta0) to (x1,eta1) using ode solver
+        call radau5(detadx, x0, x1, [x1], [eta0], [dpot, j], opt, status, result)
+        if (.not. status) return
+        eta1       = result%Usmp(    1,  1)
+        deta1deta0 = result%dUsmpdU0(1,1,1)
+        deta1ddpot = result%dUsmpdP( 1,1,1)
+        deta1dj    = result%dUsmpdP( 1,2,1)
+      end if
+    end subroutine
+
+    subroutine detadx(x, U, p, status, f, dfdU, dfdp)
+      !! ode right-hand side
       real,           intent(in)  :: x
         !! x coordinate
       real,           intent(in)  :: U(:)
-        !! state (nn)
-      real,           intent(in)  :: P(:)
-        !! parameters (pot(2) - pot(1), jj)
+        !! state (eta)
+      real,           intent(in)  :: p(:)
+        !! parameters (dpot, j)
+      logical,        intent(out) :: status
+        !! success/fail
       real, optional, intent(out) :: f(:)
-        !! output dnn/dx
+        !! output deta/dx
       real, optional, intent(out) :: dfdU(:,:)
-        !! output derivative of f wrt nn
-      real, optional, intent(out) :: dfdP(:,:)
+        !! output derivative of f wrt eta
+      real, optional, intent(out) :: dfdp(:,:)
         !! output derivative of f wrt P
 
-      real :: eta, deta, Fm1h, dFm12, alpha, dalpha, fsg, dfsg
+      real :: F12, dF12
 
       m4_ignore(x)
 
-      ! get "degeneracy-factor" (~1 for small densities; < 1 for large densities)
-      call inv_fermi_dirac_integral_1h(U(1), eta, deta)
-      call fermi_dirac_integral_m1h(eta, Fm1h, dFm12)
-      alpha = Fm1h / U(1)
-      dalpha = (dFm12 * deta - alpha) / U(1)
+      call fermi_dirac_integral_1h(U(1), F12, dF12)
+      status = ieee_is_finite(F12)
 
-      ! Scharfetter-Gummel
-      fsg  = - ch * P(1) * U(1) - P(2)
-      dfsg = - ch * P(1)
-
-      ! scale Scharfetter-Gummel by degeneracy factor
       if (present(f)) then
-        f(1) = alpha * fsg
+        f(1) = p(1) - p(2) / F12
       end if
       if (present(dfdU)) then
-        dfdU(1,1) = dalpha * fsg + alpha * dfsg
+        dfdU(1,1) = p(2) / F12**2 * dF12
       end if
       if (present(dfdp)) then
-        dfdp(1,1) = - alpha * ch * U(1)
-        dfdp(1,2) = - alpha
+        dfdp(1,1) = 1.0
+        dfdp(1,2) = - 1.0 / F12
       end if
-    end subroutine
-
-  end subroutine
-
-  subroutine eval_degen(len, pot, dens, mob, j, djdpot, djddens, djdmob)
-    !! Generalized Scharfetter-Gummel stabilization for degenerate case
-    real,                        intent(in)  :: len
-      !! edge length
-    real,                        intent(in)  :: pot(2)
-      !! potential at edge endpoints
-    real,                        intent(in)  :: dens(2)
-      !! density at edge endpoints
-    real,                        intent(in)  :: mob
-      !! mobility
-    real,                        intent(out) :: j
-      !! output current density
-    real,                        intent(out) :: djdpot(2)
-      !! output derivatives of j wrt pot
-    real,                        intent(out) :: djddens(2)
-      !! output derivatives of j wrt dens
-    real,                        intent(out) :: djdmob
-      !! output derivatives of j wrt mob
-
-    integer            :: num_eval
-    real               :: jsg, djsgdpot(2), djsgddens(2), djsgdmob
-    real               :: jj0, jj, djjdp(3), nn(2)
-    type(newton1D_opt) :: newt_opt
-    type(ode_options)  :: ode_opt
-    type(ode_result)   :: ode_res1, ode_res2
-
-    ! initial guess
-    call eval_sg(len, pot, dens, mob, jsg, djsgdpot, djsgddens, djsgdmob)
-    jj0 = jsg * len / (mob * edos)
-    nn  = dens / edos
-
-    ! solve with newton iteration
-    call ode_opt%init(1, atol = [1e-10], rtol = [1e-10], max_rejected = 50)
-    call newt_opt%init()
-    call newton1D(newton_fun, [nn(1), nn(2), - ch * (pot(2) - pot(1))], newt_opt, jj0, jj, djjdp)
-
-print "(A,ES24.16)", "newton"
-print *
-! stop
-
-    ! extract solution + derivatives
-    j       = jj * mob * edos / len
-    djdpot  = [ch, -ch] * djjdp(3) * mob * edos / len
-    djddens = djjdp(1:2) * mob / len
-    djdmob  = jj * edos / len
-
-  contains
-
-    subroutine newton_fun(x, p, f, dfdx, dfdp)
-      real,              intent(in)  :: x
-        !! argument (jj)
-      real,              intent(in)  :: p(:)
-        !! parameters (nn(1), nn(2), pot(2) - pot(1))
-      real,              intent(out) :: f
-        !! output function value
-      real,    optional, intent(out) :: dfdx
-        !! optional output derivative of f wrt x
-      real,    optional, intent(out) :: dfdp(:)
-        !! optional output derivatives of f wrt p
-
-      real :: nn1(2), dnn1(2,3)
-
-      if (p(1) < p(2) * 1e-3) then
-        ! solve ode from left to right
-        call solve_ode(0.0, 1.0, p(1), x, p(3), nn1(1), dnn1(1,:))
-        nn1(2)      = p(2)
-        dnn1(2,1)   = 1.0
-        dnn1(2,2:3) = 0.0
-      elseif (p(1) > p(2) * 1e-3) then
-        ! solve ode from right to left
-        call solve_ode(1.0, 0.0, p(2), x, p(3), nn1(2), dnn1(2,:))
-        nn1(1)      = p(1)
-        dnn1(1,1)   = 1.0
-        dnn1(1,2:3) = 0.0
-      else
-        ! solve ode from left to center and from right to center
-        call solve_ode(0.0, 0.5, p(1), x, p(3), nn1(1), dnn1(1,:))
-        call solve_ode(1.0, 0.5, p(2), x, p(3), nn1(2), dnn1(2,:))
-      end if
-
-      ! residual
-      f = nn1(1) - nn1(2)
-      if (present(dfdx)) dfdx = dnn1(1,2) - dnn1(2,2)
-      if (present(dfdp)) dfdp = [dnn1(1,1), -dnn1(2,1), dnn1(1,3) - dnn1(2,3)]
-    end subroutine
-
-    subroutine solve_ode(x0, x1, nn0, jj, dpot, nn1, dnn1)
-      real, intent(in)  :: x0
-        !! initial x, normalized to edge length
-      real, intent(in)  :: x1
-        !! final x, normalized to edge length
-      real, intent(in)  :: nn0
-        !! initial normalized density
-      real, intent(in)  :: jj
-        !! normalized current density (constant along edge)
-      real, intent(in)  :: dpot
-        !! normalized potential difference
-      real, intent(out) :: nn1
-        !! output final normalized density
-      real, intent(out) :: dnn1(:)
-        !! output derivatives of nn1 [dnn1dnn0, dnn1djj, dnn1ddpot]
-
-      real             :: dx, sx
-      type(ode_result) :: ode_res
-      type(dual_3)     :: beta, nnsg, nn1_dual
-
-      ! always start at x = 0 and go in positive direction
-      if (x1 >= x0) then
-        dx = x1 - x0
-        sx = 1.0
-      else
-        dx = x0 - x1
-        sx = -1.0
-      end if
-block
-  integer, parameter :: nsmp = 201
-  integer :: ii
-  real, allocatable :: xsmp(:)
-
-  xsmp = linspace(0.0, 1.0, nsmp)
-
-  call radau5(ode_fun, 0.0, 1.0, xsmp, [0.0], [3.3333333333333333E-02, -6.6236643183010870E+02, -1.8719999999999999E+01], ode_opt, ode_res)
-
-  do ii = 1, nsmp
-    print "(2ES24.16)", xsmp(ii), ode_res%Usmp(1,ii)
-  end do
-  stop
-end block
-
-      ! solve ode, start from beta = 1, flip sign of jj and dpot if necessary
-      call radau5(ode_fun, 0.0, dx, [dx], [0.0], [nn0, sx*jj, sx*dpot], ode_opt, ode_res)
-
-      ! final beta (first and only sample)
-      beta%x     = ode_res%Usmp(1,1)
-      beta%dx(1) = ode_res%dUsmpdP(1,1,1)
-      beta%dx(2) = ode_res%dUsmpdP(1,2,1) * sx
-      beta%dx(3) = ode_res%dUsmpdP(1,3,1) * sx
-
-      ! get final density
-      call get_nnsg(dx, nn0, sx * jj, sx * dpot, nnsg%x, nnsg%dx)
-      nnsg%dx(2) = nnsg%dx(2) * sx
-      nnsg%dx(3) = nnsg%dx(3) * sx
-      nn1_dual = exp(beta) * nnsg
-
-      ! extract value + derivatives
-      nn1     = nn1_dual%x
-      dnn1(1) = nn1_dual%dx(1)
-      dnn1(2) = nn1_dual%dx(2)
-      dnn1(3) = nn1_dual%dx(3)
-    end subroutine
-
-    subroutine ode_fun(x, U, P, f, dfdU, dfdP)
-      real,           intent(in)  :: x
-        !! x coordinate
-      real,           intent(in)  :: U(:)
-        !! state (b)
-      real,           intent(in)  :: P(:)
-        !! parameters (nn0, jj, dpot)
-      real, optional, intent(out) :: f(:)
-        !! output db/dx
-      real, optional, intent(out) :: dfdU(:,:)
-        !! output derivative of f wrt b
-      real, optional, intent(out) :: dfdP(:,:)
-        !! output derivative of f wrt P
-
-      real         :: deta, dFm12
-      type(dual_4) :: alpha, beta, dpot, eta, ff, Fm1h, jj, nn, nnsg
-
-      call beta%init(U(1), i = 1)
-      call jj%init(  P(2), i = 3)
-      call dpot%init(P(3), i = 4)
-
-      ! get Scharfetter-Gummel density
-      call get_nnsg(x, P(1), P(2), P(3), nnsg%x, nnsg%dx(2:4))
-      nnsg%dx(1) = 0
-
-      ! get alpha ("degeneracy"-factor)
-      nn = exp(beta) * nnsg
-      call inv_fermi_dirac_integral_1h(nn%x, eta%x, deta)
-      eta%dx = deta * nn%dx
-      call fermi_dirac_integral_m1h(eta%x, Fm1h%x, dFm12)
-      Fm1h%dx = dFm12 * eta%dx
-      alpha = Fm1h / nn
-
-      ! dbeta/dx
-      ff = (alpha - 1.0) * dpot - (alpha * exp(-beta) - 1.0) * jj / nnsg
-
-      ! extract
-      if (present(f   )) f(1)        = ff%x
-      if (present(dfdU)) dfdU(1,1)   = ff%dx(1)
-      if (present(dfdP)) dfdP(1,1:3) = ff%dx(2:4)
-    end subroutine
-
-    subroutine get_nnsg(x, nn0, jj, dpot, nn1, dnn1)
-      !! get Scharfetter-Gummel density along edge
-      real, intent(in)  :: x
-        !! normalized x coordinate in [0, 1]
-      real, intent(in)  :: nn0
-        !! normalized density at x = 0
-      real, intent(in)  :: jj
-        !! normalized current density
-      real, intent(in)  :: dpot
-        !! normalized potential difference
-      real, intent(out) :: nn1
-        !! output density at x
-      real, intent(out) :: dnn1(:)
-        !! output derivatives of nn1 wrt [nn0, jj, dpot]
-
-      real :: e, em1
-
-      e   = exp(  dpot * x)
-      em1 = expm1(dpot * x)
-      nn1 = nn0 * e - jj / dpot * em1
-
-      dnn1(1) = e
-      dnn1(2) = - em1 / dpot
-      dnn1(3) = (nn0 - jj / dpot) * x * e + jj / dpot**2 * em1
     end subroutine
 
   end subroutine

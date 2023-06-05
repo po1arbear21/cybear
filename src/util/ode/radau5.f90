@@ -36,7 +36,7 @@ module radau5_m
 
 contains
 
-  subroutine radau5(fun, x0, x1, xsmp, U0, P, opt, res)
+  subroutine radau5(fun, x0, x1, xsmp, U0, P, opt, status, res)
     !! radau5 ode solver
     procedure(ode_fun)             :: fun
       !! pointer to function to integrate
@@ -52,11 +52,13 @@ contains
       !! parameters
     type(ode_options), intent(in)  :: opt
       !! solver options
+    logical,           intent(out) :: status
+      !! success/fail
     type(ode_result),  intent(out) :: res
       !! output result object
 
     ! call base solver with radau5 kernel (3 stages)
-    call ode_solve(radau5_kernel, 3, fun, x0, x1, xsmp, U0, P, opt, res)
+    call ode_solve(radau5_kernel, 3, fun, x0, x1, xsmp, U0, P, opt, status, res)
   end subroutine
 
   subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
@@ -153,7 +155,11 @@ contains
         end if
 
         ! evaluate function and derivatives at all stages
-        call eval_f(nU, fun, x, dxk, Uk, z, P, f, dfdz)
+        call eval_f(nU, fun, x, dxk, Uk, z, P, status, f, dfdz)
+        if (.not. status) then
+          dxn = 0.5 * dxk
+          return
+        end if
 
         ! get h and dhdz
         call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
@@ -187,7 +193,8 @@ contains
         err    = err_k
 
         ! derivatives
-        call eval_f(nU, fun, x, dxk, Uk, z, P, f, dfdz, dfdP = dfdP)
+        call eval_f(nU, fun, x, dxk, Uk, z, P, status, f, dfdz, dfdP = dfdP)
+        if (.not. status) return
         call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
         call eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
 
@@ -239,7 +246,7 @@ contains
     end do
   end subroutine
 
-  subroutine eval_f(nU, fun, x, dxk, Uk, z, P, f, dfdz, dfdP)
+  subroutine eval_f(nU, fun, x, dxk, Uk, z, P, status, f, dfdz, dfdP)
     integer,        intent(in)  :: nU
       !! system size
     procedure(ode_fun)          :: fun
@@ -254,6 +261,7 @@ contains
       !! delta states
     real,           intent(in)  :: P(:)
       !! parameters
+    logical,        intent(out) :: status
     real,           intent(out) :: f(:,:)
       !! output function values
     real,           intent(out) :: dfdz(:,:,:)
@@ -268,9 +276,9 @@ contains
       i0 = i1 + 1
       i1 = i1 + nU
       if (present(dfdP)) then
-        call fun(x + C(i) * dxk, Uk + z(i0:i1), P, f = f(:,i), dfdU = dfdz(:,:,i), dfdP = dfdP(:,:,i))
+        call fun(x + C(i) * dxk, Uk + z(i0:i1), P, status, f = f(:,i), dfdU = dfdz(:,:,i), dfdP = dfdP(:,:,i))
       else
-        call fun(x + C(i) * dxk, Uk + z(i0:i1), P, f = f(:,i), dfdU = dfdz(:,:,i))
+        call fun(x + C(i) * dxk, Uk + z(i0:i1), P, status, f = f(:,i), dfdU = dfdz(:,:,i))
       end if
     end do
   end subroutine
@@ -314,6 +322,26 @@ contains
         dhdz(i0:i1,j0:j1) = dhdz(i0:i1,j0:j1) - dxk * A(i,j) * dfdz(:,:,j)
       end do
     end do
+
+    block
+      use ieee_arithmetic
+
+      if (any(.not. ieee_is_finite(h))) then
+        print *, h
+        print *, f(1,1)
+        print *, f(1,2)
+        print *, f(1,3)
+        error stop "h not finite"
+      end if
+      if (any(.not. ieee_is_finite(dhdz))) then
+        print *, dhdz
+        print *, h
+        print *, dfdz(1,1,1)
+        print *, dfdz(1,1,2)
+        print *, dfdz(1,1,3)
+        error stop "dhdz not finite"
+      end if
+    end block
   end subroutine
 
   subroutine eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
@@ -381,6 +409,7 @@ contains
       !! output scalar error estimate
 
     integer :: i, i0, i1, ipiv(nU)
+    logical :: status2
     real    :: eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
 
     ! delta U
@@ -404,18 +433,20 @@ contains
 
     ! if last step was rejected, refine error estimate again
     if (.not. status) then
-      call fun(x, Uk + eU(:,1), P, f = eU_tmp)
-      eU(:,1) = G0 * dxk * eU_tmp
-      i1 = 0
-      do i = 1, 3
-        i0 = i1 + 1
-        i1 = i1 + nU
+      call fun(x, Uk + eU(:,1), P, status2, f = eU_tmp)
+      if (status2) then
+        eU(:,1) = G0 * dxk * eU_tmp
+        i1 = 0
+        do i = 1, 3
+          i0 = i1 + 1
+          i1 = i1 + nU
 
-        eU(:,1) = eU(:,1) + E(i) * z(i0:i1)
-      end do
+          eU(:,1) = eU(:,1) + E(i) * z(i0:i1)
+        end do
 
-      ! solve again
-      call getrs(eUmat, ipiv, eU)
+        ! solve again
+        call getrs(eUmat, ipiv, eU)
+      end if
     end if
 
     ! get scalar error estimate
@@ -478,6 +509,9 @@ contains
     if (err > 1.0) then
       ! rejected step: reduce stepsize by factor of 2
       dxn = 0.5 * dxk
+    elseif (err == 0.0) then
+      ! do not change stepsize
+      dxn = dxk
     else
       ! get safety factor
       fac = 0.9 * (2 * opt%newton_max_it + 1.0) / (2 * opt%newton_max_it + it)
