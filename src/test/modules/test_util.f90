@@ -28,52 +28,52 @@ contains
       i     = 123
       cval  = int2str(i)
       val%s = cval
-      exp%s = '123'
+      exp%s = "123"
       call tc%assert_eq(exp, val, "int2str")
 
       i     = -4567
       cval  = int2str(i)
       val%s = cval
-      exp%s = '-4567'
+      exp%s = "-4567"
       call tc%assert_eq(exp, val, "int2str")
 
       ! min_len smaller than actual length
       i     = 89012
       cval  = int2str(i, min_len=2)
       val%s = cval
-      exp%s = '89012'
+      exp%s = "89012"
       call tc%assert_eq(exp, val, "int2str")
 
       i     = -123
       cval  = int2str(i, min_len=2)
       val%s = cval
-      exp%s = '-123'
+      exp%s = "-123"
       call tc%assert_eq(exp, val, "int2str")
 
       ! min_len equal actual length
       i     = 1234
       cval  = int2str(i, min_len=4)
       val%s = cval
-      exp%s = '1234'
+      exp%s = "1234"
       call tc%assert_eq(exp, val, "int2str")
 
       i     = -1234
       cval  = int2str(i, min_len=4)
       val%s = cval
-      exp%s = '-1234'
+      exp%s = "-1234"
       call tc%assert_eq(exp, val, "int2str")
 
       ! min_len larger than actual length
       i     = 56
       cval  = int2str(i, min_len=6)
       val%s = cval
-      exp%s = '000056'
+      exp%s = "000056"
       call tc%assert_eq(exp, val, "int2str")
 
       i     = -56
       cval  = int2str(i, min_len=6)
       val%s = cval
-      exp%s = '-00056'
+      exp%s = "-00056"
       call tc%assert_eq(exp, val, "int2str")
     end block
 
@@ -83,9 +83,9 @@ contains
       integer                   :: length(3), i
       type(string)              :: str(3)
 
-      str(1)%s = 'Hello World'
-      str(2)%s = 'Ki.D.d!ng'
-      str(3)%s = ''
+      str(1)%s = "Hello World"
+      str(2)%s = "Ki.D.d!ng"
+      str(3)%s = ""
 
       length = [11, 9, 0]
 
@@ -101,9 +101,9 @@ contains
       integer                   :: i
       type(string)              :: str, str_exp(3)
 
-      str_exp(1)%s = 'Hello World'
-      str_exp(2)%s = 'Ki.D.d!ng'
-      str_exp(3)%s = ''
+      str_exp(1)%s = "Hello World"
+      str_exp(2)%s = "Ki.D.d!ng"
+      str_exp(3)%s = ""
 
       do i = 1, 3
         c     = f2cstring(str_exp(i)%s)

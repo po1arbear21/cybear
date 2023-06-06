@@ -148,22 +148,6 @@ contains
 
     if (allocated(this%name)) deallocate (this%name)
 
-    if (allocated(this%vprov_alc%d)) then
-      do i = 1, this%vprov_alc%n
-        deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
-      end do
-    end if
-    if (allocated(this%vdep_alc%d)) then
-      do i = 1, this%vdep_alc%n
-        deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
-      end do
-    end if
-
-    call this%vprov%destruct()
-    call this%vdep%destruct()
-    call this%vprov_alc%destruct()
-    call this%vdep_alc%destruct()
-
     ! destruct jacobians
     if (allocated(this%jaco)) then
       do j = 1, size(this%jaco, dim = 2)
@@ -187,6 +171,22 @@ contains
       end do
       deallocate (this%jaco_p)
     end if
+
+    ! destruct vselectors
+    if (allocated(this%vprov_alc%d)) then
+      do i = 1, this%vprov_alc%n
+        deallocate (this%vprov%d(this%vprov_alc%d(i))%p)
+      end do
+    end if
+    if (allocated(this%vdep_alc%d)) then
+      do i = 1, this%vdep_alc%n
+        deallocate (this%vdep%d(this%vdep_alc%d(i))%p)
+      end do
+    end if
+    call this%vprov%destruct()
+    call this%vdep%destruct()
+    call this%vprov_alc%destruct()
+    call this%vdep_alc%destruct()
   end subroutine
 
   subroutine equation_reset(this, const, nonconst)
