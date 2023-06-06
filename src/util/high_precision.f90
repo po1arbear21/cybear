@@ -13,7 +13,7 @@ module high_precision_m
   public hp_real
   public hp_to_real, real_to_hp
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public abs, sqrt, exp, expm1, log, log1p
+  public abs, sqrt, exp, expm1, log, log1p, sin, cos, tan, sinh, cosh, tanh, ber
   public hp_sum, hp_dot
   public TwoSum, TwoProduct, TwoDivision
 
@@ -89,6 +89,34 @@ module high_precision_m
 
   interface log1p
     module procedure :: hp_log1p
+  end interface
+
+  interface sin
+    module procedure :: hp_sin
+  end interface
+
+  interface cos
+    module procedure :: hp_cos
+  end interface
+
+  interface tan
+    module procedure :: hp_tan
+  end interface
+
+  interface sinh
+    module procedure :: hp_sinh
+  end interface
+
+  interface cosh
+    module procedure :: hp_cosh
+  end interface
+
+  interface tanh
+    module procedure :: hp_tanh
+  end interface
+
+  interface ber
+    module procedure :: hp_ber
   end interface
 
   interface hp_sum
@@ -628,6 +656,109 @@ contains
       tmp = log(u) * tmp / d
       l = SplitQuad(tmp)
     end if
+  end function
+
+  elemental function hp_sin(h) result(s)
+    !! high precision sine function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: s
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = sin(tmp)
+
+    s = SplitQuad(tmp)
+  end function
+
+  elemental function hp_cos(h) result(c)
+    !! high precision cosine function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: c
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = cos(tmp)
+
+    c = SplitQuad(tmp)
+  end function
+
+  elemental function hp_tan(h) result(t)
+    !! high precision tangent function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: t
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = tan(tmp)
+
+    t = SplitQuad(tmp)
+  end function
+
+  elemental function hp_sinh(h) result(s)
+    !! high precision hyperbolic sine function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: s
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = sinh(tmp)
+
+    s = SplitQuad(tmp)
+  end function
+
+  elemental function hp_cosh(h) result(c)
+    !! high precision hyperbolic cosine function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: c
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = cosh(tmp)
+
+    c = SplitQuad(tmp)
+  end function
+
+  elemental function hp_tanh(h) result(t)
+    !! high precision hyperbolic tangent function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: t
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = tanh(tmp)
+
+    t = SplitQuad(tmp)
+  end function
+
+  elemental function hp_ber(h) result(b)
+    !! high precision bernoulli function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: b
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+
+    if (abs(tmp) > 1e-8) then
+      tmp = 0.5 * tmp * exp(-0.5 * tmp) / sinh(0.5 * tmp)
+    else
+      tmp = 1.0 + tmp * (-0.5 + tmp / 12.0)
+    end if
+
+    b = SplitQuad(tmp)
   end function
 
   function SumKvert(p, K) result(res)
