@@ -111,13 +111,15 @@ contains
 
     integer :: itab1, itab2
 
+    nullify (this%v1, this%v2)
+
     if (allocated(this%const )) deallocate (this%const )
     if (allocated(this%zero  )) deallocate (this%zero  )
     if (allocated(this%dense )) deallocate (this%dense )
     if (allocated(this%valmsk)) deallocate (this%valmsk)
 
     if (allocated(this%sb)) then
-      do itab1 = 1, this%v1%ntab; do itab2 = 1, this%v2%ntab
+      do itab1 = 1, size(this%sb, dim = 1); do itab2 = 1, size(this%sb, dim = 2)
         call this%sb(itab1,itab2)%destruct()
       end do; end do
       deallocate (this%sb)
