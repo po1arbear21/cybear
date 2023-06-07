@@ -37,12 +37,16 @@ module device_params_m
     real :: curr_fact
       !! current factor for converting A/m² or A/m to A
 
-    class(grid_data_real), allocatable  :: eps(:,:)
+    class(grid_data_real), allocatable :: eps(:,:)
       !! electrostatic permittivity (idx_type, idx_dir)
     class(grid_data_real), allocatable :: surf(:)
       !! adjoint volume surfaces
     class(grid_data_real), allocatable :: dop(:,:,:)
       !! donator/acceptor concentration (idx_type, idx_dir, dcon/acon)
+    class(grid_data_real), allocatable :: asb(:)
+      !! Altermatt-Schenk factor of bound states (dcon/acon)
+    class(grid_data_real), allocatable :: edop(:)
+      !! donator/acceptor dopant energy level (dcon/acon)
     class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
     class(grid_data_real), allocatable :: tr_surf(:)
@@ -184,6 +188,13 @@ contains
     call file%get(sid, "N_ref",     this%smc%N_ref)
     call file%get(sid, "v_sat",     this%smc%v_sat)
     call file%get(sid, "curr_fact", this%curr_fact)
+    call file%get(sid, "ii",        this%smc%ii)
+    call file%get(sid, "edop0",     this%smc%edop)
+    call file%get(sid, "asc",       this%smc%asc)
+    call file%get(sid, "asd",       this%smc%asd)
+    call file%get(sid, "N_asb",     this%smc%N_asb)
+    call file%get(sid, "N_asr",     this%smc%N_asr)
+    call file%get(sid, "dop_degen", this%smc%g_dop)
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
@@ -194,6 +205,12 @@ contains
     m4_assert(size(this%smc%mob_max) == 2)
     m4_assert(size(this%smc%N_ref) == 2)
     m4_assert(size(this%smc%v_sat) == 2)
+    m4_assert(size(this%smc%edop) == 2)
+    m4_assert(size(this%smc%asc) == 2)
+    m4_assert(size(this%smc%asd) == 2)
+    m4_assert(size(this%smc%N_asb) == 2)
+    m4_assert(size(this%smc%N_asr) == 2)
+    m4_assert(size(this%smc%g_dop) == 2)
   end subroutine
 
   subroutine device_params_init_regions(this, file)
@@ -574,7 +591,7 @@ contains
     integer              :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable :: idx(:), idx2(:)
     logical              :: status
-    real                 :: dop(2), p(2,3), mid(2), mob0, mob_min, mob_max, N_ref, alpha
+    real                 :: dop(2), p(2,3), mid(2), asb, edop, mob0, mob_min, mob_max, N_ref, alpha
     real,    allocatable :: surf(:,:), vol(:), tmp(:)
     type(string)         :: gtype_tmp
 
@@ -589,6 +606,8 @@ contains
     ! allocate/initialize grid data
     call allocate_grid_data3_real(this%dop,  this%g%idx_dim, [1, 0, DOP_DCON], [4, this%g%idx_dim, DOP_ACON])
     call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%ci0], [4, this%g%idx_dim, this%ci1])
+    call allocate_grid_data1_real(this%asb,  idx_dim, DOP_DCON, DOP_ACON)
+    call allocate_grid_data1_real(this%edop, idx_dim, DOP_DCON, DOP_ACON)
     do ci = DOP_DCON, DOP_ACON
       call this%dop(IDX_VERTEX,0,ci)%init(this%g, IDX_VERTEX, 0)
       call this%dop(IDX_CELL,  0,ci)%init(this%g, IDX_CELL,   0)
@@ -716,6 +735,22 @@ contains
             call this%dop(IDX_EDGE,idx_dir,ci)%update(idx2, dop(ci) * surf(j,idx_dir) / this%tr_surf(idx_dir)%get(idx2))
           end do
         end do
+      end do
+    end do
+
+    ! Altermatt-Schenk ionization model init
+    do ci = DOP_DCON, DOP_ACON
+      call this%edop(ci)%init(this%g, IDX_VERTEX, 0)
+      call this%asb( ci)%init(this%g, IDX_VERTEX, 0)
+      do i = 1, this%transport(IDX_VERTEX,0)%n
+        idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
+        dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
+
+        edop = this%smc%edop(ci) / (1 + (dop(ci) / this%smc%N_asr(ci))**this%smc%asc(ci))
+        asb  = 1 / (1 + (dop(ci) / this%smc%N_asb(ci))**this%smc%asd(ci))
+
+        call this%asb(ci)%set( idx, asb)
+        call this%edop(ci)%set(idx, edop)
       end do
     end do
 

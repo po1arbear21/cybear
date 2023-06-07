@@ -10,6 +10,7 @@ module device_m
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
   use input_m,           only: input_file
+  use dopant_m,          only: ionization, calc_ionization
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
@@ -33,6 +34,8 @@ module device_m
       !! electrostatic potential
     type(density)                      :: dens(2)
       !! electron/hole density (carrier index)
+    type(ionization)                   :: ion(2)
+      !! donor/acceptor ionization ratio (dopant index)
     type(current_density), allocatable :: cdens(:,:)
       !! electron/hole current density (direction, carrier index)
     type(imref)                        :: iref(2)
@@ -59,10 +62,12 @@ module device_m
       !! calculate electron/hole imref from potential and density (carrier index)
     type(calc_density)                      :: calc_dens(2)
       !! calculate electron/hole density from potential and imref (carrier index)
+    type(calc_ionization)                   :: calc_ion(2)
+      !! calculate stationary donor/acceptor ionization ratio from potential and imref (dopant index)
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
-      !! calculate charge density from electron/hole density and doping concentrations
+      !! calculate charge density from electron/hole density and (ionized) doping concentrations
     type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
 
@@ -101,6 +106,7 @@ contains
     call this%pot%init(this%par)
     do ci = this%par%ci0, this%par%ci1
       call this%dens(ci)%init(this%par, ci)
+      call this%ion(ci )%init(this%par, ci)
       call this%iref(ci)%init(this%par, ci)
       do idx_dir = 1, this%par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(this%par, ci, idx_dir)
@@ -125,12 +131,13 @@ contains
       call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci))
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
+      call this%calc_ion( ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
       do idx_dir = 1, this%par%g%idx_dim
         call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
         call this%calc_cdens(idx_dir,ci)%init(this%par, this%pot, this%dens(ci), this%cdens(idx_dir,ci), this%mob(idx_dir,ci))
       end do
     end do
-    call this%calc_rho%init(this%par, this%dens, this%rho)
+    call this%calc_rho%init(this%par, this%dens, this%ion, this%rho)
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
@@ -138,6 +145,7 @@ contains
     call this%sys_nlpe%add_equation(this%calc_rho)
     do ci = this%par%ci0, this%par%ci1
       call this%sys_nlpe%add_equation(this%calc_dens(ci))
+      call this%sys_nlpe%add_equation(this%calc_ion(ci))
       call this%sys_nlpe%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
     end do
     do ict = 1, this%par%nct
@@ -171,6 +179,7 @@ contains
         call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
       end do
       call this%sys_full%add_equation(this%calc_iref(ci))
+      call this%sys_full%add_equation(this%calc_ion(ci))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
