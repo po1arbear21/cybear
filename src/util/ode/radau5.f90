@@ -1,6 +1,8 @@
 m4_include(../macro.f90.inc)
 
 module radau5_m
+
+  use ieee_arithmetic
   use lapack95
   use ode_m
 
@@ -145,7 +147,7 @@ contains
         it = it + 1
 
         ! fail if too many iterations
-        if (it > opt%newton_max_it) then
+        if ((it > opt%newton_max_it) .or. (newt_err > 2 * newt_err0)) then
           ! try half step size next time
           dxn = 0.5 * dxk
 
@@ -262,6 +264,7 @@ contains
     real,           intent(in)  :: P(:)
       !! parameters
     logical,        intent(out) :: status
+      !! success/fail
     real,           intent(out) :: f(:,:)
       !! output function values
     real,           intent(out) :: dfdz(:,:,:)

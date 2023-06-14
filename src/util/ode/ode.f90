@@ -225,17 +225,6 @@ contains
           rejection_counter = rejection_counter + 1
           if (rejection_counter > opt%max_rejected) then
             return
-            ! print "(A,ES24.16)", "x0 = ", x0
-            ! print "(A,ES24.16)", "x1 = ", x1
-            ! print "(A,ES24.16)", "x  = ", x
-            ! do i = 1, nU
-            !   print "(A,I1,A,ES24.16)", "U0(", i, ") = ", U0(i)
-            ! end do
-            ! do i = 1, nP
-            !   print "(A,I1,A,ES24.16)", "P(", i, ") = ", P(i)
-            ! end do
-
-            ! call program_error("Can not solve ode, limit for rejected steps reached!")
           end if
         else
           ! accept step, reset rejection counter
