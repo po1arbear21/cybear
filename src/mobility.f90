@@ -115,7 +115,7 @@ contains
     integer, allocatable :: idx1(:), idx2(:), idx(:)
     logical              :: status
 
-    allocate (idx1(this%par%g%idx_dim), idx2(this%par%g%idx_dim))
+    allocate (idx(this%par%g%idx_dim), idx1(this%par%g%idx_dim), idx2(this%par%g%idx_dim))
     call diref%init(1.0, 1)
     do i = 1, this%par%transport(IDX_EDGE,this%mob%idx_dir)%n
       idx = this%par%transport(IDX_EDGE,this%mob%idx_dir)%get_idx(i)

@@ -129,6 +129,7 @@ contains
     this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%transport(IDX_VERTEX,0)), const = .false.)
 
     ! set jaco_pot entries (constant)
+    allocate (idx(par%g%idx_dim))
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx = par%transport(IDX_VERTEX,0)%get_idx(i)
       call this%jaco_pot%set(idx, idx, 1.0)
@@ -149,6 +150,7 @@ contains
     ci = this%iref%ci
     ch = CR_CHARGE(this%iref%ci)
 
+    allocate (idx(this%par%g%idx_dim))
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 

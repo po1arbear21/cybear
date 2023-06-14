@@ -186,10 +186,25 @@ contains
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
 
 block
-  use normalization_m
-  use grid_m
+  ! use normalization_m
+  ! use grid_m
 
-  integer :: i, j, i1, i2, funit, idx(2), idx1(2), idx2(2)
+  ! integer :: i, funit
+
+  ! ! call dev%calc_cdens(1,1)%test()
+  ! ! call dev%calc_cdens(1,2)%test()
+  ! ! call dev%calc_cdens(2,1)%test()
+  ! ! call dev%calc_cdens(2,2)%test()
+
+  ! open (newunit = funit, file = "IV.csv", status = "replace", action = "write")
+  ! do i = 1, nsweep
+  !   call ss%select(i)
+  !   write (funit, "(2ES24.16)") denorm(dev%volt(2)%x, "V"), denorm(dev%curr(2)%x, "A")
+  ! end do
+  ! close (funit)
+  ! stop
+
+  ! integer :: i, j, i1, i2, funit, idx(2), idx1(2), idx2(2)
   ! ! real    :: p1(3), p2(3)
 
   ! call ss%select(1)
@@ -221,35 +236,36 @@ block
   !   write (funit, "(2ES24.16)") denorm(dev%par%g1D(3)%x(i), "nm"), denorm(dev%pot%x3(14,5,i), "V")
   ! end do
   ! close (funit)
-  open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
-  write (funit, "(A)") "$ DATA=CURVE3D"
-  do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
-    idx1 = [i,   j]
-    idx2 = [i+1, j]
-    if (i < dev%par%g1D(1)%n) then
-      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
-        &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
-        &                         denorm(dev%pot%get(idx1), "V")
-      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
-        &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
-        &                         denorm(dev%pot%get(idx2), "V")
-      write (funit, *)
-    end if
 
-    idx1 = [i, j  ]
-    idx2 = [i, j+1]
-    if (j < dev%par%g1D(2)%n) then
-      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
-        &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
-        &                         denorm(dev%pot%get(idx1), "V")
-      write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
-        &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
-        &                         denorm(dev%pot%get(idx2), "V")
-      write (funit, *)
-    end if
-  end do; end do
-  write (funit, "(A)") "$ END"
-  close (funit)
+  ! open (newunit = funit, file = "pot_xy.csv", status = "replace", action = "write")
+  ! write (funit, "(A)") "$ DATA=CURVE3D"
+  ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
+  !   idx1 = [i,   j]
+  !   idx2 = [i+1, j]
+  !   if (i < dev%par%g1D(1)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+
+  !   idx1 = [i, j  ]
+  !   idx2 = [i, j+1]
+  !   if (j < dev%par%g1D(2)%n) then
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx1(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx1(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx1), "V")
+  !     write (funit, "(3ES24.16)") denorm(dev%par%g1D(1)%x(idx2(1)), "nm"), &
+  !       &                         denorm(dev%par%g1D(2)%x(idx2(2)), "nm"), &
+  !       &                         denorm(dev%pot%get(idx2), "V")
+  !     write (funit, *)
+  !   end if
+  ! end do; end do
+  ! write (funit, "(A)") "$ END"
+  ! close (funit)
   ! open (newunit = funit, file = "pot_xy_20.csv", status = "replace", action = "write")
   ! write (funit, "(A)") "$ DATA=CURVE3D"
   ! do j = 1, dev%par%g1D(2)%n; do i = 1, dev%par%g1D(1)%n
@@ -338,7 +354,7 @@ block
   ! end do
   ! close (funit)
 
-  stop
+  ! stop
 end block
     end do
   end subroutine

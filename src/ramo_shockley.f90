@@ -135,7 +135,7 @@ contains
 
     ! calculate capacitance matrix
     allocate (this%cap(nct,nct), source = 0.0)
-    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    allocate (idx(par%g%idx_dim), idx1(par%g%idx_dim), idx2(par%g%idx_dim))
     do i = 1, nct
       do j = 1, i-1
         this%cap(i,j) = this%cap(j,i)
@@ -190,8 +190,8 @@ contains
         call this%cdens(idx_dir,ci)%init(cdens(idx_dir,ci), par%transport(IDX_EDGE, idx_dir))
       end do
     end do
-    call this%volt%init([(volt(ict)%get_ptr(), ict = 1, size(volt))], "voltages")
-    call this%curr%init([(curr(ict)%get_ptr(), ict = 1, size(curr))], "currents")
+    call this%volt%init([(volt(ict)%get_ptr(), ict = 1, par%nct)], "voltages")
+    call this%curr%init([(curr(ict)%get_ptr(), ict = 1, par%nct)], "currents")
 
     ! init residuals using this%curr as main variable
     call this%init_f(this%curr)
@@ -216,7 +216,7 @@ contains
 
     ! set jaco_cdens entries
     allocate (d(par%nct,1))
-    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    allocate (idx(par%g%idx_dim), idx1(par%g%idx_dim), idx2(par%g%idx_dim))
     do idx_dir = 1, par%g%idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
         idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)

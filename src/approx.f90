@@ -106,6 +106,7 @@ contains
     integer, allocatable  :: idx(:)
 
     ! loop over uncontacted transport vertices
+    allocate (idx(par%g%idx_dim))
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx = par%transport(IDX_VERTEX,0)%get_idx(i)
 
@@ -159,12 +160,13 @@ contains
     ! init base
     call this%equation_init("imref_approx_eq")
     this%par => par
-    eye = eye_real(size(par%contacts))
+    allocate (eye(par%nct,par%nct))
+    eye = eye_real(par%nct)
 
     ! create variable selectors
-    call this%iref%init(iref, [par%transport_vct( 0)%get_ptr(), &                              ! uncontacted transport vertices
-      &                      (par%transport_vct(ict)%get_ptr(), ict = 1, size(par%contacts))]) ! contacted vertices
-    call this%volt%init([(volt(ict)%get_ptr(), ict = 1, size(volt))], "voltages")
+    call this%iref%init(iref, [par%transport_vct( 0)%get_ptr(), &                   ! uncontacted transport vertices
+      &                      (par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)]) ! contacted vertices
+    call this%volt%init([(volt(ict)%get_ptr(), ict = 1, par%nct)], "voltages")
 
     ! init residuals using this%iref as main variable
     call this%init_f(this%iref)
@@ -177,12 +179,12 @@ contains
 
     ! init jacobians
     this%jaco_iref  => this%init_jaco_f(this%depend(this%iref ), st = [this%st_nn%get_ptr(), &
-    & (this%st_dir%get_ptr(),      ict = 1, size(par%contacts))], const = .true.)
+    & (this%st_dir%get_ptr(),      ict = 1, par%nct)], const = .true.)
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(),   &
-    & (this%st_dir_volt%get_ptr(), ict = 1, size(par%contacts))], const = .true.)
+    & (this%st_dir_volt%get_ptr(), ict = 1, par%nct)], const = .true.)
 
     ! loop over transport cells
-    allocate (idx1(par%g%idx_dim), idx2(par%g%idx_dim))
+    allocate (idx(par%g%idx_dim), idx1(par%g%idx_dim), idx2(par%g%idx_dim))
     do idx_dir = 1, par%g%idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
         idx = par%transport(IDX_EDGE,idx_dir)%get_idx(i)
@@ -207,7 +209,7 @@ contains
     end do
 
     ! loop over contacted vertices
-    do ict = 1, size(par%contacts)
+    do ict = 1, par%nct
       d_volt = - eye(ict:ict,:)
       do i = 1, par%transport_vct(ict)%n
         idx1 = par%transport_vct(ict)%get_idx(i)

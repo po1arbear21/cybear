@@ -96,6 +96,7 @@ contains
     iprov = this%provide(rho, tab = par%transport(IDX_VERTEX,0))
 
     ! depends on electron/hole density
+    allocate (idx(par%g%idx_dim))
     do ci = par%ci0, par%ci1
       idep(ci) = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
 
@@ -121,6 +122,7 @@ contains
     integer, allocatable :: idx(:)
 
     ! calculate charge density at each vertex in the transport region
+    allocate (idx(this%par%g%idx_dim))
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 

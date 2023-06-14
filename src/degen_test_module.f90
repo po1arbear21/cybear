@@ -5,6 +5,7 @@ module degen_test_module_m
   use distributions_m
   use dual_m
   use error_m
+  use high_precision_m
   use ieee_arithmetic
   use math_m
   use radau5_m
@@ -24,13 +25,14 @@ contains
     real, allocatable :: eta2(:), j(:), djdeta(:,:), djddpot(:)
 
     allocate (eta2(Neta2), j(Neta2), djdeta(2,Neta2), djddpot(Neta2))
-    eta2 = linspace(-100.0, 100.0, Neta2)
+    eta2 = linspace(9.5115874417822379E+00, 100.0, Neta2)
 
-    dpot   = 50.0
-    eta(1) = -10.0
-
+    dpot   = -7.2082596494811196E+02
+    eta(1) = -7.3620889613398560E+01
     do ieta2 = 1, Neta2
       eta(2) = eta2(ieta2)
+
+      ! print "(3ES24.16)", eta(1), eta(2), dpot
 
       call get_current(eta, dpot, j(ieta2), djdeta(:,ieta2), djddpot(ieta2))
 
@@ -38,11 +40,14 @@ contains
       ! j(ieta2) = dpot * j(ieta2)
 
       print "(2ES24.16)", eta2(ieta2), j(ieta2)
+      stop
     end do
 
   end subroutine
 
   function get_current_sg(n, dpot) result(j)
+    use math_m, only: ber
+
     real, intent(in)  :: n(2)
     real, intent(in)  :: dpot
     real              :: j
@@ -50,7 +55,7 @@ contains
     j = ber(dpot) * n(1) - ber(-dpot) * n(2)
   end function
 
-  subroutine get_current(eta, dpot, j, djdeta, djddpot)
+  recursive subroutine get_current(eta, dpot, j, djdeta, djddpot)
     real, intent(in)  :: eta(2)
     real, intent(in)  :: dpot
     real, intent(out) :: j
@@ -62,14 +67,23 @@ contains
     real              :: deta, jmin, jmax, jsgn, n(2), dndeta(2), t, nc
     type(ode_options) :: opt
 
+    if (dpot > 0) then
+      ! use symmetry to confine dpot to <= 0
+      call get_current([eta(2), eta(1)], - dpot, j, djdeta, djddpot)
+      j      = - j
+      djdeta = - [djdeta(2), djdeta(1)]
+      return
+    end if
+
     deta = eta(2) - eta(1)
     call fermi_dirac_integral_1h(eta(1), n(1), dndeta(1))
     call fermi_dirac_integral_1h(eta(2), n(2), dndeta(2))
 
-    if (all(eta <= etaF)) then
+    small_eta = all(eta <= etaF)
+
+    if (small_eta) then
       ! special case: 1/F12(eta) ~ exp(-eta) + sqrt(1/8) -> Bernoulli iteration
       j = get_current_sg(n, dpot)
-      small_eta = .true.
       call get_current_newton(j, djdeta, djddpot)
     else
       ! get jmin, jmax by slope (detadx must be equal to deta for some x in [0, 1])
@@ -84,37 +98,21 @@ contains
       end if
 
       ! determine shooting direction and reduce j range further if possible
-      if (dpot < 0) then
-        if (eta(2) > eta(1)) then
-          dir  = 1
-          jmax = min(jmax, dpot * n(2))
-        elseif (eta(2) >= eta(1) + dpot) then
-          dir  = 0
-          jmin = max(jmin, dpot * n(2))
-          jmax = min(jmax, 0.0)
-        else
-          dir  = -1
-          call fermi_dirac_integral_1h(eta(1) + 0.5 * dpot, nc, t)
-          jmin = max(jmin, 0.0)
-          jmax = min(jmax, abs(dpot - deta) * nc)
-        end if
+      if (eta(2) > eta(1)) then
+        dir  = 1
+        jmax = min(jmax, dpot * n(2))
+      elseif (eta(2) >= eta(1) + dpot) then
+        dir  = 0
+        jmin = max(jmin, dpot * n(2))
+        jmax = min(jmax, 0.0)
       else
-        if (eta(2) < eta(1)) then
-          dir  = -1
-          jmin = max(jmin, dpot * n(1))
-        elseif (eta(2) <= eta(1) + dpot) then
-          dir  = 0
-          jmin = max(jmin, 0.0)
-          jmax = min(jmax, dpot * n(1))
-        else
-          dir  = 1
-          call fermi_dirac_integral_1h(eta(2) - 0.5 * dpot, nc, t)
-          jmin = max(jmin, - abs(dpot - deta) * nc)
-          jmax = min(jmax, 0.0)
-        end if
+        dir  = -1
+        call fermi_dirac_integral_1h(eta(1) + 0.5 * dpot, nc, t)
+        jmin = max(jmin, 0.0)
+        jmax = min(jmax, abs(dpot - deta) * nc)
       end if
 
-      t = 1e-10 * (max(abs(eta(1)), abs(eta(2)), abs(dpot)) + 1)
+      t = 1e-6 * (max(abs(eta(1)), abs(eta(2)), abs(dpot)) + 1)
       if ((abs(deta - dpot) < t) .or. (abs(deta) < t)) then
         ! eta changes approximately linear
         j         = 0.5 * (n(1) + n(2)) * (dpot - deta)
@@ -122,11 +120,14 @@ contains
         djdeta(1) = 0.5 * (dndeta(1) * (dpot - deta) + (n(1) + n(2)))
         djdeta(2) = 0.5 * (dndeta(2) * (dpot - deta) - (n(1) + n(2)))
       else
-        if (dir == 0) then
-          j = jmin
-          if (dpot > 0) j = jmax
-        else
+        if (abs(deta) < 5) then
           j = get_current_sg(n, dpot)
+          if ((j < jmin) .or. (j > jmax)) then
+            j = 0.5 * (jmin + jmax)
+          end if
+        else
+          j = jmax
+          if (deta < 0) j = jmin
         end if
 
         call get_current_newton(j, djdeta, djddpot)
@@ -148,6 +149,14 @@ contains
       djdeta  = 0
       djddpot = 0
 
+      print "(A,ES24.16)", "eta1 = ", eta(1)
+      print "(A,ES24.16)", "eta2 = ", eta(2)
+      print "(A,2ES24.16)", "deta = ", eta(2) - eta(1), abs(eta(2) - eta(1))
+      print "(A,ES24.16)", "dpot = ", dpot
+      print "(A,ES24.16)", "jmin = ", jmin
+      print "(A,ES24.16)", "jmax = ", jmax
+      print "(A,ES24.16)", "j    = ", j
+
       if (.not. small_eta) then
         ! init ode options
         call opt%init(1, atol = [1e-16], rtol = [1e-14], max_rejected = 200)
@@ -157,7 +166,11 @@ contains
         do while (.true.)
           call residual(jmin, status, f = fmin)
           if (status) exit
-          jmin  = jmin + max(abs(jmin) * 1e-15, 1e-100)
+          if (j - jmin < jmax - j) then
+            jmin = jmin + max(abs(jmin) * 1e-15, 1e-100)
+          else
+            jmin = 0.5 * (jmin + jmax)
+          end if
           jmin0 = jmin
         end do
         if (fmin == 0) then
@@ -170,13 +183,37 @@ contains
         do while (.true.)
           call residual(jmax, status, f = fmax)
           if (status) exit
-          jmax  = jmax - max(abs(jmax) * 1e-15, 1e-100)
+          if (j - jmin < jmax - j) then
+            jmax = 0.5 * (jmin + jmax)
+          else
+            jmax  = jmax - max(abs(jmax) * 1e-15, 1e-100)
+          end if
           jmax0 = jmax
         end do
         if (fmax == 0) then
           j = jmax
           goto 100
         end if
+
+block
+  use math_m
+  integer :: ii, NN
+  real :: jj0, ff0, dfdj0
+  real, allocatable :: jj(:), ff(:)
+
+  NN = 1001
+  allocate (jj(NN), ff(NN))
+  jj = linspace(jmin, jmax, NN)
+  print "(A,4ES24.16)", "j = ", jmin, jmax, j, abs(jmax - jmin) / abs(j)
+
+  jj0 = j
+  call residual(jj0, status, f = ff0, dfdj = dfdj0)
+  do ii = 1, NN
+    call residual(jj(ii), status, f = ff(ii))
+    print "(3ES24.16)", jj(ii), ff(ii), ff0 + dfdj0 * (jj(ii) - jj0)
+  end do
+  stop
+end block
 
         ! widen bounds if necessary
         smin = sign(1.0, fmin)
@@ -196,7 +233,6 @@ contains
               jmin0 = j
             end do
             if (f == 0) goto 100
-
             jmax = jmin
             fmax = fmin
             jmin = j
@@ -227,9 +263,13 @@ contains
         end do
       end if
 
+      print "(A,ES24.16)", "jmin = ", jmin
+      print "(A,ES24.16)", "jmax = ", jmax
+      print "(A,ES24.16)", "j    = ", j
+
       ! tolerances
-      atol = max(1e-16 * abs(j), 1e-100)
-      rtol = 1e-14
+      atol = max(2e-16 * abs(j), 1e-100)
+      rtol = 1e-13
       err0 = huge(1.0)
       if (.not. small_eta) then
         err  = 0.5 * (jmax - jmin)
@@ -243,11 +283,7 @@ contains
         it = it + 1
 
         ! bisection
-        if (.not. small_eta) then
-          if ((j < jmin) .or. (j > jmax) .or. (err0 <= err)) then
-            j = 0.5 * (jmin + jmax)
-          end if
-        end if
+        if ((.not. small_eta) .and. ((j < jmin) .or. (j > jmax) .or. (err0 <= err))) j = 0.5 * (jmin + jmax)
 
         ! evaluate residual
         call residual(j, status, f = f, dfdj = dfdj)
@@ -274,7 +310,7 @@ contains
         ! update solution
         j = j - dj
 
-        ! print "(I6,2ES24.16)", it, j, err
+        print "(I6,4ES24.16)", it, j, jmin, jmax, err
 
         ! exit if close to solution
         if (.not. small_eta) then
@@ -315,20 +351,29 @@ contains
       real, optional, intent(out) :: dfdeta(2)
       real, optional, intent(out) :: dfddpot
 
-      real :: arg, B1, B2, dB1, dB2, e(2)
+      type(hp_real) :: harg, hB1, hB2, he(2), hf
+      real          :: arg, B1, B2, dB1, dB2, e(2)
 
-      e = exp(eta)
       status = ieee_is_finite(j)
 
+      he%x = eta
+      he%y = 0
+      he = exp(he)
+      e = hp_to_real(he)
+
       ! shifted bernoulli argument
-      arg = dpot - alpha * j
-      B1  = ber(   -arg)
-      B2  = ber(    arg)
+      harg = dpot - TwoProduct(alpha, j)
+      arg  = hp_to_real(harg)
+      hB1  = ber(-harg)
+      hB2  = ber( harg)
+      B1   = hp_to_real(hB1)
+      B2   = hp_to_real(hB2)
       dB1 = dberdx(-arg)
       dB2 = dberdx( arg)
 
       if (present(f)) then
-        f = j - B1 * e(1) + B2 * e(2)
+        hf = j - hB1 * he(1) + hB2 * he(2)
+        f  = hp_to_real(hf)
       end if
       if (present(dfdj)) then
         dfdj = 1 + alpha * (dB1 * e(1) + dB2 * e(2))
@@ -355,10 +400,7 @@ contains
       status = .true.
 
       if (dir > 0) then
-        ! solve ode from left to right
-        call solve_ode(0.0, 1.0, eta(1), j, status, e, dedeta, dedj, deddpot)
-        if (.not. status) return
-
+        call solve_ode(0.0, 1.0, eta(1), j, status, e, dedeta, deddpot, dedj)
         if (present(f)) then
           f = e - eta(2)
         end if
@@ -373,9 +415,7 @@ contains
           dfddpot = deddpot
         end if
       elseif (dir < 0) then
-        ! solve ode from right to left
-        call solve_ode(1.0, 0.0, eta(2), j, status, e, dedeta, dedj, deddpot)
-        if (.not. status) return
+        call solve_ode(1.0, 0.0, eta(2), j, status, e, dedeta, deddpot, dedj)
 
         if (present(f)) then
           f = e - eta(1)
@@ -391,53 +431,35 @@ contains
           dfddpot = deddpot
         end if
       else
-        xknee = 0.5
-        if (dpot < 0) then
+        if (abs(dpot) < 1e-3) then
+          xknee = 0.5
+        else
           xknee = (eta(2) - eta(1)) / dpot
-          call solve_ode(0.0, xknee, eta(1), j, status, e, dedeta, dedj, deddpot)
-          if (.not. status) return
-          call solve_ode(xknee, 1.0, e, j, status, e2, de2de, de2dj, de2ddpot)
-          if (.not. status) return
-
-          if (present(f)) then
-            f = e2 - eta(2)
-          end if
-          if (present(dfdj)) then
-            dfdj = de2dj + de2de * dedj
-          end if
-          if (present(dfdeta)) then
-            dfdeta(1) = de2de * dedeta
-            dfdeta(2) = - 1.0
-          end if
-          if (present(dfddpot)) then
-            dfddpot = de2ddpot + de2de * deddpot
-          end if
-        elseif (dpot > 0) then
-          xknee = 1 - (eta(2) - eta(1)) / dpot
-          call solve_ode(1.0, xknee, eta(2), j, status, e, dedeta, dedj, deddpot)
-          if (.not. status) return
-          call solve_ode(xknee, 0.0, e, j, status, e2, de2de, de2dj, de2ddpot)
-          if (.not. status) return
-
-          if (present(f)) then
-            f = e2 - eta(1)
-          end if
-          if (present(dfdj)) then
-            dfdj = de2dj + de2de * dedj
-          end if
-          if (present(dfdeta)) then
-            dfdeta(1) = - 1.0
-            dfdeta(2) = de2de * dedeta
-          end if
-          if (present(dfddpot)) then
-            dfddpot = de2ddpot + de2de * deddpot
-          end if
         end if
+        call solve_ode(0.0, xknee, eta(1), j, status, e, dedeta, deddpot, dedj)
+        if (.not. status) return
+        call solve_ode(xknee, 1.0, e, j, status, e2, de2de, de2ddpot, de2dj)
+        if (.not. status) return
 
+        if (present(f)) then
+          f = e2 - eta(2)
+        end if
+        if (present(dfdj)) then
+          dfdj = de2dj + de2de * dedj
+        end if
+        if (present(dfdeta)) then
+          dfdeta(1) = de2de * dedeta
+          dfdeta(2) = - 1.0
+        end if
+        if (present(dfddpot)) then
+          dfddpot = de2ddpot + de2de * deddpot
+        end if
       end if
     end subroutine
 
-    recursive subroutine solve_ode(x0, x1, eta0, j, status, eta1, deta1deta0, deta1dj, deta1ddpot)
+    recursive subroutine solve_ode(x0, x1, eta0, j, status, eta1, deta1deta0, deta1ddpot, deta1dj)
+      use math_m, only: ber
+
       real,    intent(in)  :: x0
       real,    intent(in)  :: x1
       real,    intent(in)  :: eta0
@@ -445,8 +467,8 @@ contains
       logical, intent(out) :: status
       real,    intent(out) :: eta1
       real,    intent(out) :: deta1deta0
-      real,    intent(out) :: deta1dj
       real,    intent(out) :: deta1ddpot
+      real,    intent(out) :: deta1dj
 
       real             :: deta1dx(1)
       type(dual_3)     :: dl_B, dl_dpot, dl_eta0, dl_eta1, dl_j, dl_t, dl_t1, dl_t2, dl_xF
