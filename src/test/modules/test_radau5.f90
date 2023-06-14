@@ -23,6 +23,7 @@ contains
       real, parameter   :: tol = 1e-10
       real              :: x0, x1, U0(1), P(1)
       integer           :: i, nsmp
+      logical           :: status
       real, allocatable :: xsmp(:), Usmp(:,:), dUsmpdU0(:,:,:), dUsmpdP(:,:,:)
       type(ode_options) :: opt
       type(ode_result)  :: res
@@ -38,7 +39,8 @@ contains
       nsmp = 5
       allocate (xsmp(nsmp), source = linspace(x0, x1, nsmp))
 
-      call radau5(test_exp, x0, x1, xsmp, U0, P, opt, res)
+      call radau5(test_exp, x0, x1, xsmp, U0, P, opt, status, res)
+      call tc%assert(status, "exp: status")
 
       ! expected sample values
       allocate (Usmp(    1  ,nsmp))
@@ -61,6 +63,7 @@ contains
       real              :: x0, x1, U0(2), P(1)
       real              :: A, B, dAdU0(2), dAdP, dBdU0(2), dBdP
       integer           :: i, nsmp
+      logical           :: status
       real, allocatable :: xsmp(:), Usmp(:,:), dUsmpdU0(:,:,:), dUsmpdP(:,:,:)
       type(ode_options) :: opt
       type(ode_result)  :: res
@@ -77,7 +80,8 @@ contains
       nsmp = 7
       allocate (xsmp(nsmp), source = linspace(x1, x0, nsmp))
 
-      call radau5(test_sin, x0, x1, xsmp, U0, P, opt, res)
+      call radau5(test_sin, x0, x1, xsmp, U0, P, opt, status, res)
+      call tc%assert(status, "sin: status")
 
       ! expected values ( U(x) = A * sin(P(1) * x) + B * cos(P(1) * x) )
       allocate (Usmp(    2  ,nsmp))
@@ -109,13 +113,15 @@ contains
     call tc%finish()
   end subroutine
 
-  subroutine test_exp(x, U, P, f, dfdU, dfdP)
+  subroutine test_exp(x, U, P, status, f, dfdU, dfdP)
     real,              intent(in)  :: x
       !! x coordinate
     real,              intent(in)  :: U(:)
       !! state (1)
     real,              intent(in)  :: P(:)
       !! parameters (1)
+    logical,           intent(out) :: status
+      !! success/fail
     real, optional,    intent(out) :: f(:)
       !! output dU/dx (1)
     real, optional,    intent(out) :: dfdU(:,:)
@@ -124,19 +130,22 @@ contains
       !! output derivatives of f wrt P (1,1)
 
     m4_ignore(x)
+    status = .true.
 
     if (present(f   )) f(1) = P(1) * U(1)
     if (present(dfdU)) dfdU(1,1) = P(1)
     if (present(dfdP)) dfdP(1,1) = U(1)
   end subroutine
 
-  subroutine test_sin(x, U, P, f, dfdU, dfdP)
+  subroutine test_sin(x, U, P, status, f, dfdU, dfdP)
     real,              intent(in)  :: x
       !! x coordinate
     real,              intent(in)  :: U(:)
       !! state (2)
     real,              intent(in)  :: P(:)
       !! parameters (1)
+    logical,           intent(out) :: status
+      !! success/fail
     real, optional,    intent(out) :: f(:)
       !! output dU/dx (2)
     real, optional,    intent(out) :: dfdU(:,:)
@@ -145,6 +154,7 @@ contains
       !! output derivatives of f wrt P (2,1)
 
     m4_ignore(x)
+    status = .true.
 
     if (present(f   )) then
       f(1) =             U(2)

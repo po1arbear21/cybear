@@ -45,13 +45,15 @@ module ode_m
   end type
 
   interface
-    subroutine ode_fun(x, U, P, f, dfdU, dfdP)
+    subroutine ode_fun(x, U, P, status, f, dfdU, dfdP)
       real,           intent(in)  :: x
         !! x coordinate
       real,           intent(in)  :: U(:)
         !! state (nU)
       real,           intent(in)  :: P(:)
         !! parameters (nP)
+      logical,        intent(out) :: status
+        !! success/fail of dU/dx calculation
       real, optional, intent(out) :: f(:)
         !! output dU/dx (nU)
       real, optional, intent(out) :: dfdU(:,:)
@@ -112,7 +114,7 @@ module ode_m
 
 contains
 
-  subroutine ode_solve(kernel, nS, fun, x0, x1, xsmp, U0, P, opt, res)
+  subroutine ode_solve(kernel, nS, fun, x0, x1, xsmp, U0, P, opt, status, res)
     procedure(ode_kernel)          :: kernel
       !! pointer to ode solver kernel
     integer,           intent(in)  :: nS
@@ -131,6 +133,8 @@ contains
       !! parameters
     type(ode_options), intent(in)  :: opt
       !! solver options
+    logical,           intent(out) :: status
+      !! true if ode was successfully solved, false if not
     type(ode_result),  intent(out) :: res
       !! output result object
 
@@ -147,7 +151,6 @@ contains
       real    :: x, xold, dxk, dxn, err
       real    :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), dfkdP(nU,nP), polyk(nU,nS)
       real    :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), dfndP(nU,nP), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
-      logical :: status
 
       ! initial x and dx
       x    = x0
@@ -197,7 +200,8 @@ contains
       end if
 
       ! eval f and derivatives at U0
-      call fun(x0, U0, P, f = fk, dfdU = dfkdUk)
+      call fun(x0, U0, P, status, f = fk, dfdU = dfkdUk)
+      if (.not. status) return
 
       ! init interpolation polynomial (linear extrapolation)
       polyk      = 0
@@ -217,17 +221,7 @@ contains
           ! reject step
           rejection_counter = rejection_counter + 1
           if (rejection_counter > opt%max_rejected) then
-            print "(A,ES24.16)", "x0 = ", x0
-            print "(A,ES24.16)", "x1 = ", x1
-            print "(A,ES24.16)", "x  = ", x
-            do i = 1, nU
-              print "(A,I1,A,ES24.16)", "U0(", i, ") = ", U0(i)
-            end do
-            do i = 1, nP
-              print "(A,I1,A,ES24.16)", "P(", i, ") = ", P(i)
-            end do
-
-            call program_error("Can not solve ode, limit for rejected steps reached!")
+            return
           end if
         else
           ! accept step, reset rejection counter
