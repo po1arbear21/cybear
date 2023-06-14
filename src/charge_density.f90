@@ -2,11 +2,11 @@ module charge_density_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
+  use dopant_m,        only: ionization
   use equation_m,      only: equation
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
-  use dopant_m,        only: ionization
   use jacobian_m,      only: jacobian
   use semiconductor_m, only: CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE
   use variable_m,      only: variable_real
@@ -87,8 +87,8 @@ contains
     type(charge_density), target, intent(in)  :: rho
       !! charge density
 
-    integer                 :: i, ci, iprov, idep(2)
-    type(jacobian), pointer :: jaco_dens, jaco_ion
+    integer                 :: i, ci, iprov, idep
+    type(jacobian), pointer :: jaco
     integer, allocatable    :: idx(:)
 
     ! init equation
@@ -104,19 +104,21 @@ contains
     ! depends on electron/hole density
     allocate (idx(par%g%idx_dim))
     do ci = par%ci0, par%ci1
-      ! carrier density jaco
-      idep(ci) = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
-      jaco_dens => this%init_jaco(iprov, idep(ci), const = .true.)
-
-      ! ionization jaco
-      idep(ci) = this%depend(ion(ci), tab = par%transport(IDX_VERTEX,0))
-      jaco_ion => this%init_jaco(iprov, idep(ci), const = .true.)
-
-      ! set jacobian entries
+      idep = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
+      jaco => this%init_jaco(iprov, idep, const = .true.)
       do i = 1, par%transport(IDX_VERTEX,0)%n
         idx = par%transport(IDX_VERTEX,0)%get_idx(i)
-        call jaco_dens%set(idx, idx, CR_CHARGE(ci))
-        call jaco_ion%set (idx, idx, DOP_CHARGE(ci)*this%par%dop(IDX_VERTEX,0,ci)%get(idx))
+        call jaco%set(idx, idx, CR_CHARGE(ci))
+      end do
+    end do
+
+    ! depends on ionization ratio (only defined if corresponding carrier density is enabled)
+    do ci = par%ci0, par%ci1
+      idep = this%depend(ion(ci), tab = par%transport(IDX_VERTEX,0))
+      jaco => this%init_jaco(iprov, idep, const = .true.)
+      do i = 1, par%transport(IDX_VERTEX,0)%n
+        idx = par%transport(IDX_VERTEX,0)%get_idx(i)
+        call jaco%set(idx, idx, DOP_CHARGE(ci) * this%par%dop(IDX_VERTEX,0,ci)%get(idx))
       end do
     end do
 
@@ -136,22 +138,21 @@ contains
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! get charge density
+      ! electron/hole density
       rho = 0
       do ci = this%par%ci0, this%par%ci1
         rho = rho + CR_CHARGE(ci) * this%dens(ci)%get(idx)
       end do
-      do ci = DOP_DCON, DOP_ACON
-        ! Ionization of dopants is only defined if the carrier type is simulated (iref dependency)
-        ! 1.0 matches the old behavior
-        if (this%par%ci0 <= ci .and. this%par%ci1 >= ci) then
-          ion = this%ion(ci)%get(idx)
-        else
-          ion = 1.0
-        end if
 
+      ! doping
+      do ci = DOP_DCON, DOP_ACON
+        ! use full ionization if corresponding carrier type is disabled
+        ion = 1.0
+        if ((ci >= this%par%ci0) .and. (ci <= this%par%ci1)) ion = this%ion(ci)%get(idx)
         rho = rho + DOP_CHARGE(ci) * ion * this%par%dop(IDX_VERTEX,0,ci)%get(idx)
       end do
+
+      ! save result
       call this%rho%set(idx, rho)
     end do
   end subroutine

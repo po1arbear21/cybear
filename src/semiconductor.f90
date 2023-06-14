@@ -38,10 +38,10 @@ module semiconductor_m
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
 
-    logical           :: ii
-      !! Enable/Disable incomplete ionization
+    logical           :: incomp_ion
+      !! enable/disable incomplete ionization
     real, allocatable :: edop(:)
-      !! Dopant energy relative to the carrier band for a single dopant
+      !! dopant energy relative to the carrier band for a single dopant
     real, allocatable :: N_asr(:)
       !! Altermatt-Schenk reference density for dopant energy
     real, allocatable :: asc(:)
@@ -51,7 +51,7 @@ module semiconductor_m
     real, allocatable :: asd(:)
       !! Altermatt-Schenk exponent for fitting the fraction of bound states
     real, allocatable :: g_dop(:)
-      !! Degeneracy of dopant states
+      !! degeneracy of dopant states
 
   end type
 

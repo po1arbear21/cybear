@@ -1,7 +1,6 @@
 module dopant_m
 
   use device_params_m, only: device_params
-  use dual_m
   use equation_m,      only: equation
   use error_m,         only: program_error
   use grid_m,          only: IDX_VERTEX
@@ -15,7 +14,7 @@ module dopant_m
   implicit none
 
   type, extends(variable_real) :: ionization
-    !! ionized dopant density
+    !! ionization ratio
 
     integer :: di
       !! dopant index (DOP_DCON, DOP_ACON)
@@ -48,7 +47,7 @@ module dopant_m
 contains
 
   subroutine ionization_init(this, par, di)
-    !! initialize density
+    !! initialize ionization ratio
     class(ionization),   intent(out) :: this
     type(device_params), intent(in)  :: par
       !! device parameters
@@ -80,12 +79,12 @@ contains
   end subroutine
 
   subroutine calc_ionization_init(this, par, pot, ion, iref)
-    !! initialize iondens calculation equation
+    !! initialize ionization ratio calculation equation
     class(calc_ionization),      intent(out) :: this
     type(device_params), target, intent(in)  :: par
       !! device parameters
     type(ionization),    target, intent(in)  :: ion
-      !! donor/acceptor density variable
+      !! donor/acceptor ionization ratio variable
     type(potential),     target, intent(in)  :: pot
       !! potential variable
     type(imref),         target, intent(in)  :: iref
@@ -103,13 +102,11 @@ contains
     ! provides ionization
     iprov = this%provide(ion, par%transport(IDX_VERTEX,0))
 
-    ! Avoid jacobians if incomplete ionization is turned off
-    if (par%smc%ii) then
-      ! Dependent on potential
+    ! depends on potential and imref if incomplete ionization is enabled
+    if (par%smc%incomp_ion) then
       this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%transport(IDX_VERTEX,0)), const = .false.)
       this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%transport(IDX_VERTEX,0)), const = .false.)
     end if
-
 
     ! finish initialization
     call this%init_final()
@@ -119,39 +116,48 @@ contains
     !! evaluate iondens calculation equation
     class(calc_ionization), intent(inout) :: this
 
-    integer      :: i, idx(this%par%g%idx_dim), di
-    real         :: b, g, ch, edop, iref
-    type(dual_1) :: pot, e, ion
+    integer              :: i, di
+    integer, allocatable :: idx(:)
+    real                 :: b, g, ch, edop, e, f, ion, dion, iref, pot
 
-    ! Complete ionization
-    if (.not. this%par%smc%ii) then
+    allocate (idx(this%par%g%idx_dim))
+
+    ! full ionization
+    if (.not. this%par%smc%incomp_ion) then
       do i = 1, this%par%transport(IDX_VERTEX,0)%n
-        call this%ion%set(this%par%transport(IDX_VERTEX,0)%get_idx(i), 1.0)
+        idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
+        call this%ion%set(idx, 1.0)
       end do
       return
     end if
 
+    ! abbreviations
     di = this%ion%di
     ch = CR_CHARGE(di)
     g  = this%par%smc%g_dop(di)
 
-    call pot%init(0.0, i = 1)
-
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx  = this%par%transport(IDX_VERTEX,0)%get_idx(i)
+
       b    = this%par%asb(di)%get(idx)
       edop = this%par%smc%band_edge(di) + ch * this%par%edop(di)%get(idx)
       iref = this%iref%get(idx)
+      pot  = this%pot%get(idx)
 
-      pot%x = this%pot%get(idx)
+      ! exponent
+      e = - ch * (iref - pot + edop)
 
-      ! Calculate
-      e   = exp(- ch * (iref - pot + edop))
-      ion = 1 - b / (1 + g * e)
+      ! factor (exp(e) can overflow)
+      f = 1.0 / (1.0 + g * exp(e))
 
-      call this%ion%set(idx, ion%x)
-      call this%jaco_pot%set( idx, idx,  ion%dx(1))
-      call this%jaco_iref%set(idx, idx, -ion%dx(1))
+      ! ionization and derivative
+      ion  = 1.0 - b * f
+      dion = b * f * (1.0 - f)
+
+      ! save
+      call this%ion%set(idx, ion)
+      call this%jaco_pot%set(idx, idx,    ch * dion)
+      call this%jaco_iref%set(idx, idx, - ch * dion)
     end do
   end subroutine
 
