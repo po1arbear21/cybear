@@ -340,21 +340,25 @@ contains
     if (allocated(this%jaco_p)) precon = associated(this%jaco_p(iprov,idep)%p)
   end function
 
-  subroutine equation_test(this, rx, ax, rtol, atol)
+  subroutine equation_test(this, ntest, rx, ax, rtol, atol, no_sign_change)
     !! test jacobians with finite differences
-    class(equation), intent(inout) :: this
-    real, optional,  intent(in)    :: rx
+    class(equation),   intent(inout) :: this
+    integer,           intent(in)    :: ntest
+      !! number of tests to perform
+    real,    optional, intent(in)    :: rx
       !! relative x perturbation (default: 1e-4)
-    real, optional,  intent(in)    :: ax
+    real,    optional, intent(in)    :: ax
       !! absolute x perturbation (default: 1e-8)
-    real, optional,  intent(in)    :: rtol
+    real,    optional, intent(in)    :: rtol
       !! relative tolerance (default: 1e-3)
-    real, optional,  intent(in)    :: atol
+    real,    optional, intent(in)    :: atol
       !! absolute tolerance (default: 1e-6)
+    logical, optional, intent(in)    :: no_sign_change
+      !! forbid sign change when calculating finite differences (default: false)
 
-    integer                        :: i, j, k, l
-    logical                        :: nan, nan1, nan2
-    real                           :: rx_, ax_, rtol_, atol_
+    integer                        :: i, j, k, kk, l
+    logical                        :: nan, nan1, nan2, nsgn
+    real                           :: rx_, ax_, rtol_, atol_, r
     real                           :: dx1, dydx, dydx1, dydx2
     real,              allocatable :: x0(:), xm(:), xp(:), dx(:)
     type(array1_real), allocatable :: y0(:), ym(:), yp(:), dy(:)
@@ -368,6 +372,8 @@ contains
     if (present(rtol)) rtol_ = rtol
     atol_ = 1e-6
     if (present(atol)) atol_ = atol
+    nsgn = .false.
+    if (present(no_sign_change)) nsgn = .true.
 
     ! evaluate equation and set jacobians in matrix form
     call this%eval()
@@ -392,10 +398,14 @@ contains
         dx = 0
 
         ! test all derivatives
-        do k = 1, size(x0)
+        do kk = 1, ntest
+          if (mod(kk-1, 100) == 0) print *, kk
+          call random_number(r)
+          k = ceiling(size(x0) * r)
+
           ! get delta x
-          dx1 = abs(x0(k)) * rx_
-          if (dx1 == 0) dx1 = ax_
+          dx1 = max(abs(x0(k)) * rx_, ax_)
+          if (nsgn) dx1 = min(dx1, abs(x0(k) * (1.0 - 1e-16)))
 
           ! set xp, xm, dx
           xm(k) = x0(k) - dx1
