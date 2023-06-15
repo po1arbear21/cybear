@@ -25,6 +25,8 @@ module newton_m
       !! lower solution bound (can be -inf)
     real    :: xmax
       !! upper solution bound (can be +inf)
+    real    :: dx_lim
+      !! limit solution update
     integer :: max_it
       !! maximum number of iterations
 
@@ -201,6 +203,11 @@ contains
         end if
       end if
 
+      ! limit update
+      if (abs(dx) > opt%dx_lim) then
+        dx = dx * opt%dx_lim / abs(dx)
+      end if
+
       ! update solution
       x = x - dx
 
@@ -348,7 +355,7 @@ contains
     end if
   end subroutine
 
-  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, max_it, log, msg)
+  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, dx_lim, max_it, log, msg)
     !! initialize 1D newton iteration options
     class(newton1D_opt),    intent(out) :: this
     real,         optional, intent(in)  :: atol
@@ -359,6 +366,8 @@ contains
       !! lower solution bound (default: -inf)
     real,         optional, intent(in)  :: xmax
       !! upper solution bound (default: +inf)
+    real,         optional, intent(in)  :: dx_lim
+      !! update limit (default: huge)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
     logical,      optional, intent(in)  :: log
@@ -374,6 +383,8 @@ contains
     if (present(xmin)) this%xmin = xmin
     this%xmax = ieee_value(1.0, ieee_positive_inf)
     if (present(xmax)) this%xmax = xmax
+    this%dx_lim = huge(1.0)
+    if (present(dx_lim)) this%dx_lim = dx_lim
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
     this%log = .false.
