@@ -155,14 +155,14 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print "(A,ES24.16)", "atol   = ", opt%atol
-        print "(A,ES24.16)", "rtol   = ", opt%rtol
-        print "(A,ES24.16)", "xmin   = ", xmin
-        print "(A,ES24.16)", "xmax   = ", xmax
-        print "(A,I0)",      "max_it = ", opt%max_it
-        print "(A,ES24.16)", "x      = ", x
-        print "(A,ES24.16)", "f      = ", f
-        print "(A,ES24.16)", "err    = ", err
+        print "(A,ES25.16E3)", "atol   = ", opt%atol
+        print "(A,ES25.16E3)", "rtol   = ", opt%rtol
+        print "(A,ES25.16E3)", "xmin   = ", xmin
+        print "(A,ES25.16E3)", "xmax   = ", xmax
+        print "(A,I0)",        "max_it = ", opt%max_it
+        print "(A,ES25.16E3)", "x      = ", x
+        print "(A,ES25.16E3)", "f      = ", f
+        print "(A,ES25.16E3)", "err    = ", err
         call program_error("solution could not be found within maximum number of iterations")
       end if
 
@@ -211,7 +211,7 @@ contains
       ! update solution
       x = x - dx
 
-      if (opt%log) print "(A,I0,ES24.16)", opt%msg, it, err
+      if (opt%log) print "(A,I0,ES25.16E3)", opt%msg, it, err
 
       ! exit if close to solution
       if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
@@ -285,9 +285,9 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print "(A,I0)",      "it      = ", it
-        print "(A,ES24.16)", "err     = ", err
-        print "(A,ES24.16)", "abs_err = ", abs_err
+        print "(A,I0)",        "it      = ", it
+        print "(A,ES25.16E3)", "err     = ", err
+        print "(A,ES25.16E3)", "abs_err = ", abs_err
         if (opt%error_if_not_converged) then
           call program_error("solution could not be found within maximum number of iterations")
         else

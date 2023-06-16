@@ -217,9 +217,9 @@ contains
         header( 5)%s = '% toplabel = "my plot"'
         header( 6)%s = "% grid = True"
         header( 7)%s = ""
-        write (c_real, "(ES24.16)") 2.0
+        write (c_real, "(ES25.16E3)") 2.0
         header( 8)%s = "% eyepos.x = "   // c_real
-        write (c_real, "(ES24.16)") 3.0
+        write (c_real, "(ES25.16E3)") 3.0
         header( 9)%s = "% yaxisscale = " // c_real
         header(10)%s = "% hiddenline = True"
         header(11)%s = ""

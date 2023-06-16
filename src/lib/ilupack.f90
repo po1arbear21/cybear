@@ -518,18 +518,18 @@ contains
 
     class(ilupack_handle), intent(in) :: this
 
-    print '(A)',         'ordering:      "' // this%ordering // '"'
-    print '(A,ES24.16)', 'elbow:          ',   this%elbow
-    print '(A,I24)',     'lfil:           ',   this%lfil
-    print '(A,I24)',     'lfilS:          ',   this%lfilS
-    print '(A,I24)',     'matching:       ',   this%matching
-    print '(A,I24)',     'maxit:          ',   this%maxit
-    print '(A,I24)',     'nrestart:       ',   this%nrestart
-    print '(A,ES24.16)', 'droptol:        ',   this%droptol
-    print '(A,ES24.16)', 'droptolS:       ',   this%droptolS
-    print '(A,ES24.16)', 'condest:        ',   this%condest
-    print '(A,ES24.16)', 'restol:         ',   this%restol
-    print '(A,I24)',     'mixedprecision: ',   this%mixedprecision
+    print "(A)",           "ordering:       " // '"' // this%ordering // '"'
+    print "(A,ES25.16E3)", "elbow:          ",   this%elbow
+    print "(A,I24)",       "lfil:           ",   this%lfil
+    print "(A,I24)",       "lfilS:          ",   this%lfilS
+    print "(A,I24)",       "matching:       ",   this%matching
+    print "(A,I24)",       "maxit:          ",   this%maxit
+    print "(A,I24)",       "nrestart:       ",   this%nrestart
+    print "(A,ES25.16E3)", "droptol:        ",   this%droptol
+    print "(A,ES25.16E3)", "droptolS:       ",   this%droptolS
+    print "(A,ES25.16E3)", "condest:        ",   this%condest
+    print "(A,ES25.16E3)", "restol:         ",   this%restol
+    print "(A,I24)",       "mixedprecision: ",   this%mixedprecision
   end subroutine
 
   subroutine ilupack_info(this)

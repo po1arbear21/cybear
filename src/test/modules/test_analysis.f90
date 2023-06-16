@@ -326,7 +326,7 @@ contains
       ! open (newunit = funit, file = "test_analysis_ac.csv", status = "replace", action = "write")
       ! do i = 1, Ns
       !   call ac%select_abs(1, i)
-      !   write (funit, "(2ES24.16)") denorm(f(i), "Hz"), denorm(om(0)%x/(2*PI), "Hz")
+      !   write (funit, "(2ES25.16E3)") denorm(f(i), "Hz"), denorm(om(0)%x/(2*PI), "Hz")
       ! end do
       ! close (funit)
     end block

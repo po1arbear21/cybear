@@ -25,7 +25,7 @@ contains
 
     ! open (newunit = funit, file = "rand_pcg.asc", status = "replace", action = "write")
     ! do i = 1, N
-    !   write (funit, "(ES24.16)") x(i)
+    !   write (funit, "(ES25.16E3)") x(i)
     ! end do
     ! close (funit)
 
