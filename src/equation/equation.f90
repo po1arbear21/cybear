@@ -474,13 +474,13 @@ contains
                   print "(A)", "dependency:"
                   call dep%print()
                   print *
-                  print "(A, I5,      A, I5     )", "k(dep) = ", k,     ";                    l(prov) = ", l
-                  print "(A, ES24.16, A, ES24.16)", "xm     = ", xm(k), "; ym      = ", ym(i)%d(l)
-                  print "(A, ES24.16, A, ES24.16)", "x0     = ", x0(k), "; y0      = ", y0(i)%d(l)
-                  print "(A, ES24.16, A, ES24.16)", "xp     = ", xp(k), "; yp      = ", yp(i)%d(l)
-                  print "(A, ES24.16, A         )", "dydx   = ", dydx,  " (from matrix       )"
-                  print "(A, ES24.16, A         )", "dydx1  = ", dydx1, " (fin.diff. forward )"
-                  print "(A, ES24.16, A         )", "dydx2  = ", dydx2, " (fin.diff. centered)"
+                  print "(A,I5,       A,I5       )", "k(dep) = ", k,     ";                    l(prov) = ", l
+                  print "(A,ES25.16E3,A,ES25.16E3)", "xm     = ", xm(k), "; ym      = ", ym(i)%d(l)
+                  print "(A,ES25.16E3,A,ES25.16E3)", "x0     = ", x0(k), "; y0      = ", y0(i)%d(l)
+                  print "(A,ES25.16E3,A,ES25.16E3)", "xp     = ", xp(k), "; yp      = ", yp(i)%d(l)
+                  print "(A,ES25.16E3,A          )", "dydx   = ", dydx,  " (from matrix       )"
+                  print "(A,ES25.16E3,A          )", "dydx1  = ", dydx1, " (fin.diff. forward )"
+                  print "(A,ES25.16E3,A          )", "dydx2  = ", dydx2, " (fin.diff. centered)"
                 end if
               end do
             end associate

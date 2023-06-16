@@ -210,9 +210,9 @@ contains
 
     do i = 1, size(x)
       if (this%three_dim) then
-        write (this%iounit, "(3ES24.16)") x(i), y(i), z(i)
+        write (this%iounit, "(3ES25.16E3)") x(i), y(i), z(i)
       else
-        write (this%iounit, "(2ES24.16)") x(i), y(i)
+        write (this%iounit, "(2ES25.16E3)") x(i), y(i)
       end if
     end do
 
@@ -381,7 +381,7 @@ contains
     character(*), intent(in)              :: name
     real,         intent(in), allocatable :: value
 
-    if (allocated(value)) write (iounit, "(A,ES24.16)") "% " // name // " = ", value
+    if (allocated(value)) write (iounit, "(A,ES25.16E3)") "% " // name // " = ", value
   end subroutine
 
 end module

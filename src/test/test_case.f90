@@ -774,9 +774,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(rpar)
           if (i < size(rpar)) then
-            write(*, fmt="(ES24.16,A)", advance="no") rpar(i), ", "
+            write(*, fmt="(ES25.16E3,A)", advance="no") rpar(i), ", "
           else
-            write(*, fmt="(ES24.16)") rpar(i)
+            write(*, fmt="(ES25.16E3)") rpar(i)
           end if
         end do
         print *
@@ -785,9 +785,9 @@ contains
         write(*, fmt="(1A)", advance="no") "      "
         do i = 1, size(cpar)
           if (i < size(cpar)) then
-            write(*, fmt="(2ES24.16,A)", advance="no") cpar(i), ", "
+            write(*, fmt="(2ES25.16E3,A)", advance="no") cpar(i), ", "
           else
-            write(*, fmt="(2ES24.16)") cpar(i)
+            write(*, fmt="(2ES25.16E3)") cpar(i)
           end if
         end do
         print *

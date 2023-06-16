@@ -566,8 +566,8 @@ contains
       !! current indentation
 
     character(*), parameter :: INDENT_INC = "  "
-    character(*), parameter :: REAL_FMT   = "(ES23.16)"
-    integer,      parameter :: REAL_LEN   = 24
+    character(*), parameter :: REAL_FMT   = "(ES25.16E3)"
+    integer,      parameter :: REAL_LEN   = 25
 
     character(:), allocatable :: tmp, indent_
     integer                   :: i

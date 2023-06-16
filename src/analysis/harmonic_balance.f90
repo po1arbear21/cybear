@@ -134,7 +134,7 @@ contains
     ! solve for all frequencies
     do ifreq = 1, nfreq
       print *
-      print "(A,ES24.16)", "harmonic balance: freq = ", denorm(freq(ifreq), "Hz")
+      print "(A,ES25.16E3)", "harmonic balance: freq = ", denorm(freq(ifreq), "Hz")
 
       ! solve system by newton iteration
       call newton(fun, dum, nopt_, sol0, sol)

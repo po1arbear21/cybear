@@ -609,7 +609,7 @@ module subroutine sparse_{}T{}_output(this, file, funit, fmt)
   if (present(fmt)) then
     fmt_ = fmt
   else
-    fmt_ = m4_ifelse(T,cmplx,{'(ES24.16,SP,ES24.16,"i")'},{'(ES24.16)'})
+    fmt_ = m4_ifelse(T,cmplx,{'(ES25.16E3,SP,ES25.16E3,"i")'},{'(ES25.16E3)'})
   end if
 
   ! open file if needed
