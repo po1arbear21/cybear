@@ -2,7 +2,7 @@ module charge_density_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
-  use dopant_m,        only: ionization
+  use ionization_m,    only: ionization
   use equation_m,      only: equation
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX
@@ -99,28 +99,30 @@ contains
     this%rho  => rho
 
     ! provides charge_density
-    iprov = this%provide(rho, tab = par%transport(IDX_VERTEX,0))
+    iprov = this%provide(rho, tab = par%transport_vct(0))
 
     ! depends on electron/hole density
     allocate (idx(par%g%idx_dim))
     do ci = par%ci0, par%ci1
-      idep = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
+      idep = this%depend(dens(ci), tab = par%transport_vct(0))
       jaco => this%init_jaco(iprov, idep, const = .true.)
-      do i = 1, par%transport(IDX_VERTEX,0)%n
-        idx = par%transport(IDX_VERTEX,0)%get_idx(i)
+      do i = 1, par%transport_vct(0)%n
+        idx = par%transport_vct(0)%get_idx(i)
         call jaco%set(idx, idx, CR_CHARGE(ci))
       end do
     end do
 
     ! depends on ionization ratio (only defined if corresponding carrier density is enabled)
-    do ci = par%ci0, par%ci1
-      idep = this%depend(ion(ci), tab = par%transport(IDX_VERTEX,0))
-      jaco => this%init_jaco(iprov, idep, const = .true.)
-      do i = 1, par%transport(IDX_VERTEX,0)%n
-        idx = par%transport(IDX_VERTEX,0)%get_idx(i)
-        call jaco%set(idx, idx, DOP_CHARGE(ci) * this%par%dop(IDX_VERTEX,0,ci)%get(idx))
+    if (par%smc%incomp_ion) then
+      do ci = par%ci0, par%ci1
+        idep = this%depend(ion(ci), tab = par%dopvert(ci))
+        jaco => this%init_jaco(iprov, idep, const = .true.)
+        do i = 1, par%dopvert(ci)%n
+          idx = par%dopvert(ci)%get_idx(i)
+          call jaco%set(idx, idx, DOP_CHARGE(ci) * this%par%dop(IDX_VERTEX,0,ci)%get(idx))
+        end do
       end do
-    end do
+    end if
 
     call this%init_final()
   end subroutine
@@ -135,8 +137,8 @@ contains
 
     ! calculate charge density at each vertex in the transport region
     allocate (idx(this%par%g%idx_dim))
-    do i = 1, this%par%transport(IDX_VERTEX,0)%n
-      idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
+    do i = 1, this%par%transport_vct(0)%n
+      idx = this%par%transport_vct(0)%get_idx(i)
 
       ! electron/hole density
       rho = 0
@@ -146,10 +148,14 @@ contains
 
       ! doping
       do ci = DOP_DCON, DOP_ACON
-        ! use full ionization if corresponding carrier type is disabled
-        ion = 1.0
-        if ((ci >= this%par%ci0) .and. (ci <= this%par%ci1)) ion = this%ion(ci)%get(idx)
-        rho = rho + DOP_CHARGE(ci) * ion * this%par%dop(IDX_VERTEX,0,ci)%get(idx)
+        if (this%par%dopvert(ci)%flags%get(idx)) then
+          ! use full ionization if corresponding carrier type is disabled
+          ion = 1.0
+          if (this%par%smc%incomp_ion) then
+            if ((ci >= this%par%ci0) .and. (ci <= this%par%ci1)) ion = this%ion(ci)%get(idx)
+          end if
+          rho = rho + DOP_CHARGE(ci) * ion * this%par%dop(IDX_VERTEX,0,ci)%get(idx)
+        end if
       end do
 
       ! save result

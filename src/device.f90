@@ -10,7 +10,7 @@ module device_m
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
   use input_m,           only: input_file
-  use dopant_m,          only: ionization, calc_ionization
+  use ionization_m,      only: ionization, calc_ionization, ion_continuity, generation_recombination, calc_generation_recombination
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
@@ -36,6 +36,8 @@ module device_m
       !! electron/hole density (carrier index)
     type(ionization)                   :: ion(2)
       !! donor/acceptor ionization ratio (dopant index)
+    type(generation_recombination)     :: genrec(2)
+      !! netto recombination rate (generation - recombination)
     type(current_density), allocatable :: cdens(:,:)
       !! electron/hole current density (direction, carrier index)
     type(imref)                        :: iref(2)
@@ -56,6 +58,8 @@ module device_m
       !! poisson equation
     type(continuity)                        :: contin(2)
       !! electron/hole continuity equation (carrier index)
+    type(ion_continuity)                    :: ion_contin(2)
+      !! ionization continuity equations (carrier index)
     type(ramo_shockley_current)             :: ramo_curr
       !! Ramo-Shockley current equation
     type(calc_imref)                        :: calc_iref(2)
@@ -64,6 +68,8 @@ module device_m
       !! calculate electron/hole density from potential and imref (carrier index)
     type(calc_ionization)                   :: calc_ion(2)
       !! calculate stationary donor/acceptor ionization ratio from potential and imref (dopant index)
+    type(calc_generation_recombination)     :: calc_genrec(2)
+      !! calculate generation-recombination
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
@@ -106,7 +112,8 @@ contains
     call this%pot%init(this%par)
     do ci = this%par%ci0, this%par%ci1
       call this%dens(ci)%init(this%par, ci)
-      call this%ion(ci )%init(this%par, ci)
+      call this%ion( ci)%init(this%par, ci)
+      call this%genrec( ci)%init(this%par, ci)
       call this%iref(ci)%init(this%par, ci)
       do idx_dir = 1, this%par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(this%par, ci, idx_dir)
@@ -128,10 +135,14 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci))
+      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
-      call this%calc_ion( ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
+      if (this%par%smc%incomp_ion) then
+        call this%calc_ion(ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
+        call this%calc_genrec(ci)%init(this%par, this%par%smc%rec_tau(:,ci), this%genrec(ci), this%pot, this%iref(ci), this%dens(ci), this%ion(ci))
+        call this%ion_contin(ci)%init(this%par, this%ion(ci), this%genrec(ci))
+      end if
       do idx_dir = 1, this%par%g%idx_dim
         call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
         call this%calc_cdens(idx_dir,ci)%init(this%par, this%pot, this%dens(ci), this%cdens(idx_dir,ci), this%mob(idx_dir,ci))
@@ -145,7 +156,9 @@ contains
     call this%sys_nlpe%add_equation(this%calc_rho)
     do ci = this%par%ci0, this%par%ci1
       call this%sys_nlpe%add_equation(this%calc_dens(ci))
-      call this%sys_nlpe%add_equation(this%calc_ion(ci))
+      if (this%par%smc%incomp_ion) then
+        call this%sys_nlpe%add_equation(this%calc_ion(ci))
+      end if
       call this%sys_nlpe%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
     end do
     do ict = 1, this%par%nct
@@ -162,6 +175,10 @@ contains
         call this%sys_dd(ci)%add_equation(this%calc_cdens(idx_dir,ci))
         call this%sys_dd(ci)%add_equation(this%calc_mob(idx_dir,ci))
       end do
+      if (this%par%smc%incomp_ion) then
+        call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
+        call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
+      end if
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
@@ -178,8 +195,11 @@ contains
         call this%sys_full%add_equation(this%calc_cdens(idx_dir,ci))
         call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
       end do
+      if (this%par%smc%incomp_ion) then
+        call this%sys_full%add_equation(this%ion_contin(ci))
+        call this%sys_full%add_equation(this%calc_genrec(ci))
+      end if
       call this%sys_full%add_equation(this%calc_iref(ci))
-      call this%sys_full%add_equation(this%calc_ion(ci))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct

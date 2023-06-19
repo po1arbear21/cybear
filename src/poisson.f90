@@ -74,7 +74,7 @@ contains
     call this%pot%init(pot, [par%oxide_vct(     0)%get_ptr(), &                   ! uncontacted oxide vertices
       &                      par%transport_vct( 0)%get_ptr(), &                   ! uncontacted transport vertices
       &                      (par%poisson_vct(ict)%get_ptr(), ict = 1, par%nct)]) ! contacted vertices
-    call this%rho%init(rho, par%transport(IDX_VERTEX,0))
+    call this%rho%init(rho, par%transport_vct(0))
     call this%volt%init([(volt(ict)%get_ptr(), ict = 1, par%nct)], "voltages")
 
     ! init residuals using this%pot as main variable

@@ -14,6 +14,7 @@ module device_params_m
   use grid1D_m,         only: grid1D
   use input_m,          only: input_file
   use map_m,            only: map_string_int, mapnode_string_int
+  use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_contact
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, semiconductor
   use string_m,         only: string, new_string
@@ -62,6 +63,8 @@ module device_params_m
       !! oxide grid tables (idx_type, idx_dir)
     type(grid_table),      allocatable :: transport(:,:)
       !! transport grid tables (idx_type, idx_dir)
+    type(grid_table)                   :: dopvert(2)
+      !! uncontacted transport vertices with doping > 0 (donor, acceptor)
     type(contact),         allocatable :: contacts(:)
       !! device contacts
     type(map_string_int)               :: contact_map
@@ -160,8 +163,9 @@ contains
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer :: sid
-    logical :: elec, hole
+    integer           :: sid
+    logical           :: elec, hole
+    real, allocatable :: tau_tmp(:)
 
     ! find transport parameters section id
     call file%get_section("transport parameters", sid)
@@ -188,6 +192,8 @@ contains
     call file%get(sid, "N_ref",      this%smc%N_ref)
     call file%get(sid, "v_sat",      this%smc%v_sat)
     call file%get(sid, "curr_fact",  this%curr_fact)
+    call file%get(sid, "rec_tau",    tau_tmp)
+    this%smc%rec_tau = reshape(tau_tmp, [2, 2])
     call file%get(sid, "incomp_ion", this%smc%incomp_ion)
     call file%get(sid, "edop0",      this%smc%edop)
     call file%get(sid, "asc",        this%smc%asc)
@@ -788,9 +794,9 @@ contains
   subroutine device_params_init_contacts(this)
     class(device_params), intent(inout) :: this
 
-    integer                           :: dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, nct, ri
+    integer                           :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, nct, ri
     integer, allocatable              :: idx(:)
-    real                              :: dop(2), p(2)
+    real                              :: dop(2), asb(2), edop(2), p(2)
     type(string)                      :: name
     type(mapnode_string_int), pointer :: node
 
@@ -914,7 +920,11 @@ contains
         ! calculate phims using charge neutrality
         dop(DOP_DCON) = this%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
         dop(DOP_ACON) = this%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
-        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, this%smc)
+        asb(DOP_DCON) = this%asb(DOP_DCON)%get(idx)
+        asb(DOP_ACON) = this%asb(DOP_ACON)%get(idx)
+        edop(DOP_DCON) = this%edop(DOP_DCON)%get(idx)
+        edop(DOP_ACON) = this%edop(DOP_ACON)%get(idx)
+        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, asb, edop, this%smc)
       end if
 
       ! update contact vertex tables
@@ -940,6 +950,23 @@ contains
     call this%poisson_vct(  0)%init_final()
     call this%oxide_vct(    0)%init_final()
     call this%transport_vct(0)%init_final()
+
+    ! doping vertices
+    do ci = DOP_DCON, DOP_ACON
+      call this%dopvert(ci)%init("dop_v", this%g, IDX_VERTEX, 0)
+    end do
+    do i = 1, this%transport_vct(0)%n
+      idx = this%transport_vct(0)%get_idx(i)
+
+      do ci = DOP_DCON, DOP_ACON
+        if (this%dop(IDX_VERTEX,0,ci)%get(idx) > 0) then
+          call this%dopvert(ci)%flags%set(idx, .true.)
+        end if
+      end do
+    end do
+    do ci = DOP_DCON, DOP_ACON
+      call this%dopvert(ci)%init_final()
+    end do
   end subroutine
 
 end module

@@ -38,6 +38,9 @@ module semiconductor_m
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
 
+    real :: rec_tau(2,2)
+      !! generation/recombination time constants (generation/recombination, carrier index)
+
     logical           :: incomp_ion
       !! enable/disable incomplete ionization
     real, allocatable :: edop(:)

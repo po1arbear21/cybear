@@ -536,9 +536,9 @@ contains
       return
 
       ! error
-      200 print "(A,ES24.16)", "eta1 = ", eta(1)
-      print "(A,ES24.16)", "eta2 = ", eta(2)
-      print "(A,ES24.16)", "dpot = ", dpot
+      200 print "(A,ES25.16E3)", "eta1 = ", eta(1)
+      print "(A,ES25.16E3)", "eta2 = ", eta(2)
+      print "(A,ES25.16E3)", "dpot = ", dpot
       call program_error("stuck in iteration")
     end subroutine
 

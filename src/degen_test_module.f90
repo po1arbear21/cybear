@@ -32,14 +32,14 @@ contains
     do ieta2 = 1, Neta2
       eta(2) = eta2(ieta2)
 
-      ! print "(3ES24.16)", eta(1), eta(2), dpot
+      ! print "(3ES25.16E3)", eta(1), eta(2), dpot
 
       call get_current(eta, dpot, j(ieta2), djdeta(:,ieta2), djddpot(ieta2))
 
       ! call fermi_dirac_integral_1h(eta2(ieta2), j(ieta2), djddpot(ieta2))
       ! j(ieta2) = dpot * j(ieta2)
 
-      print "(2ES24.16)", eta2(ieta2), j(ieta2)
+      print "(2ES25.16E3)", eta2(ieta2), j(ieta2)
       stop
     end do
 
@@ -149,13 +149,13 @@ contains
       djdeta  = 0
       djddpot = 0
 
-      print "(A,ES24.16)", "eta1 = ", eta(1)
-      print "(A,ES24.16)", "eta2 = ", eta(2)
-      print "(A,2ES24.16)", "deta = ", eta(2) - eta(1), abs(eta(2) - eta(1))
-      print "(A,ES24.16)", "dpot = ", dpot
-      print "(A,ES24.16)", "jmin = ", jmin
-      print "(A,ES24.16)", "jmax = ", jmax
-      print "(A,ES24.16)", "j    = ", j
+      print "(A,ES25.16E3)", "eta1 = ", eta(1)
+      print "(A,ES25.16E3)", "eta2 = ", eta(2)
+      print "(A,2ES25.16E3)", "deta = ", eta(2) - eta(1), abs(eta(2) - eta(1))
+      print "(A,ES25.16E3)", "dpot = ", dpot
+      print "(A,ES25.16E3)", "jmin = ", jmin
+      print "(A,ES25.16E3)", "jmax = ", jmax
+      print "(A,ES25.16E3)", "j    = ", j
 
       if (.not. small_eta) then
         ! init ode options
@@ -204,13 +204,13 @@ block
   NN = 1001
   allocate (jj(NN), ff(NN))
   jj = linspace(jmin, jmax, NN)
-  print "(A,4ES24.16)", "j = ", jmin, jmax, j, abs(jmax - jmin) / abs(j)
+  print "(A,4ES25.16E3)", "j = ", jmin, jmax, j, abs(jmax - jmin) / abs(j)
 
   jj0 = j
   call residual(jj0, status, f = ff0, dfdj = dfdj0)
   do ii = 1, NN
     call residual(jj(ii), status, f = ff(ii))
-    print "(3ES24.16)", jj(ii), ff(ii), ff0 + dfdj0 * (jj(ii) - jj0)
+    print "(3ES25.16E3)", jj(ii), ff(ii), ff0 + dfdj0 * (jj(ii) - jj0)
   end do
   stop
 end block
@@ -263,9 +263,9 @@ end block
         end do
       end if
 
-      print "(A,ES24.16)", "jmin = ", jmin
-      print "(A,ES24.16)", "jmax = ", jmax
-      print "(A,ES24.16)", "j    = ", j
+      print "(A,ES25.16E3)", "jmin = ", jmin
+      print "(A,ES25.16E3)", "jmax = ", jmax
+      print "(A,ES25.16E3)", "j    = ", j
 
       ! tolerances
       atol = max(2e-16 * abs(j), 1e-100)
@@ -310,7 +310,7 @@ end block
         ! update solution
         j = j - dj
 
-        print "(I6,4ES24.16)", it, j, jmin, jmax, err
+        print "(I6,4ES25.16E3)", it, j, jmin, jmax, err
 
         ! exit if close to solution
         if (.not. small_eta) then

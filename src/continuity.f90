@@ -7,6 +7,7 @@ module continuity_m
   use error_m,           only: assert_failed, program_error
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use jacobian_m,        only: jacobian, jacobian_ptr
+  use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
   use semiconductor_m,   only: CR_CHARGE, CR_NAME
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
@@ -29,6 +30,8 @@ module continuity_m
       !! main variable: density
     type(vselector), allocatable :: cdens(:)
       !! dependencies: current densities in 2 directions
+    type(vselector)              :: genrec
+      !! generation - recombination
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -40,6 +43,7 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens     => null()
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
+    type(jacobian),     pointer     :: jaco_genrec   => null()
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -47,25 +51,29 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, dens, cdens)
+  subroutine continuity_init(this, par, dens, cdens, genrec)
     !! initialize continuity equation
-    class(continuity),           intent(out) :: this
-    type(device_params), target, intent(in)  :: par
+    class(continuity),              intent(out) :: this
+    type(device_params), target,    intent(in)  :: par
       !! device parameters
-    type(density),               intent(in)  :: dens
+    type(density),                  intent(in)  :: dens
       !! electron/hole density
-    type(current_density),       intent(in)  :: cdens(:)
+    type(current_density),          intent(in)  :: cdens(:)
       !! electron/hole current density
+    type(generation_recombination), intent(in)  :: genrec
+      !! generation-recombination rate
 
-    integer              :: i, ict, idx_dir, idens, idx_dim
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
-    real                 :: surf, F12, dF12
+    real                 :: surf, F1h, dF1h
+
+    ci = dens%ci
 
     ! init base
     call this%equation_init(CR_NAME(dens%ci)//"continuity")
     this%par => par
-    this%ci  = dens%ci
+    this%ci  = ci
 
     idx_dim = par%g%idx_dim
     allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim), icdens(idx_dim))
@@ -76,6 +84,7 @@ contains
     do idx_dir = 1, idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
+    if (par%smc%incomp_ion) call this%genrec%init(genrec, par%dopvert(ci))
 
     ! init residuals using this%dens as main variable
     call this%init_f(this%dens)
@@ -92,6 +101,7 @@ contains
     do idx_dir = 1, idx_dim
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
+    if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
 
     ! init jacobians
     this%jaco_dens   => this%init_jaco_f(idens, &
@@ -105,8 +115,13 @@ contains
         & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end do
+    if (par%smc%incomp_ion) then
+      this%jaco_genrec => this%init_jaco_f(igenrec, &
+        & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
+        & const = .true., dtime = .false.)
+    end if
 
-    ! loop over transport edges
+    ! set current density jacobian entries
     do idx_dir = 1, idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
         ! get indices of edge, first and second vertex
@@ -123,28 +138,35 @@ contains
       end do
     end do
 
-    ! loop over transport vertices
-    do i = 1, par%transport(IDX_VERTEX,0)%n
-      idx1 = par%transport(IDX_VERTEX,0)%get_idx(i)
-      ict  = par%ict%get(idx1)
-      if (ict == 0) then
-        ! set adjoint volume for time derivative factor
-        call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
-      else
-        ! dirichlet condition
-        call this%jaco_dens%set(idx1, idx1, 1.0)
-      end if
+    ! density time derivative factor
+    do i = 1, par%transport_vct(0)%n
+      idx1 = par%transport_vct(0)%get_idx(i)
+      call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
     end do
 
-    ! boundary conditions => set b to density on contacts
-    allocate (this%b(par%nct))
+    ! generation-recombination
+    if (par%smc%incomp_ion) then
+      do i = 1, par%dopvert(ci)%n
+        idx1 = par%dopvert(ci)%get_idx(i)
+        call this%jaco_genrec%set(idx1, idx1, - par%tr_vol%get(idx1))
+      end do
+    end if
+
+    ! dirichlet conditions
+    allocate (this%b(this%f%n), source = 0.0)
+    j = par%transport_vct(0)%n
     do ict = 1, par%nct
-      if (par%smc%degen) then
-        call fermi_dirac_integral_1h(- CR_CHARGE(this%ci) * (par%contacts(ict)%phims - par%smc%band_edge(this%ci)), F12, dF12)
-        this%b(ict) = par%smc%edos(this%ci) * F12
-      else
-        this%b(ict) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(this%ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
-      end if
+      do i = 1, par%transport_vct(ict)%n
+        j = j + 1
+        idx1 = par%transport_vct(ict)%get_idx(i)
+        call this%jaco_dens%set(idx1, idx1, 1.0)
+        if (par%smc%degen) then
+          call fermi_dirac_integral_1h(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), F1h, dF1h)
+          this%b(j) = par%smc%edos(ci) * F1h
+        else
+          this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
+        end if
+      end do
     end do
 
     ! finish initialization
@@ -155,27 +177,16 @@ contains
     !! evaluate continuity equation
     class(continuity), intent(inout) :: this
 
-    integer              :: i, ict, idx_dir, idx_dim
-    integer, allocatable :: idx(:)
-    real,    allocatable :: tmp(:)
+    integer           :: idx_dir
+    real, allocatable :: tmp(:)
 
-    idx_dim = this%par%g%idx_dim
-    allocate(idx(idx_dim), tmp(this%dens%n))
-
-    ! calculate residuals excluding boundary conditions
+    allocate (tmp(this%f%n))
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
-    do idx_dir = 1, idx_dim
+    do idx_dir = 1, this%par%g%idx_dim
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
-    call this%f%set(tmp)
-
-    ! apply ideal ohmic boundary conditions
-    do ict = 1, size(this%par%contacts)
-      do i = 1, this%par%transport_vct(ict)%n
-        idx = this%par%transport_vct(ict)%get_idx(i)
-        call this%f%update(idx, [-this%b(ict)])
-      end do
-    end do
+    if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
+    call this%f%set(tmp - this%b)
   end subroutine
 
 end module
