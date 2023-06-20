@@ -164,7 +164,11 @@ contains
         end if
 
         ! get h and dhdz
-        call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
+        call eval_h(nU, dxk, f, dfdz, z, status, h(:,1), dhdz)
+        if (.not. status) then
+          dxn = 0.5 * dxk
+          return
+        end if
 
         ! solve
         call gesv(dhdz, h)
@@ -197,7 +201,8 @@ contains
         ! derivatives
         call eval_f(nU, fun, x, dxk, Uk, z, P, status, f, dfdz, dfdP = dfdP)
         if (.not. status) return
-        call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
+        call eval_h(nU, dxk, f, dfdz, z, status, h(:,1), dhdz)
+        if (.not. status) return
         call eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
 
         ! calculate dzdQ = - (dhdz)^(-1) * dhdQ
@@ -286,7 +291,7 @@ contains
     end do
   end subroutine
 
-  subroutine eval_h(nU, dxk, f, dfdz, z, h, dhdz)
+  subroutine eval_h(nU, dxk, f, dfdz, z, status, h, dhdz)
     integer, intent(in)  :: nU
       !! system size
     real,    intent(in)  :: dxk
@@ -297,6 +302,8 @@ contains
       !! derivatives of f wrt z
     real,    intent(in)  :: z(:)
       !! delta states
+    logical, intent(out) :: status
+      !! success/fail
     real,    intent(out) :: h(:)
       !! output residuals
     real,    intent(out) :: dhdz(:,:)
@@ -325,6 +332,8 @@ contains
         dhdz(i0:i1,j0:j1) = dhdz(i0:i1,j0:j1) - dxk * A(i,j) * dfdz(:,:,j)
       end do
     end do
+
+    status = all(ieee_is_finite(h)) .and. all(ieee_is_finite(dhdz))
   end subroutine
 
   subroutine eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
