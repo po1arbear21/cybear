@@ -164,7 +164,11 @@ contains
         end if
 
         ! get h and dhdz
-        call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
+        call eval_h(nU, dxk, f, dfdz, z, status, h(:,1), dhdz)
+        if (.not. status) then
+          dxn = 0.5 * dxk
+          return
+        end if
 
         ! solve
         call gesv(dhdz, h)
@@ -197,7 +201,8 @@ contains
         ! derivatives
         call eval_f(nU, fun, x, dxk, Uk, z, P, status, f, dfdz, dfdP = dfdP)
         if (.not. status) return
-        call eval_h(nU, dxk, f, dfdz, z, h(:,1), dhdz)
+        call eval_h(nU, dxk, f, dfdz, z, status, h(:,1), dhdz)
+        if (.not. status) return
         call eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
 
         ! calculate dzdQ = - (dhdz)^(-1) * dhdQ
@@ -286,7 +291,7 @@ contains
     end do
   end subroutine
 
-  subroutine eval_h(nU, dxk, f, dfdz, z, h, dhdz)
+  subroutine eval_h(nU, dxk, f, dfdz, z, status, h, dhdz)
     integer, intent(in)  :: nU
       !! system size
     real,    intent(in)  :: dxk
@@ -297,6 +302,8 @@ contains
       !! derivatives of f wrt z
     real,    intent(in)  :: z(:)
       !! delta states
+    logical, intent(out) :: status
+      !! success/fail
     real,    intent(out) :: h(:)
       !! output residuals
     real,    intent(out) :: dhdz(:,:)
@@ -326,25 +333,7 @@ contains
       end do
     end do
 
-    block
-      use ieee_arithmetic
-
-      if (any(.not. ieee_is_finite(h))) then
-        print *, h
-        print *, f(1,1)
-        print *, f(1,2)
-        print *, f(1,3)
-        error stop "h not finite"
-      end if
-      if (any(.not. ieee_is_finite(dhdz))) then
-        print *, dhdz
-        print *, h
-        print *, dfdz(1,1,1)
-        print *, dfdz(1,1,2)
-        print *, dfdz(1,1,3)
-        error stop "dhdz not finite"
-      end if
-    end block
+    status = all(ieee_is_finite(h)) .and. all(ieee_is_finite(dhdz))
   end subroutine
 
   subroutine eval_dhdQ(nU, nP, dxk, dfdz, dfdP, dUkdQ, dhdQ)
