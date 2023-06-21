@@ -72,7 +72,7 @@ program main
         ibl = dev%sys_full%res2block(idens)%d(itab)
         i0 = dev%sys_full%i0(ibl)
         i1 = dev%sys_full%i1(ibl)
-        opt_full%xmin(i0:i1) = norm(1e-5, "1/cm^3")
+        opt_full%xmin(i0:i1) = norm(1e-100, "1/cm^3")
       end do
 
       idens = dev%sys_dd(ci)%search_main_var(dev%dens(ci)%name)
@@ -80,7 +80,7 @@ program main
         ibl = dev%sys_dd(ci)%res2block(idens)%d(itab)
         i0 = dev%sys_dd(ci)%i0(ibl)
         i1 = dev%sys_dd(ci)%i1(ibl)
-        opt_dd(ci)%xmin(i0:i1) = norm(1e-5, "1/cm^3")
+        opt_dd(ci)%xmin(i0:i1) = norm(1e-100, "1/cm^3")
       end do
 
       iion = dev%sys_full%search_main_var(dev%ion(ci)%name)
@@ -621,38 +621,38 @@ end block
       do ci = dev%par%ci0, dev%par%ci1
         iref0(:,ci) = dev%iref(ci)%get()
 
-! block
-!   use matrix_m
+block
+  use matrix_m
 
-!   integer :: ii, funit
-!   real, allocatable :: f(:), x0(:), x(:), dx(:)
-!   type(sparse_real) :: df
+  integer :: ii, funit
+  real, allocatable :: f(:), x0(:), x(:), dx(:)
+  type(sparse_real) :: df
 
-!   allocate (f(dev%sys_dd(ci)%n), x0(dev%sys_dd(ci)%n), x(dev%sys_dd(ci)%n), dx(dev%sys_dd(ci)%n))
+  allocate (f(dev%sys_dd(ci)%n), x0(dev%sys_dd(ci)%n), x(dev%sys_dd(ci)%n), dx(dev%sys_dd(ci)%n))
 
-!   x0 = dev%sys_dd(ci)%get_x()
-!   x  = x0
-!   where(x < opt_dd(ci)%xmin) x = opt_dd(ci)%xmin
-!   where(x > opt_dd(ci)%xmax) x = opt_dd(ci)%xmax
+  x0 = dev%sys_dd(ci)%get_x()
+  x  = x0
+  where(x < opt_dd(ci)%xmin) x = opt_dd(ci)%xmin
+  where(x > opt_dd(ci)%xmax) x = opt_dd(ci)%xmax
 
-!   call dev%sys_dd(ci)%set_x(x)
+  call dev%sys_dd(ci)%set_x(x)
 
-!   call dev%sys_dd(ci)%eval(f = f, df = df)
+  call dev%sys_dd(ci)%eval(f = f, df = df)
 
-!   call df%output(file = "df")
-!   call dev%calc_genrec(ci)%test(10000)
-!   call df%factorize()
-!   call df%solve_vec(f, dx)
+  call df%output(file = "df")
+  ! call dev%calc_genrec(ci)%test(10000)
+  call df%factorize()
+  call df%solve_vec(f, dx)
 
-!   open (newunit = funit, file = "t", status = "replace", action = "write")
-!   do ii = 1, dev%sys_dd(ci)%n
-!     write (funit, "(I6,4ES25.16E3)") ii, f(ii), x0(ii), x(ii), dx(ii)
-!   end do
-!   close (funit)
+  open (newunit = funit, file = "t", status = "replace", action = "write")
+  do ii = 1, dev%sys_dd(ci)%n
+    write (funit, "(I6,4ES25.16E3)") ii, f(ii), x0(ii), x(ii), dx(ii)
+  end do
+  close (funit)
 
-!   call dev%sys_dd(ci)%print()
-!   stop
-! end block
+  call dev%sys_dd(ci)%print()
+  stop
+end block
 
 ! if (ci == 2) then
 !   block

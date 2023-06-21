@@ -330,14 +330,90 @@ contains
         jmax = min(jmax, abs(dpot - deta) * nc)
       end if
 
-      t = 1e-6 * (max(abs(eta(1)), abs(eta(2)), abs(dpot)) + 1)
-      if ((abs(dpot - deta) < t) .or. (abs(deta) < t)) then
+      if (abs(deta) < 1e-6) then
+        ! eta approximately constant
+        block
+          use math_m, only: ber, dberdx
+          real :: Fm1h, dFm1h, B, dB, dBdn
+          call fermi_dirac_integral_m1h(eta(1), Fm1h, dFm1h)
+
+          B    = ber(   dpot * Fm1h / n(1))
+          dB   = dberdx(dpot * Fm1h / n(1))
+          dBdn = dB * dpot / n(1) * dFm1h * detadn(1) - dB * dpot * Fm1h / n(1)**2
+
+          j  = n(1) * (dpot - deta * B)
+
+          ! j  = n(1) * (dpot + (eta(1) - eta(2)) * B)
+          djddpot  = n(1) - deta * dB * Fm1h
+          djdn(1) = (dpot - deta * B) + n(1) * (detadn(1) * B + deta * dBdn)
+          djdn(2) = - n(1) * detadn(2) * B
+        end block
+      elseif (abs(deta - dpot) < 1e-6) then
         ! eta changes approximately linear
-        nc      = 0.5 * (n(1) + n(2))
-        j       = nc  * (dpot - deta)
-        djdn(1) = 0.5 * (dpot - deta) + nc * detadn(1)
-        djdn(2) = 0.5 * (dpot - deta) - nc * detadn(2)
-        djddpot = nc
+        block
+          real, parameter :: xk(21) = [-1.0, &
+            &                          -0.9825722966045480282345, &
+            &                          -0.9419762969597455342961, &
+            &                          -0.8792947553235904644512, &
+            &                          -0.7960019260777124047443, &
+            &                          -0.6940510260622232326273, &
+            &                          -0.575831960261830686927, &
+            &                          -0.4441157832790021011945, &
+            &                          -0.3019898565087648872754, &
+            &                          -0.1527855158021854660064, &
+            &                          0.0, &
+            &                          0.1527855158021854660064, &
+            &                          0.3019898565087648872754, &
+            &                          0.444115783279002101195, &
+            &                          0.575831960261830686927, &
+            &                          0.6940510260622232326273, &
+            &                          0.7960019260777124047443, &
+            &                          0.8792947553235904644512, &
+            &                          0.9419762969597455342961, &
+            &                          0.9825722966045480282345, &
+            &                          1.0]
+          real, parameter :: wk(21) = [0.004761904761904761904762, &
+            &                          0.0291848400985054586095, &
+            &                          0.0518431690008496250727, &
+            &                          0.0732739181850741442525, &
+            &                          0.0929854679578860653011, &
+            &                          0.110517083219123335267, &
+            &                          0.1254581211908689480152, &
+            &                          0.1374584628600413435809, &
+            &                          0.1462368624479774592673, &
+            &                          0.151587575111681384453, &
+            &                          0.1533851903321749485516, &
+            &                          0.1515875751116813844533, &
+            &                          0.1462368624479774592673, &
+            &                          0.1374584628600413435809, &
+            &                          0.1254581211908689480152, &
+            &                          0.110517083219123335267, &
+            &                          0.092985467957886065301, &
+            &                          0.0732739181850741442525, &
+            &                          0.0518431690008496250727, &
+            &                          0.0291848400985054586095, &
+            &                          0.004761904761904761904762]
+
+          integer :: ii
+          real    :: navg, dnavg(2), ee, dee(2), ff, dff
+
+          navg = 0
+          dnavg = 0
+          do ii = 1, size(xk)
+            ee = 0.5 * (eta(1) + eta(2)) + 0.5 * (eta(2) - eta(1)) * xk(ii)
+            dee = 0.5 + 0.5 * xk(ii) * [-1.0, 1.0]
+            call fermi_dirac_integral_1h(ee, ff, dff)
+            navg  =  navg + 0.5 * wk(ii) / ff
+            dnavg = dnavg - 0.5 * wk(ii) / ff**2 * dff * dee
+          end do
+          navg  = 1.0 / navg
+          dnavg = - dnavg / navg**2
+
+          j       = navg * (dpot - deta)
+          djddpot = navg
+          djdn(1) = (dnavg(1) * (dpot - deta) + navg) * detadn(1)
+          djdn(2) = (dnavg(2) * (dpot - deta) - navg) * detadn(2)
+        end block
       else
         if (abs(deta) < 5) then
           call this%get_curr_sg(n, dpot, j, djdn, djddpot)

@@ -18,17 +18,22 @@ module degen_test_module_m
 contains
 
   subroutine degen_test()
-    integer, parameter :: Neta2 = 101
+    integer, parameter :: Neta2 = 501
 
     integer           :: ieta2
     real              :: dpot, eta(2)
     real, allocatable :: eta2(:), j(:), djdeta(:,:), djddpot(:)
 
-    allocate (eta2(Neta2), j(Neta2), djdeta(2,Neta2), djddpot(Neta2))
-    eta2 = linspace(9.5115874417822379E+00, 100.0, Neta2)
+    ! call degen_test_derivatives()
+    ! stop
 
-    dpot   = -7.2082596494811196E+02
-    eta(1) = -7.3620889613398560E+01
+    dpot   = -80
+    eta(1) = 0
+
+    allocate (eta2(Neta2), j(Neta2), djdeta(2,Neta2), djddpot(Neta2))
+    eta2 = linspace(eta(1)+dpot-5e-12, eta(1)+dpot+5e-12, Neta2)
+
+
     do ieta2 = 1, Neta2
       eta(2) = eta2(ieta2)
 
@@ -40,8 +45,45 @@ contains
       ! j(ieta2) = dpot * j(ieta2)
 
       print "(2ES25.16E3)", eta2(ieta2), j(ieta2)
-      stop
     end do
+  end subroutine
+
+  subroutine degen_test_derivatives()
+    real :: eta(2), dpot
+    real :: eta0(2), dpot0
+    real :: etap(2), dpotp
+    real :: etam(2), dpotm
+    real :: j, djdeta(2), djddpot
+    real :: j0, djdeta0(2), djddpot0
+    real :: jp, djdeta1(2), djddpot1
+    real :: jm, djdeta2(2), djddpot2
+
+    eta  = 1.0
+    dpot = -50
+    eta(2) = eta(1) + dpot
+
+    call get_current(eta, dpot, j, djdeta, djddpot)
+    eta0     = eta
+    dpot0    = dpot
+    j0       = j
+    djdeta0  = djdeta
+    djddpot0 = djddpot
+
+    etap = eta0
+    etap(1) = etap(1) + 1e-3
+    call get_current(etap, dpot, jp, djdeta, djddpot)
+    djdeta1(1) = (jp - j) / 1e-3
+    etap = eta0
+    etap(2) = etap(2) + 1e-3
+    call get_current(etap, dpot, jp, djdeta, djddpot)
+    djdeta1(2) = (jp - j) / 1e-3
+
+    dpotp = dpot + 1e-3
+    call get_current(eta, dpotp, jp, djdeta, djddpot)
+    djddpot1 = (jp - j) / 1e-3
+
+    print "(3ES25.16E3)", djdeta0, djddpot0
+    print "(3ES25.16E3)", djdeta1, djddpot1
 
   end subroutine
 
@@ -112,13 +154,88 @@ contains
         jmax = min(jmax, abs(dpot - deta) * nc)
       end if
 
-      t = 1e-6 * (max(abs(eta(1)), abs(eta(2)), abs(dpot)) + 1)
-      if ((abs(deta - dpot) < t) .or. (abs(deta) < t)) then
+      if (abs(deta) < 1e-6) then
+        ! eta approximately constant
+        block
+          use math_m, only: ber, dberdx
+          real :: Fm1h, dFm1h, B, dB
+          call fermi_dirac_integral_m1h(eta(1), Fm1h, dFm1h)
+
+          B  = ber(   dpot * Fm1h / n(1))
+          dB = dberdx(dpot * Fm1h / n(1))
+          j  = n(1) * (dpot - deta * B)
+
+          ! j  = dpot * n(1) - (eta(2) - eta(1)) * n(1) * B
+          djddpot   = n(1) - deta * dB * Fm1h
+          djdeta(1) = dpot * dndeta(1) + n(1) * B - deta * dndeta(1) * B - deta * dB * dpot * Fm1h / n(1) * dndeta(1)
+          djdeta(2) = - n(1) * B
+        end block
+      elseif (abs(deta - dpot) < 0) then
         ! eta changes approximately linear
-        j         = 0.5 * (n(1) + n(2)) * (dpot - deta)
-        djddpot   = 0.5 * (n(1) + n(2))
-        djdeta(1) = 0.5 * (dndeta(1) * (dpot - deta) + (n(1) + n(2)))
-        djdeta(2) = 0.5 * (dndeta(2) * (dpot - deta) - (n(1) + n(2)))
+        block
+          real, parameter :: xk(21) = [-1.0, &
+            &                          -0.9825722966045480282345, &
+            &                          -0.9419762969597455342961, &
+            &                          -0.8792947553235904644512, &
+            &                          -0.7960019260777124047443, &
+            &                          -0.6940510260622232326273, &
+            &                          -0.575831960261830686927, &
+            &                          -0.4441157832790021011945, &
+            &                          -0.3019898565087648872754, &
+            &                          -0.1527855158021854660064, &
+            &                          0.0, &
+            &                          0.1527855158021854660064, &
+            &                          0.3019898565087648872754, &
+            &                          0.444115783279002101195, &
+            &                          0.575831960261830686927, &
+            &                          0.6940510260622232326273, &
+            &                          0.7960019260777124047443, &
+            &                          0.8792947553235904644512, &
+            &                          0.9419762969597455342961, &
+            &                          0.9825722966045480282345, &
+            &                          1.0]
+          real, parameter :: wk(21) = [0.004761904761904761904762, &
+            &                          0.0291848400985054586095, &
+            &                          0.0518431690008496250727, &
+            &                          0.0732739181850741442525, &
+            &                          0.0929854679578860653011, &
+            &                          0.110517083219123335267, &
+            &                          0.1254581211908689480152, &
+            &                          0.1374584628600413435809, &
+            &                          0.1462368624479774592673, &
+            &                          0.151587575111681384453, &
+            &                          0.1533851903321749485516, &
+            &                          0.1515875751116813844533, &
+            &                          0.1462368624479774592673, &
+            &                          0.1374584628600413435809, &
+            &                          0.1254581211908689480152, &
+            &                          0.110517083219123335267, &
+            &                          0.092985467957886065301, &
+            &                          0.0732739181850741442525, &
+            &                          0.0518431690008496250727, &
+            &                          0.0291848400985054586095, &
+            &                          0.004761904761904761904762]
+
+          integer :: ii
+          real    :: navg, dnavg(2), ee, dee(2), ff, dff
+
+          navg = 0
+          dnavg = 0
+          do ii = 1, size(xk)
+            ee = 0.5 * (eta(1) + eta(2)) + 0.5 * (eta(2) - eta(1)) * xk(ii)
+            dee = 0.5 + 0.5 * xk(ii) * [-1.0, 1.0]
+            call fermi_dirac_integral_1h(ee, ff, dff)
+            navg  =  navg + 0.5 * wk(ii) / ff
+            dnavg = dnavg - 0.5 * wk(ii) / ff**2 * dff * dee
+          end do
+          navg  = 1.0 / navg
+          dnavg = - dnavg / navg**2
+
+          j         = navg * (dpot - deta)
+          djddpot   = navg
+          djdeta(1) = dnavg(1) * (dpot - deta) + navg
+          djdeta(2) = dnavg(2) * (dpot - deta) - navg
+        end block
       else
         if (abs(deta) < 5) then
           j = get_current_sg(n, dpot)
@@ -148,14 +265,6 @@ contains
       ! clear
       djdeta  = 0
       djddpot = 0
-
-      print "(A,ES25.16E3)", "eta1 = ", eta(1)
-      print "(A,ES25.16E3)", "eta2 = ", eta(2)
-      print "(A,2ES25.16E3)", "deta = ", eta(2) - eta(1), abs(eta(2) - eta(1))
-      print "(A,ES25.16E3)", "dpot = ", dpot
-      print "(A,ES25.16E3)", "jmin = ", jmin
-      print "(A,ES25.16E3)", "jmax = ", jmax
-      print "(A,ES25.16E3)", "j    = ", j
 
       if (.not. small_eta) then
         ! init ode options
@@ -194,26 +303,6 @@ contains
           j = jmax
           goto 100
         end if
-
-block
-  use math_m
-  integer :: ii, NN
-  real :: jj0, ff0, dfdj0
-  real, allocatable :: jj(:), ff(:)
-
-  NN = 1001
-  allocate (jj(NN), ff(NN))
-  jj = linspace(jmin, jmax, NN)
-  print "(A,4ES25.16E3)", "j = ", jmin, jmax, j, abs(jmax - jmin) / abs(j)
-
-  jj0 = j
-  call residual(jj0, status, f = ff0, dfdj = dfdj0)
-  do ii = 1, NN
-    call residual(jj(ii), status, f = ff(ii))
-    print "(3ES25.16E3)", jj(ii), ff(ii), ff0 + dfdj0 * (jj(ii) - jj0)
-  end do
-  stop
-end block
 
         ! widen bounds if necessary
         smin = sign(1.0, fmin)
@@ -263,9 +352,9 @@ end block
         end do
       end if
 
-      print "(A,ES25.16E3)", "jmin = ", jmin
-      print "(A,ES25.16E3)", "jmax = ", jmax
-      print "(A,ES25.16E3)", "j    = ", j
+      ! print "(A,ES25.16E3)", "jmin = ", jmin
+      ! print "(A,ES25.16E3)", "jmax = ", jmax
+      ! print "(A,ES25.16E3)", "j    = ", j
 
       ! tolerances
       atol = max(2e-16 * abs(j), 1e-100)
@@ -310,7 +399,7 @@ end block
         ! update solution
         j = j - dj
 
-        print "(I6,4ES25.16E3)", it, j, jmin, jmax, err
+        ! print "(I6,4ES25.16E3)", it, j, jmin, jmax, err
 
         ! exit if close to solution
         if (.not. small_eta) then
