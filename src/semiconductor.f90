@@ -42,20 +42,19 @@ module semiconductor_m
       !! generation/recombination time constants (generation/recombination, carrier index)
 
     logical           :: incomp_ion
-      !! enable/disable incomplete ionization
-    real, allocatable :: edop(:)
+      !! enable/disable incomplete ionization (Altermatt-Schenk model)
+    real, allocatable :: ii_E_dop0(:)
       !! dopant energy relative to the carrier band for a single dopant
-    real, allocatable :: N_asr(:)
-      !! Altermatt-Schenk reference density for dopant energy
-    real, allocatable :: asc(:)
-      !! Altermatt-Schenk exponent for fitting of the dopant energy
-    real, allocatable :: N_asb(:)
-      !! Altermatt-Schenk reference density for fraction of bound states in dopant clusters
-    real, allocatable :: asd(:)
-      !! Altermatt-Schenk exponent for fitting the fraction of bound states
-    real, allocatable :: g_dop(:)
-      !! degeneracy of dopant states
-
+    real, allocatable :: ii_N_ref(:)
+      !! dopant energy reference density for dopant energy
+    real, allocatable :: ii_c(:)
+      !! dopant energy exponent
+    real, allocatable :: ii_N_b(:)
+      !! reference density for fraction of bound states in dopant clusters
+    real, allocatable :: ii_d(:)
+      !! exponent for fitting the fraction of bound states
+    real, allocatable :: ii_g(:)
+      !! degeneracy factor of dopant states
   end type
 
 end module

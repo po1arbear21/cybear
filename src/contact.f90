@@ -36,16 +36,16 @@ module contact_m
 
 contains
 
-  subroutine contact_set_phims_ohmic(this, ci0, ci1, dop, asb, edop, smc)
+  subroutine contact_set_phims_ohmic(this, ci0, ci1, dop, ii_b, ii_E_dop, smc)
     !! set phims for ohmic contacts by assuming charge neutrality
     class(contact),        intent(inout) :: this
     integer,               intent(in)    :: ci0, ci1
       !! lower/upper carrier index (CR_ELEC, CR_HOLE)
     real,                  intent(in)    :: dop(2)
       !! donor/acceptor concentration
-    real,                  intent(in)    :: asb(2)
+    real,                  intent(in)    :: ii_b(2)
       !! Altermatt-Schenk b parameter
-    real,                  intent(in)    :: edop(2)
+    real,                  intent(in)    :: ii_E_dop(2)
       !! Altermatt-Schenk doping energy level
     type(semiconductor),   intent(in)    :: smc
       !! semiconductor parameters
@@ -126,15 +126,15 @@ contains
       do ci = DOP_DCON, DOP_ACON
         ch = CR_CHARGE(ci)
         if (smc%incomp_ion) then
-          e = exp(ch * TwoSum(x, - (smc%band_edge(ci) + ch * edop(ci))))
+          e = exp(ch * TwoSum(x, - (smc%band_edge(ci) + ch * ii_E_dop(ci))))
           t = hp_to_real(e)
           if (.not. ieee_is_finite(t) .or. (t > 1e300)) then
             fac = real_to_hp(0.0)
           else
-            fac  = 1.0 / (1.0 + smc%g_dop(ci) * e)
+            fac  = 1.0 / (1.0 + smc%ii_g(ci) * e)
           end if
-          ion  = 1.0 - asb(ci) * fac
-          dion = hp_to_real(asb(ci) * fac * (1.0 - fac))
+          ion  = 1.0 - ii_b(ci) * fac
+          dion = hp_to_real(ii_b(ci) * fac * (1.0 - fac))
 
           ff  = ff   - ch * dop(ci) * ion
           dff = dff -      dop(ci) * dion

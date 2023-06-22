@@ -24,7 +24,7 @@ module ionization_m
   public generation_recombination, calc_generation_recombination
 
   type, extends(variable_real) :: ionization
-    !! ionization ratio
+    !! ionization concentration
 
     integer :: ci
       !! dopant index (DOP_DCON, DOP_ACON)
@@ -40,7 +40,7 @@ module ionization_m
   end type
 
   type, extends(equation) :: calc_ionization
-    !! calculate the stationary dopant ionization ratio
+    !! calculate the stationary dopant ionization concentration
 
     type(device_params), pointer :: par  => null()
     type(ionization),    pointer :: ion  => null()
@@ -55,7 +55,7 @@ module ionization_m
   end type
 
   type, extends(res_equation) :: ion_continuity
-    !! continuity equation for dopant ionization ratio: d/dt ion + (G - R) / Ndop = 0
+    !! continuity equation for dopant ionization concentration: d/dt ion + (G - R) = 0
 
     type(device_params), pointer :: par => null()
 
@@ -131,7 +131,7 @@ contains
     type(grid_data3_real), pointer :: p3
 
     ! init base
-    call this%variable_init("ion"//DOP_NAME(ci), "1", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
+    call this%variable_init("ion"//DOP_NAME(ci), "1/cm^3", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
     this%ci = ci
 
     ! get pointer to data
@@ -190,7 +190,7 @@ contains
 
     integer              :: i, ci
     integer, allocatable :: idx(:)
-    real                 :: b, g, ch, edop, e, f, ion, dion, iref, pot
+    real                 :: b, ch, dop, e, E_dop, f, g, ion, dion, iref, pot
 
     ci = this%ion%ci
     ch = CR_CHARGE(ci)
@@ -205,24 +205,25 @@ contains
       return
     end if
 
-    g  = this%par%smc%g_dop(ci)
+    g = this%par%smc%ii_g(ci)
     do i = 1, this%par%dopvert(ci)%n
       idx  = this%par%dopvert(ci)%get_idx(i)
 
-      b    = this%par%asb(ci)%get(idx)
-      edop = this%par%smc%band_edge(ci) + ch * this%par%edop(ci)%get(idx)
-      iref = this%iref%get(idx)
-      pot  = this%pot%get(idx)
+      b     = this%par%ii_b(ci)%get(idx)
+      E_dop = this%par%smc%band_edge(ci) + ch * this%par%ii_E_dop(ci)%get(idx)
+      dop   = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
+      iref  = this%iref%get(idx)
+      pot   = this%pot%get(idx)
 
       ! exponent
-      e = - ch * (iref - pot + edop)
+      e = ch * ((pot - iref) - E_dop)
 
       ! factor (exp(e) can overflow)
       f = 1.0 / (1.0 + g * exp(e))
 
       ! ionization and derivative
-      ion  = 1.0 - b * f
-      dion = b * f * (1.0 - f)
+      ion  = dop * (1 - b * f)
+      dion = dop * b * f * (1 - f)
 
       ! save
       call this%ion%set(idx, ion)
@@ -274,7 +275,7 @@ contains
     do i = 1, par%dopvert(ci)%n
       idx = par%dopvert(ci)%get_idx(i)
       if (par%smc%incomp_ion) then
-        call this%jaco_t%set(idx, idx, par%dop(IDX_VERTEX,0,ci)%get(idx))
+        call this%jaco_t%set(     idx, idx,  1.0)
         call this%jaco_genrec%set(idx, idx, -1.0)
       else
         call this%jaco_ion%set(idx, idx, 1.0)
@@ -378,14 +379,14 @@ contains
     integer              :: ci, i
     integer, allocatable :: idx(:)
     logical              :: degen
-    real                 :: ch, dens, dop, edop, edos, g, ion, iref, pot, rec, t
+    real                 :: b, ch, dens, dop, E_dop, edos, g, ion, iref, pot, rec, t
     real                 :: dgenddens, dgendpot, dgendiref, dgendion
     type(hp_real)        :: e, eta, fac, gen
 
-    ci   = this%genrec%ci
-    ch   = CR_CHARGE(ci)
-    edos = this%par%smc%edos(ci)
-    g    = this%par%smc%g_dop(ci)
+    ci    = this%genrec%ci
+    ch    = CR_CHARGE(ci)
+    edos  = this%par%smc%edos(ci)
+    g     = this%par%smc%ii_g(ci)
     degen = this%par%smc%degen
 
     allocate (idx(this%par%g%idx_dim))
@@ -393,11 +394,12 @@ contains
       idx = this%par%dopvert(ci)%get_idx(i)
 
       ! doping and doping energy level
-      dop  = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
-      edop = this%par%smc%band_edge(ci) + ch * this%par%edop(ci)%get(idx)
+      b     = this%par%ii_b(ci)%get(idx)
+      E_dop = this%par%smc%band_edge(ci) + ch * this%par%ii_E_dop(ci)%get(idx)
+      dop   = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
 
-      ! ionization ratio
-      ion  = this%ion%get( idx)
+      ! ionization concentration
+      ion  = this%ion%get(idx)
 
       ! generation
       dgenddens = 0
@@ -412,13 +414,13 @@ contains
         eta = - ch * (e - this%par%smc%band_edge(ci))
         t   = hp_to_real(eta)
         if (t >= -17) then
-          fac       = exp(ch * (e - edop))
+          fac       = exp(ch * (e - E_dop))
           gen       = fac * dens / edos
           dgenddens = hp_to_real(fac / edos)
           dgendpot  = hp_to_real(  ch * gen)
           dgendiref = hp_to_real(- ch * gen)
         else
-          gen = real_to_hp(exp(- ch * (edop - this%par%smc%band_edge(ci))))
+          gen = real_to_hp(exp(- ch * (E_dop - this%par%smc%band_edge(ci))))
           if (t >= -36) then
             ! correction for -36 < eta < -17
             gen       =                  gen / (1.0 + exp( eta) * alpha)
@@ -427,22 +429,22 @@ contains
           end if
         end if
       else
-        gen = real_to_hp(exp(- ch * (edop - this%par%smc%band_edge(ci))))
+        gen = real_to_hp(exp(- ch * (E_dop - this%par%smc%band_edge(ci))))
       end if
 
-      dgendion  = - hp_to_real(gen)       * dop / this%tau_gen
-      gen       = gen * TwoSum(1.0, -ion) * dop / this%tau_gen
-      dgenddens = dgenddens * (1.0 - ion) * dop / this%tau_gen
-      dgendpot  = dgendpot  * (1.0 - ion) * dop / this%tau_gen
-      dgendiref = dgendiref * (1.0 - ion) * dop / this%tau_gen
+      dgendion  = - hp_to_real(gen) / this%tau_gen
+      gen       = gen * TwoSum(dop, - ion) / this%tau_gen
+      dgenddens = dgenddens * (dop  - ion) / this%tau_gen
+      dgendpot  = dgendpot  * (dop  - ion) / this%tau_gen
+      dgendiref = dgendiref * (dop  - ion) / this%tau_gen
 
       ! recombination
-      rec = dens * ion * dop / (edos * g * this%tau_rec)
+      rec = dens * (ion - (1 - b) * dop)/ (edos * g * this%tau_rec)
 
       ! combined rate
       gen       = gen - rec
-      dgenddens = dgenddens -  ion * dop / (edos * g * this%tau_rec)
-      dgendion  = dgendion  - dens * dop / (edos * g * this%tau_rec)
+      dgenddens = dgenddens - (ion - (1 - b) * dop) / (edos * g * this%tau_rec)
+      dgendion  = dgendion  - dens                  / (edos * g * this%tau_rec)
 
       ! save
       call this%genrec%set(idx, hp_to_real(gen))

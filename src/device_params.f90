@@ -44,10 +44,10 @@ module device_params_m
       !! adjoint volume surfaces
     class(grid_data_real), allocatable :: dop(:,:,:)
       !! donator/acceptor concentration (idx_type, idx_dir, dcon/acon)
-    class(grid_data_real), allocatable :: asb(:)
-      !! Altermatt-Schenk factor of bound states (dcon/acon)
-    class(grid_data_real), allocatable :: edop(:)
-      !! donator/acceptor dopant energy level (dcon/acon)
+    class(grid_data_real), allocatable :: ii_b(:)
+      !! incomplete ionization factor (dcon/acon)
+    class(grid_data_real), allocatable :: ii_E_dop(:)
+      !! incomplete ionization donator/acceptor dopant energy level (dcon/acon)
     class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
     class(grid_data_real), allocatable :: tr_surf(:)
@@ -194,29 +194,31 @@ contains
     call file%get(sid, "curr_fact",  this%curr_fact)
     call file%get(sid, "rec_tau",    tau_tmp)
     this%smc%rec_tau = reshape(tau_tmp, [2, 2])
+
+    ! incomplete ionization
     call file%get(sid, "incomp_ion", this%smc%incomp_ion)
-    call file%get(sid, "edop0",      this%smc%edop)
-    call file%get(sid, "asc",        this%smc%asc)
-    call file%get(sid, "asd",        this%smc%asd)
-    call file%get(sid, "N_asb",      this%smc%N_asb)
-    call file%get(sid, "N_asr",      this%smc%N_asr)
-    call file%get(sid, "dop_degen",  this%smc%g_dop)
+    call file%get(sid, "ii_E_dop0",  this%smc%ii_E_dop0)
+    call file%get(sid, "ii_N_ref",   this%smc%ii_N_ref)
+    call file%get(sid, "ii_c",       this%smc%ii_c)
+    call file%get(sid, "ii_N_b",     this%smc%ii_N_b)
+    call file%get(sid, "ii_d",       this%smc%ii_d)
+    call file%get(sid, "ii_g",       this%smc%ii_g)
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
-    m4_assert(size(this%smc%mass) == 2)
-    m4_assert(size(this%smc%alpha) == 2)
-    m4_assert(size(this%smc%beta) == 2)
-    m4_assert(size(this%smc%mob_min) == 2)
-    m4_assert(size(this%smc%mob_max) == 2)
-    m4_assert(size(this%smc%N_ref) == 2)
-    m4_assert(size(this%smc%v_sat) == 2)
-    m4_assert(size(this%smc%edop) == 2)
-    m4_assert(size(this%smc%asc) == 2)
-    m4_assert(size(this%smc%asd) == 2)
-    m4_assert(size(this%smc%N_asb) == 2)
-    m4_assert(size(this%smc%N_asr) == 2)
-    m4_assert(size(this%smc%g_dop) == 2)
+    m4_assert(size(this%smc%mass)      == 2)
+    m4_assert(size(this%smc%alpha)     == 2)
+    m4_assert(size(this%smc%beta)      == 2)
+    m4_assert(size(this%smc%mob_min)   == 2)
+    m4_assert(size(this%smc%mob_max)   == 2)
+    m4_assert(size(this%smc%N_ref)     == 2)
+    m4_assert(size(this%smc%v_sat)     == 2)
+    m4_assert(size(this%smc%ii_E_dop0) == 2)
+    m4_assert(size(this%smc%ii_N_ref)  == 2)
+    m4_assert(size(this%smc%ii_c)      == 2)
+    m4_assert(size(this%smc%ii_N_b)    == 2)
+    m4_assert(size(this%smc%ii_d)      == 2)
+    m4_assert(size(this%smc%ii_g)      == 2)
   end subroutine
 
   subroutine device_params_init_regions(this, file)
@@ -597,7 +599,7 @@ contains
     integer              :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable :: idx(:), idx2(:)
     logical              :: status
-    real                 :: dop(2), p(2,3), mid(2), asb, edop, mob0, mob_min, mob_max, N_ref, alpha
+    real                 :: dop(2), p(2,3), mid(2), ii_b, ii_E_dop, mob0, mob_min, mob_max, N_ref, alpha
     real,    allocatable :: surf(:,:), vol(:), tmp(:)
     type(string)         :: gtype_tmp
 
@@ -612,8 +614,8 @@ contains
     ! allocate/initialize grid data
     call allocate_grid_data3_real(this%dop,  this%g%idx_dim, [1, 0, DOP_DCON], [4, this%g%idx_dim, DOP_ACON])
     call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%ci0], [4, this%g%idx_dim, this%ci1])
-    call allocate_grid_data1_real(this%asb,  idx_dim, DOP_DCON, DOP_ACON)
-    call allocate_grid_data1_real(this%edop, idx_dim, DOP_DCON, DOP_ACON)
+    call allocate_grid_data1_real(this%ii_b,     idx_dim, DOP_DCON, DOP_ACON)
+    call allocate_grid_data1_real(this%ii_E_dop, idx_dim, DOP_DCON, DOP_ACON)
     do ci = DOP_DCON, DOP_ACON
       call this%dop(IDX_VERTEX,0,ci)%init(this%g, IDX_VERTEX, 0)
       call this%dop(IDX_CELL,  0,ci)%init(this%g, IDX_CELL,   0)
@@ -746,17 +748,17 @@ contains
 
     ! Altermatt-Schenk ionization model init
     do ci = DOP_DCON, DOP_ACON
-      call this%edop(ci)%init(this%g, IDX_VERTEX, 0)
-      call this%asb( ci)%init(this%g, IDX_VERTEX, 0)
+      call this%ii_b(    ci)%init(this%g, IDX_VERTEX, 0)
+      call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
       do i = 1, this%transport(IDX_VERTEX,0)%n
         idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-        edop = this%smc%edop(ci) / (1 + (dop(ci) / this%smc%N_asr(ci))**this%smc%asc(ci))
-        asb  = 1 / (1 + (dop(ci) / this%smc%N_asb(ci))**this%smc%asd(ci))
+        ii_b     = 1 / (1 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
+        ii_E_dop = this%smc%ii_E_dop0(ci) / (1 + (dop(ci) / this%smc%ii_N_ref(ci))**this%smc%ii_c(ci))
 
-        call this%asb(ci)%set( idx, asb)
-        call this%edop(ci)%set(idx, edop)
+        call this%ii_b(    ci)%set(idx, ii_b)
+        call this%ii_E_dop(ci)%set(idx, ii_E_dop)
       end do
     end do
 
@@ -796,7 +798,7 @@ contains
 
     integer                           :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, nct, ri
     integer, allocatable              :: idx(:)
-    real                              :: dop(2), asb(2), edop(2), p(2)
+    real                              :: dop(2), ii_b(2), ii_E_dop(2), p(2)
     type(string)                      :: name
     type(mapnode_string_int), pointer :: node
 
@@ -920,11 +922,11 @@ contains
         ! calculate phims using charge neutrality
         dop(DOP_DCON) = this%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
         dop(DOP_ACON) = this%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
-        asb(DOP_DCON) = this%asb(DOP_DCON)%get(idx)
-        asb(DOP_ACON) = this%asb(DOP_ACON)%get(idx)
-        edop(DOP_DCON) = this%edop(DOP_DCON)%get(idx)
-        edop(DOP_ACON) = this%edop(DOP_ACON)%get(idx)
-        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, asb, edop, this%smc)
+        ii_b(    DOP_DCON) = this%ii_b(    DOP_DCON)%get(idx)
+        ii_b(    DOP_ACON) = this%ii_b(    DOP_ACON)%get(idx)
+        ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
+        ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
+        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_b, ii_E_dop, this%smc)
       end if
 
       ! update contact vertex tables

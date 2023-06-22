@@ -35,7 +35,7 @@ module device_m
     type(density)                      :: dens(2)
       !! electron/hole density (carrier index)
     type(ionization)                   :: ion(2)
-      !! donor/acceptor ionization ratio (dopant index)
+      !! donor/acceptor ionization concentration (dopant index)
     type(generation_recombination)     :: genrec(2)
       !! netto recombination rate (generation - recombination)
     type(current_density), allocatable :: cdens(:,:)

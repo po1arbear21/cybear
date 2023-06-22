@@ -401,13 +401,13 @@ contains
           dnavg = 0
           do ii = 1, size(xk)
             ee = 0.5 * (eta(1) + eta(2)) + 0.5 * (eta(2) - eta(1)) * xk(ii)
-            dee = 0.5 + 0.5 * xk(ii) * [-1.0, 1.0]
+            dee = 0.5 + [-0.5, 0.5] * xk(ii)
             call fermi_dirac_integral_1h(ee, ff, dff)
             navg  =  navg + 0.5 * wk(ii) / ff
             dnavg = dnavg - 0.5 * wk(ii) / ff**2 * dff * dee
           end do
-          navg  = 1.0 / navg
           dnavg = - dnavg / navg**2
+          navg  = 1.0 / navg
 
           j       = navg * (dpot - deta)
           djddpot = navg
