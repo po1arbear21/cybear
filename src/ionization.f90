@@ -2,6 +2,7 @@ module ionization_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
+  use distributions_m, only: fermi_dirac_integral_1h
   use equation_m,      only: equation
   use error_m,         only: program_error
   use grid_m,          only: IDX_VERTEX
@@ -88,10 +89,8 @@ module ionization_m
   type, extends(equation) :: calc_generation_recombination
     !! calculate G - R
 
-    real :: tau_gen
-      !! Time constant of the generation process
-    real :: tau_rec
-      !! Time constant of the recombination process
+    real :: tau
+      !! time constant of the generation/recombination process
 
     type(device_params), pointer :: par => null()
 
@@ -102,14 +101,11 @@ module ionization_m
       !! potential variable
     type(imref),      pointer :: iref => null()
       !! imref variable
-    type(density),    pointer :: dens => null()
-      !! eletron/hole density variable
     type(ionization), pointer :: ion  => null()
       !! donor/acceptor ionization ratio
 
     type(jacobian), pointer :: jaco_pot  => null()
     type(jacobian), pointer :: jaco_iref => null()
-    type(jacobian), pointer :: jaco_dens => null()
     type(jacobian), pointer :: jaco_ion  => null()
   contains
     procedure :: init => calc_generation_recombination_init
@@ -326,21 +322,19 @@ contains
     this%kind = kind
   end subroutine
 
-  subroutine calc_generation_recombination_init(this, par, tau, genrec, pot, iref, dens, ion)
+  subroutine calc_generation_recombination_init(this, par, tau, genrec, pot, iref, ion)
     !! initialize generation-recombination equation
     class(calc_generation_recombination),   intent(inout) :: this
     type(device_params),            target, intent(in)    :: par
       !! device parameters
-    real,                                   intent(in)    :: tau(2)
-      !! time constant for generation (1) and recombination (2)
+    real,                                   intent(in)    :: tau
+      !! time constant
     type(generation_recombination), target, intent(in)    :: genrec
       !! recombination variable
     type(potential),                target, intent(in)    :: pot
       !! potential variable
     type(imref),                    target, intent(in)    :: iref
       !! imref variable
-    type(density),                  target, intent(in)    :: dens
-      !! eletron/hole density variable
     type(ionization),               target, intent(in)    :: ion
       !! ionization ratio
 
@@ -348,20 +342,17 @@ contains
 
     ! init equation and variable pointers
     call this%equation_init("calc_"//genrec%name)
-    this%tau_gen =  tau(1)
-    this%tau_rec =  tau(2)
-    this%par     => par
-    this%genrec  => genrec
-    this%pot     => pot
-    this%iref    => iref
-    this%dens    => dens
-    this%ion     => ion
+    this%tau    =  tau
+    this%par    => par
+    this%genrec => genrec
+    this%pot    => pot
+    this%iref   => iref
+    this%ion    => ion
 
     ci    = genrec%ci
     iprov = this%provide(genrec, par%dopvert(ci))
 
     ! dependencies
-    this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%dopvert(ci)), const = .false.)
     this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%dopvert(ci)), const = .false.)
     this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%dopvert(ci)), const = .false.)
     this%jaco_ion  => this%init_jaco(iprov, this%depend(ion,  par%dopvert(ci)), const = .false.)
@@ -379,13 +370,11 @@ contains
     integer              :: ci, i
     integer, allocatable :: idx(:)
     logical              :: degen
-    real                 :: b, ch, dens, dop, E_dop, edos, g, ion, iref, pot, rec, t
-    real                 :: dgenddens, dgendpot, dgendiref, dgendion
-    type(hp_real)        :: e, eta, fac, gen
+    real                 :: b, ch, dop, dens, ddens, E_dop, e, eta, fac, dfac, g, ion, iref, pot, gen, dgen, rec, drec
+    real                 :: genrec, dgenrecdeta, dgenrecdion
 
     ci    = this%genrec%ci
     ch    = CR_CHARGE(ci)
-    edos  = this%par%smc%edos(ci)
     g     = this%par%smc%ii_g(ci)
     degen = this%par%smc%degen
 
@@ -398,60 +387,54 @@ contains
       E_dop = this%par%smc%band_edge(ci) + ch * this%par%ii_E_dop(ci)%get(idx)
       dop   = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
 
-      ! ionization concentration
+      ! variables
+      pot  = this%pot%get( idx)
+      iref = this%iref%get(idx)
       ion  = this%ion%get(idx)
 
       ! generation
-      dgenddens = 0
-      dgendpot  = 0
-      dgendiref = 0
+      gen  = exp(- ch * (E_dop - this%par%smc%band_edge(ci)))
+      dgen = 0
       if (degen) then
-        dens = this%dens%get(idx)
-        pot  = this%pot%get( idx)
-        iref = this%iref%get(idx)
+        eta = - ch * (pot - iref - this%par%smc%band_edge(ci))
 
-        e   = TwoSum(pot, -iref)
-        eta = - ch * (e - this%par%smc%band_edge(ci))
-        t   = hp_to_real(eta)
-        if (t >= -17) then
-          fac       = exp(ch * (e - E_dop))
-          gen       = fac * dens / edos
-          dgenddens = hp_to_real(fac / edos)
-          dgendpot  = hp_to_real(  ch * gen)
-          dgendiref = hp_to_real(- ch * gen)
-        else
-          gen = real_to_hp(exp(- ch * (E_dop - this%par%smc%band_edge(ci))))
-          if (t >= -36) then
-            ! correction for -36 < eta < -17
-            gen       =                  gen / (1.0 + exp( eta) * alpha)
-            dgendpot  = hp_to_real( ch * gen / (1.0 + exp(-eta) / alpha))
-            dgendiref = hp_to_real(-ch * gen / (1.0 + exp(-eta) / alpha))
-          end if
+        ! get normalized density
+        call fermi_dirac_integral_1h(eta, dens, ddens)
+
+        ! update generation rate
+        if (eta >= -17) then
+          e    = exp(-eta)
+          dgen = gen * e * (ddens - dens)
+          gen  = gen * e * dens
+        elseif (eta >= -36) then
+          e    = exp(eta)
+          fac  = 1.0 / (1.0 + alpha * e)
+          dfac = - alpha * e * fac**2
+          dgen = gen * dfac
+          gen  = gen * fac
         end if
       else
-        gen = real_to_hp(exp(- ch * (E_dop - this%par%smc%band_edge(ci))))
+        ! get normalized density for Maxwell-Boltzmann statistics
+        eta = - ch * (pot - iref) - 0.5 * this%par%smc%band_gap
+        e     = exp(eta)
+        dens  = sqrt(this%par%smc%edos(1) * this%par%smc%edos(2)) / this%par%smc%edos(ci) * e
+        ddens = dens
       end if
 
-      dgendion  = - hp_to_real(gen) / this%tau_gen
-      gen       = gen * TwoSum(dop, - ion) / this%tau_gen
-      dgenddens = dgenddens * (dop  - ion) / this%tau_gen
-      dgendpot  = dgendpot  * (dop  - ion) / this%tau_gen
-      dgendiref = dgendiref * (dop  - ion) / this%tau_gen
-
       ! recombination
-      rec = dens * (ion - (1 - b) * dop)/ (edos * g * this%tau_rec)
+      rec  = dens / g
+      drec = ddens / g
 
       ! combined rate
-      gen       = gen - rec
-      dgenddens = dgenddens - (ion - (1 - b) * dop) / (edos * g * this%tau_rec)
-      dgendion  = dgendion  - dens                  / (edos * g * this%tau_rec)
+      genrec      = hp_to_real((TwoSum(gen, (1 - b) * rec) * dop - TwoSum(gen, rec) * ion) / this%tau)
+      dgenrecdeta = ((dgen + (1 - b) * drec) * dop - (dgen + drec) * ion) / this%tau
+      dgenrecdion = - (gen + rec) / this%tau
 
       ! save
-      call this%genrec%set(idx, hp_to_real(gen))
-      call this%jaco_dens%set(idx, idx, dgenddens)
-      call this%jaco_pot%set( idx, idx, dgendpot)
-      call this%jaco_iref%set(idx, idx, dgendiref)
-      call this%jaco_ion%set( idx, idx, dgendion)
+      call this%genrec%set(idx, genrec)
+      call this%jaco_pot%set( idx, idx, -ch * dgenrecdeta)
+      call this%jaco_iref%set(idx, idx,  ch * dgenrecdeta)
+      call this%jaco_ion%set( idx, idx,       dgenrecdion)
     end do
   end subroutine
 

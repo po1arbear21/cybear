@@ -88,7 +88,7 @@ program main
         ibl = dev%sys_full%res2block(iion)%d(itab)
         i0 = dev%sys_full%i0(ibl)
         i1 = dev%sys_full%i1(ibl)
-        opt_full%xmin(i0:i1) = 0.0
+        ! opt_full%xmin(i0:i1) = norm(1e-10, "1/cm^3")
         ! opt_full%xmax(i0:i1) = 1.0 FIXME: dop
       end do
 
@@ -97,10 +97,12 @@ program main
         ibl = dev%sys_dd(ci)%res2block(iion)%d(itab)
         i0 = dev%sys_dd(ci)%i0(ibl)
         i1 = dev%sys_dd(ci)%i1(ibl)
-        opt_dd(ci)%xmin(i0:i1) = 0.0
+        ! opt_dd(ci)%xmin(i0:i1) = norm(1e-10, "1/cm^3")
         ! opt_dd(ci)%xmax(i0:i1) = 1.0 FIXME: dop
       end do
     end do
+
+opt_full%error_if_not_converged = .false.
   end block
 
 
@@ -207,10 +209,60 @@ contains
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
 
 ! block
-!   use normalization_m
-!   use grid_m
+!   use matrix_m
 
-!   ! integer :: i, funit
+!   integer :: ii, n, funit
+!   real, allocatable :: f(:), x(:), dx(:)
+!   type(sparse_real) :: df
+
+!   n = dev%sys_full%n
+!   allocate (f(n), x(n), dx(n))
+
+!   x = dev%sys_full%get_x()
+!   call dev%sys_full%eval(f = f, df = df)
+
+!   call df%output(file = "df")
+!   call df%factorize()
+!   call df%solve_vec(f, dx)
+
+!   open (newunit = funit, file = "t", status = "replace", action = "write")
+!   do ii = 1, dev%sys_full%n
+!     write (funit, "(I6,3ES25.16E3)") ii, f(ii), x(ii), dx(ii)
+!   end do
+!   close (funit)
+
+!   call dev%sys_full%print()
+
+!   print *
+!   print *, "test ion_contin"
+!   call dev%ion_contin(1)%test(1000)
+!   print *
+!   print *, "test calc_iref"
+!   call dev%calc_iref(1)%test(1000, no_sign_change = [.false., .true.])
+!   print *
+!   print *, "test calc_genrec"
+!   call dev%calc_genrec(1)%test(1000, no_sign_change = [.false., .false., .true.])
+!   print *
+!   print *, "test calc_cdens"
+!   call dev%calc_cdens(1,1)%test(1000, no_sign_change = [.false., .true., .true.])
+
+!   stop
+! end block
+
+block
+  use normalization_m
+  use grid_m
+
+  integer :: i, funit, icurr
+
+  icurr = dev%sys_full%search_main_var("currents")
+
+  do i = 1, nsweep
+    call ss%select(i)
+
+    print "(2ES25.16E3)", denorm(dev%volt(2)%x, "V"), denorm(dev%curr(2)%x, "A")
+  end do
+
 
 !   ! ! call dev%calc_cdens(1,1)%test()
 !   ! ! call dev%calc_cdens(1,2)%test()
@@ -376,7 +428,7 @@ contains
 !   ! close (funit)
 
 !   ! stop
-! end block
+end block
     end do
   end subroutine
 

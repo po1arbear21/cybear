@@ -163,9 +163,8 @@ contains
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer           :: sid
-    logical           :: elec, hole
-    real, allocatable :: tau_tmp(:)
+    integer :: sid
+    logical :: elec, hole
 
     ! find transport parameters section id
     call file%get_section("transport parameters", sid)
@@ -192,8 +191,7 @@ contains
     call file%get(sid, "N_ref",      this%smc%N_ref)
     call file%get(sid, "v_sat",      this%smc%v_sat)
     call file%get(sid, "curr_fact",  this%curr_fact)
-    call file%get(sid, "rec_tau",    tau_tmp)
-    this%smc%rec_tau = reshape(tau_tmp, [2, 2])
+    call file%get(sid, "genrec_tau", this%smc%genrec_tau)
 
     ! incomplete ionization
     call file%get(sid, "incomp_ion", this%smc%incomp_ion)
@@ -206,19 +204,20 @@ contains
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
-    m4_assert(size(this%smc%mass)      == 2)
-    m4_assert(size(this%smc%alpha)     == 2)
-    m4_assert(size(this%smc%beta)      == 2)
-    m4_assert(size(this%smc%mob_min)   == 2)
-    m4_assert(size(this%smc%mob_max)   == 2)
-    m4_assert(size(this%smc%N_ref)     == 2)
-    m4_assert(size(this%smc%v_sat)     == 2)
-    m4_assert(size(this%smc%ii_E_dop0) == 2)
-    m4_assert(size(this%smc%ii_N_ref)  == 2)
-    m4_assert(size(this%smc%ii_c)      == 2)
-    m4_assert(size(this%smc%ii_N_b)    == 2)
-    m4_assert(size(this%smc%ii_d)      == 2)
-    m4_assert(size(this%smc%ii_g)      == 2)
+    m4_assert(size(this%smc%mass)       == 2)
+    m4_assert(size(this%smc%alpha)      == 2)
+    m4_assert(size(this%smc%beta)       == 2)
+    m4_assert(size(this%smc%mob_min)    == 2)
+    m4_assert(size(this%smc%mob_max)    == 2)
+    m4_assert(size(this%smc%N_ref)      == 2)
+    m4_assert(size(this%smc%v_sat)      == 2)
+    m4_assert(size(this%smc%genrec_tau) == 2)
+    m4_assert(size(this%smc%ii_E_dop0)  == 2)
+    m4_assert(size(this%smc%ii_N_ref)   == 2)
+    m4_assert(size(this%smc%ii_c)       == 2)
+    m4_assert(size(this%smc%ii_N_b)     == 2)
+    m4_assert(size(this%smc%ii_d)       == 2)
+    m4_assert(size(this%smc%ii_g)       == 2)
   end subroutine
 
   subroutine device_params_init_regions(this, file)
@@ -754,7 +753,8 @@ contains
         idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-        ii_b     = 1 / (1 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
+        ! ii_b = 1.0
+        ii_b = 1.0 / (1.0 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
         ii_E_dop = this%smc%ii_E_dop0(ci) / (1 + (dop(ci) / this%smc%ii_N_ref(ci))**this%smc%ii_c(ci))
 
         call this%ii_b(    ci)%set(idx, ii_b)

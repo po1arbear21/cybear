@@ -140,7 +140,7 @@ contains
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
         call this%calc_ion(ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
-        call this%calc_genrec(ci)%init(this%par, this%par%smc%rec_tau(:,ci), this%genrec(ci), this%pot, this%iref(ci), this%dens(ci), this%ion(ci))
+        call this%calc_genrec(ci)%init(this%par, this%par%smc%genrec_tau(ci), this%genrec(ci), this%pot, this%iref(ci), this%ion(ci))
         call this%ion_contin(ci)%init(this%par, this%ion(ci), this%genrec(ci))
       end if
       do idx_dir = 1, this%par%g%idx_dim
