@@ -7,6 +7,7 @@ module esystem_depgraph_m
   use hashmap_m,         only: hashmap_int
   use jacobian_chain_m,  only: jacobian_chain, jacobian_add_chain, jacobian_mul_chain, jacobian_chain_ptr, vector_jacobian_chain_ptr
   use jacobian_matrix_m, only: jacobian_matrix, jacobian_matrix_ptr, vector_jacobian_matrix_ptr
+  use qsort_m,           only: qsort
   use res_equation_m,    only: res_equation
   use vector_m,          only: vector_int
   use vselector_m,       only: vselector
@@ -14,7 +15,7 @@ module esystem_depgraph_m
   implicit none
 
   private
-  public depgraph
+  public depgraph, depgraph_equ
   public STATUS_DEP, STATUS_PROV, STATUS_MAIN, STATUS_RES
 
   ! node status
@@ -97,6 +98,11 @@ module esystem_depgraph_m
       !! indices of provided variable nodes
     logical                  :: evaluated
       !! evaluation flag for traversal
+
+    integer :: eval_idx
+    integer :: feval_idx
+    integer :: eval_block
+      !! parallelization eval index and block
   contains
     procedure :: init => depgraph_equ_init
   end type
@@ -118,6 +124,12 @@ module esystem_depgraph_m
       !! main variable indices
     type(vector_int)          :: ieval
       !! equation evaluation list
+    integer, allocatable      :: ieblks(:)
+      !! equation evaulation list indices for parallelization
+    integer                   :: neblks
+      !! number of evaluation blocks
+    integer, allocatable      :: ieval_final(:)
+      !! final equation evaluation list
     logical                   :: precon
       !! preconditioner flag
   contains
@@ -287,7 +299,7 @@ contains
     type(depgraph), intent(inout) :: g
 
     integer, parameter :: CAP = 8
-    integer :: i
+    integer :: i, max_eval
 
     ! check if this node was already visited
     if (this%visited) then
@@ -361,9 +373,21 @@ contains
       ! add equation to evaluation list
       if (.not. e%evaluated) then
         call g%ieval%push(this%iequ)
+        g%equs%d(this%iequ)%eval_idx = g%ieval%n
         e%evaluated = .true.
       end if
     end associate
+
+    max_eval = 0
+    do i = 1, this%parents%n
+      associate (parent => g%nodes%d(this%parents%d(i))%p)
+        ! get maximum eval block of valid (no res equs) parent equations
+        if (parent%iequ > 0 .and. g%equs%d(parent%iequ)%ires == -1 .and. g%equs%d(parent%iequ)%eval_block > max_eval) then
+          max_eval = g%equs%d(parent%iequ)%eval_block
+        end if
+      end associate
+    end do
+    g%equs%d(this%iequ)%eval_block = max_eval + 1
 
   contains
 
@@ -503,9 +527,11 @@ contains
     integer :: iprov, iprov_f
 
     ! set simple members
-    this%id        =  id
-    this%e         => e
-    this%evaluated =  .false.
+    this%id         =  id
+    this%e          => e
+    this%evaluated  = .false.
+    this%eval_block = 0
+    this%eval_idx   = 0
 
     ! main variable + residuals
     iprov_f = -1
@@ -540,12 +566,12 @@ contains
 
     this%precon = precon
 
-    call this%equs%init( 0, c = CAP)
-    call this%nodes%init(0, c = CAP)
-    call this%hnodes%init(  c = CAP)
-    call this%ires%init( 0, c = CAP)
-    call this%imvar%init(0, c = CAP)
-    call this%ieval%init(0, c = CAP)
+    call this%equs%init(  0, c = CAP)
+    call this%nodes%init( 0, c = CAP)
+    call this%hnodes%init(   c = CAP)
+    call this%ires%init(  0, c = CAP)
+    call this%imvar%init( 0, c = CAP)
+    call this%ieval%init( 0, c = CAP)
   end subroutine
 
   subroutine depgraph_destruct(this)
@@ -563,6 +589,8 @@ contains
     call this%ires%destruct()
     call this%imvar%destruct()
     call this%ieval%destruct()
+    deallocate(this%ieblks)
+    deallocate(this%ieval_final)
   end subroutine
 
   subroutine depgraph_add_equ(this, e)
@@ -646,7 +674,8 @@ contains
     !! analyze dependency graph: get evaluation list etc.
     class(depgraph), intent(inout) :: this
 
-    integer :: i
+    integer              :: i, off, last
+    integer, allocatable :: x(:), perm(:)
 
     ! analyze nodes, start with residuals
     do i = 1, this%ires%n
@@ -656,9 +685,41 @@ contains
         end associate
       end associate
     end do
+
+    ! get block and sort evaluation list
+    allocate(x(   this%equs%n))
+    allocate(perm(this%equs%n))
+    off = this%equs%n - this%ieval%n 
+
+    do i = 1, this%equs%n
+      x(i) = this%equs%d(i)%eval_block
+    end do
+
+    call qsort(x, perm)
+
+    ! Apply permutation
+    allocate(this%ieval_final(this%ieval%n))
+    do i = 1 + off, size(x)
+      this%ieval_final(i - off) = perm(i)
+      this%equs%d(perm(i))%feval_idx = i - off
+    end do
+
+    ! Set evaluation blocks as pointers to elements in ieval_final + additional last element
+    this%neblks = x(this%equs%n)
+    allocate (this%ieblks(this%neblks + 1))
+    last = 0
+    do i = off+1, size(x)
+      if (x(i) <= last) cycle
+      last = last + 1
+      this%ieblks(last) = i - off
+    end do
+    this%ieblks(last+1) = size(x) + 1 - off
+
+    deallocate(x)
+    deallocate(perm)
   end subroutine
 
-  subroutine depgraph_output(this, fname, pdf, png, svg)
+  subroutine depgraph_output(this, fname, pdf, png, svg, eval_list)
     !! create output of dependency graph.
     !!
     !! always outputs graphviz file: `fname//'.gv'`
@@ -675,10 +736,12 @@ contains
       !! create png file (default: false)
     logical, optional, intent(in) :: svg
       !! create svg file (default: false)
+    logical, optional, intent(in) :: eval_list
+      !! Print the evaluation order of equations
 
     character(len=*), parameter :: COLOR(0:3) = ['red  ', 'black', 'blue ', 'green']
     integer :: iounit, i, j
-    logical :: pdf_, png_, svg_
+    logical :: pdf_, png_, svg_, eval_list_
 
     ! optional args
     pdf_ = .true.
@@ -687,6 +750,8 @@ contains
     if (present(png)) png_ = png
     svg_ = .false.
     if (present(svg)) svg_ = svg
+    eval_list_ = .false.
+    if (present(eval_list)) eval_list_ = eval_list
 
     ! create file + write header
     open (newunit=iounit, file=fname//'.gv', action='WRITE')
@@ -703,7 +768,11 @@ contains
         write (iounit, '(2A)', advance='no') 'color=', trim(COLOR(n%status))
         write (iounit, '(2A)', advance='no') ' label="', n%v%name
         if (n%iequ > 0) then
-          write (iounit, '(2A)', advance='no') '\n', this%equs%d(n%iequ)%e%name
+          if (eval_list_) then
+            write (iounit, '(2A,I3.3,A,I3.3,A,I3.3,A)', advance='no') '\n', this%equs%d(n%iequ)%e%name // " (", this%equs%d(n%iequ)%eval_idx, "|", this%equs%d(n%iequ)%eval_block, "|", this%equs%d(n%iequ)%feval_idx, ")"
+          else
+            write (iounit, '(2A)', advance='no') '\n', this%equs%d(n%iequ)%e%name
+          end if
         end if
         write (iounit, '(A)', advance='no') '"'
         write (iounit, '(A)', advance='no') ' penwidth=2.0'
@@ -723,6 +792,10 @@ contains
         end do
       end associate
     end do
+
+    if (eval_list_) then
+      write (iounit, '(A)') 'explainer [color=orange label="provided vselector\nEquation (ieval_orig | eval_block | ieval_final)" penwidth=2.0]'
+    end if
 
     ! finish
     m4_changequote([,])
