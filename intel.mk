@@ -1,6 +1,6 @@
-# intel fortran compiler flags
+# intel fortran compiler flags, removed "-march=native" from flags
 FC     := ifort
-FFLAGS := -march=native -warn all -qopenmp -fp-model precise -real-size 64 -fpp
+FFLAGS := -warn all -qopenmp -fp-model precise -real-size 64 -fpp
 ifeq ($(BUILD),debug)
   FFLAGS += -O0 -qmkl=sequential -g -check all -check noarg_temp_created -fpe1 -traceback -debug extended -init=huge
 endif
