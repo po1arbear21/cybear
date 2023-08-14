@@ -97,21 +97,26 @@ contains
     real, intent(in) :: x
     real             :: dbdx
 
-    if (x < 0) then
-      dbdx = - dberdx(-x) - 1
-    elseif (x > 1e2) then
-      dbdx = (1 - x) * exp(-x)
-    elseif (x > 0.075) then
-      dbdx = (2.0 * exp(-0.5 * x) * sinh(0.5 * x) - x) / (4.0 * sinh(0.5 * x)**2)
-    elseif (x > 0.025) then
-      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2*(1.0/810 - x**2*(1.0/68040 + x**2/6123600)))) - 1)
-    elseif (x > 1e-3) then
-      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2*(1.0/810 - x**2/68040))) - 1)
-    elseif (x > 1e-5) then
-      dbdx = 0.5 * (tanh(x*(1.0/3 + x**2/810)) - 1)
+    real :: x_
+
+    x_ = x
+    if (x < 0) x_ = -x
+
+    if (x_ > 1e2) then
+      dbdx = (1 - x_) * exp(-x_)
+    elseif (x_ > 0.075) then
+      dbdx = (2.0 * exp(-0.5 * x_) * sinh(0.5 * x_) - x_) / (4.0 * sinh(0.5 * x_)**2)
+    elseif (x_ > 0.025) then
+      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2*(1.0/810 - x_**2*(1.0/68040 + x_**2/6123600)))) - 1)
+    elseif (x_ > 1e-3) then
+      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2*(1.0/810 - x_**2/68040))) - 1)
+    elseif (x_ > 1e-5) then
+      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2/810)) - 1)
     else
-      dbdx = 0.5 * (tanh(x/3) - 1)
+      dbdx = 0.5 * (tanh(x_/3) - 1)
     end if
+
+    if (x < 0) dbdx = - dbdx - 1
   end function
 
   elemental function phi1(x) result(phi)
