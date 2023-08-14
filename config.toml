@@ -1,0 +1,43 @@
+[project]
+  # Not important, will be used to name graph file
+  name = "fbasic"
+
+  # Optionally provide the source directory, defaults to "$PWD/src"
+  # sources = "src"
+
+[compilation]
+  # Absolute or relative path to build directory
+  # Since the actual compilation takes place in another subdirectory
+  # named after the used compiler and mode, the build directory of the
+  # "old" Makefile can also be used here.
+  build = "build"
+
+  # Either intel or gnu compiler
+  compiler = "gnu"
+
+  # Choose between debug, profile and release
+  mode = "release"
+
+[libraries]
+  # Set wanted libraries to true to include the libraries when linking the program
+  ARPACK   = false
+  EXPOKIT  = false
+  FEAST    = false
+  ILUPACK  = false
+  MUMPS    = false
+  QUADPACK = false
+  MPFR     = false
+  TRIANGLE = true
+
+[options]
+  INTSIZE = 32
+  IDXSIZE = 32
+
+[M4]
+    # The m4 configuration is general and not compiler specific.
+    # Automatic variables: m4_debug, m4_gnu, m4_intel, m4_intsize, m4_idxsize
+    # Additionally each library will be packed as variable, i.e. QUADPACK -> m4_quadpack
+    # M4 = "m4"
+    # FLAGS = ["-P", "-s"]
+    # Defined variables will be appended to the flags
+    # VARS = {}

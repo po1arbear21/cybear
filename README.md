@@ -19,6 +19,27 @@ $ git merge upstream/master
 ```
 
 ## Usage
+### FMake
+Configuration of libraries, intsizes and compiler can be found in ´config.toml´.
+
+To compile all programs run: 
+```bash
+$ ./fmake
+```
+
+The executables can be found in the subdirectory `<compiler>-<mode>/` of the configured build directory.
+
+For more information on how to use the command, run 
+```bash
+$ ./fmake -h
+```
+
+To *clean* build files run
+
+```bash
+$ ./fmake clean
+```
+
 ### Makefile
 Set default options in *options.mk*.
 
