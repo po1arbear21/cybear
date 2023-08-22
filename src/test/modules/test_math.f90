@@ -32,8 +32,8 @@ contains
       axa_exp = 0
       axb_exp = [-4, 8, -4]
 
-      call tc%assert_eq(axa_exp, axa, 1e-15, "cross product 1")
-      call tc%assert_eq(axb_exp, axb, 1e-15, "cross product 2")
+      call tc%assert_eq(axa_exp, axa, 1e-14, 1e-16, "cross product 1")
+      call tc%assert_eq(axb_exp, axb, 1e-14, 1e-16, "cross product 2")
     end block
 
     ! cross product 2d
@@ -51,8 +51,8 @@ contains
       axa_exp =  0.0
       axb_exp = -3.0
 
-      call tc%assert_eq(axa_exp, axa, 1e-15, "cross product 2d 1")
-      call tc%assert_eq(axb_exp, axb, 1e-15, "cross product 2d 2")
+      call tc%assert_eq(axa_exp, axa, 1e-14, 1e-16, "cross product 2d 1")
+      call tc%assert_eq(axb_exp, axb, 1e-14, 1e-16, "cross product 2d 2")
     end block
 
     ! heaviside
@@ -64,7 +64,7 @@ contains
       y_exp = [   0.0,   0.0,  0.0,          0.5, 1.0,           1.0,   1.0]
 
       y     = heaviside(x)
-      call tc%assert_eq(y_exp, y, 1e-15, "heavyside")
+      call tc%assert_eq(y_exp, y, 1e-14, 1e-16, "heavyside")
     end block
 
     ! isinf(x)
@@ -91,9 +91,9 @@ contains
 
       y     = ber(x)
 
-      call tc%assert_eq(y_exp, y, 1e-13, "ber(x) values")
-      call tc%assert_eq(y(5), ber(ieee_next_after(-1e-6,-1.0)), 1e-15, "ber(x) smoothness negative")
-      call tc%assert_eq(y(6), ber(ieee_next_after( 1e-6, 1.0)), 1e-15, "ber(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                               1e-12, 1e-14, "ber(x) values")
+      call tc%assert_eq(y(5), ber(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "ber(x) smoothness negative")
+      call tc%assert_eq(y(6), ber(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "ber(x) smoothness positive")
     end block
 
     ! dberdx(x)
@@ -105,9 +105,9 @@ contains
       y_exp = [-0.5, -0.9726352905053439,  - 1.0, -0.00000428263520,-0.5000001666666667, -0.4999998333333333]
 
       y     = dberdx(x)
-      call tc%assert_eq(y_exp, y,                                   1e-15, "dberdx(x) values"             )
-      call tc%assert_eq(y(5),  dberdx(ieee_next_after(-1e-6,-1.0)), 1e-8,  "dberdx(x) smoothness negative")
-      call tc%assert_eq(y(6),  dberdx(ieee_next_after( 1e-6, 1.0)), 1e-8,  "dberdx(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                                   1e-12, 1e-14, "dberdx(x) values"             )
+      call tc%assert_eq(y(5),  dberdx(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "dberdx(x) smoothness negative")
+      call tc%assert_eq(y(6),  dberdx(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "dberdx(x) smoothness positive")
     end block
 
     ! phi1(x)
@@ -120,9 +120,9 @@ contains
 
       y     = phi1(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15, "phi1(x) values")
-      call tc%assert_eq(y(4), phi1(ieee_next_after(-1e-6,-1.0)), 1e-15, "phi1(x) smoothness negative")
-      call tc%assert_eq(y(5), phi1(ieee_next_after( 1e-6, 1.0)), 1e-15, "phi1(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                                1e-14, 1e-16, "phi1(x) values")
+      call tc%assert_eq(y(4), phi1(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "phi1(x) smoothness negative")
+      call tc%assert_eq(y(5), phi1(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "phi1(x) smoothness positive")
     end block
 
     ! dphi1dx
@@ -135,9 +135,9 @@ contains
 
       y     = dphi1dx(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15, "dphi1dx(x) values")
-      call tc%assert_eq(y(4), dphi1dx(ieee_next_after(-1e-6,-1.0)), 1e-9, "dphi1dx(x) smoothness negative")
-      call tc%assert_eq(y(5), dphi1dx(ieee_next_after( 1e-6, 1.0)), 1e-9, "dphi1dx(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                               1e-14, 1e-16, "dphi1dx(x) values")
+      call tc%assert_eq(y(4), dphi1dx(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "dphi1dx(x) smoothness negative")
+      call tc%assert_eq(y(5), dphi1dx(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "dphi1dx(x) smoothness positive")
     end block
 
     ! phi2(x)
@@ -150,9 +150,9 @@ contains
 
       y     = phi2(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15, "phi2(x) values")
-      call tc%assert_eq(y(4), phi2(ieee_next_after(-0.2,-1.0)), 1e-15, "phi2(x) smoothness negative")
-      call tc%assert_eq(y(5), phi2(ieee_next_after( 0.2, 1.0)), 1e-15, "phi2(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                               1e-14, 1e-16, "phi2(x) values")
+      call tc%assert_eq(y(4), phi2(ieee_next_after(-0.2,-1.0)), 1e-14, 1e-16, "phi2(x) smoothness negative")
+      call tc%assert_eq(y(5), phi2(ieee_next_after( 0.2, 1.0)), 1e-14, 1e-16, "phi2(x) smoothness positive")
     end block
 
     ! dphi2dx
@@ -165,9 +165,9 @@ contains
 
       y     = dphi2dx(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15, "dphi2dx(x) values")
-      call tc%assert_eq(y(4), dphi2dx(ieee_next_after(-0.2,-1.0)), 1e-13, "dphi2dx(x) smoothness negative")
-      call tc%assert_eq(y(5), dphi2dx(ieee_next_after( 0.2, 1.0)), 1e-13, "dphi2dx(x) smoothness positive")
+      call tc%assert_eq(y_exp, y,                                  1e-14, 1e-16, "dphi2dx(x) values")
+      call tc%assert_eq(y(4), dphi2dx(ieee_next_after(-0.2,-1.0)), 1e-12, 1e-14, "dphi2dx(x) smoothness negative")
+      call tc%assert_eq(y(5), dphi2dx(ieee_next_after( 0.2, 1.0)), 1e-12, 1e-14, "dphi2dx(x) smoothness positive")
     end block
 
     ! expm1 -> exp(x) - 1
@@ -180,7 +180,7 @@ contains
 
       y     = expm1(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15, "expm1 (exp(x) - 1)")
+      call tc%assert_eq(y_exp, y, 1e-14, 1e-16, "expm1 (exp(x) - 1)")
     end block
 
     ! log1p(x) -> log(1+x)
@@ -193,7 +193,7 @@ contains
 
       y     = log1p(x)
 
-      call tc%assert_eq(y_exp, y, 1e-15,                                  "log1p (log(1+x)")
+      call tc%assert_eq(y_exp, y, 1e-13, 1e-15,                           "log1p (log(1+x)")
       call tc%assert((ieee_value(1.0, ieee_negative_inf) == log1p(-1.0)), "log1p x=-1 y=-inf")
     end block
 
@@ -214,7 +214,7 @@ contains
 
         dif     = [(list(j+1) - list(j), j = 1, n(i)-1)]
 
-        call tc%assert_eq(dif_exp, dif, 1e-15*abs(b(i)-a(i)), "linspace "//int2str(i))
+        call tc%assert_eq(dif_exp, dif, 1e-14, 1e-16, "linspace "//int2str(i))
       end do
     end block
 
@@ -235,7 +235,7 @@ contains
 
         quot     = [(list(j+1)/list(j), j = 1, n(i)-1)] ! taking the difference between the j-th and (j+1)th element
 
-        call tc%assert_eq(quot_exp, quot, 1e-12, "logspace "//int2str(i))
+        call tc%assert_eq(quot_exp, quot, 1e-14, 1e-16, "logspace "//int2str(i))
       end do
 
     end block
@@ -263,7 +263,7 @@ contains
 
       b = matmul(e, a)
 
-      call tc%assert_eq(a, b, 1e-15, "eye_int")
+      call tc%assert_eq(a, b, 1e-14, 1e-16, "eye_int")
     end block
 
     ! norm_inf
@@ -276,7 +276,7 @@ contains
 
       b = norm_inf(a)
 
-      call tc%assert_eq(b_exp, b, 1e-15, "norm_inf")
+      call tc%assert_eq(b_exp, b, 1e-14, 1e-16, "norm_inf")
     end block
 
     ! check linear dependence
@@ -327,7 +327,7 @@ contains
 
       yq = [(interp1(x, y, xq(i)), i = 1, 5)]
 
-      call tc%assert_eq(y_exp, yq, 1e-15, "interp1")
+      call tc%assert_eq(y_exp, yq, 1e-14, 1e-16, "interp1")
     end block
 
     ! roots
@@ -338,32 +338,32 @@ contains
       ! f(x) = 4 + x
       p1 = [ 4.0 ]
       r1 = roots(p1)
-      call tc%assert_eq(cmplx([-4.0]), r1, 1e-14, "roots 1")
+      call tc%assert_eq(cmplx([-4.0]), r1, 1e-14, 1e-16, "roots 1")
 
       ! f(x) = 2 - 3x + x² = (x-1)(x-2)
       p2 = [ 2.0, -3.0 ]
       r2 = roots(p2)
-      call tc%assert_eq(cmplx([1.0, 2.0]), r2, 1e-14, "roots 2")
+      call tc%assert_eq(cmplx([1.0, 2.0]), r2, 1e-14, 1e-16, "roots 2")
 
       ! f(x) = 2 - x - 2x² + x³ = (x+1)(x-1)(x-2)
       p3 = [ 2.0, -1.0, -2.0 ]
       r3 = roots(p3)
-      call tc%assert_eq(cmplx([-1.0, 1.0, 2.0]), r3, 1e-14, "roots 3a")
+      call tc%assert_eq(cmplx([-1.0, 1.0, 2.0]), r3, 1e-14, 1e-16, "roots 3a")
 
       ! f(x) = -2 + x - 2x² + x³ = (x+i)(x-i)(x-2)
       p3 = [ -2.0, 1.0, -2.0 ]
       r3 = roots(p3)
-      call tc%assert_eq([cmplx(0.0, -1.0), cmplx(0.0, 1.0), cmplx(2.0, 0.0)], r3, 1e-14, "roots 3b")
+      call tc%assert_eq([cmplx(0.0, -1.0), cmplx(0.0, 1.0), cmplx(2.0, 0.0)], r3, 1e-14, 1e-16, "roots 3b")
 
       ! f(x) = -36x + 49x³ - 14x⁵ + x⁷ = (x+3)(x+2)(x+1)x(x-1)(x-2)(x-3)
       p4 = [ 0.0, -36.0, 0.0, 49.0, 0.0, -14.0, 0.0]
       r4 = roots(p4)
-      call tc%assert_eq(cmplx([-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0]), r4, 1e-14, "roots 4")
+      call tc%assert_eq(cmplx([-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0]), r4, 1e-14, 1e-16, "roots 4")
 
       ! f(x) = 1 + x² = (x-i)(x+i)
       p5 = [ 1.0, 0.0 ]
       r5 = roots(p5)
-      call tc%assert_eq(cmplx([0.0, 0.0], [-1.0, 1.0]), r5, 1e-14, "roots 5")
+      call tc%assert_eq(cmplx([0.0, 0.0], [-1.0, 1.0]), r5, 1e-14, 1e-16, "roots 5")
     end block
 
     ! polyg_area_2d, matlab example: https://de.mathworks.com/help/matlab/ref/polyarea.html
@@ -378,7 +378,7 @@ contains
       end do
 
       A = polyg_area_2d(p)
-      call tc%assert_eq(4.0729, A, 1e-4, "polyg_area_2d")
+      call tc%assert_eq(4.0729, A, 1e-4, 1e-16, "polyg_area_2d")
     end block
 
     call tc%finish()

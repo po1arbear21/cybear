@@ -134,8 +134,8 @@ contains
     ! solve esystem
     call es%solve()
 
-    call tc%assert_eq([(-0.5, i=1, 4)], x%d%data, 1e-14, "es: solve: result x" )
-    call tc%assert_eq([(-1.0, i=1, 4)], z%d%data, 1e-14, "es: solve: result z" )
+    call tc%assert_eq([(-0.5, i=1, 4)], x%d%data, 1e-12, 1e-16, "es: solve: result x" )
+    call tc%assert_eq([(-1.0, i=1, 4)], z%d%data, 1e-12, 1e-16, "es: solve: result z" )
 
     ! destruct esystem
     call es%destruct()

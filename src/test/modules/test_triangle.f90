@@ -34,7 +34,7 @@ subroutine test_triangle()
 
   call tc%assert_eq([0.00, 0.30, 0.10, 0.10, 0.40, 0.00, 0.70, 0.10, 0.80, 0.50, 0.60, 0.60, 0.20, &
       &              0.60, 0.20, 0.20, 0.50, 0.10, 0.60, 0.30, 0.40, 0.45], &
-      &               tr%xy%d(1:tr%xy%n), 1e-14,  "triangle: points")
+      &               tr%xy%d(1:tr%xy%n), 1e-14, 1e-16, "triangle: points")
 
   call tr%init()
   call tr%add_polygon([0.0, 0.1, 0.4, 0.7, 0.8, 0.6, 0.2], [0.3, 0.1, 0.0, 0.1, 0.5, 0.6, 0.6], closed = .true.)
@@ -61,7 +61,7 @@ subroutine test_triangle()
     &                0.595, 0.371, 0.539, 0.480, 0.551, 0.421, 0.449, 0.526, 0.500, 0.600, 0.550, 0.545, 0.675, 0.521, &
     &                0.621, 0.475, 0.750, 0.300, 0.714, 0.456, 0.675, 0.339, 0.650, 0.417, 0.550, 0.200, 0.725, 0.200, &
     &                0.675, 0.259, 0.638, 0.199, 0.600, 0.125], &
-    &               tr%xy%d(1:tr%xy%n), 0.001, "triangle: points max_area")
+    &               tr%xy%d(1:tr%xy%n), 0.001, 0.001, "triangle: points max_area")
 
   call tr%get_grid("tr", g)
   call tc%assert_eq(tr%xy%n/2, size(g%vert, dim = 2), "triangle: get_grid")

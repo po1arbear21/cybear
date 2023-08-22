@@ -46,10 +46,10 @@ contains
       type(string) :: s, s_exp
 
       call mr%init_set(1.0)
-      call tc%assert_eq(1.0, mr%to_real(), 0.0, "init_set real")
+      call tc%assert_eq(1.0, mr%to_real(), 0.0, 0.0, "init_set real")
 
       call mm%init_set(mr)
-      call tc%assert_eq(1.0, mm%to_real(), 0.0, "init_set mpfr")
+      call tc%assert_eq(1.0, mm%to_real(), 0.0, 0.0, "init_set mpfr")
 
       call mi%init_set(1)
       call tc%assert_eq(1, mi%to_int(), "init_set int")

@@ -20,20 +20,20 @@ contains
     call tc%init("distributions")
 
     ! MB
-    call tc%assert_eq( 1.0,         maxwell_boltzmann(0.0), epsilon(1.0), "MB")
-    call tc%assert_eq( exp(-2.0),   maxwell_boltzmann(2.0), epsilon(1.0), "MB")
-    call tc%assert_eq(-1.0,       d_maxwell_boltzmann(0.0), epsilon(1.0), "MB")
-    call tc%assert_eq(-exp(-2.0), d_maxwell_boltzmann(2.0), epsilon(1.0), "MB")
+    call tc%assert_eq( 1.0,         maxwell_boltzmann(0.0), 1e-15, 1e-16, "MB")
+    call tc%assert_eq( exp(-2.0),   maxwell_boltzmann(2.0), 1e-15, 1e-16, "MB")
+    call tc%assert_eq(-1.0,       d_maxwell_boltzmann(0.0), 1e-15, 1e-16, "MB")
+    call tc%assert_eq(-exp(-2.0), d_maxwell_boltzmann(2.0), 1e-15, 1e-16, "MB")
 
     ! BE
-    call tc%assert_eq( 0.99999950000008333e6,   bose_einstein(1e-6), 1e-9,         "BE")
-    call tc%assert_eq( 0.15651764274966565,     bose_einstein(2.0),  epsilon(1.0), "BE")
-    call tc%assert_eq(-0.18101541524157762,   d_bose_einstein(2.0),  epsilon(1.0), "BE")
+    call tc%assert_eq( 0.99999950000008333e6,   bose_einstein(1e-6), 1e-15, 1e-16, "BE")
+    call tc%assert_eq( 0.15651764274966565,     bose_einstein(2.0),  1e-15, 1e-16, "BE")
+    call tc%assert_eq(-0.18101541524157762,   d_bose_einstein(2.0),  1e-15, 1e-16, "BE")
 
     ! FD
-    call tc%assert_eq( 0.5,                   fermi_dirac(0.0), epsilon(1.0), "FD")
-    call tc%assert_eq( 0.11920292202211755,   fermi_dirac(2.0), epsilon(1.0), "FD")
-    call tc%assert_eq(-0.10499358540350651, d_fermi_dirac(2.0), epsilon(1.0), "FD")
+    call tc%assert_eq( 0.5,                   fermi_dirac(0.0), 1e-15, 1e-16, "FD")
+    call tc%assert_eq( 0.11920292202211755,   fermi_dirac(2.0), 1e-15, 1e-16, "FD")
+    call tc%assert_eq(-0.10499358540350651, d_fermi_dirac(2.0), 1e-15, 1e-16, "FD")
 
     ! FD integral
     m4_divert(m4_ifdef({m4_quadpack},0,-1))
@@ -42,7 +42,7 @@ contains
       real :: res
 
       call fermi_dirac_integral(0.0, res)
-      call tc%assert_eq(0.76514702462540794, res, 1e-8, "FD intg")
+      call tc%assert_eq(0.76514702462540794, res, 1e-11, 1e-12, "FD intg")
     end block
     m4_divert(0)
 
@@ -74,10 +74,10 @@ contains
         call inv_fermi_dirac_integral_1h(F1h_exp(i), IF1h(i), dIF1h(i))
         call fermi_dirac_integral_3h(x(i), F3h(i), dF3h(i))
 
-        call tc%assert_eq(Fm1h_exp(i), Fm1h(i), 5e-16 * abs(Fm1h_exp(i)), "FD integral -1/2: "     // int2str(i))
-        call tc%assert_eq( F1h_exp(i),  F1h(i), 5e-16 * abs( F1h_exp(i)), "FD integral 1/2: "      // int2str(i))
-        call tc%assert_eq(       x(i), IF1h(i), 5e-15 * abs(       x(i)), "Inv. FD integral 1/2: " // int2str(i))
-        call tc%assert_eq( F3h_exp(i),  F3h(i), 5e-16 * abs( F3h_exp(i)), "FD integral 3/2: "      // int2str(i))
+        call tc%assert_eq(Fm1h_exp(i), Fm1h(i), 1e-15, 1e-16, "FD integral -1/2: "     // int2str(i))
+        call tc%assert_eq( F1h_exp(i),  F1h(i), 1e-15, 1e-16, "FD integral 1/2: "      // int2str(i))
+        call tc%assert_eq(       x(i), IF1h(i), 1e-13, 1e-14, "Inv. FD integral 1/2: " // int2str(i))
+        call tc%assert_eq( F3h_exp(i),  F3h(i), 1e-15, 1e-16, "FD integral 3/2: "      // int2str(i))
       end do
     end block
 

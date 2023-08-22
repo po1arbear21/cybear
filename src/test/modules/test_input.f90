@@ -31,24 +31,24 @@ contains
 
       ! check get_name_real + init normalization
       call f%get("", "temperature", r, normalize=.false.)
-      call tc%assert_eq(300.0, r, 1e-10, "get_name_real")
+      call tc%assert_eq(300.0, r, 1e-14, 1e-16, "get_name_real")
       call init_normconst(r)
 
       ! check get_name_real_arr
       call f%get("grid", "y", r_arr)
-      call tc%assert_eq(norm([(real(i)/10.0, i=0,9)], 'um'), r_arr, 1e-10, "get_name_real_arr")
+      call tc%assert_eq(norm([(real(i)/10.0, i=0,9)], 'um'), r_arr, 1e-14, 1e-16, "get_name_real_arr")
 
       ! get_real, changing sections
       call f%get_sections("region", sid)
       call f%get(sid(1), "y0", r)
-      call tc%assert_eq(0.0, r, 1e-16, "get_real")
+      call tc%assert_eq(0.0, r, 1e-14, 1e-16, "get_real")
       call f%get(sid(2), "y0", r)
-      call tc%assert_eq(norm(6e2, 'um'), r, 1e-16, "get_real")
+      call tc%assert_eq(norm(6e2, 'um'), r, 1e-14, 1e-16, "get_real")
 
       ! get_real_arr
       call f%get_sections("grid", sid)
       call f%get(sid(1), "y", r_arr)
-      call tc%assert_eq(norm([(real(i)/10.0, i=0,9)], 'um'), r_arr, 1e-10, "get_real_arr")
+      call tc%assert_eq(norm([(real(i)/10.0, i=0,9)], 'um'), r_arr, 1e-14, 1e-16, "get_real_arr")
 
       ! test reading scalars
       call f%get("", "alpha", r)

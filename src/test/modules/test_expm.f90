@@ -40,7 +40,7 @@ contains
       &                  2.107281075111807, 1.794284983176198, 2.009402297400571, 2.461929132438685], [4,4])
 
     call expm(A, expmA)
-    call tc%assert_eq(expmA_exp, expmA%d, 1e-12, "expm(dense)")
+    call tc%assert_eq(expmA_exp, expmA%d, 1e-12, 1e-16, "expm(dense)")
 
     call tc%finish()
   end subroutine

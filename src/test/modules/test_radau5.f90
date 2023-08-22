@@ -20,7 +20,7 @@ contains
 
     ! exponential
     block
-      real, parameter   :: tol = 1e-10
+      real, parameter   :: rtol = 1e-10, atol = 1e-16
       real              :: x0, x1, U0(1), P(1)
       integer           :: i, nsmp
       logical           :: status
@@ -52,14 +52,14 @@ contains
         dUsmpdP( 1,1,i) = (xsmp(i) - x0) * U0(1) * exp(P(1) * (xsmp(i) - x0))
       end do
 
-      call tc%assert_eq(Usmp,     res%Usmp,     tol, "exp: Usmp"    )
-      call tc%assert_eq(dUsmpdU0, res%dUsmpdU0, tol, "exp: dUsmpdU0")
-      call tc%assert_eq(dUsmpdP,  res%dUsmpdP,  tol, "exp: dUsmpdP" )
+      call tc%assert_eq(Usmp,     res%Usmp,     rtol, atol, "exp: Usmp"    )
+      call tc%assert_eq(dUsmpdU0, res%dUsmpdU0, rtol, atol, "exp: dUsmpdU0")
+      call tc%assert_eq(dUsmpdP,  res%dUsmpdP,  rtol, atol, "exp: dUsmpdP" )
     end block
 
     ! sine
     block
-      real, parameter   :: tol = 1e-10
+      real, parameter   :: rtol = 1e-10, atol = 1e-16
       real              :: x0, x1, U0(2), P(1)
       real              :: A, B, dAdU0(2), dAdP, dBdU0(2), dBdP
       integer           :: i, nsmp
@@ -105,9 +105,9 @@ contains
                       - dBdP * P(1) * sin(P(1) * xsmp(i)) - B * sin(P(1) * xsmp(i)) - B * P(1) * cos(P(1) * xsmp(i)) * xsmp(i)
       end do
 
-      call tc%assert_eq(Usmp,     res%Usmp,     tol, "sin: Usmp"    )
-      call tc%assert_eq(dUsmpdU0, res%dUsmpdU0, tol, "sin: UsmpdU0" )
-      call tc%assert_eq(dUsmpdP,  res%dUsmpdP,  tol, "sin: UsmpdP"  )
+      call tc%assert_eq(Usmp,     res%Usmp,     rtol, atol, "sin: Usmp"    )
+      call tc%assert_eq(dUsmpdU0, res%dUsmpdU0, rtol, atol, "sin: UsmpdU0" )
+      call tc%assert_eq(dUsmpdP,  res%dUsmpdP,  rtol, atol, "sin: UsmpdP"  )
     end block
 
     call tc%finish()

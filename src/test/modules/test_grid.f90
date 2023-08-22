@@ -56,24 +56,24 @@ contains
       call par%init(g, IDX_CELL, 0)
 
       ! check attributes
-      call tc%assert_eq(100,                   par%n,                "grid_data: idx_type")
-      call tc%assert_eq([(0.0, i = 1, par%n)], par%get(),     0.0, "grid_data: data")
-      call tc%assert_eq(0.0,                   par%get([1, 1]), 0.0, "grid_data: get default")
+      call tc%assert_eq(100,                   par%n,                     "grid_data: idx_type")
+      call tc%assert_eq([(0.0, i = 1, par%n)], par%get(),       0.0, 0.0, "grid_data: data")
+      call tc%assert_eq(0.0,                   par%get([1, 1]), 0.0, 0.0, "grid_data: get default")
 
       ! check set and get
       call par%set([2, 3], 10.0)
-      call tc%assert_eq(10.0, par%get([2, 3]), 0.0, "grid_data: set")
+      call tc%assert_eq(10.0, par%get([2, 3]), 0.0, 0.0, "grid_data: set")
 
       ! check update idx
       call par%update([2, 3], -5.0)
       call par%update([1, 1],  5.0)
-      call tc%assert_eq(5.0, par%get([2, 3]), 0.0, "grid_data: update idx 1")
-      call tc%assert_eq(5.0, par%get([1, 1]), 0.0, "grid_data: update idx 2")
+      call tc%assert_eq(5.0, par%get([2, 3]), 0.0, 0.0, "grid_data: update idx 1")
+      call tc%assert_eq(5.0, par%get([1, 1]), 0.0, 0.0, "grid_data: update idx 2")
 
       ! check update all
       call par%update(-par%get())
       call par%update([(2.0, i = 1, par%n)])
-      call tc%assert_eq([(2.0, i = 1, par%n)], par%get(), 0.0, "grid_data: update all")
+      call tc%assert_eq([(2.0, i = 1, par%n)], par%get(), 0.0, 0.0, "grid_data: update all")
 
       ! check get_ptr2
       call tc%assert(associated(par%get_ptr2(), target = par), "grid_data: get_ptr2")
@@ -123,12 +123,12 @@ contains
 
       ! check attributes
       block
-        call tc%assert_eq( 1,  g%dim,        "grid1D: dim")
-        call tc%assert_eq( 1,  g%idx_dim,    "grid1D: idx_dim")
-        call tc%assert_eq([1], g%face_nvert, "grid1D: face_nvert")
-        call tc%assert_eq( 2,  g%cell_nvert, "grid1D: cell_nvert")
-        call tc%assert_eq([1], g%cell_nedge, "grid1D: cell_nedge")
-        call tc%assert_eq( x,  g%x, 0.0,     "grid1D: x")
+        call tc%assert_eq( 1,  g%dim,         "grid1D: dim")
+        call tc%assert_eq( 1,  g%idx_dim,     "grid1D: idx_dim")
+        call tc%assert_eq([1], g%face_nvert,  "grid1D: face_nvert")
+        call tc%assert_eq( 2,  g%cell_nvert,  "grid1D: cell_nvert")
+        call tc%assert_eq([1], g%cell_nedge,  "grid1D: cell_nedge")
+        call tc%assert_eq( x,  g%x, 0.0, 0.0, "grid1D: x")
       end block
 
       ! get_idx_bnd
@@ -165,7 +165,7 @@ contains
         do i = 1, size(i_arr)
           i0 = i_arr(i)
           call g%get_vertex([ i0], p)
-          call tc%assert_eq(x(i0), p(1), 0.0, "grid1D: get_vertex "//int2str(i0))
+          call tc%assert_eq(x(i0), p(1), 0.0, 0.0, "grid1D: get_vertex "//int2str(i0))
         end do
       end block
 
@@ -178,7 +178,7 @@ contains
         do i = 1, size(i_arr)
           i0 = i_arr(i)
           call g%get_edge([i0], 1, p)
-          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, "grid1D: get_edge "//int2str(i0))
+          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, 0.0, "grid1D: get_edge "//int2str(i0))
         end do
       end block
 
@@ -191,7 +191,7 @@ contains
         do i = 1, size(i_arr)
           i0 = i_arr(i)
           call g%get_face([i0], 1, p)
-          call tc%assert_eq(x(i0), p(1,1), 0.0, "grid1D: get_face "//int2str(i0))
+          call tc%assert_eq(x(i0), p(1,1), 0.0, 0.0, "grid1D: get_face "//int2str(i0))
         end do
       end block
 
@@ -204,7 +204,7 @@ contains
         do i = 1, size(i_arr)
           i0 = i_arr(i)
           call g%get_cell([i0], p)
-          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, "grid1D: get_cell "//int2str(i0))
+          call tc%assert_eq(x(i0:i0+1), p(1,:), 0.0, 0.0, "grid1D: get_cell "//int2str(i0))
         end do
       end block
 
@@ -217,7 +217,7 @@ contains
         do i = 1, size(i_arr)
           i0  = i_arr(i)
           len = g%get_len([i0], 1)
-          call tc%assert_eq(x(i0+1)-x(i0), len, 5e-16, "grid1D: get_len "//int2str(i0))
+          call tc%assert_eq(x(i0+1)-x(i0), len, 1e-14, 5e-16, "grid1D: get_len "//int2str(i0))
         end do
       end block
 
@@ -230,7 +230,7 @@ contains
         do i = 1, size(i_arr)
           i0  = i_arr(i)
           surf = g%get_surf([i0], 1)
-          call tc%assert_eq(1.0, surf, 0.0, "grid1D: get_surf "//int2str(i0))
+          call tc%assert_eq(1.0, surf, 0.0, 0.0, "grid1D: get_surf "//int2str(i0))
         end do
       end block
 
@@ -243,7 +243,7 @@ contains
         do i = 1, size(i_arr)
           i0  = i_arr(i)
           vol = g%get_vol([i0])
-          call tc%assert_eq(x(i0+1)-x(i0), vol, 5e-16, "grid1D: get_vol "//int2str(i0))
+          call tc%assert_eq(x(i0+1)-x(i0), vol, 1e-14, 5e-16, "grid1D: get_vol "//int2str(i0))
         end do
       end block
 
@@ -521,7 +521,7 @@ contains
 
         do iv = 1, nvert
           call g%get_vertex([iv], p)
-          call tc%assert_eq(vert(:,iv), p, 0.0, "triang_grid: get_vertex "//int2str(iv))
+          call tc%assert_eq(vert(:,iv), p, 0.0, 0.0, "triang_grid: get_vertex "//int2str(iv))
         end do
       end block
 
@@ -533,7 +533,7 @@ contains
         do ic = 1, ncell
           call g%get_cell([ic], p)
           do iv = 1, 3
-            call tc%assert_eq(vert(:,icell(iv,ic)), p(:,iv), 0.0, "triang_grid: get_cell "//int2str(ic)//' '//int2str(iv))
+            call tc%assert_eq(vert(:,icell(iv,ic)), p(:,iv), 0.0, 0.0, "triang_grid: get_cell "//int2str(ic)//' '//int2str(iv))
           end do
         end do
       end block
@@ -544,7 +544,7 @@ contains
         real, parameter :: vol(9) = [1.25, 1.5, 1.5, 0.625, 1.875, 1.0, 1.5, 1.75, 1.875]
 
         do ic = 1, ncell
-          call tc%assert_eq(vol(ic), g%get_vol([ic]), 5e-16, "triang_grid: get_vol "//int2str(ic))
+          call tc%assert_eq(vol(ic), g%get_vol([ic]), 1e-14, 5e-16, "triang_grid: get_vol "//int2str(ic))
         end do
       end block
 
@@ -945,7 +945,7 @@ contains
         do i = 1, size(ix)
           idx = [ix(i), iy(i), iz(i)]
           call tg%get_vertex(idx, p)
-          call tc%assert_eq([x(ix(i)), y(iy(i)), z(iz(i))], p, 0.0, "tensor_grid: get_vertex "//int2str(i))
+          call tc%assert_eq([x(ix(i)), y(iy(i)), z(iz(i))], p, 0.0, 0.0, "tensor_grid: get_vertex "//int2str(i))
         end do
       end block
 
@@ -960,10 +960,10 @@ contains
         do i = 1, size(ix)
           idx = [ix(i), iy(i), iz(i)]
           call tg%get_edge(idx, 2, p) ! get y edge
-          call tc%assert_eq([x(ix(i)), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, "tensor_grid: get_edge "//int2str(i)//" A")
-          call tc%assert_eq([x(ix(i)), y(iy(i)+1), z(iz(i))], p(:,2), 0.0, "tensor_grid: get_edge "//int2str(i)//" B")
+          call tc%assert_eq([x(ix(i)), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, 0.0, "tensor_grid: get_edge "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)), y(iy(i)+1), z(iz(i))], p(:,2), 0.0, 0.0, "tensor_grid: get_edge "//int2str(i)//" B")
           len = tg%get_len(idx, 2)
-          call tc%assert_eq(y(iy(i)+1)-y(iy(i)), len, 5e-16, "tensor_grid: get_len "//int2str(i))
+          call tc%assert_eq(y(iy(i)+1)-y(iy(i)), len, 1e-14, 5e-16, "tensor_grid: get_len "//int2str(i))
         end do
       end block
 
@@ -978,12 +978,12 @@ contains
         do i = 1, size(ix)
           idx = [ix(i), iy(i), iz(i)]
           call tg%get_face(idx, 3, p) ! get z face
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, "tensor_grid: get_face "//int2str(i)//" A")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i))], p(:,2), 0.0, "tensor_grid: get_face "//int2str(i)//" B")
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i))], p(:,3), 0.0, "tensor_grid: get_face "//int2str(i)//" C")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i))], p(:,4), 0.0, "tensor_grid: get_face "//int2str(i)//" D")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i))], p(:,1), 0.0, 0.0, "tensor_grid: get_face "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i))], p(:,2), 0.0, 0.0, "tensor_grid: get_face "//int2str(i)//" B")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i))], p(:,3), 0.0, 0.0, "tensor_grid: get_face "//int2str(i)//" C")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i))], p(:,4), 0.0, 0.0, "tensor_grid: get_face "//int2str(i)//" D")
           surf = tg%get_surf(idx, 3)
-          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i))), surf, 5e-16, "tensor_grid: get_surf "//int2str(i))
+          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i))), surf, 1e-14, 5e-16, "tensor_grid: get_surf "//int2str(i))
         end do
       end block
 
@@ -998,16 +998,16 @@ contains
         do i = 1, size(ix)
           idx = [ix(i), iy(i), iz(i)]
           call tg%get_cell(idx, p)
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)  )], p(:,1), 0.0, "tensor_grid: get_cell "//int2str(i)//" A")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)  )], p(:,2), 0.0, "tensor_grid: get_cell "//int2str(i)//" B")
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)  )], p(:,3), 0.0, "tensor_grid: get_cell "//int2str(i)//" C")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)  )], p(:,4), 0.0, "tensor_grid: get_cell "//int2str(i)//" D")
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)+1)], p(:,5), 0.0, "tensor_grid: get_cell "//int2str(i)//" E")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)+1)], p(:,6), 0.0, "tensor_grid: get_cell "//int2str(i)//" F")
-          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)+1)], p(:,7), 0.0, "tensor_grid: get_cell "//int2str(i)//" G")
-          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)+1)], p(:,8), 0.0, "tensor_grid: get_cell "//int2str(i)//" H")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)  )], p(:,1), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" A")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)  )], p(:,2), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" B")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)  )], p(:,3), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" C")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)  )], p(:,4), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" D")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)  ), z(iz(i)+1)], p(:,5), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" E")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)  ), z(iz(i)+1)], p(:,6), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" F")
+          call tc%assert_eq([x(ix(i)  ), y(iy(i)+1), z(iz(i)+1)], p(:,7), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" G")
+          call tc%assert_eq([x(ix(i)+1), y(iy(i)+1), z(iz(i)+1)], p(:,8), 0.0, 0.0, "tensor_grid: get_cell "//int2str(i)//" H")
           vol = tg%get_vol(idx)
-          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i)))*(z(iz(i)+1)-z(iz(i))), vol, 5e-16, "tensor_grid: get_vol "//int2str(i))
+          call tc%assert_eq((x(ix(i)+1)-x(ix(i)))*(y(iy(i)+1)-y(iy(i)))*(z(iz(i)+1)-z(iz(i))), vol, 1e-14, 5e-16, "tensor_grid: get_vol "//int2str(i))
         end do
       end block
 
@@ -1561,11 +1561,11 @@ contains
         vol_tr_z_e( 1:6  ) = [ 1.9553571428571432e+00, 1.5803571428571428e+00, 1.7142857142857144e+00, &
           &                    1.9553571428571432e+00, 1.5803571428571428e+00, 1.7142857142857144e+00  ]
         call gtr_z%get_adjoint([1,2], len = len_tr_z, surf = surf_tr_z, vol = vol_tr_z)
-        call tc%assert_eq( len_tr_z_e(1:6,1),  len_tr_z(1:6,1), 1e-14, "tensor_grid: get_adjoint len tr z 1")
-        call tc%assert_eq( len_tr_z_e(1:3,2),  len_tr_z(1:3,2), 1e-14, "tensor_grid: get_adjoint len tr z 2")
-        call tc%assert_eq(surf_tr_z_e(1:6,1), surf_tr_z(1:6,1), 1e-14, "tensor_grid: get_adjoint surf tr z 1")
-        call tc%assert_eq(surf_tr_z_e(1:3,2), surf_tr_z(1:3,2), 1e-14, "tensor_grid: get_adjoint surf tr z 2")
-        call tc%assert_eq( vol_tr_z_e(1:6  ),  vol_tr_z(1:6  ), 1e-14, "tensor_grid: get_adjoint vol tr z")
+        call tc%assert_eq( len_tr_z_e(1:6,1),  len_tr_z(1:6,1), 1e-14, 1e-16, "tensor_grid: get_adjoint len tr z 1")
+        call tc%assert_eq( len_tr_z_e(1:3,2),  len_tr_z(1:3,2), 1e-14, 1e-16, "tensor_grid: get_adjoint len tr z 2")
+        call tc%assert_eq(surf_tr_z_e(1:6,1), surf_tr_z(1:6,1), 1e-14, 1e-16, "tensor_grid: get_adjoint surf tr z 1")
+        call tc%assert_eq(surf_tr_z_e(1:3,2), surf_tr_z(1:3,2), 1e-14, 1e-16, "tensor_grid: get_adjoint surf tr z 2")
+        call tc%assert_eq( vol_tr_z_e(1:6  ),  vol_tr_z(1:6  ), 1e-14, 1e-16, "tensor_grid: get_adjoint vol tr z")
 
         ! test z tr
         len_z_tr_e( 1:3,1) = [ 3.0000000000000000e+00, 3.0000000000000000e+00, 3.0000000000000000e+00  ]
@@ -1577,11 +1577,11 @@ contains
         vol_z_tr_e( 1:6  ) = [ 1.9553571428571432e+00, 1.9553571428571432e+00, 1.5803571428571428e+00, &
           &                    1.5803571428571428e+00, 1.7142857142857144e+00, 1.7142857142857144e+00  ]
         call gz_tr%get_adjoint([2,1], len = len_z_tr, surf = surf_z_tr, vol = vol_z_tr)
-        call tc%assert_eq( len_z_tr_e(1:3,1),  len_z_tr(1:3,1), 1e-14, "tensor_grid: get_adjoint len z tr 1")
-        call tc%assert_eq( len_z_tr_e(1:6,2),  len_z_tr(1:6,2), 1e-14, "tensor_grid: get_adjoint len z tr 2")
-        call tc%assert_eq(surf_z_tr_e(1:3,1), surf_z_tr(1:3,1), 1e-14, "tensor_grid: get_adjoint surf z tr 1")
-        call tc%assert_eq(surf_z_tr_e(1:6,2), surf_z_tr(1:6,2), 1e-14, "tensor_grid: get_adjoint surf z tr 2")
-        call tc%assert_eq( vol_z_tr_e(1:6  ),  vol_z_tr(1:6  ), 1e-14, "tensor_grid: get_adjoint vol z tr")
+        call tc%assert_eq( len_z_tr_e(1:3,1),  len_z_tr(1:3,1), 1e-14, 1e-16, "tensor_grid: get_adjoint len z tr 1")
+        call tc%assert_eq( len_z_tr_e(1:6,2),  len_z_tr(1:6,2), 1e-14, 1e-16, "tensor_grid: get_adjoint len z tr 2")
+        call tc%assert_eq(surf_z_tr_e(1:3,1), surf_z_tr(1:3,1), 1e-14, 1e-16, "tensor_grid: get_adjoint surf z tr 1")
+        call tc%assert_eq(surf_z_tr_e(1:6,2), surf_z_tr(1:6,2), 1e-14, 1e-16, "tensor_grid: get_adjoint surf z tr 2")
+        call tc%assert_eq( vol_z_tr_e(1:6  ),  vol_z_tr(1:6  ), 1e-14, 1e-16, "tensor_grid: get_adjoint vol z tr")
       end block
     end subroutine
 

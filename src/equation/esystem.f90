@@ -6,7 +6,7 @@ module esystem_m
   use color_m,            only: COL_DEFAULT, COL_MAGENTA
   use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
-  use esystem_depgraph_m, only: depgraph, STATUS_DEP
+  use esystem_depgraph_m, only: depgraph, depgraph_equ, STATUS_DEP
   use gmres_m,            only: gmres_options
   use grid_table_m,       only: grid_table, grid_table_ptr
   use hashmap_m,          only: hashmap_int
@@ -78,6 +78,8 @@ module esystem_m
 
     logical :: finished_init
       !! indicates whether init_final was called
+    logical :: parallel_eval
+      !! Use parallel evaluation of equations in eval()
   contains
     procedure :: init            => esystem_init
     procedure :: destruct        => esystem_destruct
@@ -120,7 +122,7 @@ module esystem_m
 
 contains
 
-  subroutine esystem_init(this, name, precon, dense)
+  subroutine esystem_init(this, name, precon, dense, parallel_eval)
     !! initialize equation system
     class(esystem),    intent(out) :: this
     character(*),      intent(in)  :: name
@@ -128,6 +130,8 @@ contains
       !! should a preconditioner matrix be created? (default: false)
     logical, optional, intent(in)  :: dense
       !! use dense jacobian matrix instead of sparse
+    logical, optional, intent(in)  :: parallel_eval
+      !! use parallel evaluation of equations
 
     logical :: precon_
 
@@ -141,6 +145,10 @@ contains
     ! dense jacobian?
     this%dense = .false.
     if (present(dense)) this%dense = dense
+
+    ! parallel eval?
+    this%parallel_eval = .false.
+    if (present(parallel_eval)) this%parallel_eval = parallel_eval
 
     ! init variable list
     call this%vars%init(0, c = 8)
@@ -230,7 +238,6 @@ contains
 
     logical            :: input_
     type(equation_ptr) :: ptr
-
 
     input_ = .false.
     if (present(input)) input_ = input
@@ -684,7 +691,7 @@ contains
 
   subroutine esystem_eval(this, f, df, dfp)
     !! evaluate equations, get residuals, jacobians, and preconditioner
-    class(esystem),               intent(inout) :: this ! equation system
+    class(esystem),     target,   intent(inout) :: this ! equation system
     real,               optional, intent(out)   :: f(:)
       !! output residuals
     class(matrix_real), optional, intent(out)   :: df
@@ -692,14 +699,43 @@ contains
     type(sparse_real),  optional, intent(out)   :: dfp
       !! output preconditioner jacobian
 
-    integer :: i, j, k0, k1, ibl1, ibl2
+    integer :: i, j, k, k0, k1, ibl1, ibl2
+    type(depgraph_equ), pointer :: e
 
     m4_assert(this%finished_init)
 
-    ! loop over evaluation list
-    do i = 1, this%g%ieval%n
-      ! get dependency graph equation
-      associate (e => this%g%equs%d(this%g%ieval%d(i)))
+    ! Parallelized evaluation of equations in dependency blocks
+    if (this%parallel_eval) then
+      do i = 1, this%g%neblks
+        !$omp parallel do default(none) schedule(dynamic) private(j,e,k) shared(i,this)
+        do j = this%g%ieblks(i), this%g%ieblks(i + 1) - 1
+          ! get dependency graph equation
+          e => this%g%equs%d(this%g%ieval_final(j))
+
+          ! reset non-constant parts of provided var selectors and jacobians
+          call e%e%reset(const = .false., nonconst = .true.)
+
+          ! evaluate equation
+          call e%e%eval()
+          call e%e%set_jaco_matr(const = .false., nonconst = .true.)
+
+          ! perform non-const jacobian chain operations for provided vars
+          do k = 1, size(e%iprov)
+            call this%g%nodes%d(e%iprov(k))%p%eval()
+          end do
+
+          ! perform non-const jacobian chain operations for residuals
+          if (e%ires > 0) call this%g%nodes%d(e%ires)%p%eval()
+        end do
+        !$omp end parallel do
+      end do
+
+    ! loop over original evaluation list
+    else  
+      do i = 1, this%g%ieval%n
+        ! get dependency graph equation
+        e => this%g%equs%d(this%g%ieval%d(i))
+
         ! reset non-constant parts of provided var selectors and jacobians
         call e%e%reset(const = .false., nonconst = .true.)
 
@@ -714,8 +750,8 @@ contains
 
         ! perform non-const jacobian chain operations for residuals
         if (e%ires > 0) call this%g%nodes%d(e%ires)%p%eval()
-      end associate
-    end do
+      end do
+    end if
 
     ! set residuals flat array
     if (present(f)) then

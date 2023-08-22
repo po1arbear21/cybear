@@ -594,7 +594,7 @@ module subroutine mul_sparse_sparse_{}T{}(s1, s2, result)
   ! work in parallel
   !$omp parallel default(none) &
   !$omp private(i, j, k, ithread, col, icol0, icol1, ncol, val, val1, next_val, fil) &
-  !$omp shared(s1, s2, result, sort_, nthreads, i1, ops)
+  !$omp shared(s1, s2, result, nthreads, i1, ops)
 
     !$omp single
     ! get actual number of threads

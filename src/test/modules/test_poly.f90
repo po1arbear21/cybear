@@ -22,7 +22,7 @@ contains
       integer, parameter :: N = 3, Nxx = 20
       real               :: x(N), f(N), xx(Nxx), p(Nxx), dpdf(Nxx,N), pe(Nxx), dpdfe(Nxx,N), dadf(N), dbdf(N), dcdf(N)
       real               :: gradp, dgradpdf(N), gradpe, dgradpdfe(N)
-      real,    parameter :: tol = 1e-13
+      real,    parameter :: rtol = 1e-14, atol = 1e-16
       type(poly1D)       :: poly
 
       ! f(x) = x^2 + 2x + 3
@@ -55,10 +55,10 @@ contains
       dpdfe(:,3) = dadf(3) + dbdf(3) * xx + dcdf(3) * xx**2
       dgradpdfe(:) = dbdf(:) + 2 * dcdf(:) * xx(1)
 
-      call tc%assert_eq(pe, p, tol, "poly1D quadratic")
-      call tc%assert_eq(dpdfe, dpdf, tol, "poly1D quadratic derivatives")
-      call tc%assert_eq(gradpe, gradp, tol, "poly1D quadratic gradient")
-      call tc%assert_eq(dgradpdfe, dgradpdf, tol, "poly1D quadratic gradient derivatives")
+      call tc%assert_eq(pe, p, rtol, atol, "poly1D quadratic")
+      call tc%assert_eq(dpdfe, dpdf, rtol, atol, "poly1D quadratic derivatives")
+      call tc%assert_eq(gradpe, gradp, rtol, atol, "poly1D quadratic gradient")
+      call tc%assert_eq(dgradpdfe, dgradpdf, rtol, atol, "poly1D quadratic gradient derivatives")
     end block
 
     ! 2D bilinear
@@ -68,7 +68,7 @@ contains
       real               :: x(Nx), y(Ny), f(Nx,Ny), xx(Nxx), yy(Nyy)
       real               :: p(Nxx,Nyy), dpdf(Nxx,Nyy,Nx,Ny), pe(Nxx,Nyy), dpdfe(Nxx,Nyy,Nx,Ny)
       real               :: gradp(2), dgradpdf(2,Nx,Ny), gradpe(2), dgradpdfe(2,Nx,Ny)
-      real,    parameter :: tol = 1e-13
+      real,    parameter :: rtol = 1e-14, atol = 1e-16
       type(poly2D)       :: poly
 
       ! unit square
@@ -111,14 +111,14 @@ contains
       call poly%eval(xx, yy, p, dpdf)
       call poly%grad(xx(2), yy(1), gradp, dgradpdf = dgradpdf)
 
-      call tc%assert_eq(pe, p, tol, "2D bilinear")
+      call tc%assert_eq(pe, p, rtol, atol, "2D bilinear")
 
       do j = 1, Nyy; do i = 1, Nxx
-        call tc%assert_eq(dpdfe(i,j,:,:), dpdf(i,j,:,:), tol, "2D bilinear derivatives "//int2str(i)//","//int2str(j))
+        call tc%assert_eq(dpdfe(i,j,:,:), dpdf(i,j,:,:), rtol, atol, "2D bilinear derivatives "//int2str(i)//","//int2str(j))
       end do; end do
 
-      call tc%assert_eq(gradpe, gradp, tol, "2D bilinear gradient")
-      call tc%assert_eq(dgradpdfe, dgradpdf, tol, "2D bilinear gradient derivatives")
+      call tc%assert_eq(gradpe, gradp, rtol, atol, "2D bilinear gradient")
+      call tc%assert_eq(dgradpdfe, dgradpdf, rtol, atol, "2D bilinear gradient derivatives")
     end block
 
     ! 3D trilinear
@@ -128,7 +128,7 @@ contains
       real               :: x(Nx), y(Ny), z(Nz), f(Nx,Ny,Nz), xx(Nxx), yy(Nyy), zz(Nzz)
       real               :: p(Nxx,Nyy,Nzz), dpdf(Nxx,Nyy,Nzz,Nx,Ny,Nz), pe(Nxx,Nyy,Nzz), dpdfe(Nxx,Nyy,Nzz,Nx,Ny,Nz)
       real               :: gradp(3), dgradpdf(3,Nx,Ny,Nz), gradpe(3), dgradpdfe(3,Nx,Ny,Nz)
-      real,    parameter :: tol = 1e-13
+      real,    parameter :: rtol = 1e-14, atol = 1e-16
       type(poly3D)       :: poly
 
       ! unit square
@@ -213,15 +213,15 @@ contains
       call poly%eval(xx, yy, zz, p, dpdf)
       call poly%grad(xx(2), yy(1), zz(3), gradp, dgradpdf = dgradpdf)
 
-      call tc%assert_eq(pe, p, tol, "3D trilinear")
+      call tc%assert_eq(pe, p, rtol, atol, "3D trilinear")
 
       do k = 1, Nzz; do j = 1, Nyy; do i = 1, Nxx
-        call tc%assert_eq(dpdfe(i,j,k,:,:,:), dpdf(i,j,k,:,:,:), tol, "3D trilinear derivatives "//int2str(i)//","//int2str(j)//","//int2str(k))
+        call tc%assert_eq(dpdfe(i,j,k,:,:,:), dpdf(i,j,k,:,:,:), rtol, atol, "3D trilinear derivatives "//int2str(i)//","//int2str(j)//","//int2str(k))
       end do; end do; end do
 
-      call tc%assert_eq(gradpe, gradp, tol, "3D trilinear gradient")
+      call tc%assert_eq(gradpe, gradp, rtol, atol, "3D trilinear gradient")
       do i = 1, 3
-        call tc%assert_eq(dgradpdfe(i,:,:,:), dgradpdf(i,:,:,:), tol, "3D trilinear gradient derivatives "//int2str(i))
+        call tc%assert_eq(dgradpdfe(i,:,:,:), dgradpdf(i,:,:,:), rtol, atol, "3D trilinear gradient derivatives "//int2str(i))
       end do
     end block
 

@@ -14,6 +14,7 @@ module vector_m
     m4_X(log)
     m4_X(real)
     m4_X(cmplx)
+    m4_X(char)
     m4_X(string)
   })
 

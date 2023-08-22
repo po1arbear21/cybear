@@ -23,12 +23,12 @@ contains
       ! test init & get
       call src%init([5.0])
 
-      call tc%assert_eq(src%get(10.0), [5.0], 0.0, "const: get 1")
-      call tc%assert_eq(src%get(-1.0), [5.0], 0.0, "const: get 2")
+      call tc%assert_eq(src%get(10.0), [5.0], 0.0, 0.0, "const: get 1")
+      call tc%assert_eq(src%get(-1.0), [5.0], 0.0, 0.0, "const: get 2")
 
       ! test reset with init
       call src%init([-2.0])
-      call tc%assert_eq(src%get(10.0), [-2.0], 0.0, "const: init/reset")
+      call tc%assert_eq(src%get(10.0), [-2.0], 0.0, 0.0, "const: init/reset")
     end block
 
     ! polygon_src
@@ -42,9 +42,9 @@ contains
       ! test init & get
       call src%init(t, y)
 
-      call tc%assert_eq(src%get(0.0), [0.0], 0.0, "polygon: get 1")
-      call tc%assert_eq(src%get(2.0), [4.0], 0.0, "polygon: get 2")
-      call tc%assert_eq(src%get(3.5), [7.0], 0.0, "polygon: get 3")
+      call tc%assert_eq(src%get(0.0), [0.0], 0.0, 0.0, "polygon: get 1")
+      call tc%assert_eq(src%get(2.0), [4.0], 0.0, 0.0, "polygon: get 2")
+      call tc%assert_eq(src%get(3.5), [7.0], 0.0, 0.0, "polygon: get 3")
     end block
 
     ! sine_src
@@ -59,9 +59,9 @@ contains
       ! test init & get
       call src%init(freq, ampl, phase)
 
-      call tc%assert_eq(src%get(0.0),  [ 0.0,  0.0], 1e-15, "sine: get 1")
-      call tc%assert_eq(src%get(0.25), [ 1.0,  2.0], 1e-15, "sine: get 2")
-      call tc%assert_eq(src%get(0.75), [-1.0, -2.0], 1e-15, "sine: get 3")
+      call tc%assert_eq(src%get(0.0),  [ 0.0,  0.0], 1e-14, 3e-16, "sine: get 1")
+      call tc%assert_eq(src%get(0.25), [ 1.0,  2.0], 1e-14, 3e-16, "sine: get 2")
+      call tc%assert_eq(src%get(0.75), [-1.0, -2.0], 1e-14, 3e-16, "sine: get 3")
     end block
 
     ! harmonic_src
@@ -76,9 +76,9 @@ contains
       ! test init & get
       call src%init(freq, c, s)
 
-      call tc%assert_eq(src%get(0.0),  [-0.5], 1e-15, "harmonic: get 1")
-      call tc%assert_eq(src%get(0.25), [ 2.5], 1e-15, "harmonic: get 2")
-      call tc%assert_eq(src%get(0.75), [-1.5], 1e-15, "harmonic: get 3")
+      call tc%assert_eq(src%get(0.0),  [-0.5], 1e-14, 1e-16, "harmonic: get 1")
+      call tc%assert_eq(src%get(0.25), [ 2.5], 1e-14, 1e-16, "harmonic: get 2")
+      call tc%assert_eq(src%get(0.75), [-1.5], 1e-14, 1e-16, "harmonic: get 3")
     end block
 
     ! periodic_polygon
@@ -95,10 +95,10 @@ contains
       call src%init(freq, tn, y)
 
       ! testing these values
-      call tc%assert_eq(src%get(0.0), [0.0], 1e-15, "periodic_polygon: get 1")
-      call tc%assert_eq(src%get(0.1), [2.0], 1e-15, "periodic_polygon: get 2")
-      call tc%assert_eq(src%get(0.5), [7.5], 1e-15, "periodic_polygon: get 3")
-      call tc%assert_eq(src%get(1.0), [0.0], 1e-15, "periodic_polygon: get 4")
+      call tc%assert_eq(src%get(0.0), [0.0], 1e-14, 1e-16, "periodic_polygon: get 1")
+      call tc%assert_eq(src%get(0.1), [2.0], 1e-14, 1e-16, "periodic_polygon: get 2")
+      call tc%assert_eq(src%get(0.5), [7.5], 1e-14, 1e-16, "periodic_polygon: get 3")
+      call tc%assert_eq(src%get(1.0), [0.0], 1e-14, 1e-16, "periodic_polygon: get 4")
     end block
 
     call tc%finish()

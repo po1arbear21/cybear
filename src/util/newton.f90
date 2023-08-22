@@ -335,7 +335,7 @@ contains
       err     = maxval(abs(x-xold) / (abs(xold) + opt%atol / opt%rtol))
       abs_err = maxval(abs(x-xold))
 
-      if (opt%log) print "(A,I0,3ES25.16)", opt%msg, it, err, abs_err, maxval(abs(f))
+      if (opt%log) print "(A,I0,3ES25.16E3)", opt%msg, it, err, abs_err, maxval(abs(f))
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation

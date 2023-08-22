@@ -58,7 +58,7 @@ contains
       x = x0
       call gmres(b, A, x)
 
-      call tc%assert_eq(x_exp, x, 1e-12, "gmres: w/o preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-12, 1e-16, "gmres: w/o preconditioner")
     end block
 
     !
@@ -81,7 +81,7 @@ contains
       opts%rtol = 1e-13
       call gmres(b, A, x, opts=opts, precon=prec)
 
-      call tc%assert_eq(x_exp, x, 1e-13, "gmres: w/ preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-13, 1e-16, "gmres: w/ preconditioner")
     end block
   end subroutine
 
@@ -124,7 +124,7 @@ contains
       x = x0
       call gmres(b, A, x)
 
-      call tc%assert_eq(x_exp, x, 1e-12, "gmres cmplx: w/o preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-12, 1e-16, "gmres cmplx: w/o preconditioner")
     end block
 
     !
@@ -147,7 +147,7 @@ contains
       opts%rtol = 1e-13
       call gmres(b, A, x, opts=opts, precon=prec)
 
-      call tc%assert_eq(x_exp, x, 1e-13, "gmres cmplx: w/ preconditioner")
+      call tc%assert_eq(x_exp, x, 1e-12, 1e-16, "gmres cmplx: w/ preconditioner")
     end block
   end subroutine
 
