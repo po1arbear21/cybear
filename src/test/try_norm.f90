@@ -1,5 +1,6 @@
 program try_norm
-  use normalization_m
+
+  use normalization_m, only: init_normconst, lexer, norm, parser, token, token_name, tree
 
   implicit none
 
@@ -12,7 +13,7 @@ program try_norm
   read(*,*) T
   call init_normconst(T)
 
-  write(*, *) "Type .exit to exit the interpreter"
+  write(*, *) "Type .exit or .quit to exit the interpreter"
   do
     write(*, '(A)', advance="no") ">> "
     read(*, '(A)') line
@@ -28,7 +29,7 @@ program try_norm
       write(*,*) "Parser:"
       call run_line(input)
       write(*,*) "Normalizing constant:"
-      val = eval(input)
+      val = norm(1.0, input)
       write(*,"(ES25.16)") val
     end if
   end do
@@ -43,25 +44,25 @@ contains
     call l%init(input)
 
     call l%next_token(tok)
-    do while (tok%type /= token_eof)
+    do while (tok%type /= 0)
       write(*, "(A)", advance="no") " " // token_name(tok%type) // " '" // tok%literal // "'"
       call l%next_token(tok)
     end do
     write (*, "(A)") ""
 
   end subroutine
-    
+
   subroutine run_line(input)
     character(:), allocatable, intent(in) :: input
     type(lexer) :: l
     type(parser) :: p
-    
-    class(ast_t), allocatable :: ast
+
+    class(tree), allocatable :: tree
     integer :: i
 
     call l%init(input)
     call p%init(l)
-    call p%parse_expr(ast)
+    call p%parse_expr(tree)
 
     if (allocated(p%errors)) then
       write(*, *) "no Apfeltasche for you!"
@@ -69,77 +70,8 @@ contains
         write(*, *) trim(p%errors(i))
       end do
     else
-      write(*, *) ast_string(ast)
+      write(*, *) tree%to_string()
     end if
   end subroutine run_line
-
-  recursive function ast_string(this) result(s)
-    class(ast_t), intent(in)  :: this
-    character(:), allocatable :: s
-
-    select type(this)
-      type is (ast_expr)
-        s = ast_expr_string(this)
-      type is (ast_unit)
-        s = ast_unit_string(this)
-      type is (ast_int)
-        s = ast_int_string(this)
-      type is (ast_expo)
-        s = ast_expo_string(this)
-      type is (ast_ratio)
-        s = ast_ratio_string(this)
-      class default
-        m4_ifdef({m4_intel},{call tracebackqq()})
-        m4_ifdef({m4_gnu},{call backtrace()})
-        call exit(1)
-      end select
-    end function
-
-  function ast_expr_string(expr) result(s)
-    class(ast_expr), intent(in) :: expr
-
-    character(:), allocatable :: s
-    integer                   :: i
-    
-    if (expr%operands%n > 0) then
-      s = "( " // ast_string(expr%operands%d(1)%item)
-    else
-      s = "( "
-    end if
-
-    do i = 2, expr%operands%n 
-      select case (expr%operators%d(i-1))
-        case ("*")
-          s = s // " * " // ast_string(expr%operands%d(i)%item)
-        case ("/")
-          s = s // " / " // ast_string(expr%operands%d(i)%item)
-      end select
-    end do
-    s = s // " )"
-  end function
-    
-  function ast_unit_string(this) result(s)
-    type(ast_unit), intent(in) :: this
-    character(:), allocatable :: s
-    s = "unit[" // this%prefix%s // "-" // this%unit%s // "]"
-  end function
-    
-  function ast_int_string(this) result(s)
-    type(ast_int), intent(in) :: this
-    character(:), allocatable :: s
-    s = this%tok%literal
-  end function
-
-  function ast_expo_string(this) result(s)
-    type(ast_expo), intent(in) :: this
-    character(:), allocatable :: s
-    s = ast_string(this%base) // "^" // ast_string(this%expo)
-  end function
-  
-  function ast_ratio_string(this) result(s)
-    type(ast_ratio), intent(in) :: this
-    character(:), allocatable :: s
-    s = "(" // ast_string(this%nom) // "/" // ast_string(this%den) // ")"
-  end function
 
 end program

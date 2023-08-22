@@ -21,8 +21,9 @@ m4_ifelse($1,int64,integer(int64),{m4_dnl
 m4_ifelse($1,log,logical,{m4_dnl
 m4_ifelse($1,real,real,{m4_dnl
 m4_ifelse($1,cmplx,complex,{m4_dnl
+m4_ifelse($1,char,character,{m4_dnl
 type($1)m4_dnl
-})})})})})})})
+})})})})})})})})
 
 ! get pointer size measured in integers
 m4_define({m4_ptrsize},{m4_ifelse(m4_intsize,64,1,{m4_ifelse(m4_intsize,32,2,0)})})

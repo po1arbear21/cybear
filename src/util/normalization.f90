@@ -6,14 +6,17 @@ module normalization_m
   use map_m,    only: map_string_real, mapnode_string_real
   use math_m,   only: PI
   use string_m, only: string, new_string
-  use vector_m, only: 
+  use vector_m, only: vector_char
 
   implicit none
 
-  ! Uff
-  public
+  private
+  public normalization
+  public init_normconst, destruct_normconst
+  public norm, denorm
+  public token, token_name, lexer, parser, tree
 
-  type :: normalization
+  type normalization
     type(map_string_real) :: map
     type(map_string_real) :: prefixes
     type(map_string_real) :: units
@@ -63,50 +66,51 @@ module normalization_m
   end enum
 
   type token
-    integer :: type
+    integer                   :: type
     character(:), allocatable :: literal
   end type
 
-  m4_define({m4_list_vec},{
-    m4_X(ast_item)
-    m4_X(character)
-  })
-
-  m4_define({m4_X},{
-    m4_define({T},$1)
-    m4_include(vector_def.f90.inc)
-  })
-  m4_list_vec
-
-  ! Abstract Syntax Tree elements 
-  type, abstract :: ast_t
+  ! Abstract Syntax Tree elements
+  type, abstract :: tree
   contains
-    procedure :: eval => ast_eval
+    procedure :: eval      => tree_eval
+    procedure :: to_string => tree_to_string
   end type
-  
-  type, extends(ast_t) :: ast_expr
-    type(vector_ast_item)  :: operands
-    type(vector_character) :: operators
+
+  type item
+    class(tree), allocatable :: item
   end type
-  type, extends(ast_t) :: ast_unit
+
+  m4_define({T},{item})
+  m4_include(vector_def.f90.inc)
+
+  type, extends(tree) :: tree_expr
+    type(vector_item) :: operands
+    type(vector_char) :: operators
+  end type
+
+  type, extends(tree) :: tree_unit
     type(token)  :: tok
     type(string) :: prefix
     type(string) :: unit
   end type
-  type, extends(ast_t) :: ast_int
+
+  type, extends(tree) :: tree_int
     type(token) :: tok
     integer     :: value
   end type
-  type, extends(ast_t) :: ast_ratio
-    class(ast_t), allocatable :: nom
-    class(ast_t), allocatable :: den
+
+  type, extends(tree) :: tree_ratio
+    class(tree), allocatable :: nom
+    class(tree), allocatable :: den
   end type
-  type, extends(ast_t) :: ast_expo
-    class(ast_t), allocatable :: base
-    type(ast_ratio)           :: expo
+
+  type, extends(tree) :: tree_expo
+    class(tree), allocatable :: base
+    type(tree_ratio)         :: expo
   end type
-  
-  type :: lexer
+
+  type lexer
     character(:), allocatable :: input
     integer :: pos
     integer :: read_pos
@@ -121,12 +125,12 @@ module normalization_m
     procedure :: skip_ws     => lexer_skip_ws
   end type
 
-  type :: parser
+  type parser
     type(lexer) :: l
     character(:), allocatable :: errors(:)
     type(token) :: curr_token
     type(token) :: peek_token
-  contains 
+  contains
     procedure :: init             => parser_init
     procedure :: add_error        => parser_add_error
     procedure :: expect_peek      => parser_expect_peek
@@ -141,12 +145,11 @@ module normalization_m
     procedure :: peek_token_is    => parser_peek_token_is
   end type
 
-  type :: ast_item
-    class(ast_t), allocatable :: item
-  end type
-
 contains
-    
+
+  m4_define({T},{item})
+  m4_include(vector_imp.f90.inc)
+
   subroutine init_normconst(T)
     !! initialize global normalization object
     real, intent(in) :: T
@@ -163,7 +166,7 @@ contains
   subroutine normalization_init(this, T)
     class(normalization), intent(out) :: this
     real,                 intent(in)  :: T
-    
+
     ! constants
     real, parameter :: EC = 1.602176634e-19
       !! elementary charge [ As ]
@@ -213,7 +216,7 @@ contains
     call this%prefixes%insert(new_string("p"), 1e12)
     call this%prefixes%insert(new_string("f"), 1e15)
     call this%prefixes%insert(new_string("a"), 1e18)
-    
+
     ! available units
     volt    = BOLTZ * T
     meter   = PLANCK / sqrt(EM / EC * volt)
@@ -274,17 +277,16 @@ contains
 
   function eval(unit) result(res)
     character(:), allocatable, intent(in) :: unit
-    real :: res
-   
-    class(ast_t), allocatable :: ast
-    integer :: i
+    real                                  :: res
 
-    type(lexer) :: l
-    type(parser) :: p
+    integer                  :: i
+    type(lexer)              :: l
+    type(parser)             :: p
+    class(tree), allocatable :: tr
 
     call l%init(unit)
     call p%init(l)
-    call p%parse_expr(ast)
+    call p%parse_expr(tr)
 
     if (allocated(p%errors)) then
       if (count(p%errors /= "") > 0) then
@@ -295,24 +297,24 @@ contains
       end if
     end if
 
-    res = ast%eval()
+    res = tr%eval()
   end function
 
   m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
-    m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
-    m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
-      m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
-        !! value to (de-)normalize
-      character(*),                  intent(in) :: unit
-        !! physical unit token
-      type(normalization), optional, intent(in) :: n
-        !! optional normalization object (default: use global normconst)
-      m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
-        !! return normalized value
-  
-      nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
-    end function})
-    m4_list
+  m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
+  m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
+    m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
+      !! value to (de-)normalize
+    character(*),                  intent(in) :: unit
+      !! physical unit token
+    type(normalization), optional, intent(in) :: n
+      !! optional normalization object (default: use global normconst)
+    m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
+      !! return normalized value
+
+    nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
+  end function})
+  m4_list
 
   subroutine normalization_destruct(this)
     !! destruct normalization constants (release memory)
@@ -350,7 +352,7 @@ contains
         name = "OTHER"
     end select
   end function token_name
-    
+
   subroutine lexer_init(this, input)
     class(lexer),              intent(inout) :: this
     character(:), allocatable, intent(in)    :: input
@@ -361,7 +363,7 @@ contains
     this%ch = "x"
     call this%read_ch()
   end subroutine
-    
+
   subroutine lexer_next_token(this, tok)
     class(lexer), intent(inout) :: this
     type(token),  intent(out)   :: tok
@@ -407,7 +409,7 @@ contains
 
       call this%read_ch()
   end subroutine
-    
+
   subroutine lexer_read_ch(this)
     class(lexer), intent(inout) :: this
 
@@ -419,7 +421,7 @@ contains
     this%pos = this%read_pos
     this%read_pos = this%read_pos + 1
   end subroutine
-    
+
   subroutine lexer_skip_ws(this)
     class(lexer), intent(inout) :: this
 
@@ -467,7 +469,7 @@ contains
         ch = this%input(this%read_pos:this%read_pos)
     end if
   end function
-    
+
   pure function is_whitepsace(ch) result(ret)
     character, intent(in) :: ch
     logical :: ret
@@ -502,7 +504,7 @@ contains
       ret = .false.
     end if
   end function
-    
+
   subroutine parser_init(this, l)
     class(parser), intent(inout) :: this
     type(lexer),   intent(inout) :: l
@@ -518,7 +520,7 @@ contains
     this%curr_token = this%peek_token
     call this%l%next_token(this%peek_token)
   end subroutine
-    
+
   function parser_peek_token_is(this, tok) result(b)
     class(parser), intent(in) :: this
     integer,       intent(in) :: tok
@@ -527,11 +529,11 @@ contains
 
     b = tok == this%peek_token%type
   end function
-    
+
   function parser_expect_peek(this, tok) result(b)
     class(parser), intent(inout) :: this
     integer,         intent(in)    :: tok
-    
+
     logical :: b
 
     if (this%peek_token_is(tok)) then
@@ -555,23 +557,23 @@ contains
 
   subroutine parser_add_error(this, msg)
     class(parser), intent(inout) :: this
-    
+
     character(:), allocatable, intent(in) :: msg
-    
+
     if (allocated(this%errors)) then
       this%errors = [this%errors, msg]
     else
       this%errors = [msg]
     end if
-  end subroutine  
+  end subroutine
 
-  subroutine parser_parse_expr(this, ast, nested)
-    class(parser),             intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: ast
-    logical, optional,         intent(in)    :: nested
+  subroutine parser_parse_expr(this, tr, nested)
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: tr
+    logical, optional,        intent(in)    :: nested
 
-    type(ast_expr)            :: expr
-    type(ast_item)            :: item
+    type(tree_expr)     :: expr
+    type(item)                :: it
     character(:), allocatable :: err
     character                 :: op
     logical                   :: nested_
@@ -579,57 +581,57 @@ contains
     nested_ = .false.
     if (present(nested)) nested_ = nested
 
-    ast = expr
-    select type(ast)
-    type is (ast_expr)
+    tr = expr
+    select type(tr)
+    type is (tree_expr)
+      call tr%operands%init(0, c = 4)
+      call tr%operators%init(0, c = 4)
 
-    call ast%operands%init(0, c = 4)
-    call ast%operators%init(0, c = 4)
-    
-    do while(this%curr_token%type /= token_eof .and. ((.not. nested_) .or. (this%curr_token%type /= token_rparen)))
-      
-      if (this%curr_token%type == token_asterisk .or. this%curr_token%type == token_slash) then
-        op = this%curr_token%literal
+      do while(this%curr_token%type /= token_eof .and. ((.not. nested_) .or. (this%curr_token%type /= token_rparen)))
+
+        if ((this%curr_token%type == token_asterisk) .or. (this%curr_token%type == token_slash)) then
+          op = this%curr_token%literal
+          call this%next_token()
+        else
+          op = achar(0)
+        end if
+
+        if (tr%operands%n > 0 .and. op == achar(0)) then
+          err = "Got no operator between values"
+          call this%add_error(err)
+          exit
+        end if
+
+        call this%parse_value(it%item)
+        if (allocated(it%item)) then
+          call tr%operands%push(it)
+          if (op /= achar(0)) call tr%operators%push(op)
+          deallocate(it%item)
+        end if
+
         call this%next_token()
-      else
-        op = achar(0)
-      end if
+      end do
 
-      if (ast%operands%n > 0 .and. op == achar(0)) then
-        err = "Got no operator between values"
-        call this%add_error(err)
-        exit
-      end if
-
-      call this%parse_value(item%item)
-      if (allocated(item%item)) then
-        call ast%operands%push(item)
-        if (op /= achar(0)) call ast%operators%push(op)
-        deallocate(item%item)
-      end if
-
-      call this%next_token()
-    end do
     end select
   end subroutine
 
   subroutine parser_parse_value(this, s)
-    class(parser),           intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: s
-    
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: s
+
     character(:), allocatable :: err
 
     select case(this%curr_token%type)
-      case (token_ident)
-        call this%parse_identifier(s)
-      case (token_int)
-        call this%parse_integer(s)
-      case (token_lparen)
-        call this%parse_group(s)
-      case default
-        err = "expected expression got " // token_name(this%curr_token%type)
-        call this%add_error(err)
-        return
+    case (token_ident)
+      call this%parse_identifier(s)
+    case (token_int)
+      call this%parse_integer(s)
+    case (token_lparen)
+      call this%parse_group(s)
+    case default
+      err = "expected expression got " // token_name(this%curr_token%type)
+      call this%add_error(err)
+      return
     end select
 
     ! Possible exponentiation
@@ -639,102 +641,105 @@ contains
     end if
   end subroutine
 
-  subroutine parser_parse_group(this, ast)
-    class(parser),             intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: ast
+  subroutine parser_parse_group(this, tr)
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: tr
 
     character(:), allocatable :: err
 
     call this%next_token()
-    call this%parse_expr(ast, nested=.true.)
+    call this%parse_expr(tr, nested=.true.)
 
     if (.not. this%curr_token%type == token_rparen) then
-      deallocate(ast)
+      deallocate(tr)
       err = "expected ')' after expression got " // token_name(this%curr_token%type)
       call this%add_error(err)
       return
     end if
   end subroutine
-  
-  subroutine parser_parse_expo(this, ast)
-    class(parser),             intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: ast
 
-    type(ast_expo)  :: expo
-    type(ast_ratio) :: ratio
-    type(ast_int)   :: i
+  subroutine parser_parse_expo(this, tr)
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: tr
+
+    type(tree_expo)  :: expo
+    type(tree_ratio) :: ratio
+    type(tree_int)   :: i
 
     character(:), allocatable  :: err
     logical                    :: b
 
-    if (.not. allocated(ast)) then
+    if (.not. allocated(tr)) then
       call program_error("Cannot parse exponent if no base is given")
     end if
 
-    expo%base = ast
-    deallocate(ast)
-    
+    expo%base = tr
+    deallocate(tr)
+
     call this%next_token()
     select case(this%curr_token%type)
-      case (token_int) 
-        call this%parse_integer(ratio%nom)
-        
-        i%tok = token(token_int, "1")
-        i%value = 1
-        ratio%den = i
-      case (token_lparen)
-        b = this%expect_peek(token_int)
-        if (.not. b) return
-        call this%parse_integer(ratio%nom)
-        b = this%expect_peek(token_slash)
-        if (.not. b) return
-        b = this%expect_peek(token_int)
-        if (.not. b) return
-        call this%parse_integer(ratio%den)
-        b = this%expect_peek(token_rparen)
-        if (.not. b) return
-      case default
-        err = "Expected integer or left parenthesis, got " // token_name(this%curr_token%type)
-        call this%add_error(err)
-        return
+    case (token_int)
+      call this%parse_integer(ratio%nom)
+
+      i%tok = token(token_int, "1")
+      i%value = 1
+      ratio%den = i
+
+    case (token_lparen)
+      b = this%expect_peek(token_int)
+      if (.not. b) return
+      call this%parse_integer(ratio%nom)
+      b = this%expect_peek(token_slash)
+      if (.not. b) return
+      b = this%expect_peek(token_int)
+      if (.not. b) return
+      call this%parse_integer(ratio%den)
+      b = this%expect_peek(token_rparen)
+      if (.not. b) return
+
+    case default
+      err = "Expected integer or left parenthesis, got " // token_name(this%curr_token%type)
+      call this%add_error(err)
+      return
+
     end select
 
     expo%expo = ratio
-    ast = expo
+    tr = expo
   end subroutine
-    
-  subroutine parser_parse_integer(this, ast)
-    class(parser),             intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: ast
 
-    type(ast_int) :: s
+  subroutine parser_parse_integer(this, tr)
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: tr
+
+    type(tree_int) :: s
 
     s%tok = this%curr_token
     read(this%curr_token%literal, *) s%value ! todo: handle read error
-    ast = s
+    tr = s
   end subroutine
 
-  subroutine parser_parse_identifier(this, ast)
-    class(parser),             intent(inout) :: this
-    class(ast_t), allocatable, intent(inout) :: ast
+  subroutine parser_parse_identifier(this, tr)
+    class(parser),            intent(inout) :: this
+    class(tree), allocatable, intent(inout) :: tr
 
-    type(ast_unit)                     :: s
+    type(tree_unit)                    :: s
     type(mapnode_string_real), pointer :: node
     type(string)                       :: prefix, unit
     character(:), allocatable          :: err
 
     s%tok = this%curr_token
     unit = new_string(this%curr_token%literal)
-    
+
     ! identifier = unit
     node => normconst%units%find(unit)
     if (associated(node)) then
       s%prefix = new_string("1")
       s%unit = unit
-      ast = s
+      tr = s
       return
     end if
-    
+
     if (len(unit%s) .eq. 1) then
       err = "Cannot find unit " // unit%s
       call this%add_error(err)
@@ -757,53 +762,95 @@ contains
       call this%add_error(err)
       return
     end if
-    
+
     s%prefix = prefix
     s%unit = unit
-    ast = s
+    tr = s
   end subroutine
 
-  recursive function ast_eval(this) result(val)
+  recursive function tree_eval(this) result(val)
     !! Serves as eval and destruct
-    class(ast_t), intent(inout) :: this
-    
+    class(tree), intent(inout) :: this
+
     real    :: val
     integer :: i
 
     select type(this)
-      type is (ast_expr)
-        if (this%operands%n < 1) call program_error("Empty expression given")
-      
-        val = this%operands%d(1)%item%eval()
-        do i = 2, this%operands%n
-          select case (this%operators%d(i-1))
-            case ("*")
-              val = val * this%operands%d(i)%item%eval()
-            case ("/")
-              val = val / this%operands%d(i)%item%eval()
-            case default
-              call program_error("Undefined operator given")
-          end select
-        end do
+    type is (tree_expr)
+      if (this%operands%n < 1) call program_error("Empty expression given")
 
-        call this%operands%destruct()
-        call this%operators%destruct()
-      type is (ast_int)
-        val = real(this%value)
-      type is (ast_unit)
-        val = normconst%prefixes%get(this%prefix) * normconst%units%get(this%unit)
-      type is (ast_expo)
-        val = this%base%eval() ** this%expo%eval()
-      type is (ast_ratio)
-        val = this%nom%eval() / this%den%eval()
-      class default
-        call program_error("Got undefined ast type")
+      val = this%operands%d(1)%item%eval()
+      do i = 2, this%operands%n
+        select case (this%operators%d(i-1))
+          case ("*")
+            val = val * this%operands%d(i)%item%eval()
+          case ("/")
+            val = val / this%operands%d(i)%item%eval()
+          case default
+            call program_error("Undefined operator given")
+        end select
+      end do
+
+      call this%operands%destruct()
+      call this%operators%destruct()
+
+    type is (tree_int)
+      val = real(this%value)
+
+    type is (tree_unit)
+      val = normconst%prefixes%get(this%prefix) * normconst%units%get(this%unit)
+
+    type is (tree_expo)
+      val = this%base%eval() ** this%expo%eval()
+
+    type is (tree_ratio)
+      val = this%nom%eval() / this%den%eval()
+
+    class default
+      call program_error("Got undefined ast type")
+
     end select
   end function
 
-  m4_define({m4_X},{
-    m4_define({T},$1)
-    m4_include(vector_imp.f90.inc)
-  })
-  m4_list_vec
+  recursive function tree_to_string(this) result(s)
+    !! convert to string for printing
+    class(tree), intent(in)   :: this
+    character(:), allocatable :: s
+
+    integer :: i
+
+    select type (this)
+    type is (tree_expr)
+      if (this%operands%n == 0) then
+        s = "( )"
+      else
+        s = "( " // this%operands%d(1)%item%to_string()
+        do i = 2, this%operands%n
+          select case (this%operators%d(i-1))
+          case ("*")
+            s = s // " * " // this%operands%d(i)%item%to_string()
+          case ("/")
+            s = s // " / " // this%operands%d(i)%item%to_string()
+          end select
+        end do
+        s = s // " )"
+      end if
+
+    type is (tree_unit)
+      s = "unit[" // this%prefix%s // "-" // this%unit%s // "]"
+
+    type is (tree_int)
+      s = this%tok%literal
+
+    type is (tree_expo)
+      s = this%base%to_string() // "^" // this%expo%to_string()
+
+    type is (tree_ratio)
+      s = "(" // this%nom%to_string() // "/" // this%den%to_string() // ")"
+
+    class default
+      call program_error("unexpected type")
+    end select
+  end function
+
 end module
