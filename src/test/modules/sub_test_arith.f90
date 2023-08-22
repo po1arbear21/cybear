@@ -2,6 +2,9 @@ submodule (test_matrix_m) test_arith_m
 
   implicit none
 
+  real, parameter :: rtol = 1e-14
+  real, parameter :: atol = 1e-16
+
 contains
 
   module subroutine test_arith()
@@ -62,20 +65,20 @@ contains
       ! dense real -> array
       call matr_r%init(matr_in_r)
       call matrix_diag(matr_r, arr_r)
-      call tc%assert_eq(exp_arr_r, arr_r, 1e-12, "diag: dense real -> array")
+      call tc%assert_eq(exp_arr_r, arr_r, rtol, atol, "diag: dense real -> array")
 
       ! dense complex -> array
       call matr_c%init(matr_in_c)
       call matrix_diag(matr_c, arr_c)
-      call tc%assert_eq(exp_arr_c, arr_c, 1e-12, "diag: dense complex -> array")
+      call tc%assert_eq(exp_arr_c, arr_c, rtol, atol, "diag: dense complex -> array")
 
       ! array -> dense real
       call matrix_diag(exp_arr_r, matr_r)
-      call tc%assert_eq(matr_out_r, matr_r%d, 1e-12, "diag: array -> dense real")
+      call tc%assert_eq(matr_out_r, matr_r%d, rtol, atol, "diag: array -> dense real")
 
       ! array -> dense complex
       call matrix_diag(exp_arr_c, matr_c)
-      call tc%assert_eq(matr_out_c, matr_c%d, 1e-12, "diag: array -> dense complex")
+      call tc%assert_eq(matr_out_c, matr_c%d, rtol, atol, "diag: array -> dense complex")
     end block
 
     ! sparse: matrix <-> array
@@ -98,7 +101,7 @@ contains
       end do
       call sb_r%save()
       call matrix_diag(s_r, arr_r)
-      call tc%assert_eq(exp_arr_r, arr_r, 1e-12, "diag: sparse real -> array"   )
+      call tc%assert_eq(exp_arr_r, arr_r, rtol, atol, "diag: sparse real -> array"   )
 
       ! sparse complex -> array
       call s_c%init(3, ncols=4)
@@ -110,17 +113,17 @@ contains
       end do
       call sb_c%save()
       call matrix_diag(s_c, arr_c)
-      call tc%assert_eq(exp_arr_c, arr_c, 1e-12, "diag: sparse complex -> array")
+      call tc%assert_eq(exp_arr_c, arr_c, rtol, atol, "diag: sparse complex -> array")
 
       ! array -> sparse real
       call matrix_diag(exp_arr_r, s_r)
-      call tc%assert_eq(exp_arr_r,    s_r%a, 1e-12, "diag: array -> sparse real: a" )
+      call tc%assert_eq(exp_arr_r,    s_r%a, rtol, atol, "diag: array -> sparse real: a" )
       call tc%assert_eq([(i, i=1,4)], int(s_r%ia),  "diag: array -> sparse real: ia")
       call tc%assert_eq([(i, i=1,3)], s_r%ja,       "diag: array -> sparse real: ja")
 
       ! array -> sparse complex
       call matrix_diag(exp_arr_c, s_c)
-      call tc%assert_eq(exp_arr_c,    s_c%a, 1e-12, "diag: array -> sparse complex: a" )
+      call tc%assert_eq(exp_arr_c,    s_c%a, rtol, atol, "diag: array -> sparse complex: a" )
       call tc%assert_eq([(i, i=1,4)], int(s_c%ia),  "diag: array -> sparse complex: ia")
       call tc%assert_eq([(i, i=1,3)], s_c%ja,       "diag: array -> sparse complex: ja")
     end block
@@ -169,7 +172,7 @@ contains
         x    = 0
         x(i) = 1
         call s_out%mul_vec(x, y)
-        call tc%assert_eq(d_out(:,i), y, 1e-12, "approx: sparse")
+        call tc%assert_eq(d_out(:,i), y, rtol, atol, "approx: sparse")
       end do
     end block
 

@@ -72,7 +72,7 @@ contains
 
       do i_rhs = 1, n_rhs
         call ilupack_solve(ilu, b(:,i_rhs), x)
-        call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "real solving")
+        call tc%assert_eq(x_exp(:,i_rhs), x, 1e-14, 1e-16, "real solving")
       end do
 
       call destruct_ilupack_handle(ilu)
@@ -122,7 +122,7 @@ contains
 
       do i_rhs = 1, n_rhs
         call ilupack_solve(ilu, b(:,i_rhs), x)
-        call tc%assert_eq(x_exp(:,i_rhs), x, 1e-13, "complex solving")
+        call tc%assert_eq(x_exp(:,i_rhs), x, 1e-14, 1e-16, "complex solving")
       end do
 
       call destruct_ilupack_handle(ilu)

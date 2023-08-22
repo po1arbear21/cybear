@@ -4,6 +4,9 @@ submodule (test_matrix_m) test_block_m
 
   implicit none
 
+  real, parameter :: rtol = 1e-14
+  real, parameter :: atol = 1e-16
+
 contains
 
   module subroutine test_block()
@@ -61,10 +64,10 @@ contains
       call M%get(2, 1, C)
       call M%get(2, 2, D)
 
-      call tc%assert_eq(A_exp * l, A%d, 0.0, "scale: A")
-      call tc%assert_eq(B_exp * l, B%d, 0.0, "scale: B")
-      call tc%assert_eq(C_exp * l, C%d, 0.0, "scale: C")
-      call tc%assert_eq(D_exp * l, D%d, 0.0, "scale: D")
+      call tc%assert_eq(A_exp * l, A%d, 0.0, 0.0, "scale: A")
+      call tc%assert_eq(B_exp * l, B%d, 0.0, 0.0, "scale: B")
+      call tc%assert_eq(C_exp * l, C%d, 0.0, 0.0, "scale: C")
+      call tc%assert_eq(D_exp * l, D%d, 0.0, 0.0, "scale: D")
     end block
 
     ! mul_vec
@@ -74,19 +77,19 @@ contains
       x     = [1, 3, 1]
       y_exp = [3, 2, 4]
       call M1%mul_vec(x, y)
-      call tc%assert_eq(y_exp, y, 0.0, "mul_vec")
+      call tc%assert_eq(y_exp, y, 0.0, 0.0, "mul_vec")
 
       call M1%mul_vec(x, y, trans = "T")
-      call tc%assert_eq(y_exp, y, 0.0, "mul_vec T")
+      call tc%assert_eq(y_exp, y, 0.0, 0.0, "mul_vec T")
 
       y     = [1,  1, 0]
       y_exp = [0, -1, 4]
       call M1%mul_vec(x, y, fact_y = -3.0)
-      call tc%assert_eq(y_exp, y, 0.0, "mul_vec fact")
+      call tc%assert_eq(y_exp, y, 0.0, 0.0, "mul_vec fact")
 
       y = [1, 1, 0]
       call M1%mul_vec(x, y, fact_y = -3.0, trans = "T")
-      call tc%assert_eq(y_exp, y, 0.0, "mul_vec fact T")
+      call tc%assert_eq(y_exp, y, 0.0, 0.0, "mul_vec fact T")
     end block
 
     ! mul_mat
@@ -104,16 +107,16 @@ contains
         & 4, 1, 4  ], [3, 3], order = [2, 1])
 
       call M1%mul_mat(x, y)
-      call tc%assert_eq(y_exp, y, 1e-15, "mul_mat")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_mat")
 
       call M1%mul_mat(x, y, trans = "T")
-      call tc%assert_eq(y_exp, y, 1e-15, "mul_mat T")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_mat T")
 
       call M1%mul_mat(x, y, fact_y = -2.0)
-      call tc%assert_eq(-1 * y_exp, y, 1e-15, "mul_mat fact")
+      call tc%assert_eq(-1 * y_exp, y, rtol, atol, "mul_mat fact")
 
       call M1%mul_mat(x, y, fact_y = -2.0)
-      call tc%assert_eq(3 * y_exp, y, 1e-15, "mul_mat fact T")
+      call tc%assert_eq(3 * y_exp, y, rtol, atol, "mul_mat fact T")
     end block
 
     call example_matrix8(M2)
@@ -126,10 +129,10 @@ contains
       y     = [-1,  1,  4, -4]
       x_exp = [ 1, -1, -1,  1]
       call M2%solve_vec(y, x)
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_vec")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec")
 
       call M2%solve_vec(y, x, trans = "T")
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_vec T")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec T")
     end block
 
     ! factorize, solve_mat
@@ -147,10 +150,10 @@ contains
              &  1,  0, &
              &  1, -1  ], [4, 2], order = [2, 1])
       call M2%solve_mat(y, x)
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_mat")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_mat")
 
       call M2%solve_mat(y, x, trans = "T")
-      call tc%assert_eq(x_exp, x, 1e-15, "solve_mat T")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_mat T")
     end block
 
     ! delete_block
@@ -186,9 +189,9 @@ contains
       call matrix_convert(A, Asb)
       call Asb%save()
 
-      call tc%assert_eq([1.0, 1.0],      Asp%a, 1e-12, "delete block: a" )
-      call tc%assert_eq([1, 1, 1, 2, 3], int(Asp%ia),  "delete block: ia")
-      call tc%assert_eq([1, 2],          Asp%ja,       "delete block: ja")
+      call tc%assert_eq([1.0, 1.0],      Asp%a, rtol, atol, "delete block: a" )
+      call tc%assert_eq([1, 1, 1, 2, 3], int(Asp%ia),       "delete block: ia")
+      call tc%assert_eq([1, 2],          Asp%ja,            "delete block: ja")
     end block
 
     ! get_global_idx, get_local_idx
@@ -214,11 +217,11 @@ contains
       call A%init(real(reshape([1], [1, 1])))
       call M1%set(1, 1, A)
       call M1%get(1, 1, A_p)
-      call tc%assert_eq(A%d,   A_p%d, 0.0, "set")
+      call tc%assert_eq(A%d,   A_p%d, 0.0, 0.0, "set")
 
       call M1%set(1, 1, A, fact = 2.0)
       call M1%get(1, 1, A_p)
-      call tc%assert_eq(2*A%d, A_p%d, 0.0, "set fact")
+      call tc%assert_eq(2*A%d, A_p%d, 0.0, 0.0, "set fact")
     end block
 
     block
@@ -235,19 +238,19 @@ contains
 
       call M1%get(1, 1, M1_p)
       call A%get( 1, 1, A_p)
-      call tc%assert_eq(M1_p%d, A_p%d, 0.0, "copy: val (1,1)")
+      call tc%assert_eq(M1_p%d, A_p%d, 0.0, 0.0, "copy: val (1,1)")
 
       call M1%get(1, 2, M1_p)
       call A%get( 1, 2, A_p)
-      call tc%assert_eq(M1_p%d, A_p%d, 0.0, "copy: val (1,2)")
+      call tc%assert_eq(M1_p%d, A_p%d, 0.0, 0.0, "copy: val (1,2)")
 
       call M1%get(2, 1, M1_p)
       call A%get( 2, 1, A_p)
-      call tc%assert_eq(M1_p%d, A_p%d, 0.0, "copy: val (2,1)")
+      call tc%assert_eq(M1_p%d, A_p%d, 0.0, 0.0, "copy: val (2,1)")
 
       call M1%get(2, 2, M1_p)
       call A%get( 2, 2, A_p)
-      call tc%assert_eq(M1_p%d, A_p%d, 0.0, "copy: val (2,2)")
+      call tc%assert_eq(M1_p%d, A_p%d, 0.0, 0.0, "copy: val (2,2)")
     end block
 
     ! set_ptr, destruct

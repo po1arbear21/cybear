@@ -40,31 +40,31 @@ contains
       type(map_string_real) :: map_copy
 
       call map_copy%copy(map)
-      call tc%assert_eq(r(2), map_copy%get(str(2)), 0.0, "copy")
+      call tc%assert_eq(r(2), map_copy%get(str(2)), 0.0, 0.0, "copy")
     end block
 
 
     ! test get
     do i = 1, 5
-      call tc%assert_eq(r(i), map%get(str(i)), 0.0, "get "//int2str(i))
+      call tc%assert_eq(r(i), map%get(str(i)), 0.0, 0.0, "get "//int2str(i))
     end do
 
     ! test find
     do i = 1, 5
       node => map%find(str(i))
-      call tc%assert_eq(r(i), node%value, 0.0, "find "//int2str(i))
+      call tc%assert_eq(r(i), node%value, 0.0, 0.0, "find "//int2str(i))
     end do
 
     ! test to array
     call map%to_array(keys = str_arr, values = r_arr)
-    call tc%assert_eq(r,   r_arr,   0.0,  "to array: values")
-    call tc%assert_eq(str, str_arr,       "to array: keys")
+    call tc%assert_eq(r,   r_arr,   0.0,  0.0, "to array: values")
+    call tc%assert_eq(str, str_arr,            "to array: keys")
 
     ! test set
     call map%set(string("f"), 5.0)
-    call tc%assert_eq(5.0, map%get(string("f")), 0.0, "set new")
+    call tc%assert_eq(5.0, map%get(string("f")), 0.0, 0.0, "set new")
     call map%set(string("f"), 6.0)
-    call tc%assert_eq(6.0, map%get(string("f")), 0.0, "set existing")
+    call tc%assert_eq(6.0, map%get(string("f")), 0.0, 0.0, "set existing")
 
     ! test destruct
     call map%destruct()

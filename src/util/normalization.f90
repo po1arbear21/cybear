@@ -5,25 +5,24 @@ module normalization_m
   use error_m,  only: program_error
   use map_m,    only: map_string_real, mapnode_string_real
   use math_m,   only: PI
-  use string_m, only: new_string
+  use string_m, only: string, new_string
+  use vector_m, only: 
 
   implicit none
 
-  private
-  public init_normconst, destruct_normconst
-  public norm, denorm
-  public normalization
+  ! Uff
+  public
 
-  type normalization
-    type(map_string_real) :: unit_const
-      !! phyiscal unit tokens (e.g. "eV" or "kV/cm") -> corresponding normalization constant
+  type :: normalization
+    type(map_string_real) :: map
+    type(map_string_real) :: prefixes
+    type(map_string_real) :: units
   contains
     procedure :: init     => normalization_init
     procedure :: destruct => normalization_destruct
   end type
 
   type(normalization) :: normconst
-    !! global normalization object
 
   ! maximum supported array dimension
   m4_define({m4_max_dim},{8})
@@ -53,13 +52,104 @@ module normalization_m
   })
   m4_list
 
-contains
+  ! Tokens
+  enum, bind(c)
+    enumerator :: token_eof = 0, token_illegal
+    enumerator :: token_ident
+    enumerator :: token_int
 
+    enumerator :: token_asterisk, token_slash, token_caret
+    enumerator :: token_lparen, token_rparen
+  end enum
+
+  type token
+    integer :: type
+    character(:), allocatable :: literal
+  end type
+
+  m4_define({m4_list_vec},{
+    m4_X(ast_item)
+    m4_X(character)
+  })
+
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(vector_def.f90.inc)
+  })
+  m4_list_vec
+
+  ! Abstract Syntax Tree elements 
+  type, abstract :: ast_t
+  contains
+    procedure :: eval => ast_eval
+  end type
+  
+  type, extends(ast_t) :: ast_expr
+    type(vector_ast_item)  :: operands
+    type(vector_character) :: operators
+  end type
+  type, extends(ast_t) :: ast_unit
+    type(token)  :: tok
+    type(string) :: prefix
+    type(string) :: unit
+  end type
+  type, extends(ast_t) :: ast_int
+    type(token) :: tok
+    integer     :: value
+  end type
+  type, extends(ast_t) :: ast_ratio
+    class(ast_t), allocatable :: nom
+    class(ast_t), allocatable :: den
+  end type
+  type, extends(ast_t) :: ast_expo
+    class(ast_t), allocatable :: base
+    type(ast_ratio)           :: expo
+  end type
+  
+  type :: lexer
+    character(:), allocatable :: input
+    integer :: pos
+    integer :: read_pos
+    character :: ch
+  contains
+    procedure :: init        => lexer_init
+    procedure :: next_token  => lexer_next_token
+    procedure :: read_ch     => lexer_read_ch
+    procedure :: read_ident  => lexer_read_ident
+    procedure :: read_number => lexer_read_number
+    procedure :: peek_char   => lexer_peek_char
+    procedure :: skip_ws     => lexer_skip_ws
+  end type
+
+  type :: parser
+    type(lexer) :: l
+    character(:), allocatable :: errors(:)
+    type(token) :: curr_token
+    type(token) :: peek_token
+  contains 
+    procedure :: init             => parser_init
+    procedure :: add_error        => parser_add_error
+    procedure :: expect_peek      => parser_expect_peek
+    procedure :: next_token       => parser_next_token
+    procedure :: parse_expr       => parser_parse_expr
+    procedure :: parse_value      => parser_parse_value
+    procedure :: parse_expo       => parser_parse_expo
+    procedure :: parse_group      => parser_parse_group
+    procedure :: parse_identifier => parser_parse_identifier
+    procedure :: parse_integer    => parser_parse_integer
+    procedure :: peek_error       => parser_peek_error
+    procedure :: peek_token_is    => parser_peek_token_is
+  end type
+
+  type :: ast_item
+    class(ast_t), allocatable :: item
+  end type
+
+contains
+    
   subroutine init_normconst(T)
     !! initialize global normalization object
-
     real, intent(in) :: T
-      !! temperature in Kelvin
 
     call normconst%init(T)
   end subroutine
@@ -70,55 +160,10 @@ contains
     call normconst%destruct()
   end subroutine
 
-  m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
-  m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
-  m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
-    m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
-      !! value to (de-)normalize
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
-    m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
-      !! return normalized value
-
-    nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
-  end function})
-  m4_list
-
-  function get_norm_value(unit, n) result(val)
-    !! usage:
-    !!  in norm_X: normed_value = denormed_value * val
-
-    character(*),                  intent(in) :: unit
-      !! physical unit token
-    type(normalization), optional, intent(in) :: n
-    real                                      :: val
-
-    type(mapnode_string_real), pointer :: node
-
-    ! search for unit
-    if (present(n)) then
-      node => n%unit_const%find(new_string(unit))
-    else
-      node => normconst%unit_const%find(new_string(unit))
-    end if
-    if (.not. associated(node)) then
-      print "(A)", "Unit: "//trim(unit)
-      call program_error("Unit not found in normalization object!")
-    end if
-
-    ! return value
-    val = node%value
-  end function
-
   subroutine normalization_init(this, T)
-    !! initialize normalization constants
-
     class(normalization), intent(out) :: this
     real,                 intent(in)  :: T
-      !! temperature
-
+    
     ! constants
     real, parameter :: EC = 1.602176634e-19
       !! elementary charge [ As ]
@@ -145,272 +190,620 @@ contains
       !! rel err: 1.5e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?mu0
 
-    ! metric prefixes: INVERSE values for normalization
-    real, parameter :: TERA = 1e-12
-    real, parameter :: GIGA = 1e-9
-    real, parameter :: MEGA = 1e-6
-    real, parameter :: KILO = 1e-3
-
-    real, parameter :: CENTI = 1e2
-    real, parameter :: MILLI = 1e3
-    real, parameter :: MICRO = 1e6
-    real, parameter :: NANO  = 1e9
-    real, parameter :: PICO  = 1e12
-    real, parameter :: FEMTO = 1e15
-
     ! local variables
-    real :: ampere, coulomb, diel, farad, henry, hertz, kelvin, kilogram, meter, ohm, permby, second, volt, watt
+    real :: ampere, coulomb, diel, farad, henry, hertz, kelvin, gram, meter, ohm, permby, second, volt, watt
 
-    ! basic units
-    volt     = BOLTZ * T
-    meter    = PLANCK / sqrt(EM / EC * volt)
-    second   = PLANCK / volt
-    hertz    = 1.0 / second
-    kilogram = EM
-    ampere   = EC / second
-    coulomb  = ampere * second
-    farad    = coulomb / volt
-    ohm      = volt / ampere
-    henry    = ohm * second
-    watt     = volt * ampere
-    kelvin   = T
-    diel     = sqrt(EM * EC / volt) / (PLANCK * EPS0)
-    permby   = henry / meter / MU0
+    call this%map%init()
+    call this%prefixes%init()
+    call this%units%init()
 
-    ! initialize map
-    call this%unit_const%init()
+    ! metric prefixes: INVERSE values for normalization
+    call this%prefixes%insert(new_string("P"), 1e-15)
+    call this%prefixes%insert(new_string("T"), 1e-12)
+    call this%prefixes%insert(new_string("G"), 1e-9)
+    call this%prefixes%insert(new_string("M"), 1e-6)
+    call this%prefixes%insert(new_string("k"), 1e-3)
+    call this%prefixes%insert(new_string("h"), 1e-2)
+    call this%prefixes%insert(new_string("1"), 1e0)
+    call this%prefixes%insert(new_string("d"), 1e1)
+    call this%prefixes%insert(new_string("c"), 1e2)
+    call this%prefixes%insert(new_string("m"), 1e3)
+    call this%prefixes%insert(new_string("u"), 1e6)
+    call this%prefixes%insert(new_string("n"), 1e9)
+    call this%prefixes%insert(new_string("p"), 1e12)
+    call this%prefixes%insert(new_string("f"), 1e15)
+    call this%prefixes%insert(new_string("a"), 1e18)
+    
+    ! available units
+    volt    = BOLTZ * T
+    meter   = PLANCK / sqrt(EM / EC * volt)
+    second  = PLANCK / volt
+    hertz   = 1.0 / second
+    gram    = EM * 1e3 ! Use grams instead of kilograms
+    ampere  = EC / second
+    coulomb = ampere * second
+    farad   = coulomb / volt
+    ohm     = volt / ampere
+    henry   = ohm * second
+    watt    = volt * ampere
+    kelvin  = T
+    diel    = sqrt(EM * EC / volt) / (PLANCK * EPS0)
+    permby  = henry / meter / MU0
 
-    call this%unit_const%insert(new_string("1"), 1.0)
-    call this%unit_const%insert(new_string("deg"), 180 / PI)
-
-    call this%unit_const%insert(new_string("m"   ),        meter     )
-    call this%unit_const%insert(new_string("m^2" ),        meter**2  )
-    call this%unit_const%insert(new_string("m^3" ),        meter**3  )
-    call this%unit_const%insert(new_string("cm"  ),  CENTI*meter     )
-    call this%unit_const%insert(new_string("cm^2"), (CENTI*meter)**2 )
-    call this%unit_const%insert(new_string("cm^3"), (CENTI*meter)**3 )
-    call this%unit_const%insert(new_string("mm"  ),  MILLI*meter     )
-    call this%unit_const%insert(new_string("mm^2"), (MILLI*meter)**2 )
-    call this%unit_const%insert(new_string("mm^3"), (MILLI*meter)**3 )
-    call this%unit_const%insert(new_string("um"  ),  MICRO*meter     )
-    call this%unit_const%insert(new_string("um^2"), (MICRO*meter)**2 )
-    call this%unit_const%insert(new_string("um^3"), (MICRO*meter)**3 )
-    call this%unit_const%insert(new_string("nm"  ),  NANO *meter     )
-    call this%unit_const%insert(new_string("nm^2"), (NANO *meter)**2 )
-    call this%unit_const%insert(new_string("nm^3"), (NANO *meter)**3 )
-    call this%unit_const%insert(new_string("pm"  ),  PICO *meter     )
-    call this%unit_const%insert(new_string("pm^2"), (PICO *meter)**2 )
-    call this%unit_const%insert(new_string("pm^3"), (PICO *meter)**3 )
-    call this%unit_const%insert(new_string("fm"  ),  FEMTO*meter     )
-    call this%unit_const%insert(new_string("fm^2"), (FEMTO*meter)**2 )
-    call this%unit_const%insert(new_string("fm^3"), (FEMTO*meter)**3 )
-
-    call this%unit_const%insert(new_string("1/m"   ), 1 /        meter     )
-    call this%unit_const%insert(new_string("1/m^2" ), 1 /        meter**2  )
-    call this%unit_const%insert(new_string("1/m^3" ), 1 /        meter**3  )
-    call this%unit_const%insert(new_string("1/cm"  ), 1 / (CENTI*meter)     )
-    call this%unit_const%insert(new_string("1/cm^2"), 1 / (CENTI*meter)**2 )
-    call this%unit_const%insert(new_string("1/cm^3"), 1 / (CENTI*meter)**3 )
-    call this%unit_const%insert(new_string("1/mm"  ), 1 / (MILLI*meter)     )
-    call this%unit_const%insert(new_string("1/mm^2"), 1 / (MILLI*meter)**2 )
-    call this%unit_const%insert(new_string("1/mm^3"), 1 / (MILLI*meter)**3 )
-    call this%unit_const%insert(new_string("1/um"  ), 1 / (MICRO*meter)     )
-    call this%unit_const%insert(new_string("1/um^2"), 1 / (MICRO*meter)**2 )
-    call this%unit_const%insert(new_string("1/um^3"), 1 / (MICRO*meter)**3 )
-    call this%unit_const%insert(new_string("1/nm"  ), 1 / (NANO *meter)     )
-    call this%unit_const%insert(new_string("1/nm^2"), 1 / (NANO *meter)**2 )
-    call this%unit_const%insert(new_string("1/nm^3"), 1 / (NANO *meter)**3 )
-    call this%unit_const%insert(new_string("1/pm"  ), 1 / (PICO *meter)     )
-    call this%unit_const%insert(new_string("1/pm^2"), 1 / (PICO *meter)**2 )
-    call this%unit_const%insert(new_string("1/pm^3"), 1 / (PICO *meter)**3 )
-    call this%unit_const%insert(new_string("1/fm"  ), 1 / (FEMTO*meter)     )
-    call this%unit_const%insert(new_string("1/fm^2"), 1 / (FEMTO*meter)**2 )
-    call this%unit_const%insert(new_string("1/fm^3"), 1 / (FEMTO*meter)**3 )
-
-    call this%unit_const%insert(new_string("s" ),       second )
-    call this%unit_const%insert(new_string("ms"), MILLI*second )
-    call this%unit_const%insert(new_string("us"), MICRO*second )
-    call this%unit_const%insert(new_string("ns"), NANO *second )
-    call this%unit_const%insert(new_string("ps"), PICO *second )
-    call this%unit_const%insert(new_string("fs"), FEMTO*second )
-
-    call this%unit_const%insert(new_string("1/s" ), 1 /        second  )
-    call this%unit_const%insert(new_string("1/ms"), 1 / (MILLI*second) )
-    call this%unit_const%insert(new_string("1/us"), 1 / (MICRO*second) )
-    call this%unit_const%insert(new_string("1/ns"), 1 / (NANO *second) )
-    call this%unit_const%insert(new_string("1/ps"), 1 / (PICO *second) )
-    call this%unit_const%insert(new_string("1/fs"), 1 / (FEMTO*second) )
-
-    call this%unit_const%insert(new_string("Hz" ),      hertz )
-    call this%unit_const%insert(new_string("kHz"), KILO*hertz )
-    call this%unit_const%insert(new_string("MHz"), MEGA*hertz )
-    call this%unit_const%insert(new_string("GHz"), GIGA*hertz )
-    call this%unit_const%insert(new_string("THz"), TERA*hertz )
-
-    call this%unit_const%insert(new_string("m/s"    ),         meter     / second    )
-    call this%unit_const%insert(new_string("cm/s"   ),  (CENTI*meter)    / second    )
-    call this%unit_const%insert(new_string("m^2/s^2"),         meter**2  / second**2 )
-    call this%unit_const%insert(new_string("cm^2/s^2"), (CENTI*meter)**2 / second**2 )
-
-    call this%unit_const%insert(new_string("cm^2/s"), (CENTI*meter)**2 / second )
-
-    call this%unit_const%insert(new_string("1/cm^2/s"), 1 / (CENTI*meter)**2 / second )
-    call this%unit_const%insert(new_string("1/um^2/s"), 1 / (MICRO*meter)**2 / second )
-    call this%unit_const%insert(new_string("1/cm^3/s"), 1 / (CENTI*meter)**3 / second )
-    call this%unit_const%insert(new_string("1/m^3/s" ), 1 /        meter **3 / second )
-
-    call this%unit_const%insert(new_string("kg"    ),  kilogram                          )
-    call this%unit_const%insert(new_string("1/kg"  ),  1 / kilogram                      )
-    call this%unit_const%insert(new_string("kg/m^3"),  kilogram       /        meter **3 )
-    call this%unit_const%insert(new_string("g/cm^3"), (kilogram/KILO) / (CENTI*meter)**3 )
-
-    call this%unit_const%insert(new_string("kV"   ),  KILO*volt)
-    call this%unit_const%insert(new_string("V"    ),       volt)
-    call this%unit_const%insert(new_string("mV"   ), MILLI*volt)
-    call this%unit_const%insert(new_string("uV"   ), MICRO*volt)
-    call this%unit_const%insert(new_string("nV"   ),  NANO*volt)
-
-    call this%unit_const%insert(new_string("V/m"  ),       volt  /        meter  )
-    call this%unit_const%insert(new_string("V/cm" ),       volt  / (CENTI*meter) )
-    call this%unit_const%insert(new_string("kV/cm"), (KILO*volt) / (CENTI*meter) )
-    call this%unit_const%insert(new_string("1/V"  ), 1 /   volt                  )
-
-    call this%unit_const%insert(new_string("eV"       ),       volt                               )
-    call this%unit_const%insert(new_string("meV"      ), MILLI*volt                               )
-    call this%unit_const%insert(new_string("eV/cm"    ),       volt /  (CENTI*meter)              )
-    call this%unit_const%insert(new_string("eV/cm^3"  ),       volt /  (CENTI*meter)**3           )
-    call this%unit_const%insert(new_string("eV/cm^2/s"),       volt / ((CENTI*meter)**2 * second) )
-    call this%unit_const%insert(new_string("1/eV"     ), 1 /   volt                               )
-    call this%unit_const%insert(new_string("1/cm^3/eV"), 1 / (CENTI*meter)**3 / volt              )
-
-    call this%unit_const%insert(new_string("cm^2/V/s"            ), (CENTI*meter)**2 / volt / second )
-    call this%unit_const%insert(new_string("V/s"                 ),                    volt / second )
-    call this%unit_const%insert(new_string("s/V"                 ),                  second / volt   )
-    call this%unit_const%insert(new_string("(V/cm)^(-2/3)*K*cm/s"), &
-      & (volt/(CENTI*meter))**(-2.0/3.0) * kelvin * (CENTI*meter) / second )
-
-    call this%unit_const%insert(new_string("A"      ),        ampere                         )
-    call this%unit_const%insert(new_string("As"     ),        ampere  * second               )
-    call this%unit_const%insert(new_string("A/m"    ),        ampere  / meter                )
-    call this%unit_const%insert(new_string("A/cm"   ),        ampere  / (CENTI*meter)        )
-    call this%unit_const%insert(new_string("A/mm"   ),        ampere  / (MILLI*meter)        )
-    call this%unit_const%insert(new_string("A/um"   ),        ampere  / (MICRO*meter)        )
-    call this%unit_const%insert(new_string("A/nm"   ),        ampere  / (NANO *meter)        )
-    call this%unit_const%insert(new_string("A/pm"   ),        ampere  / (PICO *meter)        )
-    call this%unit_const%insert(new_string("A/fm"   ),        ampere  / (FEMTO*meter)        )
-    call this%unit_const%insert(new_string("A/cm^2" ),        ampere  / (CENTI*meter)**2     )
-    call this%unit_const%insert(new_string("A/um^2" ),        ampere  / (MICRO*meter)**2     )
-    call this%unit_const%insert(new_string("mA/um^2"), (MILLI*ampere) / (MICRO*meter)**2     )
-
-    call this%unit_const%insert(new_string("A/V/m"  ), ampere / volt / (      meter))
-    call this%unit_const%insert(new_string("A/V/cm" ), ampere / volt / (CENTI*meter))
-    call this%unit_const%insert(new_string("A/V/mm" ), ampere / volt / (MILLI*meter))
-    call this%unit_const%insert(new_string("A/V/um" ), ampere / volt / (MICRO*meter))
-    call this%unit_const%insert(new_string("A/V/nm" ), ampere / volt / (NANO *meter))
-    call this%unit_const%insert(new_string("A/V/pm" ), ampere / volt / (PICO *meter))
-    call this%unit_const%insert(new_string("A/V/fm" ), ampere / volt / (FEMTO*meter))
-
-    call this%unit_const%insert(new_string("A/V/m^2" ), ampere / volt / (      meter)**2 )
-    call this%unit_const%insert(new_string("A/V/cm^2"), ampere / volt / (CENTI*meter)**2 )
-    call this%unit_const%insert(new_string("A/V/mm^2"), ampere / volt / (MILLI*meter)**2 )
-    call this%unit_const%insert(new_string("A/V/um^2"), ampere / volt / (MICRO*meter)**2 )
-    call this%unit_const%insert(new_string("A/V/nm^2"), ampere / volt / (NANO *meter)**2 )
-    call this%unit_const%insert(new_string("A/V/pm^2"), ampere / volt / (PICO *meter)**2 )
-    call this%unit_const%insert(new_string("A/V/fm^2"), ampere / volt / (FEMTO*meter)**2 )
-
-    call this%unit_const%insert(new_string("C"     ), coulomb                    )
-    call this%unit_const%insert(new_string("C/m"   ), coulomb /        meter     )
-    call this%unit_const%insert(new_string("C/cm"  ), coulomb / (CENTI*meter)    )
-    call this%unit_const%insert(new_string("C/mm"  ), coulomb / (MILLI*meter)    )
-    call this%unit_const%insert(new_string("C/um"  ), coulomb / (MICRO*meter)    )
-    call this%unit_const%insert(new_string("C/nm"  ), coulomb / (NANO *meter)    )
-    call this%unit_const%insert(new_string("C/pm"  ), coulomb / (PICO *meter)    )
-    call this%unit_const%insert(new_string("C/fm"  ), coulomb / (FEMTO*meter)    )
-    call this%unit_const%insert(new_string("C/m^2" ), coulomb / (      meter)**2 )
-    call this%unit_const%insert(new_string("C/cm^2"), coulomb / (CENTI*meter)**2 )
-    call this%unit_const%insert(new_string("C/mm^2"), coulomb / (MILLI*meter)**2 )
-    call this%unit_const%insert(new_string("C/um^2"), coulomb / (MICRO*meter)**2 )
-    call this%unit_const%insert(new_string("C/nm^2"), coulomb / (NANO *meter)**2 )
-    call this%unit_const%insert(new_string("C/pm^2"), coulomb / (PICO *meter)**2 )
-    call this%unit_const%insert(new_string("C/fm^2"), coulomb / (FEMTO*meter)**2 )
-    call this%unit_const%insert(new_string("C/m^3" ), coulomb / (      meter)**3 )
-    call this%unit_const%insert(new_string("C/cm^3"), coulomb / (CENTI*meter)**3 )
-    call this%unit_const%insert(new_string("C/mm^3"), coulomb / (MILLI*meter)**3 )
-    call this%unit_const%insert(new_string("C/um^3"), coulomb / (MICRO*meter)**3 )
-    call this%unit_const%insert(new_string("C/nm^3"), coulomb / (NANO *meter)**3 )
-    call this%unit_const%insert(new_string("C/pm^3"), coulomb / (PICO *meter)**3 )
-    call this%unit_const%insert(new_string("C/fm^3"), coulomb / (FEMTO*meter)**3 )
-
-    call this%unit_const%insert(new_string("A/V" ), 1 / ohm )
-
-    call this%unit_const%insert(new_string("MOhm"), MEGA *ohm )
-    call this%unit_const%insert(new_string("kOhm"), KILO *ohm )
-    call this%unit_const%insert(new_string("V/A" ),       ohm )
-    call this%unit_const%insert(new_string("Ohm" ),       ohm )
-    call this%unit_const%insert(new_string("mOhm"), MILLI*ohm )
-    call this%unit_const%insert(new_string("uOhm"), MICRO*ohm )
-    call this%unit_const%insert(new_string("nOhm"), NANO *ohm )
-    call this%unit_const%insert(new_string("pOhm"), PICO *ohm )
-    call this%unit_const%insert(new_string("fOhm"), FEMTO*ohm )
-
-    call this%unit_const%insert(new_string("F" ),       farad )
-    call this%unit_const%insert(new_string("mF"), MILLI*farad )
-    call this%unit_const%insert(new_string("uF"), MICRO*farad )
-    call this%unit_const%insert(new_string("nF"), NANO *farad )
-    call this%unit_const%insert(new_string("pF"), PICO *farad )
-    call this%unit_const%insert(new_string("fF"), FEMTO*farad )
-
-    call this%unit_const%insert(new_string("F/m" ),       farad / meter )
-    call this%unit_const%insert(new_string("mF/m"), MILLI*farad / meter )
-    call this%unit_const%insert(new_string("uF/m"), MICRO*farad / meter )
-    call this%unit_const%insert(new_string("nF/m"), NANO *farad / meter )
-    call this%unit_const%insert(new_string("pF/m"), PICO *farad / meter )
-    call this%unit_const%insert(new_string("fF/m"), FEMTO*farad / meter )
-
-    call this%unit_const%insert(new_string("H" ),       henry )
-    call this%unit_const%insert(new_string("mH"), MILLI*henry )
-    call this%unit_const%insert(new_string("uH"), MICRO*henry )
-    call this%unit_const%insert(new_string("nH"), NANO *henry )
-    call this%unit_const%insert(new_string("pH"), PICO *henry )
-    call this%unit_const%insert(new_string("fH"), FEMTO*henry )
-
-    call this%unit_const%insert(new_string("H/m" ),       henry / meter )
-    call this%unit_const%insert(new_string("mH/m"), MILLI*henry / meter )
-    call this%unit_const%insert(new_string("uH/m"), MICRO*henry / meter )
-    call this%unit_const%insert(new_string("nH/m"), NANO *henry / meter )
-    call this%unit_const%insert(new_string("pH/m"), PICO *henry / meter )
-    call this%unit_const%insert(new_string("fH/m"), FEMTO*henry / meter )
-
-    call this%unit_const%insert(new_string("W" ),       watt )
-    call this%unit_const%insert(new_string("mW"), MILLI*watt )
-    call this%unit_const%insert(new_string("uW"), MICRO*watt )
-    call this%unit_const%insert(new_string("nW"), NANO *watt )
-    call this%unit_const%insert(new_string("pW"), PICO *watt )
-    call this%unit_const%insert(new_string("fW"), FEMTO*watt )
-
-    call this%unit_const%insert(new_string("W/m" ), watt / (        meter) )
-    call this%unit_const%insert(new_string("W/cm"), watt / (CENTI * meter) )
-    call this%unit_const%insert(new_string("W/mm"), watt / (MILLI * meter) )
-    call this%unit_const%insert(new_string("W/um"), watt / (MICRO * meter) )
-    call this%unit_const%insert(new_string("W/nm"), watt / (NANO  * meter) )
-    call this%unit_const%insert(new_string("W/pm"), watt / (PICO  * meter) )
-    call this%unit_const%insert(new_string("W/fm"), watt / (FEMTO * meter) )
-
-    call this%unit_const%insert(new_string("A/W"), ampere / watt)
-
-    call this%unit_const%insert(new_string("eps0"), diel)
-
-    call this%unit_const%insert(new_string("mu0"), permby)
-
-    call this%unit_const%insert(new_string("K"), kelvin)
+    call this%units%insert(new_string("V"), volt)
+    call this%units%insert(new_string("eV"), volt)
+    call this%units%insert(new_string("m"), meter)
+    call this%units%insert(new_string("s"), second)
+    call this%units%insert(new_string("Hz"), hertz)
+    call this%units%insert(new_string("g"), gram)
+    call this%units%insert(new_string("A"), ampere)
+    call this%units%insert(new_string("C"), coulomb)
+    call this%units%insert(new_string("F"), farad)
+    call this%units%insert(new_string("Ohm"), ohm)
+    call this%units%insert(new_string("H"), henry)
+    call this%units%insert(new_string("W"), watt)
+    call this%units%insert(new_string("K"), kelvin)
+    call this%units%insert(new_string("Å"), 1e10 * meter)
+    call this%units%insert(new_string("eps0"), diel)
+    call this%units%insert(new_string("mu0"), permby)
+    call this%units%insert(new_string("deg"), 180 / PI)
+    call this%units%insert(new_string("rad"), 1.0)
   end subroutine
+
+  function get_norm_value(unit, n) result (val)
+    character(*),                  intent(in) :: unit
+      !! physical unit token
+    type(normalization), optional, intent(in) :: n
+
+    real :: val
+    type(string) :: unit_
+    type(mapnode_string_real), pointer :: node
+
+    if (present(n)) call program_error("Calling normalization with custom normalization object is deprecated.")
+
+    unit_ = new_string(unit)
+    node => normconst%map%find(unit_)
+    if (associated(node)) then
+      val = node%value
+      return
+    end if
+
+    val = eval(unit_%s)
+    call normconst%map%set(unit_, val)
+  end function
+
+  function eval(unit) result(res)
+    character(:), allocatable, intent(in) :: unit
+    real :: res
+   
+    class(ast_t), allocatable :: ast
+    integer :: i
+
+    type(lexer) :: l
+    type(parser) :: p
+
+    call l%init(unit)
+    call p%init(l)
+    call p%parse_expr(ast)
+
+    if (allocated(p%errors)) then
+      if (count(p%errors /= "") > 0) then
+        do i = 1, count(p%errors /= "")
+          write(*, *) trim(p%errors(i))
+        end do
+        call program_error("Cannot parse unit expression '" // unit // "'")
+      end if
+    end if
+
+    res = ast%eval()
+  end function
+
+  m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
+    m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
+    m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
+      m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
+        !! value to (de-)normalize
+      character(*),                  intent(in) :: unit
+        !! physical unit token
+      type(normalization), optional, intent(in) :: n
+        !! optional normalization object (default: use global normconst)
+      m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
+        !! return normalized value
+  
+      nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
+    end function})
+    m4_list
 
   subroutine normalization_destruct(this)
     !! destruct normalization constants (release memory)
     class(normalization), intent(inout) :: this
 
-    ! destruct unit constants
-    call this%unit_const%destruct()
+    call this%map%destruct()
+    call this%prefixes%destruct()
+    call this%units%destruct()
   end subroutine
 
+  pure function token_name(token_type) result(name)
+    integer, intent(in) :: token_type
+    character(:), allocatable :: name
+
+    select case (token_type)
+      case (token_eof)
+        name = "EOF"
+      case (token_illegal)
+        name = "ILLEGAL"
+      case (token_ident)
+        name = "IDENT"
+      case (token_int)
+        name = "INT"
+      case (token_asterisk)
+        name = "ASTERISK"
+      case (token_slash)
+        name = "SLASH"
+      case (token_caret)
+        name = "CARET"
+      case (token_lparen)
+        name = "LPAREN"
+      case (token_rparen)
+        name = "RPAREN"
+      case default
+        name = "OTHER"
+    end select
+  end function token_name
+    
+  subroutine lexer_init(this, input)
+    class(lexer),              intent(inout) :: this
+    character(:), allocatable, intent(in)    :: input
+
+    this%input = input
+    this%pos = 1
+    this%read_pos = 1
+    this%ch = "x"
+    call this%read_ch()
+  end subroutine
+    
+  subroutine lexer_next_token(this, tok)
+    class(lexer), intent(inout) :: this
+    type(token),  intent(out)   :: tok
+
+    character(:), allocatable :: lit
+
+    call this%skip_ws()
+
+    select case(this%ch)
+      case ("/")
+        tok = token(token_slash, this%ch)
+      case ("*")
+        tok = token(token_asterisk, this%ch)
+      case ("^")
+        tok = token(token_caret, this%ch)
+      case ("(")
+        tok = token(token_lparen, this%ch)
+      case (")")
+        tok = token(token_rparen, this%ch)
+      case (achar(0))
+        tok = token(token_eof, "")
+      case ("-")
+        if (is_digit(this%peek_char())) then
+          call this%read_number(lit)
+          tok = token(token_int, lit)
+          return
+        else
+          tok = token(token_illegal, this%ch)
+        end if
+      case default
+        if (is_letter(this%ch)) then
+          call this%read_ident(lit)
+          tok = token(token_ident, lit)
+          return
+        else if (is_digit(this%ch)) then
+          call this%read_number(lit)
+          tok = token(token_int, lit)
+          return
+        else
+          tok = token(token_illegal, this%ch)
+        end if
+      end select
+
+      call this%read_ch()
+  end subroutine
+    
+  subroutine lexer_read_ch(this)
+    class(lexer), intent(inout) :: this
+
+    if (this%read_pos > len(this%input)) then
+      this%ch = achar(0)
+    else
+      this%ch = this%input(this%read_pos:this%read_pos)
+    end if
+    this%pos = this%read_pos
+    this%read_pos = this%read_pos + 1
+  end subroutine
+    
+  subroutine lexer_skip_ws(this)
+    class(lexer), intent(inout) :: this
+
+    do while (is_whitepsace(this%ch))
+      call this%read_ch()
+    end do
+  end subroutine
+
+  subroutine lexer_read_ident(this, ident)
+    class(lexer),              intent(inout) :: this
+    character(:), allocatable, intent(out)   :: ident
+    integer :: position
+
+    position = this%pos
+    do while (is_letter(this%ch) .or. is_digit(this%ch))
+      call this%read_ch()
+    end do
+
+    ident = this%input(position:this%pos-1)
+  end subroutine
+
+  subroutine lexer_read_number(this, number)
+    class(lexer),              intent(inout) :: this
+    character(:), allocatable, intent(out)   :: number
+    integer :: position
+
+    position = this%pos
+    if (this%ch == "-") call this%read_ch()
+
+    do while (is_digit(this%ch))
+      call this%read_ch()
+    end do
+
+    number = this%input(position:this%pos-1)
+  end subroutine
+
+  function lexer_peek_char(this) result(ch)
+    class(lexer), intent(in) :: this
+
+    character :: ch
+
+    if (this%read_pos > len(this%input)) then
+        ch = achar(0)
+    else
+        ch = this%input(this%read_pos:this%read_pos)
+    end if
+  end function
+    
+  pure function is_whitepsace(ch) result(ret)
+    character, intent(in) :: ch
+    logical :: ret
+    integer :: ord
+
+    ord = ichar(ch)
+    if (ord == 32 .or. ord == 9 .or. ord == 13 .or. ord == 10) then
+      ret = .true.
+    else
+      ret = .false.
+    end if
+  end function
+
+  pure function is_letter(ch) result(ret)
+    character, intent(in) :: ch
+    logical :: ret
+
+    if ((ch >= 'a' .and. ch <= 'z') .or. (ch >= 'A' .and. ch <= 'Z') .or. ch == '_') then
+      ret = .true.
+    else
+      ret = .false.
+    end if
+  end function
+
+  pure function is_digit(ch) result(ret)
+    character, intent(in) :: ch
+    logical :: ret
+
+    if (ch >= '0' .and. ch <= '9') then
+      ret = .true.
+    else
+      ret = .false.
+    end if
+  end function
+    
+  subroutine parser_init(this, l)
+    class(parser), intent(inout) :: this
+    type(lexer),   intent(inout) :: l
+
+    this%l = l
+    call this%next_token()
+    call this%next_token()
+  end subroutine
+
+  subroutine parser_next_token(this)
+    class(parser), intent(inout) :: this
+
+    this%curr_token = this%peek_token
+    call this%l%next_token(this%peek_token)
+  end subroutine
+    
+  function parser_peek_token_is(this, tok) result(b)
+    class(parser), intent(in) :: this
+    integer,       intent(in) :: tok
+
+    logical :: b
+
+    b = tok == this%peek_token%type
+  end function
+    
+  function parser_expect_peek(this, tok) result(b)
+    class(parser), intent(inout) :: this
+    integer,         intent(in)    :: tok
+    
+    logical :: b
+
+    if (this%peek_token_is(tok)) then
+      call this%next_token()
+      b = .true.
+    else
+      call this%peek_error(tok)
+      b = .false.
+    end if
+  end function
+
+  subroutine parser_peek_error(this, tok)
+    class(parser), intent(inout) :: this
+    integer,       intent(in)    :: tok
+
+    character(:), allocatable :: msg
+
+    msg = "expected next token to be " // token_name(tok) // ", got " // token_name(this%peek_token%type)
+    call this%add_error(msg)
+  end subroutine
+
+  subroutine parser_add_error(this, msg)
+    class(parser), intent(inout) :: this
+    
+    character(:), allocatable, intent(in) :: msg
+    
+    if (allocated(this%errors)) then
+      this%errors = [this%errors, msg]
+    else
+      this%errors = [msg]
+    end if
+  end subroutine  
+
+  subroutine parser_parse_expr(this, ast, nested)
+    class(parser),             intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: ast
+    logical, optional,         intent(in)    :: nested
+
+    type(ast_expr)            :: expr
+    type(ast_item)            :: item
+    character(:), allocatable :: err
+    character                 :: op
+    logical                   :: nested_
+
+    nested_ = .false.
+    if (present(nested)) nested_ = nested
+
+    ast = expr
+    select type(ast)
+    type is (ast_expr)
+
+    call ast%operands%init(0, c = 4)
+    call ast%operators%init(0, c = 4)
+    
+    do while(this%curr_token%type /= token_eof .and. ((.not. nested_) .or. (this%curr_token%type /= token_rparen)))
+      
+      if (this%curr_token%type == token_asterisk .or. this%curr_token%type == token_slash) then
+        op = this%curr_token%literal
+        call this%next_token()
+      else
+        op = achar(0)
+      end if
+
+      if (ast%operands%n > 0 .and. op == achar(0)) then
+        err = "Got no operator between values"
+        call this%add_error(err)
+        exit
+      end if
+
+      call this%parse_value(item%item)
+      if (allocated(item%item)) then
+        call ast%operands%push(item)
+        if (op /= achar(0)) call ast%operators%push(op)
+        deallocate(item%item)
+      end if
+
+      call this%next_token()
+    end do
+    end select
+  end subroutine
+
+  subroutine parser_parse_value(this, s)
+    class(parser),           intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: s
+    
+    character(:), allocatable :: err
+
+    select case(this%curr_token%type)
+      case (token_ident)
+        call this%parse_identifier(s)
+      case (token_int)
+        call this%parse_integer(s)
+      case (token_lparen)
+        call this%parse_group(s)
+      case default
+        err = "expected expression got " // token_name(this%curr_token%type)
+        call this%add_error(err)
+        return
+    end select
+
+    ! Possible exponentiation
+    if (this%peek_token_is(token_caret)) then
+      call this%next_token()
+      call this%parse_expo(s)
+    end if
+  end subroutine
+
+  subroutine parser_parse_group(this, ast)
+    class(parser),             intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: ast
+
+    character(:), allocatable :: err
+
+    call this%next_token()
+    call this%parse_expr(ast, nested=.true.)
+
+    if (.not. this%curr_token%type == token_rparen) then
+      deallocate(ast)
+      err = "expected ')' after expression got " // token_name(this%curr_token%type)
+      call this%add_error(err)
+      return
+    end if
+  end subroutine
+  
+  subroutine parser_parse_expo(this, ast)
+    class(parser),             intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: ast
+
+    type(ast_expo)  :: expo
+    type(ast_ratio) :: ratio
+    type(ast_int)   :: i
+
+    character(:), allocatable  :: err
+    logical                    :: b
+
+    if (.not. allocated(ast)) then
+      call program_error("Cannot parse exponent if no base is given")
+    end if
+
+    expo%base = ast
+    deallocate(ast)
+    
+    call this%next_token()
+    select case(this%curr_token%type)
+      case (token_int) 
+        call this%parse_integer(ratio%nom)
+        
+        i%tok = token(token_int, "1")
+        i%value = 1
+        ratio%den = i
+      case (token_lparen)
+        b = this%expect_peek(token_int)
+        if (.not. b) return
+        call this%parse_integer(ratio%nom)
+        b = this%expect_peek(token_slash)
+        if (.not. b) return
+        b = this%expect_peek(token_int)
+        if (.not. b) return
+        call this%parse_integer(ratio%den)
+        b = this%expect_peek(token_rparen)
+        if (.not. b) return
+      case default
+        err = "Expected integer or left parenthesis, got " // token_name(this%curr_token%type)
+        call this%add_error(err)
+        return
+    end select
+
+    expo%expo = ratio
+    ast = expo
+  end subroutine
+    
+  subroutine parser_parse_integer(this, ast)
+    class(parser),             intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: ast
+
+    type(ast_int) :: s
+
+    s%tok = this%curr_token
+    read(this%curr_token%literal, *) s%value ! todo: handle read error
+    ast = s
+  end subroutine
+
+  subroutine parser_parse_identifier(this, ast)
+    class(parser),             intent(inout) :: this
+    class(ast_t), allocatable, intent(inout) :: ast
+
+    type(ast_unit)                     :: s
+    type(mapnode_string_real), pointer :: node
+    type(string)                       :: prefix, unit
+    character(:), allocatable          :: err
+
+    s%tok = this%curr_token
+    unit = new_string(this%curr_token%literal)
+    
+    ! identifier = unit
+    node => normconst%units%find(unit)
+    if (associated(node)) then
+      s%prefix = new_string("1")
+      s%unit = unit
+      ast = s
+      return
+    end if
+    
+    if (len(unit%s) .eq. 1) then
+      err = "Cannot find unit " // unit%s
+      call this%add_error(err)
+      return
+    end if
+
+    ! identifier = prefix + unit?
+    prefix = new_string(unit%s(1:1))
+    unit = new_string(unit%s(2:))
+
+    node => normconst%prefixes%find(prefix)
+    if (.not. associated(node)) then
+      err = "Undefined unit prefix " // prefix%s
+      call this%add_error(err)
+      return
+    end if
+    node => normconst%units%find(unit)
+    if (.not. associated(node)) then
+      err = "Undefined unit " // unit%s
+      call this%add_error(err)
+      return
+    end if
+    
+    s%prefix = prefix
+    s%unit = unit
+    ast = s
+  end subroutine
+
+  recursive function ast_eval(this) result(val)
+    !! Serves as eval and destruct
+    class(ast_t), intent(inout) :: this
+    
+    real    :: val
+    integer :: i
+
+    select type(this)
+      type is (ast_expr)
+        if (this%operands%n < 1) call program_error("Empty expression given")
+      
+        val = this%operands%d(1)%item%eval()
+        do i = 2, this%operands%n
+          select case (this%operators%d(i-1))
+            case ("*")
+              val = val * this%operands%d(i)%item%eval()
+            case ("/")
+              val = val / this%operands%d(i)%item%eval()
+            case default
+              call program_error("Undefined operator given")
+          end select
+        end do
+
+        call this%operands%destruct()
+        call this%operators%destruct()
+      type is (ast_int)
+        val = real(this%value)
+      type is (ast_unit)
+        val = normconst%prefixes%get(this%prefix) * normconst%units%get(this%unit)
+      type is (ast_expo)
+        val = this%base%eval() ** this%expo%eval()
+      type is (ast_ratio)
+        val = this%nom%eval() / this%den%eval()
+      class default
+        call program_error("Got undefined ast type")
+    end select
+  end function
+
+  m4_define({m4_X},{
+    m4_define({T},$1)
+    m4_include(vector_imp.f90.inc)
+  })
+  m4_list_vec
 end module

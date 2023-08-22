@@ -55,7 +55,7 @@ program test
   })
 
   implicit none
-
+  
   call test_analysis()
   call test_bin_search()
   call test_circuit()

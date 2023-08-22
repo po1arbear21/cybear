@@ -56,8 +56,8 @@ contains
 
     ! I2 = V1 / (R1 + R2 + R1 * R2 / R3)
     I2 = V1%V%x / (0.2 + 0.5 + 0.2 * 0.5 / 1.2)
-    call tc%assert_eq( I2, R2%comp%terms(1)%curr%x, 1e-14, "circuit DC R2.I1")
-    call tc%assert_eq(-I2, R2%comp%terms(2)%curr%x, 1e-14, "circuit DC R2.I2")
+    call tc%assert_eq( I2, R2%comp%terms(1)%curr%x, 1e-12, 1e-14, "circuit DC R2.I1")
+    call tc%assert_eq(-I2, R2%comp%terms(2)%curr%x, 1e-12, 1e-14, "circuit DC R2.I2")
 
     ! destruct circuit
     call GND%destruct()

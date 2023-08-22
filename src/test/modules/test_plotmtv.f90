@@ -270,8 +270,8 @@ contains
     do i = 1, size(x)
       read (iounit, *) xi, yi
 
-      call tc%assert_eq(x(i), xi, epsilon(1.0), tc_msg // ": 1st col wrong")
-      call tc%assert_eq(y(i), yi, epsilon(1.0), tc_msg // ": 2nd col wrong")
+      call tc%assert_eq(x(i), xi, 1e-14, epsilon(1.0), tc_msg // ": 1st col wrong")
+      call tc%assert_eq(y(i), yi, 1e-14, epsilon(1.0), tc_msg // ": 2nd col wrong")
     end do
 
     close (unit=iounit, iostat=ios)
@@ -333,9 +333,9 @@ contains
       do i = 1, size(xyz, dim=1)
         read (iounit, *) xi, yi, zi
 
-        call tc%assert_eq(xyz(i,1,ic), xi, epsilon(1.0), tc_msg // ": 1st col wrong")
-        call tc%assert_eq(xyz(i,2,ic), yi, epsilon(1.0), tc_msg // ": 2nd col wrong")
-        call tc%assert_eq(xyz(i,3,ic), zi, epsilon(1.0), tc_msg // ": 3rd col wrong")
+        call tc%assert_eq(xyz(i,1,ic), xi, 1e-14, epsilon(1.0), tc_msg // ": 1st col wrong")
+        call tc%assert_eq(xyz(i,2,ic), yi, 1e-14, epsilon(1.0), tc_msg // ": 2nd col wrong")
+        call tc%assert_eq(xyz(i,3,ic), zi, 1e-14, epsilon(1.0), tc_msg // ": 3rd col wrong")
       end do
     end do
 

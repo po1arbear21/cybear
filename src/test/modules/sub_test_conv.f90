@@ -4,6 +4,9 @@ submodule (test_matrix_m) test_conv_m
 
   implicit none
 
+  real, parameter :: rtol = 1e-14
+  real, parameter :: atol = 1e-16
+
 contains
 
   module subroutine test_conv()
@@ -45,7 +48,7 @@ contains
         d_exp(3,:) = 0
         d_exp(4,:) = [0, 1, 0, 0]
 
-        call tc%assert_eq(d_exp, b%d, 1e-12, "to_band: no insertion arguments")
+        call tc%assert_eq(d_exp, b%d, rtol, atol, "to_band: no insertion arguments")
       end block
 
       !
@@ -81,7 +84,7 @@ contains
 
         call d%init(7)
         call matrix_convert(b, d)
-        call tc%assert_eq(d_exp, d%d, 1e-12, "to_band: insert sparse into band")
+        call tc%assert_eq(d_exp, d%d, rtol, atol, "to_band: insert sparse into band")
       end block
     end block
   end subroutine
@@ -114,7 +117,7 @@ contains
       allocate (d_exp(7,7), source=0.0)
       d_exp(2:6,2:6) = b2d%d
 
-      call tc%assert_eq(d_exp, d%d, 0.0, "convert: band -> dense")
+      call tc%assert_eq(d_exp, d%d, 0.0, 0.0, "convert: band -> dense")
     end block
 
     ! block
@@ -131,7 +134,7 @@ contains
       allocate (d_exp(11,11), source=0.0)
       d_exp(2:10,3:11) = d0%d
 
-      call tc%assert_eq(d_exp, d%d, 0.0, "convert: block -> dense")
+      call tc%assert_eq(d_exp, d%d, 0.0, 0.0, "convert: block -> dense")
     end block
 
     ! dense
@@ -155,7 +158,7 @@ contains
         do j = 1, 5
           val = 2.0
           if (i <= 3 .and. j >= 3) val = 1.0
-          call tc%assert_eq(d2%d(i,j), val, 1e-12, "convert: dense -> dense")
+          call tc%assert_eq(d2%d(i,j), val, 0.0, 0.0, "convert: dense -> dense")
         end do
       end do
     end block
@@ -190,9 +193,9 @@ contains
       ia_exp = [1, 1, 4, 8, 12, 15, 17, 17]
       ja_exp = [2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 5, 6]
 
-      call tc%assert_eq(a_exp,      s%a, 1e-16, "to sparse: a" )
-      call tc%assert_eq(ia_exp, int(s%ia),      "to sparse: ia")
-      call tc%assert_eq(ja_exp,     s%ja,       "to sparse: ja")
+      call tc%assert_eq(a_exp,      s%a, 0.0, 0.0, "to sparse: a" )
+      call tc%assert_eq(ia_exp, int(s%ia),         "to sparse: ia")
+      call tc%assert_eq(ja_exp,     s%ja,          "to sparse: ja")
     end block
 
     ! block
@@ -235,9 +238,9 @@ contains
         &       4, 5, 6, 8,       &
         &       5, 6, 9           ]
 
-      call tc%assert_eq(a_exp,      s%a, 1e-16, "to sparse: a" )
-      call tc%assert_eq(ia_exp, int(s%ia),      "to sparse: ia")
-      call tc%assert_eq(ja_exp,     s%ja,       "to sparse: ja")
+      call tc%assert_eq(a_exp,      s%a, 0.0, 0.0, "to sparse: a" )
+      call tc%assert_eq(ia_exp, int(s%ia),         "to sparse: ia")
+      call tc%assert_eq(ja_exp,     s%ja,          "to sparse: ja")
     end block
 
     ! dense
@@ -270,7 +273,7 @@ contains
         e(i)  = 1.0
         v_exp = matmul(mat, e)
         call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
+        call tc%assert_eq(v, v_exp, rtol, atol, "to_sparse")
       end do
 
       tmp = reshape([1,3,5,7],[2,2],order=[2,1])
@@ -286,7 +289,7 @@ contains
         e(i)  = 1.0
         v_exp = matmul(mat, e)
         call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse")
+        call tc%assert_eq(v, v_exp, rtol, atol, "to_sparse")
       end do
 
       ! test 3: use sparsity struct
@@ -317,7 +320,7 @@ contains
         e(i)  = 1.0
         v_exp = matmul(mat, e)
         call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: sparsity")
+        call tc%assert_eq(v, v_exp, rtol, atol, "to_sparse: sparsity")
       end do
 
       ! test 4: use drop_zeros
@@ -334,7 +337,7 @@ contains
         e(i)  = 1.0
         v_exp = matmul(mat, e)
         call s%mul_vec(e, v)
-        call tc%assert_eq(v, v_exp, 1e-12, "to_sparse: drop zeros")
+        call tc%assert_eq(v, v_exp, rtol, atol, "to_sparse: drop zeros")
       end do
       call tc%assert_eq(count(s%a == 0.0), 0, "to_sparse: drop zeros")
     end block

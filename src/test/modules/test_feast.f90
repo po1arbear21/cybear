@@ -49,9 +49,9 @@ contains
     block
       complex :: evecR_exp(N,1) = 0
 
-      call tc%assert_eq([(1, 1)], eval, 1e-15, "eval")
+      call tc%assert_eq([(1, 1)], eval, 1e-14, 1e-16, "eval")
       evecR_exp(2,1) = 1
-      call tc%assert_eq(evecR_exp, evecR / evecR(2,1), 1e-15, "evecR")
+      call tc%assert_eq(evecR_exp, evecR / evecR(2,1), 1e-14, 1e-16, "evecR")
     end block
 
     call tc%finish()

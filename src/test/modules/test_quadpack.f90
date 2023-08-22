@@ -26,14 +26,14 @@ contains
     xmax    = 3.0
     res_exp = alpha * (xmax**3 - xmin**3) / 3.0
     call quadpack_int(fun1, xmin, xmax, 1e-12, 1e-12, res)
-    call tc%assert_eq(res_exp, res, 1e-10, "integral 1")
+    call tc%assert_eq(res_exp, res, 1e-10, 1e-16, "integral 1")
 
     alpha = 2.0
     xmin = 0.3
     xmax = ieee_value(xmax, IEEE_POSITIVE_INF)
     res_exp = exp(- 0.3 * alpha) / alpha
     call quadpack_int(fun2, xmin, xmax, 1e-12, 1e-12, res)
-    call tc%assert_eq(res_exp, res, 1e-10, "integral 2")
+    call tc%assert_eq(res_exp, res, 1e-10, 1e-16, "integral 2")
 
     call tc%finish()
 

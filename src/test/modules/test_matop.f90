@@ -36,12 +36,12 @@ contains
       x1     = [1, 0]
       y1_exp = [1, 1]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_real: exec1 == mul_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_real: exec1 == mul_vec")
 
       x1     = [0, 1]
       y1_exp = [0, 1]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_real: exec1 == mul_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_real: exec1 == mul_vec")
 
       !
       ! test 2: check matrix matrix multiplications
@@ -51,7 +51,7 @@ contains
       x2     = reshape([1, 3, 2, 4], [2, 2])
       y2_exp = reshape([1, 4, 2, 6], [2, 2])
       call sop%exec(x2, y2)
-      call tc%assert_eq(y2_exp, y2, 1e-13, "single_matop_real: exec2 == mul_mat")
+      call tc%assert_eq(y2_exp, y2, 1e-14, 1e-16, "single_matop_real: exec2 == mul_mat")
 
       !
       ! test 3: check solving for a vector
@@ -65,7 +65,7 @@ contains
       x1     = [1, 2]
       y1_exp = [1, 1]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_real: exec1 == solve_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_real: exec1 == solve_vec")
 
       !
       ! test 4: check solving for a matrix
@@ -77,7 +77,7 @@ contains
       x2     = reshape([1, 2, 3, 4], [2, 2])
       y2_exp = reshape([1, 1, 3, 1], [2, 2])
       call sop%exec(x2, y2)
-      call tc%assert_eq(y2_exp, y2, 1e-13, "single_matop_real: exec2 == solve_mat")
+      call tc%assert_eq(y2_exp, y2, 1e-14, 1e-16, "single_matop_real: exec2 == solve_mat")
     end block
 
     ! test: single_matop_cmplx
@@ -100,12 +100,12 @@ contains
       x1     = [( 1,1), ( 0,  0  )]
       y1_exp = [(-1,1), (-0.5,1.5)]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_cmplx: exec1 == mul_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_cmplx: exec1 == mul_vec")
 
       x1     = [(0,0), (1, 1)]
       y1_exp = [(0,0), (1,-1)]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_cmplx: exec1 == mul_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_cmplx: exec1 == mul_vec")
 
       !
       ! test 2: check matrix matrix multiplications
@@ -115,7 +115,7 @@ contains
       x2     = reshape([(1,0), ( 3,  -1), ( 2,1), (4, 0  )], [2, 2])
       y2_exp = reshape([(0,1), (-0.5,-2), (-1,2), (0,-1.5)], [2, 2])
       call sop%exec(x2, y2)
-      call tc%assert_eq(y2_exp, y2, 1e-13, "single_matop_cmplx: exec2 == mul_mat")
+      call tc%assert_eq(y2_exp, y2, 1e-14, 1e-16, "single_matop_cmplx: exec2 == mul_mat")
 
       !
       ! test 3: check solving for a vector
@@ -129,7 +129,7 @@ contains
       x1     = [(1, 0), ( 2,  1)]
       y1_exp = [(0,-1), (-1.5,1)]
       call sop%exec(x1, y1)
-      call tc%assert_eq(y1_exp, y1, 1e-13, "single_matop_cmplx: exec1 == solve_vec")
+      call tc%assert_eq(y1_exp, y1, 1e-14, 1e-16, "single_matop_cmplx: exec1 == solve_vec")
 
       !
       ! test 4: check solving for a matrix
@@ -141,7 +141,7 @@ contains
       x2     = reshape([(1, 0), ( 2,  1), ( 3,-1), ( 4,  5  )], [2, 2])
       y2_exp = reshape([(0,-1), (-1.5,1), (-1,-3), (-7.5,1.5)], [2, 2])
       call sop%exec(x2, y2)
-      call tc%assert_eq(y2_exp, y2, 1e-13, "single_matop_cmplx: exec2 == solve_mat")
+      call tc%assert_eq(y2_exp, y2, 1e-14, 1e-16, "single_matop_cmplx: exec2 == solve_mat")
     end block
 
     call test_matop_c2r(tc)
@@ -178,7 +178,7 @@ contains
       call c2r%exec(x2r, y2r)
       y2r_exp = [-2.0, 1.0, 2.5, -1.0]
 
-      call tc%assert_eq(y2r_exp, y2r, 1e-13, "matop_c2r: exec1")
+      call tc%assert_eq(y2r_exp, y2r, 1e-14, 1e-16, "matop_c2r: exec1")
     end block
 
     ! test exec2
@@ -196,7 +196,7 @@ contains
       y2r_exp(:,1) = [-2.0, 1.0, 2.5, -1.0]
       y2r_exp(:,2) = [-6.0, 5.0, 4.5,  1.0]
 
-      call tc%assert_eq(y2r_exp, y2r, 1e-13, "matop_c2r: exec2")
+      call tc%assert_eq(y2r_exp, y2r, 1e-14, 1e-16, "matop_c2r: exec2")
     end block
   end subroutine
 
