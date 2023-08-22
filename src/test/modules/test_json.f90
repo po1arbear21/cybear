@@ -65,7 +65,7 @@ contains
       call tc%assert_eq(2, int(i), "json_array_get_int")
 
       r = ar%get_real(5)
-      call tc%assert_eq(3.0, r, 0.0, "json_array_get_real")
+      call tc%assert_eq(3.0, r, 0.0, 0.0, "json_array_get_real")
 
       s1%s = ar%get_string(6)
       call tc%assert_eq(new_string("string1"), s1, "json_array_get_string 1")
@@ -135,7 +135,7 @@ contains
       call tc%assert_eq(2, int(i), "json_object_get_int")
 
       r = obj%get_real("name3")
-      call tc%assert_eq(3.0, r, 0.0, "json_object_get_real")
+      call tc%assert_eq(3.0, r, 0.0, 0.0, "json_object_get_real")
 
       s1%s = obj%get_string("name4")
       call tc%assert_eq(new_string("value"), s1, "json_object_get_string")

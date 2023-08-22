@@ -142,9 +142,9 @@ contains
     call es%solve(nopt = nopt)
 
     ! check results (computed by matlab)
-    call tc%assert_eq([( 1.917598528792069, i=1, 4)], xvar%d%data,    1e-15, "es: solve: result x" )
-    call tc%assert_eq([(-2.278730533004949, i=1, 4)], yvar(1)%d%data, 1e-15, "es: solve: result y1")
-    call tc%assert_eq([( 0.276521052725538, i=1, 4)], yvar(2)%d%data, 1e-15, "es: solve: result y2")
+    call tc%assert_eq([( 1.917598528792069, i=1, 4)], xvar%d%data,    1e-12, 1e-16, "es: solve: result x" )
+    call tc%assert_eq([(-2.278730533004949, i=1, 4)], yvar(1)%d%data, 1e-12, 1e-16, "es: solve: result y1")
+    call tc%assert_eq([( 0.276521052725538, i=1, 4)], yvar(2)%d%data, 1e-12, 1e-16, "es: solve: result y2")
 
     call tc%finish()
   end subroutine

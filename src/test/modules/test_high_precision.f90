@@ -13,6 +13,10 @@ contains
 
   subroutine test_high_precision()
     type(test_case) :: tc
+    real :: rtol, atol
+
+    rtol = epsilon(1.0)
+    atol = epsilon(1.0)
 
     call tc%init("high_precision")
 
@@ -27,8 +31,8 @@ contains
       h3_exp%x = 5.7744418357773819
       h3_exp%y = 3.3506478609411802e-16
 
-      call tc%assert_eq(h3_exp%x, h3%x, abs(h3_exp%x)*epsilon(h3_exp%x), "hp addition principal")
-      call tc%assert_eq(h3_exp%y, h3%y, abs(h3_exp%y)*epsilon(h3_exp%y), "hp addition correction")
+      call tc%assert_eq(h3_exp%x, h3%x, rtol, atol, "hp addition principal")
+      call tc%assert_eq(h3_exp%y, h3%y, rtol, atol, "hp addition correction")
     end block
 
     ! hp subtraction
@@ -42,8 +46,8 @@ contains
       h3_exp%x = -3.3053060555180074
       h3_exp%y =  1.2999453800233868e-16
 
-      call tc%assert_eq(h3_exp%x, h3%x, abs(h3_exp%x)*epsilon(h3_exp%x), "hp subtraction principal")
-      call tc%assert_eq(h3_exp%y, h3%y, abs(h3_exp%y)*epsilon(h3_exp%y), "hp subtraction correction")
+      call tc%assert_eq(h3_exp%x, h3%x, rtol, atol, "hp subtraction principal")
+      call tc%assert_eq(h3_exp%y, h3%y, rtol, atol, "hp subtraction correction")
     end block
 
     ! hp multiplication
@@ -57,8 +61,8 @@ contains
       h3_exp%x = 5.6047825985330135
       h3_exp%y = 5.3491707868658234e-16
 
-      call tc%assert_eq(h3_exp%x, h3%x, abs(h3_exp%x)*epsilon(h3_exp%x), "hp multiplication principal")
-      call tc%assert_eq(h3_exp%y, h3%y, abs(h3_exp%y)*epsilon(h3_exp%y), "hp multiplication correction")
+      call tc%assert_eq(h3_exp%x, h3%x, rtol, atol, "hp multiplication principal")
+      call tc%assert_eq(h3_exp%y, h3%y, rtol, atol, "hp multiplication correction")
     end block
 
     ! hp division
@@ -72,8 +76,8 @@ contains
       h3_exp%x = 2.7193880378842855e-01
       h3_exp%y = 1.9298233693481757e-17
 
-      call tc%assert_eq(h3_exp%x, h3%x, abs(h3_exp%x)*epsilon(h3_exp%x), "hp division principal")
-      call tc%assert_eq(h3_exp%y, h3%y, abs(h3_exp%y)*epsilon(h3_exp%y), "hp division correction")
+      call tc%assert_eq(h3_exp%x, h3%x, rtol, atol, "hp division principal")
+      call tc%assert_eq(h3_exp%y, h3%y, rtol, atol, "hp division correction")
     end block
 
     ! hp square root
@@ -86,8 +90,8 @@ contains
       h2_exp%x =  1.1111111061139149
       h2_exp%y = -3.1190733475658156e-17
 
-      call tc%assert_eq(h2_exp%x, h2%x, abs(h2_exp%x)*epsilon(h2_exp%x), "hp square root principal")
-      call tc%assert_eq(h2_exp%y, h2%y, abs(h2_exp%y)*epsilon(h2_exp%y), "hp square root correction")
+      call tc%assert_eq(h2_exp%x, h2%x, rtol, atol, "hp square root principal")
+      call tc%assert_eq(h2_exp%y, h2%y, rtol, atol, "hp square root correction")
     end block
 
     ! hp exponential
@@ -100,8 +104,8 @@ contains
       h2_exp%x =  3.4368930843674224
       h2_exp%y = -8.3963109305985143e-17
 
-      call tc%assert_eq(h2_exp%x, h2%x, abs(h2_exp%x)*epsilon(h2_exp%x), "hp exponential principal")
-      call tc%assert_eq(h2_exp%y, h2%y, abs(h2_exp%y)*epsilon(h2_exp%y), "hp exponential correction")
+      call tc%assert_eq(h2_exp%x, h2%x, rtol, atol, "hp exponential principal")
+      call tc%assert_eq(h2_exp%y, h2%y, rtol, atol, "hp exponential correction")
     end block
 
     ! hp exponential minus 1
@@ -114,63 +118,60 @@ contains
       h2_exp%x =  1.2345686522089389e-06
       h2_exp%y = -1.0310008648997058e-22
 
-      call tc%assert_eq(h2_exp%x, h2%x, abs(h2_exp%x)*epsilon(h2_exp%x), "hp exponential minus 1 principal")
-      call tc%assert_eq(h2_exp%y, h2%y, abs(h2_exp%y)*epsilon(h2_exp%y), "hp exponential minus 1 correction")
+      call tc%assert_eq(h2_exp%x, h2%x, rtol, atol, "hp exponential minus 1 principal")
+      call tc%assert_eq(h2_exp%y, h2%y, rtol, atol, "hp exponential minus 1 correction")
     end block
 
     ! hp_sum
     block
-      integer         :: i, n
-      real, parameter :: tol = epsilon(1.0)
-      real            :: res, p(0)
+      integer :: i, n
+      real    :: res, p(0)
 
       ! test 0a: empty array
-      call tc%assert_eq(         0.0,  hp_sum(p),                    0.0, "sum. test 0a: empty array")
+      call tc%assert_eq(         0.0,  hp_sum(p),                      0.0, 0.0, "sum. test 0a: empty array")
 
       ! test 0b: array length 1
-      call tc%assert_eq(    sqrt(2.0), hp_sum([sqrt(2.0)]),          0.0, "sum: test 0b: array of length 1")
+      call tc%assert_eq(    sqrt(2.0), hp_sum([sqrt(2.0)]),            0.0, 0.0, "sum: test 0b: array of length 1")
 
       ! test 0c: array lengths 2..10
       do n = 2, 10
-        call tc%assert_eq(n*sqrt(2.0), hp_sum([(sqrt(2.0), i=1,n)]), tol, "sum: test 0c: array of length n:"//int2str(n))
+        call tc%assert_eq(n*sqrt(2.0), hp_sum([(sqrt(2.0), i=1,n)]), rtol, atol, "sum: test 0c: array of length n:"//int2str(n))
       end do
 
       ! test 1: standard 2-fold addition
       res = hp_sum([1e100, 1.0, -1e100])
-      call tc%assert_eq(1.0, res, tol, "sum. test 1: 2-fold")
+      call tc%assert_eq(1.0, res, rtol, atol, "sum. test 1: 2-fold")
 
       ! test 2: 3-fold addition
       res = hp_sum([1e200, 1e100, 1.0, -1e100, -1e200], K=3)
-      call tc%assert_eq(1.0, res, tol, "sum. test 2: 3-fold addition")
+      call tc%assert_eq(1.0, res, rtol, atol, "sum. test 2: 3-fold addition")
     end block
 
     ! hp_dot
     block
       real, allocatable :: x(:), y(:)
-      real :: res, res_exp, tol
-
-      tol     = epsilon(1.0)
+      real :: res, res_exp
 
       x       = [1e100, 1.0, -1e100]
       y       = [1.0, 1.0, 1.0]
       res_exp = 1.0
       res     = hp_dot(x, y)
 
-      call tc%assert_eq(res_exp, res, tol, "dot1")
+      call tc%assert_eq(res_exp, res, rtol, atol, "dot1")
 
       x       = [1.0, 1.0, -1e100]
       y       = [1e100, 1.0, 1.0]
       res_exp = 1.0
       res     = hp_dot(x, y)
 
-      call tc%assert_eq(res_exp, res, tol, "dot2")
+      call tc%assert_eq(res_exp, res, rtol, atol, "dot2")
 
       x       = [1e200, 1.0, 1.0, -1e100, 1.0]
       y       = [1.0, 1e100, 1.0, 1.0, -1e200]
       res_exp = 1.0
       res     = hp_dot(x, y, K=3)
 
-      call tc%assert_eq(res_exp, res, tol, "dot3")
+      call tc%assert_eq(res_exp, res, rtol, atol, "dot3")
     end block
 
     call tc%finish

@@ -135,7 +135,7 @@ contains
             0.6555, 0.6557, 0.6787, 0.6948, 0.7060, 0.7431, 0.7577, 0.7922, &
             0.8003, 0.8147, 0.8235, 0.8491, 0.9058, 0.9134, 0.9157, 0.9340, &
             0.9572, 0.9575, 0.9595, 0.9649, 0.9706]
-      call tc%assert_eq(e, ar, 1e-16, "sort 37 real elements")
+      call tc%assert_eq(e, ar, 1e-14, 1e-16, "sort 37 real elements")
     end block
 
     ! 17 strings

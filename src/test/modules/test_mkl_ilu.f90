@@ -74,7 +74,7 @@ contains
 
       ! solve
       call gmres(b, A, x, precon=ilu, residual=res)
-      call tc%assert_eq(x_exp, x, 1e-6, "ilu0: test i:"//int2str(i))
+      call tc%assert_eq(x_exp, x, 1e-6, 1e-6, "ilu0: test i:"//int2str(i))
     end do
   end subroutine
 
@@ -128,7 +128,7 @@ contains
 
       ! solve
       call gmres(b, A, x, precon=ilu, residual=res)
-      call tc%assert_eq(x_exp, x, 1e-6, "ilut: test i:"//int2str(i))
+      call tc%assert_eq(x_exp, x, 1e-6, 1e-6, "ilut: test i:"//int2str(i))
     end do
   end subroutine
 end module

@@ -31,8 +31,8 @@ contains
       call opt%init(atol = 1e-16, rtol = 1e-14, xmin = -10*abs(xe), xmax = 10*abs(xe), log = .true., msg = "poly1D: ")
       call newton1D(poly1D, p, opt, -1.0, x, dxdp = dxdp)
 
-      call tc%assert_eq(   xe,    x, opt%atol, "newton1D: x"   )
-      call tc%assert_eq(dxedp, dxdp, opt%atol, "newton1D: dxdp")
+      call tc%assert_eq(   xe,    x, opt%rtol, opt%atol, "newton1D: x"   )
+      call tc%assert_eq(dxedp, dxdp, opt%rtol, opt%atol, "newton1D: dxdp")
     end block
 
     ! test multidimensional newton
@@ -64,16 +64,16 @@ contains
     call opt%init(2, atol = 1e-15, rtol = 1e-14, log = .true., msg = "poly2D: dir sol: ")
     call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
 
-    call tc%assert_eq(   xe,    x, opt%atol(1), "newton: dir sol: x"   )
-    call tc%assert_eq(dxedp, dxdp, opt%atol(1), "newton: dir sol: dxdp")
+    call tc%assert_eq(   xe,    x, opt%rtol(1), opt%atol(1), "newton: dir sol: x"   )
+    call tc%assert_eq(dxedp, dxdp, opt%rtol(1), opt%atol(1), "newton: dir sol: dxdp")
 
     ! iterative solver with preconditioner
     call opt%init(2, atol = 1e-15, rtol = 1e-14, it_solver = .true., log = .true., &
       &           msg = "poly2D: it sol: ")
     call newton(poly2D, [1.0, 4.0], opt, [0.5, 6.0], x, dxdp = dxdp)
 
-    call tc%assert_eq(   xe,    x, opt%atol(1),    "newton: it sol: x"   )
-    call tc%assert_eq(dxedp, dxdp, opt%atol(1)*10, "newton: it sol: dxdp")  ! fixme gmres doesnt achieve tolerance?
+    call tc%assert_eq(   xe,    x, opt%rtol(1), opt%atol(1),    "newton: it sol: x"   )
+    call tc%assert_eq(dxedp, dxdp, opt%rtol(1), opt%atol(1)*10, "newton: it sol: dxdp")  ! fixme gmres doesnt achieve tolerance?
 
     ! destruct matrices
     call jaco%destruct()

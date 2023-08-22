@@ -120,7 +120,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, failed
 
     ! check values one by one
@@ -145,7 +144,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, failed
 
     ! check values one by one
@@ -172,7 +170,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, k, failed
 
     ! check values one by one
@@ -219,7 +216,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, failed
 
     ! check array sizes
@@ -252,7 +248,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, failed
 
     ! check array sizes
@@ -290,7 +285,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, k, failed
 
     ! check array sizes
@@ -321,25 +315,27 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_real(this, expected, value, abs_tol, msg)
-    !! Check real value (scalar) for equality to expected value within tolerance.
+  subroutine assert_eq_real(this, expected, value, rtol, atol, msg)
+    !! check real value (scalar) for equality to expected value within tolerance
 
-    class(test_case), intent(inout) :: this
-      !! Test case
-    real,             intent(in)    :: expected
-      !! Expected value
-    real,             intent(in)    :: value
-      !! Actual value
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare value to
-    character(*),     intent(in)    :: msg
-      !! Message to print if error detected
+    class(test_case),  intent(inout) :: this
+      !! test case
+    real,              intent(in)    :: expected
+      !! expected value
+    real,              intent(in)    :: value
+      !! actual value
+    real,              intent(in)    :: rtol
+      !! relative tolerance to compare value to
+    real,              intent(in)    :: atol
+      !! absolute tolerance to compare value to
+    character(*),      intent(in)    :: msg
+      !! message to print if error detected
 
-    call this%check(abs(expected - value) <= abs_tol, msg, &
+    call this%check(abs(expected - value) <= max(atol, rtol * abs(expected)), msg, &
                     msg2 = "scalar value differs", rpar = [expected, value])
   end subroutine
 
-  subroutine assert_eq_real_arr(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_real_arr(this, expected, values, rtol, atol, msg)
     !! Check real values (1D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -348,12 +344,13 @@ contains
       !! Expected values
     real,             intent(in)    :: values(:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, failed
 
     ! check array sizes
@@ -364,7 +361,7 @@ contains
     ! check values one by one
     failed = 0
     do i = 1, size(values)
-      call this%check(abs(expected(i) - values(i)) <= abs_tol, msg, &
+      call this%check(abs(expected(i) - values(i)) <= max(atol, rtol * abs(expected(i))), msg, &
                       msg2 = "array values differ; (row; expected, value)", ipar = [i], rpar = [expected(i), values(i)])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
@@ -374,7 +371,7 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_real_arr2D(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_real_arr2D(this, expected, values, rtol, atol, msg)
     !! Check real values (2D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -383,12 +380,13 @@ contains
       !! Expected values
     real,             intent(in)    :: values(:,:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, failed
 
     ! check array sizes
@@ -403,7 +401,7 @@ contains
     failed = 0
     do i = 1, size(values,1)
       do j = 1, size(values,2)
-        call this%check(abs(expected(i,j) - values(i,j)) <= abs_tol, msg, &
+        call this%check(abs(expected(i,j) - values(i,j)) <= max(atol, rtol * abs(expected(i,j))), msg, &
                         msg2 = "array values differ; (row, col; expected, value)", ipar = [i, j], rpar = [expected(i,j), values(i,j)])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
@@ -414,7 +412,7 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_real_arr3D(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_real_arr3D(this, expected, values, rtol, atol, msg)
     !! Check real values (3D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -423,12 +421,13 @@ contains
       !! Expected values
     real,             intent(in)    :: values(:,:,:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, k, failed
 
     ! check array sizes
@@ -447,7 +446,7 @@ contains
     do i = 1, size(values,1)
       do j = 1, size(values,2)
         do k = 1, size(values,3)
-          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= abs_tol, msg, &
+          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= max(atol, rtol * abs(expected(i,j,k))), msg, &
                           msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], rpar = [expected(i,j,k), values(i,j,k)])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
@@ -459,7 +458,7 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_cmplx(this, expected, value, abs_tol, msg)
+  subroutine assert_eq_cmplx(this, expected, value, rtol, atol, msg)
     !! Check real value (scalar) for equality to expected value within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -468,16 +467,18 @@ contains
       !! Expected value
     complex,          intent(in)    :: value
       !! Actual value
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare value to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    call this%check(abs(expected - value) <= abs_tol, msg, &
+    call this%check(abs(expected - value) <= max(atol, rtol * abs(expected)), msg, &
                     msg2 = "scalar value differs", cpar = [expected, value])
   end subroutine
 
-  subroutine assert_eq_cmplx_arr(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_cmplx_arr(this, expected, values, rtol, atol, msg)
     !! Check real values (1D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -486,12 +487,13 @@ contains
       !! Expected values
     complex,          intent(in)    :: values(:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, failed
 
     ! check array sizes
@@ -502,7 +504,7 @@ contains
     ! check values one by one
     failed = 0
     do i = 1, size(values)
-      call this%check(abs(expected(i) - values(i)) <= abs_tol, msg, &
+      call this%check(abs(expected(i) - values(i)) <= max(atol, rtol * abs(expected(i))), msg, &
                       msg2 = "array values differ; (row; expected, value)", ipar = [i], cpar = [expected(i), values(i)])
       if (.not. this%last_passed) failed = failed + 1
       if (failed > 5) then
@@ -512,7 +514,7 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_cmplx_arr2D(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_cmplx_arr2D(this, expected, values, rtol, atol, msg)
     !! Check complex values (2D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -521,12 +523,13 @@ contains
       !! Expected values
     complex,          intent(in)    :: values(:,:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, failed
 
     ! check array sizes
@@ -541,7 +544,7 @@ contains
     failed = 0
     do i = 1, size(values,1)
       do j = 1, size(values,2)
-        call this%check(abs(expected(i,j) - values(i,j)) <= abs_tol, msg, &
+        call this%check(abs(expected(i,j) - values(i,j)) <= max(atol, rtol * abs(expected(i,j))), msg, &
                         msg2 = "array values differ; (row, col; expected, value)", ipar = [i, j], cpar = [expected(i,j), values(i,j)])
         if (.not. this%last_passed) failed = failed + 1
         if (failed > 5) then
@@ -552,7 +555,7 @@ contains
     end do
   end subroutine
 
-  subroutine assert_eq_cmplx_arr3D(this, expected, values, abs_tol, msg)
+  subroutine assert_eq_cmplx_arr3D(this, expected, values, rtol, atol, msg)
     !! Check complex values (3D array) for equality to expected values within tolerance.
 
     class(test_case), intent(inout) :: this
@@ -561,12 +564,13 @@ contains
       !! Expected values
     complex,          intent(in)    :: values(:,:,:)
       !! Actual values
-    real,             intent(in)    :: abs_tol
-      !! Absolute tolerance to compare values to
+    real,             intent(in)    :: rtol
+      !! relative tolerance
+    real,             intent(in)    :: atol
+      !! absolute tolerance
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, k, failed
 
     ! check array sizes
@@ -585,7 +589,7 @@ contains
     do i = 1, size(values,1)
       do j = 1, size(values,2)
         do k = 1, size(values,3)
-          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= abs_tol, msg, &
+          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= max(atol, rtol * abs(expected(i,j,k))), msg, &
                           msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], cpar = [expected(i,j,k), values(i,j,k)])
           if (.not. this%last_passed) failed = failed + 1
           if (failed > 5) then
@@ -625,7 +629,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, failed
 
     ! check array sizes
@@ -658,7 +661,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, failed
 
     ! check array sizes
@@ -696,7 +698,6 @@ contains
     character(*),     intent(in)    :: msg
       !! Message to print if error detected
 
-    ! local variables
     integer :: i, j, k, failed
 
     ! check array sizes
@@ -745,7 +746,6 @@ contains
     complex,      optional, intent(in)    :: cpar(:)
       !! Additional complex parameters to print (new line)
 
-    ! local variables
     integer :: i
 
     ! count total number of tests

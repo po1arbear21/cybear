@@ -8,6 +8,8 @@ contains
     type(band_real) :: tri, band, penta, diag
     type(test_case) :: tc
 
+    real, parameter :: rtol = 1e-14, atol = 1e-16
+
     call tc%init("band")
 
     ! init examples of band matrices + factorize
@@ -66,25 +68,25 @@ contains
       y_exp = [29, -10, -135, 49, 22]
       y     = y0
       call diag%mul_vec(x, y, fact_y=fact)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec: diag")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_vec: diag")
 
       ! tri
       y_exp = [27, 6, -114, 69, -25]
       y     = y0
       call tri%mul_vec(x, y, fact_y=fact)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec: tridiag")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_vec: tridiag")
 
       ! penta
       y_exp = [48, 14, -80, 167, 114]
       y     = y0
       call penta%mul_vec(x, y, fact_y=fact)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec: penta")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_vec: penta")
 
       ! band
       y_exp = [48, 14, -59, 123, -1]
       y     = y0
       call band%mul_vec(x, y, fact_y=fact)
-      call tc%assert_eq(y_exp, y, 1e-12, "mul_vec: band")
+      call tc%assert_eq(y_exp, y, rtol, atol, "mul_vec: band")
     end block
 
     ! solve_vec
@@ -97,22 +99,22 @@ contains
       ! diag
       x_exp = [3.0000, -2.0000, 5.0/3.0, -1.5000, 1.4000]
       call diag%solve_vec(b, x)
-      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: diag")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec: diag")
 
       ! tri
       x_exp = [6.551020408163266e-01,-2.755102040816327e-01,-4.489795918367347e-01,3.724489795918368e+00,-4.602040816326531e+00]
       call tri%solve_vec(b, x)
-      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: tri")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec: tri")
 
       ! penta
       x_exp = [0.0,0.0,1.0,-1.0,0.2]
       call penta%solve_vec(b, x)
-      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: penta")
+      call tc%assert_eq(x_exp, x, rtol, 2*atol, "solve_vec: penta")
 
       ! band
       x_exp = [1.694574681848627e-01,1.232417950435365e-01,9.109176155391831e-02,-2.297387809778969e-01,7.576691225720027e-01]
       call band%solve_vec(b, x)
-      call tc%assert_eq(x_exp, x, 1e-12, "solve_vec: band")
+      call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec: band")
     end block
 
     ! set_elem
@@ -138,7 +140,7 @@ contains
 
       mat_exp = reshape([1,0,0,2,0,3,0,1,4], [3,3])
 
-      call tc%assert_eq(mat_exp, d%d, 1e-12, "set_elem: nlower=nupper=1")
+      call tc%assert_eq(mat_exp, d%d, rtol, atol, "set_elem: nlower=nupper=1")
 
       ! test 2: nlower=0, nupper=2
       ! m = /1 2 0 0\
@@ -159,7 +161,7 @@ contains
 
       mat_exp = reshape([1,0,0,0, 2,0,0,0, 0,1,1,0, 0,3,0,4], [4,4])
 
-      call tc%assert_eq(mat_exp, d%d, 1e-12, "set_elem: nlower=0, nupper=2")
+      call tc%assert_eq(mat_exp, d%d, rtol, atol, "set_elem: nlower=0, nupper=2")
     end block
 
     ! get_elem
@@ -193,7 +195,7 @@ contains
         end do
       end do
 
-      call tc%assert_eq(mat_exp, mat, 1e-12, "get_elem: nlower=nupper=1")
+      call tc%assert_eq(mat_exp, mat, rtol, atol, "get_elem: nlower=nupper=1")
 
       ! test 2: nlower=0, nupper=2
       ! m = /1 2 0 0\
@@ -222,7 +224,7 @@ contains
         end do
       end do
 
-      call tc%assert_eq(mat_exp, mat, 1e-12, "get_elem: nlower=0, nupper=2")
+      call tc%assert_eq(mat_exp, mat, rtol, atol, "get_elem: nlower=0, nupper=2")
     end block
 
     ! add_elem
@@ -255,7 +257,7 @@ contains
 
       mat_exp = reshape([3,4,0, 5,0,9, 0,6,5], [3,3])
 
-      call tc%assert_eq(mat_exp, d%d, 1e-12, "add_elem: nlower=nupper=1")
+      call tc%assert_eq(mat_exp, d%d, rtol, atol, "add_elem: nlower=nupper=1")
 
       ! test 2: nlower=0, nupper=2
       !     /1 2 0 0\   / 0 1 2 0 \   / 1 3 2 0 \
@@ -283,7 +285,7 @@ contains
 
       mat_exp = reshape([1,0,0,0, 3,3,0,0, 2,1,6,0, 0,7,0,9], [4,4])
 
-      call tc%assert_eq(mat_exp, d%d, 1e-12, "add_elem: nlower=0, nupper=2")
+      call tc%assert_eq(mat_exp, d%d, rtol, atol, "add_elem: nlower=0, nupper=2")
     end block
 
     ! reset_row
@@ -327,7 +329,7 @@ contains
               val_exp = d0%d(k,:)
             end if
 
-            call tc%assert_eq(val_exp, val, 1e-12, "reset_row")
+            call tc%assert_eq(val_exp, val, rtol, atol, "reset_row")
           end do
         end do
       end do
@@ -341,14 +343,14 @@ contains
       ! test 1: build diagonal diag
       call b%init(5, 0)
       call b%set_diag(real([1, -2, 3, -4, 5]))
-      call tc%assert_eq(diag%d, b%d, 1e-12, "set_diag_arr: build diag")
+      call tc%assert_eq(diag%d, b%d, rtol, atol, "set_diag_arr: build diag")
 
       ! test 2: build tridiagonal tri
       call b%init(5, 1)
       call b%set_diag([(real(i), i= 1,  4)], k=-1)
       call b%set_diag([(real(i), i= 5,  9)]      )
       call b%set_diag([(real(i), i=10, 13)], k= 1)
-      call tc%assert_eq(tri%d, b%d, 1e-12, "set_diag_arr: build tri")
+      call tc%assert_eq(tri%d, b%d, rtol, atol, "set_diag_arr: build tri")
 
       ! test 3: build
       ! [1 2 0]
@@ -361,7 +363,7 @@ contains
       call b%set_diag(1.0)
       call b%set_diag(4.0, k=1)
       call b%set_diag(5.0, k=2)
-      call tc%assert_eq(b_exp%d, b%d, 1e-12, "set_diag_{arr,val}: test 3")
+      call tc%assert_eq(b_exp%d, b%d, rtol, atol, "set_diag_{arr,val}: test 3")
     end block
 
     call tc%finish()
