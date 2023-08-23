@@ -57,14 +57,15 @@ module normalization_m
   m4_list
 
   ! Tokens
-  enum, bind(c)
-    enumerator :: token_eof = 0, token_illegal
-    enumerator :: token_ident
-    enumerator :: token_int
-
-    enumerator :: token_asterisk, token_slash, token_caret
-    enumerator :: token_lparen, token_rparen
-  end enum
+  integer, parameter :: TOKEN_EOF      = 0
+  integer, parameter :: TOKEN_ILLEGAL  = 1
+  integer, parameter :: TOKEN_IDENT    = 2
+  integer, parameter :: TOKEN_INT      = 3
+  integer, parameter :: TOKEN_ASTERISK = 4
+  integer, parameter :: TOKEN_SLASH    = 5
+  integer, parameter :: TOKEN_CARET    = 6
+  integer, parameter :: TOKEN_LPAREN   = 7
+  integer, parameter :: TOKEN_RPAREN   = 8
 
   type token
     integer                   :: type
@@ -322,26 +323,26 @@ contains
     character(:), allocatable :: name
 
     select case (token_type)
-      case (token_eof)
-        name = "EOF"
-      case (token_illegal)
-        name = "ILLEGAL"
-      case (token_ident)
-        name = "IDENT"
-      case (token_int)
-        name = "INT"
-      case (token_asterisk)
-        name = "ASTERISK"
-      case (token_slash)
-        name = "SLASH"
-      case (token_caret)
-        name = "CARET"
-      case (token_lparen)
-        name = "LPAREN"
-      case (token_rparen)
-        name = "RPAREN"
-      case default
-        name = "OTHER"
+    case (TOKEN_EOF)
+      name = "EOF"
+    case (TOKEN_ILLEGAL)
+      name = "ILLEGAL"
+    case (TOKEN_IDENT)
+      name = "IDENT"
+    case (TOKEN_INT)
+      name = "INT"
+    case (TOKEN_ASTERISK)
+      name = "ASTERISK"
+    case (TOKEN_SLASH)
+      name = "SLASH"
+    case (TOKEN_CARET)
+      name = "CARET"
+    case (TOKEN_LPAREN)
+      name = "LPAREN"
+    case (TOKEN_RPAREN)
+      name = "RPAREN"
+    case default
+      name = "OTHER"
     end select
   end function token_name
 
@@ -365,43 +366,41 @@ contains
     call this%skip_ws()
 
     select case(this%ch)
-      case ("/")
-        tok = token(token_slash, this%ch)
-      case ("*")
-        tok = token(token_asterisk, this%ch)
-      case ("^")
-        tok = token(token_caret, this%ch)
-      case ("(")
-        tok = token(token_lparen, this%ch)
-      case (")")
-        tok = token(token_rparen, this%ch)
-      case (achar(0))
-        tok = token(token_eof, "")
-      case ("-")
-        if (is_digit(this%peek_char())) then
-          call this%read_number(lit)
-          tok = token(token_int, lit)
-          return
-        else
-          tok = token(token_illegal, this%ch)
-        end if
-      case default
-        if (is_letter(this%ch)) then
-          call this%read_ident(lit)
-          tok = token(token_ident, lit)
-          return
-        else if (is_digit(this%ch)) then
-          call this%read_number(lit)
-          tok = token(token_int, lit)
-          return
-        else
-          print *, "asdf"
-          print *, this%ch
-          tok = token(token_illegal, this%ch)
-        end if
-      end select
+    case ("/")
+      tok = token(TOKEN_SLASH, this%ch)
+    case ("*")
+      tok = token(TOKEN_ASTERISK, this%ch)
+    case ("^")
+      tok = token(TOKEN_CARET, this%ch)
+    case ("(")
+      tok = token(TOKEN_LPAREN, this%ch)
+    case (")")
+      tok = token(TOKEN_RPAREN, this%ch)
+    case (achar(0))
+      tok = token(TOKEN_EOF, "")
+    case ("-")
+      if (is_digit(this%peek_char())) then
+        call this%read_number(lit)
+        tok = token(TOKEN_INT, lit)
+        return
+      else
+        tok = token(TOKEN_ILLEGAL, this%ch)
+      end if
+    case default
+      if (is_letter(this%ch)) then
+        call this%read_ident(lit)
+        tok = token(TOKEN_IDENT, lit)
+        return
+      else if (is_digit(this%ch)) then
+        call this%read_number(lit)
+        tok = token(TOKEN_INT, lit)
+        return
+      else
+        tok = token(TOKEN_ILLEGAL, this%ch)
+      end if
+    end select
 
-      call this%read_ch()
+    call this%read_ch()
   end subroutine
 
   subroutine lexer_read_ch(this)
@@ -412,7 +411,7 @@ contains
     else
       this%ch = this%input(this%read_pos:this%read_pos)
     end if
-    this%pos = this%read_pos
+    this%pos      = this%read_pos
     this%read_pos = this%read_pos + 1
   end subroutine
 
@@ -579,9 +578,9 @@ contains
       call tr%operands%init(0, c = 4)
       call tr%operators%init(0, c = 4)
 
-      do while(this%curr_token%type /= token_eof .and. ((.not. nested_) .or. (this%curr_token%type /= token_rparen)))
+      do while(this%curr_token%type /= TOKEN_EOF .and. ((.not. nested_) .or. (this%curr_token%type /= TOKEN_RPAREN)))
 
-        if ((this%curr_token%type == token_asterisk) .or. (this%curr_token%type == token_slash)) then
+        if ((this%curr_token%type == TOKEN_ASTERISK) .or. (this%curr_token%type == TOKEN_SLASH)) then
           op = this%curr_token%literal
           call this%next_token()
         else
@@ -614,11 +613,11 @@ contains
     character(:), allocatable :: err
 
     select case(this%curr_token%type)
-    case (token_ident)
+    case (TOKEN_IDENT)
       call this%parse_identifier(s)
-    case (token_int)
+    case (TOKEN_INT)
       call this%parse_integer(s)
-    case (token_lparen)
+    case (TOKEN_LPAREN)
       call this%parse_group(s)
     case default
       err = "expected expression got " // token_name(this%curr_token%type)
@@ -627,7 +626,7 @@ contains
     end select
 
     ! Possible exponentiation
-    if (this%peek_token_is(token_caret)) then
+    if (this%peek_token_is(TOKEN_CARET)) then
       call this%next_token()
       call this%parse_expo(s)
     end if
@@ -642,7 +641,7 @@ contains
     call this%next_token()
     call this%parse_expr(tr, nested=.true.)
 
-    if (.not. this%curr_token%type == token_rparen) then
+    if (.not. this%curr_token%type == TOKEN_RPAREN) then
       deallocate(tr)
       err = "expected ')' after expression got " // token_name(this%curr_token%type)
       call this%add_error(err)
@@ -670,23 +669,23 @@ contains
 
     call this%next_token()
     select case(this%curr_token%type)
-    case (token_int)
+    case (TOKEN_INT)
       call this%parse_integer(ratio%nom)
 
-      i%tok = token(token_int, "1")
+      i%tok = token(TOKEN_INT, "1")
       i%value = 1
       ratio%den = i
 
-    case (token_lparen)
-      b = this%expect_peek(token_int)
+    case (TOKEN_LPAREN)
+      b = this%expect_peek(TOKEN_INT)
       if (.not. b) return
       call this%parse_integer(ratio%nom)
-      b = this%expect_peek(token_slash)
+      b = this%expect_peek(TOKEN_SLASH)
       if (.not. b) return
-      b = this%expect_peek(token_int)
+      b = this%expect_peek(TOKEN_INT)
       if (.not. b) return
       call this%parse_integer(ratio%den)
-      b = this%expect_peek(token_rparen)
+      b = this%expect_peek(TOKEN_RPAREN)
       if (.not. b) return
 
     case default
@@ -842,6 +841,7 @@ contains
 
     class default
       call program_error("unexpected type")
+
     end select
   end function
 
