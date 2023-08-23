@@ -6,7 +6,7 @@ module normalization_m
   use map_m,    only: map_string_real, mapnode_string_real
   use math_m,   only: PI
   use string_m, only: string, new_string
-  use vector_m, only: vector_char
+  use vector_m, only: vector_char, vector_string
 
   implicit none
 
@@ -17,12 +17,13 @@ module normalization_m
   public token, token_name, lexer, parser, tree
 
   type normalization
-    type(map_string_real) :: map
     type(map_string_real) :: prefixes
     type(map_string_real) :: units
+    type(map_string_real) :: cache
   contains
     procedure :: init     => normalization_init
     procedure :: destruct => normalization_destruct
+    procedure :: lookup   => normalization_lookup
   end type
 
   type(normalization) :: normconst
@@ -34,7 +35,7 @@ module normalization_m
   m4_define({m4_norm_type},{m4_ifelse($1,r,real,{m4_ifelse($1,c,complex,)})})
 
   ! get operation
-  m4_define({m4_norm_op},{m4_ifelse($1,norm,/,{m4_ifelse($1,denorm,*,)})})
+  m4_define({m4_norm_op},{m4_ifelse($1,norm,*,{m4_ifelse($1,denorm,/,)})})
 
   ! combine dimensions 1 to max_dim with norm/denorm and r/c to get a full list
   m4_define({m4_list_help},{
@@ -70,7 +71,7 @@ module normalization_m
     character(:), allocatable :: literal
   end type
 
-  ! Abstract Syntax Tree elements
+  ! Abstract Syntax Tree nodes
   type, abstract :: tree
   contains
     procedure :: eval      => tree_eval
@@ -80,7 +81,6 @@ module normalization_m
   type item
     class(tree), allocatable :: item
   end type
-
   m4_define({T},{item})
   m4_include(vector_def.f90.inc)
 
@@ -88,23 +88,19 @@ module normalization_m
     type(vector_item) :: operands
     type(vector_char) :: operators
   end type
-
   type, extends(tree) :: tree_unit
     type(token)  :: tok
     type(string) :: prefix
     type(string) :: unit
   end type
-
   type, extends(tree) :: tree_int
     type(token) :: tok
     integer     :: value
   end type
-
   type, extends(tree) :: tree_ratio
     class(tree), allocatable :: nom
     class(tree), allocatable :: den
   end type
-
   type, extends(tree) :: tree_expo
     class(tree), allocatable :: base
     type(tree_ratio)         :: expo
@@ -112,9 +108,9 @@ module normalization_m
 
   type lexer
     character(:), allocatable :: input
-    integer :: pos
-    integer :: read_pos
-    character :: ch
+    integer                   :: pos
+    integer                   :: read_pos
+    character                 :: ch
   contains
     procedure :: init        => lexer_init
     procedure :: next_token  => lexer_next_token
@@ -126,10 +122,10 @@ module normalization_m
   end type
 
   type parser
-    type(lexer) :: l
-    character(:), allocatable :: errors(:)
-    type(token) :: curr_token
-    type(token) :: peek_token
+    type(lexer)         :: l
+    type(vector_string) :: errors
+    type(token)         :: curr_token
+    type(token)         :: peek_token
   contains
     procedure :: init             => parser_init
     procedure :: add_error        => parser_add_error
@@ -153,6 +149,7 @@ contains
   subroutine init_normconst(T)
     !! initialize global normalization object
     real, intent(in) :: T
+      !! Temperature in Kelvin
 
     call normconst%init(T)
   end subroutine
@@ -164,8 +161,10 @@ contains
   end subroutine
 
   subroutine normalization_init(this, T)
+    !! initialize normalization object
     class(normalization), intent(out) :: this
     real,                 intent(in)  :: T
+      !! Temperature in Kelvin
 
     ! constants
     real, parameter :: EC = 1.602176634e-19
@@ -176,12 +175,12 @@ contains
       !! electron rest mass [ kg ]
       !! rel err: 3e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?me
-    real, parameter :: PLANCK = 6.62607015e-34 / (2*PI*EC)
-      !! reduced Planck constant [ eVs ]
+    real, parameter :: PLANCK = 6.62607015e-34
+      !! reduced Planck constant [ Js ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?h
-    real, parameter :: BOLTZ = 1.380649e-23/EC
-      !! Boltzmann constant [ eV/K ]
+    real, parameter :: BOLTZ = 1.380649e-23
+      !! Boltzmann constant [ J/K ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?k
     real, parameter :: EPS0 = 8.8541878128e-12
@@ -193,46 +192,46 @@ contains
       !! rel err: 1.5e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?mu0
 
-    ! local variables
     real :: ampere, coulomb, diel, farad, henry, hertz, kelvin, gram, meter, ohm, permby, second, volt, watt
 
-    call this%map%init()
     call this%prefixes%init()
     call this%units%init()
+    call this%cache%init()
 
-    ! metric prefixes: INVERSE values for normalization
-    call this%prefixes%insert(new_string("P"), 1e-15)
-    call this%prefixes%insert(new_string("T"), 1e-12)
-    call this%prefixes%insert(new_string("G"), 1e-9)
-    call this%prefixes%insert(new_string("M"), 1e-6)
-    call this%prefixes%insert(new_string("k"), 1e-3)
-    call this%prefixes%insert(new_string("h"), 1e-2)
+    ! metric prefixes
+    call this%prefixes%insert(new_string("P"), 1e15)
+    call this%prefixes%insert(new_string("T"), 1e12)
+    call this%prefixes%insert(new_string("G"), 1e9)
+    call this%prefixes%insert(new_string("M"), 1e6)
+    call this%prefixes%insert(new_string("k"), 1e3)
+    call this%prefixes%insert(new_string("h"), 1e2)
     call this%prefixes%insert(new_string("1"), 1e0)
-    call this%prefixes%insert(new_string("d"), 1e1)
-    call this%prefixes%insert(new_string("c"), 1e2)
-    call this%prefixes%insert(new_string("m"), 1e3)
-    call this%prefixes%insert(new_string("u"), 1e6)
-    call this%prefixes%insert(new_string("n"), 1e9)
-    call this%prefixes%insert(new_string("p"), 1e12)
-    call this%prefixes%insert(new_string("f"), 1e15)
-    call this%prefixes%insert(new_string("a"), 1e18)
+    call this%prefixes%insert(new_string("d"), 1e-1)
+    call this%prefixes%insert(new_string("c"), 1e-2)
+    call this%prefixes%insert(new_string("m"), 1e-3)
+    call this%prefixes%insert(new_string("u"), 1e-6)
+    call this%prefixes%insert(new_string("n"), 1e-9)
+    call this%prefixes%insert(new_string("p"), 1e-12)
+    call this%prefixes%insert(new_string("f"), 1e-15)
+    call this%prefixes%insert(new_string("a"), 1e-18)
 
-    ! available units
-    volt    = BOLTZ * T
-    meter   = PLANCK / sqrt(EM / EC * volt)
-    second  = PLANCK / volt
+    ! basic normalization constants
+    volt    = EC / (BOLTZ * T)
+    meter   = 2 * PI * sqrt(EM * BOLTZ * T) / PLANCK
+    second  = 2 * PI * BOLTZ * T / PLANCK
     hertz   = 1.0 / second
-    gram    = EM * 1e3 ! Use grams instead of kilograms
-    ampere  = EC / second
+    gram    = 1e-3 / EM ! grams instead of kilograms
+    ampere  = 1.0 / (EC * second)
     coulomb = ampere * second
     farad   = coulomb / volt
     ohm     = volt / ampere
     henry   = ohm * second
     watt    = volt * ampere
-    kelvin  = T
-    diel    = sqrt(EM * EC / volt) / (PLANCK * EPS0)
-    permby  = henry / meter / MU0
+    kelvin  = 1.0 / T
+    diel    = (PLANCK * EPS0) / (2 * PI * EC * sqrt(EM * EC * volt)) ! eps0 is not normalized to 1.0
+    permby  = MU0 * henry / meter
 
+    ! basic units
     call this%units%insert(new_string("V"), volt)
     call this%units%insert(new_string("eV"), volt)
     call this%units%insert(new_string("m"), meter)
@@ -246,73 +245,66 @@ contains
     call this%units%insert(new_string("H"), henry)
     call this%units%insert(new_string("W"), watt)
     call this%units%insert(new_string("K"), kelvin)
-    call this%units%insert(new_string("Å"), 1e10 * meter)
+    call this%units%insert(new_string("Å"), 1e-10 * meter)
     call this%units%insert(new_string("eps0"), diel)
     call this%units%insert(new_string("mu0"), permby)
-    call this%units%insert(new_string("deg"), 180 / PI)
+    call this%units%insert(new_string("°"), PI / 180)
+    call this%units%insert(new_string("deg"), PI / 180)
     call this%units%insert(new_string("rad"), 1.0)
   end subroutine
 
-  function get_norm_value(unit, n) result (val)
-    character(*),                  intent(in) :: unit
+  function normalization_lookup(this, unit) result(val)
+    !! lookup unit and get normalization constant
+    class(normalization), intent(inout) :: this
+    character(*),         intent(in)    :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
+    real                                :: val
+      !! return normalization constant
 
-    real :: val
-    type(string) :: unit_
-    type(mapnode_string_real), pointer :: node
+    integer                            :: i
+    type(string)                       :: sunit
+    type(mapnode_string_real), pointer :: n
+    type(lexer)                        :: l
+    type(parser)                       :: p
+    class(tree), allocatable           :: tr
 
-    if (present(n)) call program_error("Calling normalization with custom normalization object is deprecated.")
-
-    unit_ = new_string(unit)
-    node => normconst%map%find(unit_)
-    if (associated(node)) then
-      val = node%value
+    ! lookup unit in cache
+    sunit%s = unit
+    n => this%cache%find(sunit)
+    if (associated(n)) then
+      val = n%value
       return
     end if
 
-    val = eval(unit_%s)
-    call normconst%map%set(unit_, val)
-  end function
-
-  function eval(unit) result(res)
-    character(:), allocatable, intent(in) :: unit
-    real                                  :: res
-
-    integer                  :: i
-    type(lexer)              :: l
-    type(parser)             :: p
-    class(tree), allocatable :: tr
-
+    ! parse unit
     call l%init(unit)
     call p%init(l)
     call p%parse_expr(tr)
 
-    if (allocated(p%errors)) then
-      if (count(p%errors /= "") > 0) then
-        do i = 1, count(p%errors /= "")
-          write(*, *) trim(p%errors(i))
-        end do
-        call program_error("Cannot parse unit expression '" // unit // "'")
-      end if
+    ! check for errors
+    if (p%errors%n > 0) then
+      do i = 1, p%errors%n
+        print "(A)", p%errors%d(i)%s
+      end do
+      call program_error("Cannot parse unit expression '" // unit // "'")
     end if
 
-    res = tr%eval()
+    ! return value and save in cache
+    val = tr%eval()
+    call this%cache%set(sunit, val)
   end function
 
   m4_define({m4_nvalues_shape},{m4_ifelse($1,1,size(values,1),{m4_nvalues_shape(m4_decr($1)),size(values,$1)})})
   m4_define({m4_nvalues_pshape},{m4_ifelse($1,0,,{(m4_nvalues_shape($1))})})
-  m4_define({m4_X},{function $1_$2_$3(values, unit, n) result(nvalues)
+  m4_define({m4_X},{function $1_$2_$3(values, unit) result(nvalues)
     m4_norm_type($3),              intent(in) :: values{}m4_pshape($2)
       !! value to (de-)normalize
     character(*),                  intent(in) :: unit
       !! physical unit token
-    type(normalization), optional, intent(in) :: n
-      !! optional normalization object (default: use global normconst)
     m4_norm_type($3)                          :: nvalues{}m4_nvalues_pshape($2)
       !! return normalized value
 
-    nvalues = values m4_norm_op($1) get_norm_value(unit, n = n)
+    nvalues = values m4_norm_op($1) normconst%lookup(unit)
   end function})
   m4_list
 
@@ -320,9 +312,9 @@ contains
     !! destruct normalization constants (release memory)
     class(normalization), intent(inout) :: this
 
-    call this%map%destruct()
     call this%prefixes%destruct()
     call this%units%destruct()
+    call this%cache%destruct()
   end subroutine
 
   pure function token_name(token_type) result(name)
@@ -354,13 +346,13 @@ contains
   end function token_name
 
   subroutine lexer_init(this, input)
-    class(lexer),              intent(inout) :: this
-    character(:), allocatable, intent(in)    :: input
+    class(lexer),  intent(inout) :: this
+    character(*),  intent(in)    :: input
 
-    this%input = input
-    this%pos = 1
+    this%input    = input
+    this%pos      = 1
     this%read_pos = 1
-    this%ch = "x"
+    this%ch       = "x"
     call this%read_ch()
   end subroutine
 
@@ -403,6 +395,8 @@ contains
           tok = token(token_int, lit)
           return
         else
+          print *, "asdf"
+          print *, this%ch
           tok = token(token_illegal, this%ch)
         end if
       end select
@@ -485,9 +479,10 @@ contains
 
   pure function is_letter(ch) result(ret)
     character, intent(in) :: ch
-    logical :: ret
+    logical               :: ret
 
-    if ((ch >= 'a' .and. ch <= 'z') .or. (ch >= 'A' .and. ch <= 'Z') .or. ch == '_') then
+    ! extended ASCII or UTF8 characters are interpreted as letters
+    if (((ch >= 'a') .and. (ch <= 'z')) .or. ((ch >= 'A') .and. (ch <= 'Z')) .or. (ch == '_') .or. (iachar(ch) > 127)) then
       ret = .true.
     else
       ret = .false.
@@ -524,15 +519,14 @@ contains
   function parser_peek_token_is(this, tok) result(b)
     class(parser), intent(in) :: this
     integer,       intent(in) :: tok
+    logical                   :: b
 
-    logical :: b
-
-    b = tok == this%peek_token%type
+    b = (tok == this%peek_token%type)
   end function
 
   function parser_expect_peek(this, tok) result(b)
     class(parser), intent(inout) :: this
-    integer,         intent(in)    :: tok
+    integer,       intent(in)    :: tok
 
     logical :: b
 
@@ -560,11 +554,9 @@ contains
 
     character(:), allocatable, intent(in) :: msg
 
-    if (allocated(this%errors)) then
-      this%errors = [this%errors, msg]
-    else
-      this%errors = [msg]
-    end if
+    if (.not. allocated(this%errors%d)) call this%errors%init(0, c = 4)
+
+    call this%errors%push(new_string(msg))
   end subroutine
 
   subroutine parser_parse_expr(this, tr, nested)

@@ -13,10 +13,10 @@ program try_norm
   read(*,*) T
   call init_normconst(T)
 
-  write(*, *) "Type .exit or .quit to exit the interpreter"
+  print "(A)", "Type .exit or .quit to exit the interpreter"
   do
-    write(*, '(A)', advance="no") ">> "
-    read(*, '(A)') line
+    write (*, "(A)", advance = "no") ">> "
+    read (*, "(A)") line
 
     line = trim(line)
     if (line == ".exit" .or. line == ".quit") then
@@ -24,13 +24,13 @@ program try_norm
     else if (line /= "") then
       size = len_trim(line)
       input = line(1:size)
-      write(*,*) "Lexer:"
+      print "(A)", "Lexer:"
       call run_line_lexer(input)
-      write(*,*) "Parser:"
+      print "(A)", "Parser:"
       call run_line(input)
-      write(*,*) "Normalizing constant:"
+      print "(A)", "Normalizing constant:"
       val = norm(1.0, input)
-      write(*,"(ES25.16)") val
+      print "(ES25.16)", val
     end if
   end do
 
@@ -45,10 +45,10 @@ contains
 
     call l%next_token(tok)
     do while (tok%type /= 0)
-      write(*, "(A)", advance="no") " " // token_name(tok%type) // " '" // tok%literal // "'"
+      write(*, "(A)", advance = "no") " " // token_name(tok%type) // " '" // tok%literal // "'"
       call l%next_token(tok)
     end do
-    write (*, "(A)") ""
+    print *
 
   end subroutine
 
@@ -64,13 +64,13 @@ contains
     call p%init(l)
     call p%parse_expr(tree)
 
-    if (allocated(p%errors)) then
-      write(*, *) "no Apfeltasche for you!"
-      do i = 1, count(p%errors /= "")
-        write(*, *) trim(p%errors(i))
+    if (p%errors%n > 0) then
+      print "(A)", "no Apfeltasche for you!"
+      do i = 1, p%errors%n
+        print "(A)", p%errors%d(i)%s
       end do
     else
-      write(*, *) tree%to_string()
+      print "(A)", tree%to_string()
     end if
   end subroutine run_line
 
