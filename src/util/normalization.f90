@@ -168,7 +168,7 @@ contains
 
     ! constants
     real, parameter :: EC = 1.602176634e-19
-      !! elementary charge [ As ]
+      !! elementary charge [ C ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?e
     real, parameter :: EM = 9.1093837015e-31
@@ -176,7 +176,7 @@ contains
       !! rel err: 3e-10
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?me
     real, parameter :: PLANCK = 6.62607015e-34
-      !! reduced Planck constant [ Js ]
+      !! Planck constant [ J/Hz ]
       !! exact
       !! nist link: https://physics.nist.gov/cgi-bin/cuu/Value?h
     real, parameter :: BOLTZ = 1.380649e-23
