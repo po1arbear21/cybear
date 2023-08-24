@@ -6,6 +6,7 @@ module normalization_m
   use map_m,    only: map_string_real, mapnode_string_real
   use math_m,   only: PI
   use string_m, only: string, new_string
+  use util_m,   only: is_digit, is_letter, is_whitespace
   use vector_m, only: vector_char, vector_string
 
   implicit none
@@ -418,7 +419,7 @@ contains
   subroutine lexer_skip_ws(this)
     class(lexer), intent(inout) :: this
 
-    do while (is_whitepsace(this%ch))
+    do while (is_whitespace(this%ch))
       call this%read_ch()
     end do
   end subroutine
@@ -460,42 +461,6 @@ contains
         ch = achar(0)
     else
         ch = this%input(this%read_pos:this%read_pos)
-    end if
-  end function
-
-  pure function is_whitepsace(ch) result(ret)
-    character, intent(in) :: ch
-    logical :: ret
-    integer :: ord
-
-    ord = ichar(ch)
-    if (ord == 32 .or. ord == 9 .or. ord == 13 .or. ord == 10) then
-      ret = .true.
-    else
-      ret = .false.
-    end if
-  end function
-
-  pure function is_letter(ch) result(ret)
-    character, intent(in) :: ch
-    logical               :: ret
-
-    ! extended ASCII or UTF8 characters are interpreted as letters
-    if (((ch >= 'a') .and. (ch <= 'z')) .or. ((ch >= 'A') .and. (ch <= 'Z')) .or. (ch == '_') .or. (iachar(ch) > 127)) then
-      ret = .true.
-    else
-      ret = .false.
-    end if
-  end function
-
-  pure function is_digit(ch) result(ret)
-    character, intent(in) :: ch
-    logical :: ret
-
-    if (ch >= '0' .and. ch <= '9') then
-      ret = .true.
-    else
-      ret = .false.
     end if
   end function
 

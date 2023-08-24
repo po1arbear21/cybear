@@ -10,8 +10,11 @@ module util_m
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
   public int2str
+  public is_digit, is_letter, is_whitespace
+  public split_folder_file
   public load_array
   public select_int
+  public get_memory_usage
 
   interface hash
     module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array
@@ -140,6 +143,53 @@ contains
     end if
   end function
 
+  pure function is_digit(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    ret = ((ch >= "0") .and. (ch <= "9"))
+  end function
+
+  pure function is_letter(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    ! extended ASCII or UTF8 characters are interpreted as letters
+    ret = (((ch >= 'a') .and. (ch <= 'z')) .or. ((ch >= 'A') .and. (ch <= 'Z')) .or. (iachar(ch) > 127))
+  end function
+
+  pure function is_whitespace(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    integer :: ascii
+
+    ascii = iachar(ch)
+    ret   = ((ascii == 32) .or. (ascii == 9) .or. (ascii == 13) .or. (ascii == 10))
+  end function
+
+  subroutine split_folder_file(full, folder, file)
+    !! split full file name into folder + file
+    character(*),              intent(in)  :: full
+      !! full filename with folder
+    character(:), allocatable, intent(out) :: folder
+      !! output folder (including trailing "/")
+    character(:), allocatable, intent(out) :: file
+      !! output file name without folder
+
+    integer :: i
+
+    i = scan(full, "/", back = .true.)
+
+    if (i == 0) then
+      folder = ""
+      file = full
+    else
+      folder = full(1:i)
+      file   = full(i+1:len_trim(full))
+    end if
+  end subroutine
+
   function select_int(flags, ints) result(t)
     !! select an integer according to the flag that is set (no flags set => 0, multiple set => - 1)
     logical, intent(in) :: flags(:)
@@ -160,6 +210,32 @@ contains
 
     ! ambiguous
     if (j > 1) t = -1
+  end function
+
+  function get_memory_usage() result(rss)
+    !! get memory usage of program (RSS)
+    real :: rss
+      !! return used memory in GiB
+
+    character(80) :: line
+    integer       :: funit, ios, rss_kiB
+
+    rss = -1
+
+    open (newunit = funit, file = "/proc/self/status", status = "old", action = "read", iostat = ios)
+    if (ios /= 0) return
+
+    read(funit, "(A)", iostat = ios) line
+    do while (ios == 0)
+      if (line(1:6) == "VmRSS:") then
+        read (line(7:), *) rss_kiB
+        rss = real(rss_kiB) / 2**20
+        exit
+      end if
+      read(funit, "(A)", iostat = ios) line
+    end do
+
+    close (funit)
   end function
 
   function hash_int32(i) result(h)
