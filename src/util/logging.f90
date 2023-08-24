@@ -161,7 +161,6 @@ contains
     end if
 
     call levels%init(0, c = 8)
-    call entries%init(0, c = 32)
 
     LVL_DEBUG = add_level("DEBUG",   COL_DEFAULT, fmt_, record_date_, record_time_, record_mem_, (verb <= 1), .false.)
     LVL_INFO  = add_level("INFO",    COL_DEFAULT, fmt_, record_date_, record_time_, record_mem_, (verb <= 2), .false.)
@@ -173,8 +172,6 @@ contains
     !! finish logging, close logfile
 
     call levels%resize(0)
-    call entries%resize(0)
-
     close (funit)
     funit = 0
   end subroutine

@@ -20,6 +20,7 @@ program test
   use test_input_m
   use test_input_src_m
   use test_json_m
+  use test_logging_m
   use test_map_m
   use test_math_m
   use test_matop_m
@@ -55,7 +56,7 @@ program test
   })
 
   implicit none
-  
+
   call test_analysis()
   call test_bin_search()
   call test_circuit()
@@ -75,6 +76,7 @@ program test
   call test_input()
   call test_input_src()
   call test_json()
+  call test_logging()
   call test_map()
   call test_math()
   call test_matop()
