@@ -1,12 +1,15 @@
+m4_include(macro.f90.inc)
+
 module util_m
 
-  use error_m,      only: program_error
+  use error_m,      only: assert_failed, program_error
   use iso_c_binding
   use vector_m,     only: vector_real
 
   implicit none
 
   private
+  public fsleep
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
   public int2str
@@ -55,6 +58,24 @@ module util_m
   end interface
 
 contains
+
+  subroutine fsleep(seconds)
+    !! sleep for a number of seconds
+    m4_ifdef({m4_intel},use ifport)
+    integer, intent(in) :: seconds
+
+    m4_ifdef({m4_intel},{
+    m4_ifelse(m4_intsize,32,{
+    call sleep(seconds)
+    },{
+    integer(kind=4) :: s
+    s = int(seconds, kind = 4)
+    call sleep(s)
+    })
+    },{
+    call sleep(seconds)
+    })
+  end subroutine
 
   pure function cstrlen(cstr) result(len)
     !! get length of c string

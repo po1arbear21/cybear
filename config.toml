@@ -30,6 +30,7 @@
   QUADPACK = false
   MPFR     = false
   TRIANGLE = false
+  SPIKE    = false
 
 [options]
   # Default integer size in bits, must be either 32 or 64

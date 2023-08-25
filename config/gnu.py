@@ -3,9 +3,10 @@ import os, sys
 
 class Config:
     FC:           str       = "gfortran"
-    FFLAGS:       List[str] = ["-ffree-line-length-none", "-march=native", "-Wall", "-Wno-maybe-uninitialized", "-fopenmp", "-fuse-ld=bfd", "-fdefault-real-8", "-cpp"]
+    FFLAGS:       List[str] = ["-ffree-line-length-none", "-march=native", "-Wall", "-Wno-maybe-uninitialized", "-Wno-uninitialized", "-fopenmp", "-fdefault-real-8", "-cpp"]
+    LFLAGS:       List[str] = ["-fuse-ld=bfd", "-Wl,--no-warn-execstack"]
     FMODULE:      str       = "-J"
-    FSYNTAX_ONLY: str       = "-fsyntax-only" 
+    FSYNTAX_ONLY: str       = "-fsyntax-only"
 
     CC:     str       = "gcc"
     CFLAGS: List[str] = ["-march=native"]
@@ -137,6 +138,11 @@ class Config:
         if "TRIANGLE" in libraries:
             triangleroot = get_env("TRIANGLEROOT")
             addlib(triangleroot, "lib", "gnu_lp64", "triangle.a")
+
+        # SPIKE
+        if "SPIKE" in libraries:
+            spikeroot = get_env("SPIKEROOT")
+            addlib(spikeroot, "lib", f"gnu_{arch}", "libspike.a")
 
         self.LIBS.append("-lgomp")
         self.LIBS.append("-lpthread")

@@ -34,7 +34,6 @@ except ModuleNotFoundError as e:
 # All import regular expression for parsing .f90 source files.
 # Your programs should be able to match these!
 RE_INCLUDE = re.compile(r"m4_include\(\s*(.*)\)", re.MULTILINE)
-RE_VARIABLE = re.compile(r"(m4_[a-zA-Z_]+)", re.MULTILINE)
 RE_PROGRAM = re.compile(r"^program *(.*?)(?: *!|$)", re.MULTILINE)
 RE_ENDPROGRAM = re.compile(r"^\s*end\s*program", re.MULTILINE)
 RE_MODULE = re.compile(r"^module *(.*?)(?: *!|$)", re.MULTILINE)
@@ -466,11 +465,11 @@ class Configuration:
     ) -> Cmd:
         if self.dry_run:
             return Cmd(["sleep", "1"], ["cmd", "inp"])
-
         return Cmd(
             [
                 self.cconf.FC,
                 self.cconf.FFLAGS,
+                self.cconf.LFLAGS,
                 self.cconf.FINC,
                 "-o",
                 os.path.join(self.build_dir, program),
@@ -478,7 +477,7 @@ class Configuration:
                 cobjects,
                 self.cconf.LIBS,
             ],
-            ["cmd", "off", "off", "off", "out", "inp", "inp", "inp"],
+            ["cmd", "off", "off", "off", "off", "out", "inp", "inp", "inp"],
         )
 
     def cc(self, c_object: str) -> Cmd:
@@ -516,7 +515,7 @@ class Configuration:
         )
 
 
-Source = namedtuple("Source", ["path", "mtime", "includes", "variables", "checksum"])
+Source = namedtuple("Source", ["path", "mtime", "includes", "checksum"])
 F90 = namedtuple("F90", ["fname", "mods", "program", "library", "checksum"])
 
 
@@ -540,15 +539,13 @@ def parse_m4(src_file: str) -> Source:
             ]
         )
 
-        variables = set(re.findall(RE_VARIABLE, src))
-
     path = os.path.normpath(file.name)
     mtime = os.path.getmtime(path)
     logger.debug(
-        f"Parsed m4 dependencies:\n  \u250C {COLORS['bold']}{path}{COLORS['off']}\n  \u251C\u2500\u2500 mtime: {mtime}\n  \u251C\u2500\u2500 checksum: {checksum}\n  \u251C\u2500\u2500 includes: {includes}\n  \u2514\u2500\u2500 variables: {variables}"
+        f"Parsed m4 dependencies:\n  \u250C {COLORS['bold']}{path}{COLORS['off']}\n  \u251C\u2500\u2500 mtime: {mtime}\n  \u251C\u2500\u2500 checksum: {checksum}\n  \u251C\u2500\u2500 includes: {includes}"
     )
 
-    return Source(path, mtime, includes, variables, checksum)
+    return Source(path, mtime, includes, checksum)
 
 
 def parse_f90(f90: str, src: str) -> F90:
@@ -757,8 +754,6 @@ class Graph:
                 valid = self.check_src(n)
             elif type == "inc":
                 valid = self.check_inc(n)
-            elif type == "var":
-                valid = self.check_var(n)
             elif type in ["f90", "anc", "obj", "tar", "cobj"]:
                 valid = self.check_rule(n)
             else:
@@ -790,7 +785,7 @@ class Graph:
                     )
 
     async def execute(self, num_workers: int, halt: bool) -> None:
-        """Executes the compilation process by first checking the leaves (src, inc and var) for changes. After that
+        """Executes the compilation process by first checking the leaves (src and inc) for changes. After that
         nodes that are ready for execution will be queued and executed by the defined number of workers asynchronously.
         """
 
@@ -808,7 +803,7 @@ class Graph:
                 logger.debug(f" + {n} (f90/c, ready)")
                 queue.put_nowait(n)
                 self.graph.nodes[n]["status"] = STATUS_QUEUE
-            elif type in ["src", "inc", "var", "req"]:
+            elif type in ["src", "inc", "req"]:
                 # TODO: Why are 'req' nodes queueable?
                 continue
             elif self.is_queueable(n):
@@ -887,7 +882,6 @@ class Graph:
         """Compare current with cached build rules and invalidate valid nodes with outdated rules."""
 
         m4_rule = " ".join(config.m4("/").get_args())
-        m4_rule = re.sub(r" -Dm4[a-zA-Z_]+(=[a-zA-Z_0-9]+)?", "", m4_rule)
         logger.log(5, f"Got comparison m4 rule: {m4_rule}")
 
         rules = {
@@ -1036,18 +1030,6 @@ class Graph:
             return False
         return True
 
-    def check_var(self, var: str) -> bool:
-        old = self.graph.nodes[var]["value"]
-        new = config.m4_vars[var] if var in config.m4_vars else None
-
-        self.graph.nodes[var]["status"] = STATUS_BUILT
-        if new != old:
-            logger.log(5, f"M4 variable {var} has a changed value: {old} -> {new}")
-            self.graph.nodes[var]["value"] = new
-            return False
-
-        return True
-
     def check_rule(self, node: str) -> bool:
         """Compare current with cached build rules and invalidate valid nodes with outdated rules."""
 
@@ -1080,18 +1062,12 @@ class Graph:
         )
         self.graph.add_edge(source.path, fname)
 
-        # Can new include files and variables be set to STATUS_BUILT?
+        # Can new include files be set to STATUS_BUILT?
         for inc in source.includes:
             if inc not in self.graph:
                 mtime = os.path.getmtime(inc)
                 self.graph.add_node(inc, type="inc", mtime=mtime, status=STATUS_BUILT)
             self.graph.add_edge(inc, fname)
-
-        for var in source.variables:
-            if var not in self.graph:
-                value = config.m4_vars[var] if var in config.m4_vars else None
-                self.graph.add_node(var, type="var", value=value, status=STATUS_BUILT)
-            self.graph.add_edge(var, fname)
 
     def new_cfile(self, source: Source) -> None:
         """Inserts nodes for a new c source file into the graph(src, c and cobj node).
@@ -1171,7 +1147,7 @@ class Graph:
         type = self.graph.nodes[node]["type"]
         debug_msg = f"Find queue propagation for\n  \u250C {node}"
 
-        if type in ["inc", "var", "smod", "tar"]:
+        if type in ["inc", "smod", "tar"]:
             logger.log(5, f"{debug_msg}\n  \u2514 none")
             return set()
         elif type == "src":
@@ -1294,7 +1270,7 @@ class Graph:
                 else config.executable(node, objects, cobjects=cobjects)
             )
             ret = await self.execute_cmd(node, cmd)
-        elif type in ["src", "inc", "var"]:
+        elif type in ["src", "inc"]:
             logger.error(
                 f"Retrived invaid node type {node} ({self.graph.nodes[node]['type']}) from queue!"
             )
@@ -1622,7 +1598,6 @@ class Graph:
             static_layers = {
                 "src": 1,
                 "inc": 2,
-                "var": 3,
                 "f90": 4,
                 "req": 5,
                 "obj": 199,
@@ -1661,7 +1636,6 @@ class Graph:
             "c": "skyblue",
             "cobj": "blueviolet",
             "inc": "darkgreen",
-            "var": "forestgreen",
             "src": "limegreen",
         }
 
