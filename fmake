@@ -34,13 +34,13 @@ except ModuleNotFoundError as e:
 # All import regular expression for parsing .f90 source files.
 # Your programs should be able to match these!
 RE_INCLUDE = re.compile(r"m4_include\(\s*(.*)\)", re.MULTILINE)
-RE_PROGRAM = re.compile(r"^program *(.*?)(?: *!|$)", re.MULTILINE)
-RE_ENDPROGRAM = re.compile(r"^\s*end\s*program", re.MULTILINE)
-RE_MODULE = re.compile(r"^module *(.*?)(?: *!|$)", re.MULTILINE)
-RE_ENDMODULE = re.compile(r"^\s*end\s*(sub)?module", re.MULTILINE)
-RE_SUBMODULE = re.compile(r"^submodule *\((.*)\) *(.*?)(?: *!|$)", re.MULTILINE)
-RE_USE = re.compile(r"^\s*use(?:.*::)? *(.*?)(?: *,|$| *!)", re.MULTILINE)
-RE_LIBRARY = re.compile(r"\!\!\!library *(.*)", re.MULTILINE)
+RE_PROGRAM = re.compile(r"^program *(.*?)(?: *!|$)", re.MULTILINE | re.IGNORECASE)
+RE_ENDPROGRAM = re.compile(r"^\s*end\s*program", re.MULTILINE | re.IGNORECASE)
+RE_MODULE = re.compile(r"^module *(.*?)(?: *!|$)", re.MULTILINE | re.IGNORECASE)
+RE_ENDMODULE = re.compile(r"^\s*end\s*(sub)?module", re.MULTILINE | re.IGNORECASE)
+RE_SUBMODULE = re.compile(r"^submodule *\((.*)\) *(.*?)(?: *!|$)", re.MULTILINE | re.IGNORECASE)
+RE_USE = re.compile(r"^\s*use(?:.*::)? *(.*?)(?: *,|$| *!)", re.MULTILINE | re.IGNORECASE)
+RE_LIBRARY = re.compile(r"\!\!\!library *(.*)", re.MULTILINE | re.IGNORECASE)
 
 # Separate out intel, gnu?
 PROV_MODULES = (
@@ -397,7 +397,7 @@ class Configuration:
         self.m4_vars["m4_debug"] = mode == "debug"
 
         for lib, use in self.uconf["libraries"].items():
-            self.m4_vars["m4_" + lib.lower()] = use
+            self.m4_vars["m4_" + lib.lower().strip()] = use
 
         # Custom m4 variables will update all automatic variables
         if "VARS" in self.uconf["M4"]:
@@ -565,7 +565,7 @@ def parse_f90(f90: str, src: str) -> F90:
     library = None
     if lib_match:
         # Error checking?
-        library = lib_match.group(1).lower()
+        library = lib_match.group(1).lower().strip()
 
     pro_match = re.search(RE_PROGRAM, src)
     program = None
@@ -575,14 +575,14 @@ def parse_f90(f90: str, src: str) -> F90:
         end = end_match.end() if end_match else len(src)
         if not end_match:
             logger.error(f"Found no 'end program' statement in {f90}")
-        program = pro_match.group(1).lower()
+        program = pro_match.group(1).lower().strip()
         mods[program] = {
             "type": "program",
             "name": program,
             "dependencies": tuple(
                 filter(
                     lambda dep: dep not in PROV_MODULES,
-                    re.findall(RE_USE, src[start:end]),
+                    [n.lower().strip() for n in re.findall(RE_USE, src[start:end])],
                 )
             ),
         }
@@ -600,14 +600,14 @@ def parse_f90(f90: str, src: str) -> F90:
 
         if mod_start < smod_start and module:
             # Parse module
-            name = module.group(1)
+            name = module.group(1).lower().strip()
             mods[name] = {
                 "type": "mod",
                 "name": name,
                 "dependencies": tuple(
                     filter(
                         lambda dep: dep not in PROV_MODULES,
-                        re.findall(RE_USE, src[mod_start:end]),
+                        [n.lower().strip() for n in re.findall(RE_USE, src[mod_start:end])],
                     )
                 ),
             }
@@ -615,15 +615,15 @@ def parse_f90(f90: str, src: str) -> F90:
 
         elif smod_start < mod_start and submodule:
             # Parse submodule
-            name = submodule.group(2)
+            name = submodule.group(2).lower().strip()
             mods[name] = {
                 "type": "smod",
                 "name": name,
-                "parent": submodule.group(1),
+                "parent": submodule.group(1).lower().strip(),
                 "dependencies": tuple(
                     filter(
                         lambda dep: dep not in PROV_MODULES,
-                        re.findall(RE_USE, src[smod_start:end]),
+                        [n.lower().strip() for n in re.findall(RE_USE, src[smod_start:end])],
                     )
                 ),
             }
