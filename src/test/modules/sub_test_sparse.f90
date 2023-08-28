@@ -617,7 +617,7 @@ contains
 
       ! test 2: using pardiso solver
       call example_matrix3(sA)
-      sA%solver=SOLVER_PARDISO
+      sA%solver=SPSOLVER_PARDISO
       call sA%factorize()
       call sA%solve_vec(b, x)
       call sA%destruct()
@@ -626,7 +626,7 @@ contains
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
         ! test 3: using ilupack solver
         call example_matrix3(sA)
-        sA%solver=SOLVER_ILUPACK
+        sA%solver=SPSOLVER_ILUPACK
         call sA%factorize()
         call sA%solve_vec(b, x)
         call sA%destruct()
@@ -639,7 +639,7 @@ contains
           type(ilupack_handle), pointer :: ilu
 
           call example_matrix3(sA)
-          sA%solver=SOLVER_ILUPACK
+          sA%solver=SPSOLVER_ILUPACK
           call sA%init_solver()
 
           call get_ilupack_handle_ptr(sA%solver_handle, ilu)
@@ -674,7 +674,7 @@ contains
 
       ! test 2: using pardiso solver
       call example_matrix5(sA)
-      sA%solver=SOLVER_PARDISO
+      sA%solver=SPSOLVER_PARDISO
       call sA%factorize()
       call sA%solve_vec(b, x)
       call sA%destruct()
@@ -683,7 +683,7 @@ contains
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
         ! test 3: using ilupack solver
         call example_matrix5(sA)
-        sA%solver=SOLVER_ILUPACK
+        sA%solver=SPSOLVER_ILUPACK
         call sA%factorize()
         call sA%solve_vec(b, x)
         call sA%destruct()
@@ -696,7 +696,7 @@ contains
           type(ilupack_handle), pointer :: ilu
 
           call example_matrix5(sA)
-          sA%solver=SOLVER_ILUPACK
+          sA%solver=SPSOLVER_ILUPACK
           call sA%init_solver()
 
           call get_ilupack_handle_ptr(sA%solver_handle, ilu)

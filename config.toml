@@ -43,7 +43,7 @@
 
 [M4]
   # The m4 configuration is general and not compiler specific.
-  # Automatic variables: m4_debug, m4_gnu, m4_intel, m4_intsize, m4_idxsize
+  # Automatic variables: m4_debug, m4_gnu, m4_intel, m4_intsize, m4_idxsize, m4_projectdir
   # Additionally each library will be packed as variable, i.e. QUADPACK -> m4_quadpack
   # M4 = "m4"
   # FLAGS = ["-P", "-s"]

@@ -3,10 +3,10 @@ type, extends(matrix_{}T) :: sparse_{}T
 
   integer(SPARSE_IDX), allocatable :: ia(:)
   integer,             allocatable :: ja(:)
-  m4_type(T),                  allocatable :: a(:)
+  m4_type(T),          allocatable :: a(:)
 
   integer :: solver = 0
-    !! SOLVER_PARDISO, SOLVER_MUMPS or SOLVER_ILUPACK
+    !! SPSOLVER_PARDISO, SPSOLVER_MUMPS or SPSOLVER_ILUPACK
   integer :: solver_handle = 0
     !! pardiso, mumps or ilupack solver handle
 contains

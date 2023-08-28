@@ -10,7 +10,7 @@ module subroutine sparse_{}T{}_init(this, nrows, ncols)
 
   ! init base
   call this%init("", nrows, ncols = ncols)
-  this%solver = default_solver
+  this%solver = default_spsolver
 end subroutine
 
 module subroutine sparse_{}T{}_destruct(this)
@@ -45,13 +45,13 @@ module subroutine sparse_{}T{}_reset(this, only_factorization)
   ! destruct factorization
   if (this%solver_handle > 0) then
     select case (this%solver)
-    case (SOLVER_PARDISO)
+    case (SPSOLVER_PARDISO)
       call destruct_pardiso_handle(this%solver_handle)
     m4_divert(m4_ifdef({m4_mumps},0,-1))
-    case (SOLVER_MUMPS)
+    case (SPSOLVER_MUMPS)
       call destruct_mumps_handle_{}m4_ifelse(T,cmplx,{c},{r}){}(this%solver_handle)
     m4_divert(m4_ifdef({m4_ilupack},0,-1))
-    case (SOLVER_ILUPACK)
+    case (SPSOLVER_ILUPACK)
       call destruct_ilupack_handle(this%solver_handle)
     m4_divert(0)
     end select
@@ -311,13 +311,13 @@ module subroutine sparse_{}T{}_init_solver(this)
   m4_assert(.not. this%is_empty())
 
   select case (this%solver)
-  case (SOLVER_PARDISO)
+  case (SPSOLVER_PARDISO)
     this%solver_handle = create_pardiso_handle(this%nrows, m4_ifelse(T,cmplx,{.true.},{.false.}))
   m4_divert(m4_ifdef({m4_mumps},0,-1))
-  case (SOLVER_MUMPS)
+  case (SPSOLVER_MUMPS)
     this%solver_handle = create_mumps_handle_{}m4_ifelse(T,cmplx,{c},{r}){}()
   m4_divert(m4_ifdef({m4_ilupack},0,-1))
-  case (SOLVER_ILUPACK)
+  case (SPSOLVER_ILUPACK)
     this%solver_handle = create_ilupack_handle(this%ia, this%ja, this%a)
   m4_divert(0)
   end select
@@ -332,13 +332,13 @@ module subroutine sparse_{}T{}_factorize(this)
   if (this%solver_handle == 0) call this%init_solver
 
   select case (this%solver)
-  case (SOLVER_PARDISO)
+  case (SPSOLVER_PARDISO)
     call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
   m4_divert(m4_ifdef({m4_mumps},0,-1))
-  case (SOLVER_MUMPS)
+  case (SPSOLVER_MUMPS)
     call mumps_factorize(this%solver_handle, this%ia, this%ja, this%a)
   m4_divert(m4_ifdef({m4_ilupack},0,-1))
-  case (SOLVER_ILUPACK)
+  case (SPSOLVER_ILUPACK)
     call ilupack_factorize(this%solver_handle)
   m4_divert(0)
   end select
@@ -379,13 +379,13 @@ module subroutine sparse_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
 
   ! solve system with pardiso/ilupack
   select case (this%solver)
-  case (SOLVER_PARDISO)
+  case (SPSOLVER_PARDISO)
     call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs, x)
   m4_divert(m4_ifdef({m4_mumps},0,-1))
-  case (SOLVER_MUMPS)
+  case (SPSOLVER_MUMPS)
     call mumps_solve(this%solver_handle, rhs, x)
   m4_divert(m4_ifdef({m4_ilupack},0,-1))
-  case (SOLVER_ILUPACK)
+  case (SPSOLVER_ILUPACK)
     call ilupack_solve(this%solver_handle, rhs, x)
   m4_divert(0)
   end select
@@ -432,13 +432,13 @@ module subroutine sparse_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   ! solve with pardiso/ilupack, pass right-hand sides one after another in 1D array
   rhs_ = reshape(rhs, [size(rhs,1) * size(rhs,2)])
   select case (this%solver)
-  case (SOLVER_PARDISO)
+  case (SPSOLVER_PARDISO)
     call pardiso_solve(this%solver_handle, this%ia, this%ja, this%a, rhs_, x_)
   m4_divert(m4_ifdef({m4_mumps},0,-1))
-  case (SOLVER_MUMPS)
+  case (SPSOLVER_MUMPS)
     call mumps_solve(this%solver_handle, rhs_, x_)
   m4_divert(m4_ifdef({m4_ilupack},0,-1))
-  case (SOLVER_ILUPACK)
+  case (SPSOLVER_ILUPACK)
     call ilupack_solve(this%solver_handle, rhs_, x_)
   m4_divert(0)
   end select

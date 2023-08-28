@@ -35,6 +35,13 @@ type, extends(matrix_{}T) :: band_{}T
   ! factorization data
   m4_type(T), allocatable :: f(:,:)
   integer,    allocatable :: ipiv(:)
+
+  integer :: solver = 0
+    !! BSOLVER_LAPACK or BSOLVER_SPIKE
+  m4_ifdef({m4_spike},{
+  type(spike_params) :: sp
+    !! spike solver params
+  })
 contains
   procedure :: band_{}T{}_init
   generic   :: init      => band_{}T{}_init

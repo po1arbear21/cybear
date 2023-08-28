@@ -10,6 +10,7 @@ module util_m
 
   private
   public fsleep
+  public get_hostname
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
   public int2str
@@ -72,10 +73,32 @@ contains
     s = int(seconds, kind = 4)
     call sleep(s)
     })
-    },{
+    })
+
+    m4_ifdef({m4_gnu},{
     call sleep(seconds)
     })
   end subroutine
+
+  function get_hostname() result(hostname)
+    !! get host name
+    m4_ifdef({m4_intel},use ifport)
+    character(:), allocatable :: hostname
+
+    character(256) :: hn
+
+    m4_ifdef({m4_intel},{
+    integer(4) :: istat
+
+    istat = hostnam(hn)
+    })
+
+    m4_ifdef({m4_gnu},{
+    call hostnm(hn)
+    })
+
+    hostname = trim(hn)
+  end function
 
   pure function cstrlen(cstr) result(len)
     !! get length of c string

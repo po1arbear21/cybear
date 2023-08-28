@@ -391,6 +391,7 @@ class Configuration:
 
         self.m4_vars["m4_intsize"] = intsize
         self.m4_vars["m4_idxsize"] = idxsize
+        self.m4_vars["m4_projectdir"] = self.project_dir
         self.m4_vars["m4_intel"] = compiler == "intel"
         self.m4_vars["m4_gnu"] = compiler == "gnu"
         self.m4_vars["m4_debug"] = mode == "debug"

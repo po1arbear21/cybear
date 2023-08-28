@@ -4,7 +4,7 @@ import os
 class Config:
     FC:           str       = "ifort"
     FFLAGS:       List[str] = ["-warn", "all", "-qopenmp", "-fp-model", "precise", "-real-size", "64", "-fpp"] # No '-march=native'!
-    LFLAGS:       List[str] = ["-Wl,--no-warn-execstack"]
+    LFLAGS:       List[str] = []#"-Wl,--no-warn-execstack"]
     FMODULE:      str       = "-module"
     FSYNTAX_ONLY: str       = "-syntax-only"
 
@@ -44,6 +44,11 @@ class Config:
         if "FEAST" in libraries:
             feastroot = get_env("FEASTROOT")
             addlib(feastroot, "lib", f"intel_{arch}", "libfeast.a")
+
+        # SPIKE
+        if "SPIKE" in libraries:
+            spikeroot = get_env("SPIKEROOT")
+            addlib(spikeroot, "lib", f"intel_{arch}", "libspike.a")
 
         # BLAS95 and LAPACK95
         mklroot = get_env("MKLROOT")
@@ -119,8 +124,3 @@ class Config:
         if "TRIANGLE" in libraries:
             triangleroot = get_env("TRIANGLEROOT")
             addlib(triangleroot, "lib", "intel_lp64", "triangle.a")
-
-        # SPIKE
-        if "SPIKE" in libraries:
-            spikeroot = get_env("SPIKEROOT")
-            addlib(spikeroot, "lib", f"intel_{arch}", "libspike.a")
