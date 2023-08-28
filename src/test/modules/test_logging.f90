@@ -33,6 +33,11 @@ contains
     m4_info("logging test 6")
     m4_error("logging test 7")
 
+    ! test option add_line
+    call logging(LVL_INFO, "logging test 8", add_line=.true., file = "m4___file__", line = m4___line__)
+    m4_info( "logging test 9" , add_line=.true.)
+    m4_error("logging test 10", add_line=.true.)
+
     call finish_logging()
 
     allocate (character(80) :: line%s)
@@ -67,8 +72,19 @@ contains
     call tc%assert_eq(0, iostat, "line 7 exists")
     if (iostat /= 0) goto 10
     call tc%assert_eq(new_string("ERROR: logging test 7"), line, "line 7")
+    read (funit, "(/,A)", iostat = iostat) line%s
+    call tc%assert_eq(0, iostat, "line 9 exists")
+    if (iostat /= 0) goto 10
+    call tc%assert_eq(new_string("INFO: logging test 8"), line, "line 9")
+    read (funit, "(/,A)", iostat = iostat) line%s
+    call tc%assert_eq(0, iostat, "line 11 exists")
+    if (iostat /= 0) goto 10
+    call tc%assert_eq(new_string("INFO: logging test 9"), line, "line 11")
+    read (funit, "(/,A)", iostat = iostat) line%s
+    call tc%assert_eq(0, iostat, "line 13 exists")
+    if (iostat /= 0) goto 10
+    call tc%assert_eq(new_string("ERROR: logging test 10"), line, "line 13")
     10 close (funit)
-
     call tc%finish()
   end subroutine
 

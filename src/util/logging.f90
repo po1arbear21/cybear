@@ -281,9 +281,11 @@ contains
     ilvl = levels%n
   end function
 
-  subroutine logging(ilvl, msg, file, line)
+  subroutine logging(ilvl, msg, add_line, file, line)
     integer,                intent(in) :: ilvl
     character(*),           intent(in) :: msg
+    logical,      optional, intent(in) :: add_line
+      !! insert empty line before message. default: false
     character(*), optional, intent(in) :: file
     integer,      optional, intent(in) :: line
 
@@ -304,13 +306,13 @@ contains
       e%msg = msg
       if (lvl%print) then
         if (lvl%error) then
-          call e%write(error_unit)
+          call e%write(error_unit, add_line = add_line)
         else
-          call e%write(output_unit)
+          call e%write(output_unit, add_line = add_line)
         end if
       end if
       if (funit /= 0) then
-        call e%write(funit)
+        call e%write(funit, add_line = add_line)
         flush (funit)
       end if
     end associate
@@ -342,11 +344,18 @@ contains
     this%msec  = values(8)
   end subroutine
 
-  subroutine entry_write(this, unit)
-    class(entry), intent(in) :: this
-    integer,      intent(in) :: unit
+  subroutine entry_write(this, unit, add_line)
+    class(entry),      intent(in) :: this
+    integer,           intent(in) :: unit
+    logical, optional, intent(in) :: add_line
+      !! insert empty line before message. default: false
 
     integer :: i
+    logical :: add_line_
+
+    add_line_ = .false.
+    if (present(add_line)) add_line_ = add_line
+    if (add_line_) write (unit, "(x)")
 
     associate (lvl => levels%d(this%ilvl))
       do i = 1, lvl%tokens%n
