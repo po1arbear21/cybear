@@ -1548,6 +1548,12 @@ class Graph:
 
             # Add old object files
             for n in nx.ancestors(self.graph, anc):
+                if n in self.smods.keys():
+                    for sanc in self.smods[n]:
+                        sobj = sanc.replace(".anc", ".o")
+                        if not self.graph.has_edge(sobj, program):
+                            self.graph.add_edge(sobj, program)
+                            debug_msg += f"\n  \u251C\u2500\u2500\u2500\u2500 link submodule object {sobj} to program"
                 if self.graph.nodes[n]["type"] != "anc":
                     continue
                 debug_msg += f"\n  \u251C\u2500\u2500\u2500\u2500 add ancestor {n.replace('.anc', '.o')}"
