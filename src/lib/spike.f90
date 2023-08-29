@@ -13,6 +13,7 @@ module spike_m
 
   type spike_params
     integer, allocatable :: spm(:)
+    logical              :: iter_refine
   contains
     procedure :: init => spike_params_init
   end type
@@ -143,7 +144,7 @@ module spike_m
         !! factorized matrix A
       integer,   intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
-      $2,        intent(inout) :: work(*)
+      $2,        intent(in)    :: work(*)
         !! work array of size klu**2 * spm(10)
       $2,        intent(inout) :: B(ldb,*)
         !! right hand sides, overwritten by solution
@@ -175,7 +176,7 @@ module spike_m
         !! factorized matrix A
       integer,   intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
-      $2,        intent(inout) :: work(*)
+      $2,        intent(in)    :: work(*)
         !! work array of size klu**2 * spm(10)
       $2,        intent(inout) :: B(ldb,*)
         !! right hand sides, overwritten by solution
@@ -257,6 +258,7 @@ contains
     integer, save :: ctune(3) = [-1, -1, -1]
 
     allocate (this%spm(64), source = 0)
+    this%iter_refine = .false.
 
     ! use library to set sane default values
     if (present(nthread)) then
@@ -289,50 +291,87 @@ contains
         this%spm(7) = rtune(3)
       end if
     end if
+
+    ! iterative refinement
+    this%spm(11) = 7
+    this%spm(12) = 14
   end subroutine
 
   m4_define({m4_X},{
 
-  subroutine spike_factorize_$1(sp, n, kl, ku, A, ipiv, info)
-    type(spike_params), intent(in)    :: sp
+  subroutine spike_factorize_$1(sp, n, kl, ku, A, work, info)
+    !! factorization of band matrix
+    type(spike_params), intent(inout) :: sp
+      !! spike parameters
     integer,            intent(in)    :: n
+      !! system size (n = nrows = ncols)
     integer,            intent(in)    :: kl
+      !! number of lower diagonals
     integer,            intent(in)    :: ku
+      !! number of upper diagonals
     $2,                 intent(inout) :: A(:,:)
-    integer,            intent(out)   :: ipiv(:)
+      !! input band matrix, output factorization
+    $2, allocatable,    intent(out)   :: work(:)
+      !! output work array, save and supply to solve routine
     integer, optional,  intent(out)   :: info
+      !! optional: output SPIKE information code
 
-    integer         :: info_
-    $2, allocatable :: work(:)
+    integer :: info_
 
     allocate (work(max(kl,ku)**2 * sp%spm(10)))
-    call $1spike_gbtrfp(sp%spm, n, kl, ku, A, max(1,size(A,1)), work, ipiv, info_)
+
+    call $1spike_gbtrf(sp%spm, n, kl, ku, A, kl+ku+1, work, info_)
+
+    if (info_ == 1) sp%iter_refine = .true.
 
     if (present(info)) then
       info = info_
-    else
-      if (info == 1) then
-        print "(A)", "SPIKE Warning: Iterative refinement maybe necessary"
-      end if
-      if (info == 2) then
-        call program_error("SPIKE: Illegal value in matrix A")
-      end if
+    elseif (info_ == 2) then
+      call program_error("SPIKE: Illegal value in matrix A")
     end if
   end subroutine
 
-  subroutine spike_solve_$1(sp, n, kl, ku, A, ipiv, b)
-    type(spike_params), intent(in)    :: sp
-    integer,            intent(in)    :: n
-    integer,            intent(in)    :: kl
-    integer,            intent(in)    :: ku
-    $2,                 intent(in)    :: A(:,:)
-    integer,            intent(in)    :: ipiv(:)
-    $2,                 intent(inout) :: b(:,:)
+  subroutine spike_solve_$1(sp, n, kl, ku, A, f, work, b, trans, iter_refine)
+    !! solve system after factorization
+    type(spike_params),     intent(in)    :: sp
+      !! spike parameters
+    integer,                intent(in)    :: n
+      !! system size (n = nrows = ncols)
+    integer,                intent(in)    :: kl
+      !! number of lower diagonals
+    integer,                intent(in)    :: ku
+      !! number of upper diagonals
+    $2,                     intent(in)    :: A(:,:)
+      !! original matrix
+    $2,                     intent(in)    :: f(:,:)
+      !! factorization
+    $2,                     intent(in)    :: work(:)
+      !! work array
+    $2,                     intent(inout) :: b(:,:)
+      !! right-hand side, overwritten by solution
+    character(1), optional, intent(in)    :: trans
+      !! default: 'N'
+      !! 'N': use matrix as is
+      !! 'T': use transposed matrix
+      !! 'C': use transposed+complex conjugated matrix
+    logical,      optional,  intent(in)   :: iter_refine
+      !! optional: use iterative refinement (default: true, overwritten if sp%iter_refine is true)
 
-    $2, allocatable :: work(:)
+    character(1) :: trans_
+    logical      :: iter_refine_
 
-    allocate (work(max(kl,ku)**2 * sp%spm(10)))
-    call $1spike_gbtrsp(sp%spm, n, kl, ku, size(b,2), A, size(A,1), work, ipiv, b, size(b,1))
+    iter_refine_ = .true.
+    if (present(iter_refine)) iter_refine_ = iter_refine
+    if (sp%iter_refine) iter_refine_ = .true.
+
+    trans_ = 'N'
+    if (present(trans)) trans_ = trans
+
+    if (iter_refine_) then
+      call $1spike_gbtrsi(sp%spm, trans_, n, kl, ku, size(b,2), A, kl + ku + 1, f, kl + ku + 1, work, b, size(b,1))
+    else
+      call $1spike_gbtrs(sp%spm, trans_, n, kl, ku, size(b,2), f, kl + ku + 1, work, b, size(b,1))
+    end if
   end subroutine
 
   })
