@@ -2,7 +2,7 @@ module test_util_m
 
   use string_m
   use test_case_m, only: test_case
-  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, select_int
+  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, real2str, select_int
 
   implicit none
 
@@ -29,52 +29,64 @@ contains
       cval  = int2str(i)
       val%s = cval
       exp%s = "123"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 1")
 
       i     = -4567
       cval  = int2str(i)
       val%s = cval
       exp%s = "-4567"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 2")
 
-      ! min_len smaller than actual length
-      i     = 89012
-      cval  = int2str(i, min_len=2)
-      val%s = cval
-      exp%s = "89012"
-      call tc%assert_eq(exp, val, "int2str")
-
-      i     = -123
-      cval  = int2str(i, min_len=2)
-      val%s = cval
-      exp%s = "-123"
-      call tc%assert_eq(exp, val, "int2str")
-
-      ! min_len equal actual length
+      ! format length equal actual length
       i     = 1234
-      cval  = int2str(i, min_len=4)
+      cval  = int2str(i, fmt="(I4)")
       val%s = cval
       exp%s = "1234"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 3")
 
       i     = -1234
-      cval  = int2str(i, min_len=4)
+      cval  = int2str(i, fmt="(I5)")
       val%s = cval
       exp%s = "-1234"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 4")
 
-      ! min_len larger than actual length
+      ! format length longer than actual length
       i     = 56
-      cval  = int2str(i, min_len=6)
+      cval  = int2str(i, fmt="(I6.6)")
       val%s = cval
       exp%s = "000056"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 5")
 
       i     = -56
-      cval  = int2str(i, min_len=6)
+      cval  = int2str(i, fmt="(I6.5)")
       val%s = cval
       exp%s = "-00056"
-      call tc%assert_eq(exp, val, "int2str")
+      call tc%assert_eq(exp, val, "int2str 6")
+    end block
+
+    ! real2str
+    block
+      character(:), allocatable :: cval
+      real                      :: r
+      type(string)              :: exp, val
+
+      r     = 123.27858499357
+      cval  = real2str(r)
+      val%s = cval
+      exp%s = "1.2327858499357001E+002"
+      call tc%assert_eq(exp, val, "real2str 1")
+
+      r     = -4567.45655
+      cval  = real2str(r)
+      val%s = cval
+      exp%s = "-4.5674565499999999E+003"
+      call tc%assert_eq(exp, val, "real2str 2")
+
+      r     = 3.141592653589793238462643
+      cval  = real2str(r, fmt="(F10.2)")
+      val%s = cval
+      exp%s = "3.14"
+      call tc%assert_eq(exp, val, "real2str 3")
     end block
 
     ! cstrlen (length of a string)
