@@ -144,7 +144,6 @@ contains
     character(:),           allocatable :: str
 
     character(256) :: tmp
-    integer        :: j
 
     if (present(fmt)) then
       write(tmp, fmt) i
