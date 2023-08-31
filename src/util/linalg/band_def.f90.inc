@@ -41,6 +41,8 @@ type, extends(matrix_{}T) :: band_{}T
   m4_ifdef({m4_spike},{
   type(spike_params) :: sp
     !! spike solver params
+  m4_type(T), allocatable :: work(:)
+    !! spike work array
   })
 contains
   procedure :: band_{}T{}_init
