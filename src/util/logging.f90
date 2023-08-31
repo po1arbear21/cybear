@@ -82,7 +82,7 @@ module logging_m
   m4_include(vector_def.f90.inc)
 
   type(vector_level) :: levels
-
+  logical, protected :: logging_initialized = .false.
   integer, protected :: LVL_DEBUG = 0
   integer, protected :: LVL_INFO  = 0
   integer, protected :: LVL_WARN  = 0
@@ -166,6 +166,8 @@ contains
     LVL_INFO  = add_level("INFO",    COL_DEFAULT, fmt_, record_date_, record_time_, record_mem_, (verb <= 2), .false.)
     LVL_WARN  = add_level("WARNING", COL_YELLOW,  fmt_, record_date_, record_time_, record_mem_, (verb <= 3), .false.)
     LVL_ERROR = add_level("ERROR",   COL_MAGENTA, fmt_, record_date_, record_time_, record_mem_, (verb <= 4), .true.)
+
+    logging_initialized = .true.
   end subroutine
 
   subroutine finish_logging()
@@ -174,6 +176,7 @@ contains
     call levels%resize(0)
     close (funit)
     funit = 0
+    logging_initialized = .false.
   end subroutine
 
   function add_level(name, color, fmt, record_date, record_time, record_mem, print, error) result(ilvl)
@@ -291,6 +294,8 @@ contains
 
     integer     :: ilvl_
     type(entry) :: e
+
+    if (.not. logging_initialized) call init_logging()
 
     ilvl_ = ilvl
     if (ilvl == 0) ilvl_ = LVL_INFO
