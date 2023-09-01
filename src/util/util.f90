@@ -13,7 +13,7 @@ module util_m
   public get_hostname
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
-  public int2str, real2str
+  public int2str, log2str, real2str
   public is_digit, is_letter, is_whitespace
   public split_folder_file
   public load_array
@@ -151,6 +151,14 @@ contains
       write(tmp, "(I24)") i
     end if
     str = trim(adjustl(tmp))
+  end function
+
+  function log2str(l) result(str)
+    !! convert real to string
+    logical,     intent(in)  :: l
+    character(1)             :: str
+
+    write(str, "(L)") l
   end function
 
   function real2str(r, fmt) result(str)

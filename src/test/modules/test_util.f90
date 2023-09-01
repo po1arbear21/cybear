@@ -2,7 +2,7 @@ module test_util_m
 
   use string_m
   use test_case_m, only: test_case
-  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, real2str, select_int
+  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, log2str, real2str, select_int
 
   implicit none
 
@@ -87,6 +87,25 @@ contains
       val%s = cval
       exp%s = "3.14"
       call tc%assert_eq(exp, val, "real2str 3")
+    end block
+
+    ! log2str
+    block
+      character(:), allocatable :: cval
+      logical                   :: l
+      type(string)              :: exp, val
+
+      l     = .true.
+      cval  = log2str(l)
+      val%s = cval
+      exp%s = "T"
+      call tc%assert_eq(exp, val, "log2str 1")
+
+      l     = .false.
+      cval  = log2str(l)
+      val%s = cval
+      exp%s = "F"
+      call tc%assert_eq(exp, val, "log2str 2")
     end block
 
     ! cstrlen (length of a string)
