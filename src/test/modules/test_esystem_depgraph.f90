@@ -12,6 +12,7 @@ module test_esystem_depgraph_m
   use res_equation_m, only: res_equation
   use stencil_m,      only: dirichlet_stencil
   use test_case_m,    only: test_case
+  use util_m,         only: fsleep
   use variable_m,     only: variable_real, variable_ptr
   use vector_m,       only: vector_int
   use vselector_m,    only: vselector
@@ -231,7 +232,7 @@ contains
     ! Unpredictable qsort?
     ! feval_list = [1,6,8,9,20,2,12,3,11,14,17,4,19,5,7,10,21,15,18,16,23,22]
     call tc%assert_eq([1,6,8,12,14,15,18,20,22,23], es%g%ieblks, "ieblks list does not match")
-    
+
     ! Check no unexpected eval blocks in eval list
     do ieval = 1, es%g%neblks
       ieval0 = es%g%ieval_final(es%g%ieblks(ieval))
@@ -302,13 +303,13 @@ contains
     deallocate(iprov)
     deallocate(idep)
   end subroutine
-  
+
   subroutine tequation_eval(this)
     class(tequation), intent(inout) :: this
 
     if (this%sleep /= 0 .and. PARALLEL_PRINT) then
       print *, "┌──── ", this%name
-      call sleep(this%sleep)
+      call fsleep(this%sleep)
       print *, "└──── ", this%name
     end if
   end subroutine
@@ -348,12 +349,11 @@ contains
 
   subroutine tres_eval(this)
     class(tres), intent(inout) :: this
-    
+
     if (this%sleep /= 0 .and. PARALLEL_PRINT) then
       print *, "┌──── ", this%name
-      call sleep(this%sleep)
+      call fsleep(this%sleep)
       print *, "└──── ", this%name
     end if
   end subroutine
 end module
-  

@@ -1,17 +1,24 @@
+m4_include(macro.f90.inc)
+
 module util_m
 
-  use error_m,      only: program_error
+  use error_m,      only: assert_failed, program_error
   use iso_c_binding
   use vector_m,     only: vector_real
 
   implicit none
 
   private
+  public fsleep
+  public get_hostname
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
-  public int2str
+  public int2str, log2str, real2str
+  public is_digit, is_letter, is_whitespace
+  public split_folder_file
   public load_array
   public select_int
+  public get_memory_usage
 
   interface hash
     module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array
@@ -53,6 +60,46 @@ module util_m
 
 contains
 
+  subroutine fsleep(seconds)
+    !! sleep for a number of seconds
+    m4_ifdef({m4_intel},use ifport)
+    integer, intent(in) :: seconds
+
+    m4_ifdef({m4_intel},{
+    m4_ifelse(m4_intsize,32,{
+    call sleep(seconds)
+    },{
+    integer(kind=4) :: s
+    s = int(seconds, kind = 4)
+    call sleep(s)
+    })
+    })
+
+    m4_ifdef({m4_gnu},{
+    call sleep(seconds)
+    })
+  end subroutine
+
+  function get_hostname() result(hostname)
+    !! get host name
+    m4_ifdef({m4_intel},use ifport)
+    character(:), allocatable :: hostname
+
+    character(256) :: hn
+
+    m4_ifdef({m4_intel},{
+    integer(4) :: istat
+
+    istat = hostnam(hn)
+    })
+
+    m4_ifdef({m4_gnu},{
+    call hostnm(hn)
+    })
+
+    hostname = trim(hn)
+  end function
+
   pure function cstrlen(cstr) result(len)
     !! get length of c string
     character(1), intent(in) :: cstr(*)
@@ -90,55 +137,93 @@ contains
     cstr(size(cstr)) = c_null_char
   end function
 
-  function int2str(i, min_len) result(str)
-    !! convert integer to string. adds leading zeros if necessary.
+  function int2str(i, fmt) result(str)
+    !! convert integer to string
+    integer,                intent(in)  :: i
+    character(*), optional, intent(in)  :: fmt
+    character(:),           allocatable :: str
 
-    integer, intent(in)              :: i
-    integer, intent(in), optional    :: min_len
-      !! minimal string length, including negative sign. (adds leading zeros)
-    character(:),        allocatable :: str
+    character(256) :: tmp
 
-    character(24) :: tmp
-
-    ! write to temporary string
-    write (tmp, "(I24)") i
-
-    ! adjustl: leading blanks cut and appended at end
-    ! trim:    remove trailing blanks
-    str = trim(adjustl(tmp))
-
-    if (present(min_len)) then
-      ! stripping neg sign
-      ! if (i < 0) str = str(2:)    ! yields gfortran warning ...
-      ! workaround
-      block
-        character(:), allocatable :: str_tmp
-
-        allocate (character(0) :: str_tmp)
-        if (i < 0) then
-          str_tmp = str(2:)
-          str     = str_tmp
-        end if
-      end block
-
-      do while (len(str) < merge(min_len, min_len-1, i >= 0))
-        str = '0' // str
-      end do
-
-      ! prepend neg sign
-      ! if (i < 0) str = '-' // str   ! yields gfortran warning ...
-      ! workaround
-      block
-        character(:), allocatable :: str_tmp
-
-        allocate (character(0) :: str_tmp)
-        if (i < 0) then
-          str_tmp = '-' // str
-          str     = str_tmp
-        end if
-      end block
+    if (present(fmt)) then
+      write(tmp, fmt) i
+    else
+      write(tmp, "(I24)") i
     end if
+    str = trim(adjustl(tmp))
   end function
+
+  function log2str(l) result(str)
+    !! convert real to string
+    logical,     intent(in)  :: l
+    character(1)             :: str
+
+    write(str, "(L)") l
+  end function
+
+  function real2str(r, fmt) result(str)
+    !! convert real to string
+    real,                   intent(in)  :: r
+    character(*), optional, intent(in)  :: fmt
+    character(:),           allocatable :: str
+
+    character(256) :: tmp
+
+    if (present(fmt)) then
+      write(tmp, fmt) r
+    else
+      write(tmp, "(ES25.16E3)") r
+    end if
+
+    str = trim(adjustl(tmp))
+  end function
+
+  pure function is_digit(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    ret = ((ch >= "0") .and. (ch <= "9"))
+  end function
+
+  pure function is_letter(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    ! extended ASCII or UTF8 characters are interpreted as letters
+    ret = (((ch >= "a") .and. (ch <= "z")) .or. ((ch >= "A") .and. (ch <= "Z")) .or. (iachar(ch) > 127))
+  end function
+
+  pure function is_whitespace(ch) result(ret)
+    character(1), intent(in) :: ch
+    logical                  :: ret
+
+    integer :: ascii
+
+    ascii = iachar(ch)
+    ret   = ((ascii == 32) .or. (ascii == 9) .or. (ascii == 13) .or. (ascii == 10))
+  end function
+
+  subroutine split_folder_file(full, folder, file)
+    !! split full file name into folder + file
+    character(*),              intent(in)  :: full
+      !! full filename with folder
+    character(:), allocatable, intent(out) :: folder
+      !! output folder (including trailing "/")
+    character(:), allocatable, intent(out) :: file
+      !! output file name without folder
+
+    integer :: i
+
+    i = scan(full, "/", back = .true.)
+
+    if (i == 0) then
+      folder = ""
+      file = full
+    else
+      folder = full(1:i)
+      file   = full(i+1:len_trim(full))
+    end if
+  end subroutine
 
   function select_int(flags, ints) result(t)
     !! select an integer according to the flag that is set (no flags set => 0, multiple set => - 1)
@@ -160,6 +245,32 @@ contains
 
     ! ambiguous
     if (j > 1) t = -1
+  end function
+
+  function get_memory_usage() result(rss)
+    !! get memory usage of program (RSS)
+    real :: rss
+      !! return used memory in GiB
+
+    character(80) :: line
+    integer       :: funit, ios, rss_kiB
+
+    rss = -1
+
+    open (newunit = funit, file = "/proc/self/status", status = "old", action = "read", iostat = ios)
+    if (ios /= 0) return
+
+    read(funit, "(A)", iostat = ios) line
+    do while (ios == 0)
+      if (line(1:6) == "VmRSS:") then
+        read (line(7:), *) rss_kiB
+        rss = real(rss_kiB) / 2**20
+        exit
+      end if
+      read(funit, "(A)", iostat = ios) line
+    end do
+
+    close (funit)
   end function
 
   function hash_int32(i) result(h)

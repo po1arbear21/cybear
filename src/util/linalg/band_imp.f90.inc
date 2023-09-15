@@ -37,6 +37,8 @@ module subroutine band_{}T{}_init(this, nrows, nlower, nupper, d0)
     allocate (this%d(-nupper_:nlower,nrows))
     this%d = 0
   end if
+
+  this%solver = default_bsolver
 end subroutine
 
 module subroutine band_{}T{}_destruct(this)
@@ -183,37 +185,51 @@ module subroutine band_{}T{}_factorize(this)
   class(band_{}T), intent(inout) :: this
     !! Band matrix
 
-  integer :: info
+  integer :: info, kl, ku, n
 
-  if      (this%nupper + this%nlower == 0) then                   ! diagonal
-    ! do nothing for diagonal matrix. no factorization needed.
-  else if (this%nupper == 1 .and. this%nlower == 1) then          ! tridiagonal
-    if (.not. allocated(this%f))    allocate (this%f(-2:1,this%ncols))
-    if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%ncols))
+  kl = this%nlower
+  ku = this%nupper
+  n  = this%ncols
 
+  if (allocated(this%f   )) deallocate (this%f)
+  if (allocated(this%ipiv)) deallocate (this%ipiv)
+  m4_ifdef({m4_spike},{
+  if (allocated(this%work)) deallocate (this%work)
+  })
+
+  if ((ku == 0) .and. (kl == 0)) then ! diagonal
+    ! no factorization required for diagonal matrix
+  elseif ((ku == 1) .and. (kl == 1)) then ! tridiagonal
+    allocate (this%f(-2:1,n), this%ipiv(n))
+
+    ! LU factorization
     this%f(-1:1,:) = this%d
-
-    ! factorization
-    associate(n   => this%ncols,                &
-              du2 => this%f(-2,3:this%ncols  ), &
-              du  => this%f(-1,2:this%ncols  ), &
-              d   => this%f( 0,1:this%ncols  ), &
-              dl  => this%f( 1,1:this%ncols-1)  )
-
+    associate(n   => n,                &
+              du2 => this%f(-2,3:n  ), &
+              du  => this%f(-1,2:n  ), &
+              d   => this%f( 0,1:n  ), &
+              dl  => this%f( 1,1:n-1)  )
       call gttrf(dl, d, du, du2, ipiv=this%ipiv, info=info)
       if (info /= 0) call program_error("Tridiagonal Factorization error in LAPACK", code = info)
     end associate
-  else                                                            ! general band matrix
-    associate(kl => this%nlower, ku => this%nupper)
-      if (.not. allocated(this%f))    allocate (this%f(-(kl+ku):kl, this%ncols))
-      if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%nrows))
-
+  else ! general band matrix
+    select case (this%solver)
+    case (BSOLVER_LAPACK)
+      allocate (this%f(-(kl+ku):kl,n), this%ipiv(n))
       this%f(-ku:kl,:) = this%d
-
-      ! factorization
-      call gbtrf(this%f, kl=kl, ipiv=this%ipiv, info=info)
+      call gbtrf(this%f, kl = kl, ipiv = this%ipiv, info = info)
       if (info /= 0) call program_error("Bandmatrix Factorization error in LAPACK", code = info)
-    end associate
+
+    m4_divert(m4_ifdef({m4_spike},0,-1))
+    case (BSOLVER_SPIKE)
+      allocate (this%f(-ku:kl,n))
+      this%f(-ku:kl,:) = this%d
+      call this%sp%init(m4_ifelse(T,cmplx,.true.,.false.), n, max(kl, ku))
+      call spike_factorize(this%sp, n, kl, ku, this%f, this%work, info = info)
+      if (info > 1) call program_error("Bandmatrix Factorization error in SPIKE", code = info)
+    m4_divert(0)
+
+    end select
   end if
 
   this%factorized = .true.
@@ -253,7 +269,7 @@ module subroutine band_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   character, optional, intent(in)  :: trans
     !! Transposed flag, must be 'N', 'C' or 'T' (default: 'N')
   logical,   optional, intent(in)  :: iter_refine
-    !! Perform iterative refinement (default: true)
+    !! Perform iterative refinement (default: LAPACK true, SPIKE depends on info from factorization)
 
   integer :: i, info
   logical :: iter_refine_
@@ -261,12 +277,11 @@ module subroutine band_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   iter_refine_ = .true.
   if (present(iter_refine)) iter_refine_ = iter_refine
 
-  if      (this%nupper + this%nlower == 0) then                   ! diagonal
+  if (this%nupper + this%nlower == 0) then ! diagonal
     do i = 1, size(x, 2)
       x(:,i) = rhs(:,i) / this%d(0,:)
     end do
-
-  else if ((this%nupper == 1) .and. (this%nlower == 1)) then      ! tridiagonal
+  else if ((this%nupper == 1) .and. (this%nlower == 1)) then ! tridiagonal
     m4_assert(this%factorized)
 
     associate(n   => this%ncols,                &
@@ -287,18 +302,25 @@ module subroutine band_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
         if (info /= 0) call program_error("Tridiagonal Iterative Refinement error in LAPACK", code = info)
       end if
     end associate
-
-  else                                                            ! general band matrix
+  else ! general band matrix
     m4_assert(this%factorized)
 
     x = rhs
-    call gbtrs(this%f, x, this%ipiv, kl=this%nlower, trans=trans, info=info)
-    if (info /= 0) call program_error("Band Matrix Solution error in LAPACK", code = info)
+    select case (this%solver)
+    case (BSOLVER_LAPACK)
+      call gbtrs(this%f, x, this%ipiv, kl=this%nlower, trans=trans, info=info)
+      if (info /= 0) call program_error("Band Matrix Solution error in LAPACK", code = info)
+      if (iter_refine_) then
+        call gbrfs(this%d, this%f, this%ipiv, rhs, x, kl=this%nlower, trans=trans, info=info)
+        if (info /= 0) call program_error("Band Matrix Iterative Refinement error in LAPACK", code = info)
+      end if
 
-    if (iter_refine_) then
-      call gbrfs(this%d, this%f, this%ipiv, rhs, x, kl=this%nlower, trans=trans, info=info)
-      if (info /= 0) call program_error("Band Matrix Iterative Refinement error in LAPACK", code = info)
-    end if
+    m4_divert(m4_ifdef({m4_spike},0,-1))
+    case (BSOLVER_SPIKE)
+      call spike_solve(this%sp, this%nrows, this%nlower, this%nupper, this%d, this%f, this%work, x, trans = trans, iter_refine = iter_refine)
+    m4_divert(0)
+
+    end select
   end if
 end subroutine
 

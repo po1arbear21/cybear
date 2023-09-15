@@ -731,7 +731,7 @@ contains
       end do
 
     ! loop over original evaluation list
-    else  
+    else
       do i = 1, this%g%ieval%n
         ! get dependency graph equation
         e => this%g%equs%d(this%g%ieval%d(i))

@@ -20,6 +20,7 @@ program test
   use test_input_m
   use test_input_src_m
   use test_json_m
+  use test_logging_m
   use test_map_m
   use test_math_m
   use test_matop_m
@@ -50,12 +51,15 @@ program test
   m4_ifdef({m4_mpfr},{
   use test_mpfr_m
   })
+  m4_ifdef({m4_spike},{
+  use test_spike_m
+  })
   m4_ifdef({m4_triangle},{
   use test_triangle_m
   })
 
   implicit none
-  
+
   call test_analysis()
   call test_bin_search()
   call test_circuit()
@@ -75,6 +79,7 @@ program test
   call test_input()
   call test_input_src()
   call test_json()
+  call test_logging()
   call test_map()
   call test_math()
   call test_matop()
@@ -96,6 +101,7 @@ program test
   m4_ifdef({m4_mumps},{call test_mumps()})
   m4_ifdef({m4_quadpack},{call test_quadpack()})
   m4_ifdef({m4_mpfr},{call test_mpfr()})
+  m4_ifdef({m4_spike},{call test_spike()})
   m4_ifdef({m4_triangle},{call test_triangle()})
 
 end program

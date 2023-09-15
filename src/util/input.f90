@@ -1045,7 +1045,7 @@ contains
     if (.not. present(status)) call program_error("variable '"//name//"' not found")
   end subroutine
 
-  m4_define({m4_X},{subroutine input_file_get_$1(this, section_id, name, value, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+  m4_define({m4_X},{subroutine input_file_get_$1(this, section_id, name, value, status{}m4_ifelse($1,real,{, normalize},))
     !! get scalar value
     class(input_file), intent(in)  :: this
     integer,           intent(in)  :: section_id
@@ -1057,10 +1057,8 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
     m4_ifelse($1,real,{
-    logical,             optional, intent(in) :: normalize
+    logical, optional, intent(in)  :: normalize
       !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in) :: norm_object
-      !! optional normalization object (default: use global normconst)
     },)
 
     integer :: var_idx
@@ -1081,28 +1079,26 @@ contains
       m4_ifelse($1,real,{
         normalize_ = .true.
         if (present(normalize)) normalize_ = normalize
-        if (normalize_) value = norm(value, var%unit, n = norm_object)
+        if (normalize_) value = norm(value, var%unit)
       })
     end associate
   end subroutine})
   m4_list
 
-  m4_define({m4_X},{subroutine input_file_get_$1_n(this, section_id, name, values, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+  m4_define({m4_X},{subroutine input_file_get_$1_n(this, section_id, name, values, status{}m4_ifelse($1,real,{, normalize},))
     !! get array of values
-    class(input_file),             intent(in)  :: this
-    integer,                       intent(in)  :: section_id
+    class(input_file),        intent(in)  :: this
+    integer,                  intent(in)  :: section_id
       !! section index
-    character(*),                  intent(in)  :: name
+    character(*),             intent(in)  :: name
       !! variable name
-    m4_type($1), allocatable,      intent(out) :: values(:)
+    m4_type($1), allocatable, intent(out) :: values(:)
       !! output values
-    logical,             optional, intent(out) :: status
+    logical, optional,        intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
     m4_ifelse($1,real,{
-    logical,             optional, intent(in) :: normalize
+    logical, optional,        intent(in)  :: normalize
       !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in) :: norm_object
-      !! optional normalization object (default: use global normconst)
     },)
 
     integer :: var_idx
@@ -1123,13 +1119,13 @@ contains
       m4_ifelse($1,real,{
         normalize_ = .true.
         if (present(normalize)) normalize_ = normalize
-        if (normalize_) values = norm(values, var%unit, n = norm_object)
+        if (normalize_) values = norm(values, var%unit)
       })
     end associate
   end subroutine})
   m4_list
 
-  m4_define({m4_X},{subroutine input_file_get_name_$1(this, section_name, name, value, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+  m4_define({m4_X},{subroutine input_file_get_name_$1(this, section_name, name, value, status{}m4_ifelse($1,real,{, normalize},))
     !! get scalar value, provide section name instead of index
     class(input_file), intent(in)  :: this
     character(*),      intent(in)  :: section_name
@@ -1141,10 +1137,8 @@ contains
     logical, optional, intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
     m4_ifelse($1,real,{
-    logical,             optional, intent(in) :: normalize
+    logical, optional, intent(in)  :: normalize
       !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in) :: norm_object
-      !! optional normalization object (default: use global normconst)
     },)
 
     integer :: section_id, st
@@ -1159,11 +1153,11 @@ contains
     end if
 
     ! get value
-    call this%get(section_id, name, value, status = status{}m4_ifelse($1,real,{, normalize = normalize, norm_object = norm_object},))
+    call this%get(section_id, name, value, status = status{}m4_ifelse($1,real,{, normalize = normalize},))
   end subroutine})
   m4_list
 
-  m4_define({m4_X},{subroutine input_file_get_name_$1_n(this, section_name, name, values, status{}m4_ifelse($1,real,{, normalize, norm_object},))
+  m4_define({m4_X},{subroutine input_file_get_name_$1_n(this, section_name, name, values, status{}m4_ifelse($1,real,{, normalize},))
     !! get array of values, provide section name instead of index
     class(input_file),        intent(in)  :: this
     character(*),             intent(in)  :: section_name
@@ -1172,13 +1166,11 @@ contains
       !! variable name
     m4_type($1), allocatable, intent(out) :: values(:)
       !! output values
-    logical, optional,           intent(out) :: status
+    logical, optional,        intent(out) :: status
       !! optional output if name was found (if not present: error if not found)
     m4_ifelse($1,real,{
-    logical,             optional, intent(in) :: normalize
+    logical, optional,        intent(in) :: normalize
       !! normalize value by using unit token (default: true)
-    type(normalization), optional, intent(in) :: norm_object
-      !! optional normalization object (default: use global normconst)
     },)
 
     integer :: section_id, st
@@ -1193,7 +1185,7 @@ contains
     end if
 
     ! get values
-    call this%get(section_id, name, values, status = status{}m4_ifelse($1,real,{, normalize = normalize, norm_object = norm_object},))
+    call this%get(section_id, name, values, status = status{}m4_ifelse($1,real,{, normalize = normalize},))
   end subroutine})
   m4_list
 

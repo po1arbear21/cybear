@@ -19,20 +19,28 @@ module matrix_m
   use pardiso_m,        only: create_pardiso_handle, destruct_pardiso_handle, pardiso_factorize, pardiso_solve
   use qsort_m,          only: qsort
   use sparse_idx_m,     only: sparse_idx
+  m4_ifdef({m4_spike},{
+  use spike_m, only: spike_params, spike_factorize, spike_solve
+  })
   use util_m,           only: int2str
   use vector_m,         only: vector_cmplx, vector_int, vector_log, vector_real
 
   implicit none
 
   private
-  public SOLVER_PARDISO
+  public SPSOLVER_PARDISO
   m4_ifdef({m4_mumps},{
-  public SOLVER_MUMPS
+  public SPSOLVER_MUMPS
   })
   m4_ifdef({m4_ilupack},{
-  public SOLVER_ILUPACK
+  public SPSOLVER_ILUPACK
   })
-  public default_solver
+  public default_spsolver
+  public BSOLVER_LAPACK
+  m4_ifdef({m4_spike},{
+  public BSOLVER_SPIKE
+  })
+  public default_bsolver
   public matrix_real
   public matrix_cmplx
   public matrix_ptr_real
@@ -71,14 +79,21 @@ module matrix_m
   public matrix_approx
 
   ! sparse solvers
-  integer, parameter :: SOLVER_PARDISO = 1
+  integer, parameter :: SPSOLVER_PARDISO = 1
   m4_ifdef({m4_mumps},{
-  integer, parameter :: SOLVER_MUMPS   = 2
+  integer, parameter :: SPSOLVER_MUMPS   = 2
   })
   m4_ifdef({m4_ilupack},{
-  integer, parameter :: SOLVER_ILUPACK = 3
+  integer, parameter :: SPSOLVER_ILUPACK = 3
   })
-  integer            :: default_solver = SOLVER_PARDISO
+  integer            :: default_spsolver = SPSOLVER_PARDISO
+
+  ! band solvers
+  integer, parameter :: BSOLVER_LAPACK = 1
+  m4_ifdef({m4_spike},{
+  integer, parameter :: BSOLVER_SPIKE = 2
+  })
+  integer            :: default_bsolver = BSOLVER_LAPACK
 
   ! type list
   m4_define({m4_list},{
