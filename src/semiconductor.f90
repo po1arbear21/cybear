@@ -55,6 +55,8 @@ module semiconductor_m
       !! exponent for fitting the fraction of bound states
     real, allocatable :: ii_g(:)
       !! degeneracy factor of dopant states
+    real, allocatable :: ii_N_crit(:)
+      !! cricital concentration (alternative to altermatt-schenk)
   end type
 
 end module

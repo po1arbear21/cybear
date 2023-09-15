@@ -29,7 +29,7 @@
   MUMPS    = false
   QUADPACK = false
   MPFR     = false
-  TRIANGLE = false
+  TRIANGLE = true
 
 [options]
   # Default integer size in bits, must be either 32 or 64

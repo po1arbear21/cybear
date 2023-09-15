@@ -30,6 +30,9 @@ module device_params_m
   type device_params
     !! device geometry and material parameters
 
+    real :: T
+      !! temperature in K
+
     integer             :: ci0, ci1
       !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
     type(semiconductor) :: smc
@@ -126,11 +129,15 @@ module device_params_m
 
 contains
 
-  subroutine device_params_init(this, file)
+  subroutine device_params_init(this, file, T)
     !! initialize device parameter object
     class(device_params), target, intent(out) :: this
     type(input_file),             intent(in)  :: file
       !! device file
+    real,                         intent(in)  :: T
+      !! temperature in K
+
+    this%T = T
 
     ! get grid type ("x", "xy", "xyz", "tr_xy", "tr_xyz")
     call file%get("grid", "gtype", this%gtype)
@@ -176,8 +183,9 @@ contains
     this%ci1 = CR_HOLE
     if (.not. elec) this%ci0 = CR_HOLE
     if (.not. hole) this%ci1 = CR_ELEC
-    call file%get(sid, "N_c",        this%smc%edos(CR_ELEC))
-    call file%get(sid, "N_v",        this%smc%edos(CR_HOLE))
+    call file%get(sid, "N_c0",       this%smc%edos(CR_ELEC))
+    call file%get(sid, "N_v0",       this%smc%edos(CR_HOLE))
+    this%smc%edos(:) = this%smc%edos(:) * this%T ** 1.5
     call file%get(sid, "E_gap",      this%smc%band_gap)
     this%smc%n_intrin = sqrt(this%smc%edos(CR_ELEC) * this%smc%edos(CR_HOLE) * exp(-this%smc%band_gap))
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
@@ -201,6 +209,7 @@ contains
     call file%get(sid, "ii_N_b",     this%smc%ii_N_b)
     call file%get(sid, "ii_d",       this%smc%ii_d)
     call file%get(sid, "ii_g",       this%smc%ii_g)
+    call file%get(sid, "ii_N_crit",  this%smc%ii_N_crit)
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
@@ -598,7 +607,7 @@ contains
     integer              :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable :: idx(:), idx2(:)
     logical              :: status
-    real                 :: dop(2), p(2,3), mid(2), ii_b, ii_E_dop, mob0, mob_min, mob_max, N_ref, alpha
+    real                 :: cdop, dop(2), p(2,3), mid(2), ii_b, ii_E_dop, mob0, mob_min, mob_max, N_ref, alpha
     real,    allocatable :: surf(:,:), vol(:), tmp(:)
     type(string)         :: gtype_tmp
 
@@ -749,13 +758,15 @@ contains
     do ci = DOP_DCON, DOP_ACON
       call this%ii_b(    ci)%init(this%g, IDX_VERTEX, 0)
       call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
+      cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
       do i = 1, this%transport(IDX_VERTEX,0)%n
         idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-        ! ii_b = 1.0
-        ii_b = 1.0 / (1.0 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
-        ii_E_dop = this%smc%ii_E_dop0(ci) / (1 + (dop(ci) / this%smc%ii_N_ref(ci))**this%smc%ii_c(ci))
+        ii_b = 1.0
+        ii_E_dop = max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
+        ! ii_b = 1.0 / (1.0 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
+        ! ii_E_dop = this%smc%ii_E_dop0(ci) / (1 + (dop(ci) / this%smc%ii_N_ref(ci))**this%smc%ii_c(ci))
 
         call this%ii_b(    ci)%set(idx, ii_b)
         call this%ii_E_dop(ci)%set(idx, ii_E_dop)

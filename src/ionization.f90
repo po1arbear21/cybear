@@ -68,7 +68,6 @@ module ionization_m
     type(dirichlet_stencil) :: st_dir
 
     type(jacobian), pointer :: jaco_t      => null()
-    type(jacobian), pointer :: jaco_ion    => null()
     type(jacobian), pointer :: jaco_genrec => null()
   contains
     procedure :: init => ion_continuity_init
@@ -241,6 +240,8 @@ contains
     integer              :: ci, i
     integer, allocatable :: idx(:)
 
+    if (.not. par%smc%incomp_ion) call program_error("use only if incomplete ionization is turned on")
+
     ci = ion%ci
 
     ! init base
@@ -259,23 +260,15 @@ contains
     call this%st_dir%init(par%g)
 
     ! init jacobians
-    if (par%smc%incomp_ion) then
-      this%jaco_t      => this%init_jaco_f(this%depend(this%ion),    st = [this%st_dir%get_ptr()], const = .true., dtime = .true. )
-      this%jaco_genrec => this%init_jaco_f(this%depend(this%genrec), st = [this%st_dir%get_ptr()], const = .true., dtime = .false.)
-    else
-      this%jaco_ion => this%init_jaco_f(this%depend(this%ion), st = [this%st_dir%get_ptr()], const = .true., dtime = .false.)
-    end if
+    this%jaco_t      => this%init_jaco_f(this%depend(this%ion),    st = [this%st_dir%get_ptr()], const = .true., dtime = .true. )
+    this%jaco_genrec => this%init_jaco_f(this%depend(this%genrec), st = [this%st_dir%get_ptr()], const = .true., dtime = .false.)
 
     ! set jacobian entries
     allocate (idx(par%g%idx_dim))
     do i = 1, par%dopvert(ci)%n
       idx = par%dopvert(ci)%get_idx(i)
-      if (par%smc%incomp_ion) then
-        call this%jaco_t%set(     idx, idx,  1.0)
-        call this%jaco_genrec%set(idx, idx, -1.0)
-      else
-        call this%jaco_ion%set(idx, idx, 1.0)
-      end if
+      call this%jaco_t%set(     idx, idx,  1.0)
+      call this%jaco_genrec%set(idx, idx, -1.0)
     end do
 
     ! finish initialization
@@ -286,16 +279,7 @@ contains
     !! evaluate ionization continuity equation
     class(ion_continuity), intent(inout) :: this
 
-    real, allocatable :: tmp(:)
-
-    allocate (tmp(this%f%n))
-    if (this%par%smc%incomp_ion) then
-      call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp)
-    else
-      call this%jaco_ion%matr%mul_vec(this%ion%get(), tmp)
-      tmp = tmp - 1.0
-    end if
-    call this%f%set(tmp)
+    call this%f%set(- this%genrec%get())
   end subroutine
 
   subroutine generation_recombination_init(this, par, ci)

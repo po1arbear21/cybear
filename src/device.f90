@@ -93,18 +93,20 @@ module device_m
 
 contains
 
-  subroutine device_init(this, filename)
+  subroutine device_init(this, filename, T)
     !! initialize device using device file
     class(device), intent(out) :: this
     character(*),  intent(in)  :: filename
       !! device file name
+    real,          intent(in)  :: T
+      !! temperature in K
 
     integer          :: ci, idx_dir, ict
     type(input_file) :: file
 
     ! load device parameters
     call file%init(filename)
-    call this%par%init(file)
+    call this%par%init(file, T)
 
     ! init variables
     allocate (this%cdens(this%par%g%idx_dim,2))
