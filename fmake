@@ -27,9 +27,9 @@ try:
     import toml
 except ModuleNotFoundError as e:
     sys.exit(
-        f"A required package cannot be imported:\n\n\t{e}\n\nTry installing the package with 'pip install'."
+        f"A required package cannot be imported:\n\n\t{e}\n\n"\
+        f"Try installing the package with 'pip install {e.name} --user'."
     )
-
 
 # All import regular expression for parsing .f90 source files.
 # Your programs should be able to match these!

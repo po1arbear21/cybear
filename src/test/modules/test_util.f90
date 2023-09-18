@@ -2,7 +2,7 @@ module test_util_m
 
   use string_m
   use test_case_m, only: test_case
-  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, select_int
+  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, split_string, select_int
 
   implicit none
 
@@ -110,6 +110,28 @@ contains
         str%s = c2fstring(c)
         call tc%assert_eq(str_exp(i), str, "c2f")
       end do
+    end block
+
+    ! split_string
+    block
+      ! function split_string(str, delim) result(res)
+
+      character(:), allocatable :: str
+      type(string), allocatable :: r(:), r_exp(:)
+
+      str = " ;;  aaa bb  c;ddddd;;,:; e,:ffffffff   gg  ,,, "
+
+      allocate (r_exp(7))
+      r_exp(1)%s = "aaa"
+      r_exp(2)%s = "bb"
+      r_exp(3)%s = "c"
+      r_exp(4)%s = "ddddd"
+      r_exp(5)%s = "e"
+      r_exp(6)%s = "ffffffff"
+      r_exp(7)%s = "gg"
+
+      r = split_string(str, [" ", ";", ",", ":"])
+      call tc%assert_eq(r_exp, r, "split_string")
     end block
 
     ! select_int

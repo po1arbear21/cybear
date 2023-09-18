@@ -4,7 +4,8 @@ module util_m
 
   use error_m,      only: assert_failed, program_error
   use iso_c_binding
-  use vector_m,     only: vector_real
+  use string_m,     only: string
+  use vector_m,     only: vector_int, vector_real
 
   implicit none
 
@@ -15,7 +16,7 @@ module util_m
   public hash
   public int2str
   public is_digit, is_letter, is_whitespace
-  public split_folder_file
+  public split_string, split_folder_file
   public load_array
   public select_int
   public get_memory_usage
@@ -210,6 +211,51 @@ contains
 
     ascii = iachar(ch)
     ret   = ((ascii == 32) .or. (ascii == 9) .or. (ascii == 13) .or. (ascii == 10))
+  end function
+
+  function split_string(str, delim) result(res)
+    !! split string using delimiter
+    character(*), intent(in)  :: str
+      !! string to split
+    character(1), intent(in)  :: delim(:)
+      !! list of delimiter characters (are removed from result)
+    type(string), allocatable :: res(:)
+      !! return substrings
+
+    integer          :: i, j, nlen, ndelim, nres
+    logical          :: token, split
+    type(vector_int) :: i0, i1
+
+    nlen   = len_trim(str)
+    ndelim = size(delim)
+
+    ! get indices of split strings
+    call i0%init(0, c = nlen)
+    call i1%init(0, c = nlen)
+    token = .false.
+    nres = 0
+    do i = 1, nlen
+      do j = 1, ndelim
+        if (str(i:i) == delim(j)) exit
+      end do
+      split = (j <= ndelim)
+
+      if (token .and. split) then
+        call i1%push(i - 1)
+        token = .false.
+      elseif (.not. token .and. .not. split) then
+        call i0%push(i)
+        token = .true.
+      end if
+    end do
+    if (token) call i1%push(nlen)
+
+    ! copy to result
+    nres = i0%n
+    allocate (res(nres))
+    do i = 1, nres
+      res(i)%s = str(i0%d(i):i1%d(i))
+    end do
   end function
 
   subroutine split_folder_file(full, folder, file)
