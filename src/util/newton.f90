@@ -5,8 +5,10 @@ module newton_m
   use error_m,         only: assert_failed, program_error
   use gmres_m,         only: gmres_options, gmres
   use ieee_arithmetic, only: ieee_value, ieee_is_finite, ieee_negative_inf, ieee_positive_inf
+  use logging_m,       only: logging
   use matop_m,         only: single_matop_real
   use matrix_m,        only: matrix_real
+  use util_m,          only: int2str, real2str
 
   implicit none
 
@@ -147,14 +149,14 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print "(A,ES25.16E3)", "atol   = ", opt%atol
-        print "(A,ES25.16E3)", "rtol   = ", opt%rtol
-        print "(A,ES25.16E3)", "xmin   = ", xmin
-        print "(A,ES25.16E3)", "xmax   = ", xmax
-        print "(A,I0)",        "max_it = ", opt%max_it
-        print "(A,ES25.16E3)", "x      = ", x
-        print "(A,ES25.16E3)", "f      = ", f
-        print "(A,ES25.16E3)", "err    = ", err
+        m4_info("atol   = " // real2str(opt%atol))
+        m4_info("rtol   = " // real2str(opt%rtol))
+        m4_info("xmin   = " // real2str(xmin))
+        m4_info("xmax   = " // real2str(xmax))
+        m4_info("max_it = " // int2str(it))
+        m4_info("x      = " // real2str(x))
+        m4_info("f      = " // real2str(f))
+        m4_info("err    = " // real2str(err))
         call program_error("solution could not be found within maximum number of iterations")
       end if
 
@@ -203,7 +205,7 @@ contains
       ! update solution
       x = x - dx
 
-      if (opt%log) print "(A,I0,ES25.16E3)", opt%msg, it, err
+      if (opt%log) m4_info(opt%msg  // " " //  int2str(it) // " "  // real2str(err))
 
       ! exit if close to solution
       if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
@@ -275,13 +277,13 @@ contains
 
       ! check for maximum number of iterations
       if (it > opt%max_it) then
-        print "(A,I0)",        "it      = ", it
-        print "(A,ES25.16E3)", "err     = ", err
-        print "(A,ES25.16E3)", "abs_err = ", abs_err
+        m4_info("it      = " // int2str(it))
+        m4_info("err     = " // real2str(err))
+        m4_info("abs_err = " // real2str(abs_err))
         if (opt%error_if_not_converged) then
-          call program_error("solution could not be found within maximum number of iterations")
+          m4_error("solution could not be found within maximum number of iterations")
         else
-          print *, "solution could not be found within maximum number of iterations"
+          m4_info("solution could not be found within maximum number of iterations")
           return
         end if
       end if
@@ -325,7 +327,7 @@ contains
       err     = maxval(abs(x-xold) / (abs(xold) + opt%atol / opt%rtol))
       abs_err = maxval(abs(x-xold))
 
-      if (opt%log) print "(A,I0,3ES25.16E3)", opt%msg, it, err, abs_err, maxval(abs(f))
+      if (opt%log) m4_info(opt%msg // " " // int2str(it) // " " // real2str(err) // " " // real2str(abs_err) // " " // real2str(maxval(abs(f))))
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation

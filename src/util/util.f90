@@ -14,7 +14,7 @@ module util_m
   public get_hostname
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
-  public int2str
+  public int2str, log2str, real2str
   public is_digit, is_letter, is_whitespace
   public split_string, split_folder_file
   public load_array
@@ -138,54 +138,45 @@ contains
     cstr(size(cstr)) = c_null_char
   end function
 
-  function int2str(i, min_len) result(str)
-    !! convert integer to string. adds leading zeros if necessary.
+  function int2str(i, fmt) result(str)
+    !! convert integer to string
+    integer,                intent(in)  :: i
+    character(*), optional, intent(in)  :: fmt
+    character(:),           allocatable :: str
 
-    integer, intent(in)              :: i
-    integer, intent(in), optional    :: min_len
-      !! minimal string length, including negative sign. (adds leading zeros)
-    character(:),        allocatable :: str
+    character(256) :: tmp
 
-    character(24) :: tmp
-
-    ! write to temporary string
-    write (tmp, "(I24)") i
-
-    ! adjustl: leading blanks cut and appended at end
-    ! trim:    remove trailing blanks
-    str = trim(adjustl(tmp))
-
-    if (present(min_len)) then
-      ! stripping neg sign
-      ! if (i < 0) str = str(2:)    ! yields gfortran warning ...
-      ! workaround
-      block
-        character(:), allocatable :: str_tmp
-
-        allocate (character(0) :: str_tmp)
-        if (i < 0) then
-          str_tmp = str(2:)
-          str     = str_tmp
-        end if
-      end block
-
-      do while (len(str) < merge(min_len, min_len-1, i >= 0))
-        str = '0' // str
-      end do
-
-      ! prepend neg sign
-      ! if (i < 0) str = '-' // str   ! yields gfortran warning ...
-      ! workaround
-      block
-        character(:), allocatable :: str_tmp
-
-        allocate (character(0) :: str_tmp)
-        if (i < 0) then
-          str_tmp = '-' // str
-          str     = str_tmp
-        end if
-      end block
+    if (present(fmt)) then
+      write(tmp, fmt) i
+    else
+      write(tmp, "(I24)") i
     end if
+    str = trim(adjustl(tmp))
+  end function
+
+  function log2str(l) result(str)
+    !! convert real to string
+    logical,     intent(in)  :: l
+    character(1)             :: str
+
+    write(str, "(L)") l
+  end function
+
+  function real2str(r, fmt) result(str)
+    !! convert real to string
+    real,                   intent(in)  :: r
+    character(*), optional, intent(in)  :: fmt
+    character(:),           allocatable :: str
+
+    character(256) :: tmp
+
+    if (present(fmt)) then
+      write(tmp, fmt) r
+    else
+      write(tmp, "(ES25.16E3)") r
+    end if
+
+    str = trim(adjustl(tmp))
   end function
 
   pure function is_digit(ch) result(ret)
@@ -200,7 +191,7 @@ contains
     logical                  :: ret
 
     ! extended ASCII or UTF8 characters are interpreted as letters
-    ret = (((ch >= 'a') .and. (ch <= 'z')) .or. ((ch >= 'A') .and. (ch <= 'Z')) .or. (iachar(ch) > 127))
+    ret = (((ch >= "a") .and. (ch <= "z")) .or. ((ch >= "A") .and. (ch <= "Z")) .or. (iachar(ch) > 127))
   end function
 
   pure function is_whitespace(ch) result(ret)
