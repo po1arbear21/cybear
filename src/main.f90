@@ -1,6 +1,7 @@
 program main
 
   use approx_m,           only: approx_imref, approx_potential
+  use bin_search_m,       only: bin_search
   use contact_m,          only: CT_OHMIC
   use device_m,           only: dev
   use error_m,            only: program_error
@@ -15,6 +16,8 @@ program main
   use steady_state_m,     only: steady_state
   use string_m,           only: string
   use transient_m,        only: backward_euler, tr_bdf2
+  use util_m,             only: int2str
+  use variable_m,         only: variable_real
 
   implicit none
 
@@ -22,7 +25,7 @@ program main
   ! integer                   :: idx_dir
   logical                   :: gummel_restart, gummel_once, gummel_enabled
   real                      :: T
-  type(string)              :: dev_filename, ofilename
+  type(string)              :: dev_filename, ofilename, output
   type(input_file)          :: file
   type(newton_opt)          :: opt_nlpe, opt_dd(2), opt_gum, opt_full
   type(output_file)         :: ofile
@@ -104,8 +107,11 @@ program main
 ! end block
 
   ! output file
-  call file%get("", "output", ofilename)
+  call file%get("", "ofile", ofilename)
   call ofile%init(ofilename%s)
+
+  ! output folder
+  call file%get("", "output", output)
 
   ! ! output grids
   ! do idx_dir = 1, dev%par%g%idx_dim
@@ -129,7 +135,7 @@ program main
   opt_full%msg  = "Newton: "
 
   block
-    integer :: ci, icurr, idens, iion, itab, ibl, i0, i1
+    integer :: ci, icurr, idens, itab, ibl, i0, i1
     icurr = dev%sys_full%search_main_var("currents")
     ibl = dev%sys_full%res2block(icurr)%d(1)
     i0  = dev%sys_full%i0(ibl)
@@ -279,141 +285,45 @@ contains
 
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
 
-block
-  use grid_m, only: IDX_VERTEX
-  integer :: ii, jj, funit
-  integer :: nx, ny, ict, idx(2)
-  real, allocatable :: x(:), y(:), pot(:,:), dens(:,:)
+      call ss%select(1)
+      call output_xy(dev%pot,     0.0, output%s // "potxy.csv")
+      call output_xz(dev%pot,     0.0, output%s // "potxz.csv")
+      call output_xy(dev%dens(1), 0.0, output%s //   "nxy.csv")
+      call output_xz(dev%dens(1), 0.0, output%s //   "nxz.csv")
+      call output_xy(dev%dens(2), 0.0, output%s //   "pxy.csv")
+      call output_xz(dev%dens(2), 0.0, output%s //   "pxz.csv")
 
-  nx = dev%par%g1D(1)%n
-  ny = dev%par%g1D(2)%n
+      block
+        integer :: funit, i, j, k, k0
+        real    :: dz, p
 
-  allocate (x(nx), y(ny), pot(nx,ny), dens(nx,ny))
-  x = denorm(dev%par%g1D(1)%x, "nm")
-  y = denorm(dev%par%g1D(2)%x, "nm")
+        k0 = bin_search(dev%par%g1D(3)%x, 0.0)
 
-  open (newunit = funit, file = "x.csv", status = "replace", action = "write")
-  do ii = 1, nx
-    write (funit, "(ES25.16E3)") x(ii)
-  end do
-  close (funit)
-  open (newunit = funit, file = "y.csv", status = "replace", action = "write")
-  do ii = 1, ny
-    write (funit, "(ES25.16E3)") y(ii)
-  end do
-  close (funit)
+        open (newunit = funit, file = "pinv"//int2str(si)//".csv", status = "replace", action = "write")
 
-  call ss%select(1)
-  do jj = 1, ny
-    do ii = 1, nx
-      idx = [ii, jj]
-      ict = dev%par%ict%get(idx)
-      if (ict == 0) then
-        pot(ii,jj) = denorm(dev%pot%get(idx), "V")
-      else
-        pot(ii,jj) = denorm(dev%volt(ict)%x + dev%par%contacts(ict)%phims, "V")
-      end if
+        do ict_sweep = 1, nsweep
+          call ss%select(ict_sweep)
 
-      if (dev%par%transport(IDX_VERTEX,0)%flags%get(idx)) then
-        dens(ii,jj) = denorm(dev%dens(1)%get(idx), "1/cm^3")
-      end if
-    end do
-  end do
-  open (newunit = funit, file = "pot0.csv", status = "replace", action = "write")
-  do ii = 1, nx
-    do jj = 1, ny
-      write (funit, "(ES25.16E3)", advance = "no") pot(ii,jj)
-    end do
-    write (funit, *)
-  end do
-  close (funit)
-  open (newunit = funit, file = "dens0.csv", status = "replace", action = "write")
-  do ii = 1, nx
-    do jj = 1, ny
-      write (funit, "(ES25.16E3)", advance = "no") dens(ii,jj)
-    end do
-    write (funit, *)
-  end do
-  close (funit)
-end block
+          i = dev%par%g1D(1)%n
+          j = dev%par%g1D(2)%n
+          p = 0
+          do k = 1, k0 - 1
+            dz = dev%par%g1D(3)%x(k+1) - dev%par%g1D(3)%x(k)
+            p = p + 0.5 * dz * (dev%dens(2)%get([i,j,k]) + dev%dens(2)%get([i,j,k+1]))
+          end do
 
-! block
-!   integer :: ii, funit
-!   real, allocatable :: VD(:), ID(:)
+          write (funit, "(2ES25.16E3)") denorm(dev%volt(2)%x, "V"), denorm(p, "1/cm^2")
+        end do
 
-!   allocate (VD(nsweep), ID(nsweep))
-
-!   do ii = 1, nsweep
-!     call ss%select(ii)
-!     VD(ii) = denorm(dev%volt(2)%x, "V")
-!     ID(ii) = denorm(dev%curr(2)%x, "A")
-!   end do
-
-!   open (newunit = funit, file = "iv.csv", status = "replace", action = "write")
-!   write (funit, "(A)") "V I"
-!   do ii = 1, nsweep
-!     write (funit, "(2ES25.16E3)") VD(ii), ID(ii)
-!   end do
-!   close (funit)
-! end block
-
-! block
-!   integer :: ii, funit, nx
-!   real, allocatable :: x(:), E0(:,:), iref(:,:), dens(:,:)
-
-!   nx = dev%par%g1D(1)%n
-!   allocate (x(nx), E0(nx,4), iref(nx,4), dens(nx,4))
-
-!   x = denorm(dev%par%g1D(1)%x, "um")
-!   call ss%select(1)
-!   call dev%sys_full%eval()
-!   do ii = 1, nx
-!     E0(  ii,1) = denorm(dev%par%smc%band_edge(1) - dev%pot%x1(ii), "eV")
-!     E0(  ii,2) = denorm(dev%par%smc%band_edge(2) - dev%pot%x1(ii), "eV")
-!     iref(ii,1) = denorm(- dev%iref(1)%x1(ii), "eV")
-!     iref(ii,2) = denorm(- dev%iref(2)%x1(ii), "eV")
-!     dens(ii,1) = denorm(dev%dens(1)%x1(ii), "1/cm^3")
-!     dens(ii,2) = denorm(dev%dens(2)%x1(ii), "1/cm^3")
-!   end do
-!   call ss%select(2)
-!   call dev%sys_full%eval()
-!   do ii = 1, nx
-!     E0(  ii,3) = denorm(dev%par%smc%band_edge(1) - dev%pot%x1(ii), "eV")
-!     E0(  ii,4) = denorm(dev%par%smc%band_edge(2) - dev%pot%x1(ii), "eV")
-!     iref(ii,3) = denorm(- dev%iref(1)%x1(ii), "eV")
-!     iref(ii,4) = denorm(- dev%iref(2)%x1(ii), "eV")
-!     dens(ii,3) = denorm(dev%dens(1)%x1(ii), "1/cm^3")
-!     dens(ii,4) = denorm(dev%dens(2)%x1(ii), "1/cm^3")
-!   end do
-
-!   open (newunit = funit, file = "pn.csv", status = "replace", action = "write")
-!   write (funit, "(A)") "x Ec0 Ev0 Ec1 Ev1 imrefn0 imrefp0 imrefn1 imrefp1 n0 p0 n1 p1"
-!   do ii = 1, dev%par%g1D(1)%n
-!     write (funit, "(13ES25.16E3)") x(ii), E0(ii,1:4), iref(ii,1:4), dens(ii,1:4)
-!   end do
-!   close (funit)
-! end block
-
-! block
-!   integer :: ii, funit
-!   character(32) :: fname
-
-!   write (fname, "(A,F4.2,A)") "output_", denorm(Vi(3,1), "V"), ".csv"
-
-!   open (newunit = funit, file = fname, status = "replace", action = "write")
-!   do ii = 1, nsweep
-!     call ss%select(ii)
-!     write (funit, "(2ES25.16E3)") denorm(dev%volt(2)%x, "V"), denorm(dev%curr(2)%x, "A")
-!   end do
-!   close (funit)
-! end block
+        close (funit)
+      end block
     end do
   end subroutine
 
   subroutine solve_small_signal()
-    integer                   :: si, ict, Nf, Nss
+    integer                   :: si, ict, Nf, Nss, i
     integer,      allocatable :: sids(:)
-    logical                   :: flog
+    logical                   :: flog, status
     real                      :: f0, f1
     real,         allocatable :: f(:), Vi(:,:), tt(:)
     complex,      allocatable :: s(:)
@@ -446,15 +356,33 @@ end block
       s = 2 * PI * (0.0, 1.0) * f
 
       ! ramp up ohmic contact voltages
-      call file%get(sids(si), "Nss", Nss)
+      call file%get(sids(si), "Nss", Nss, status = status)
+      if (.not. status) Nss = 1
+      if (status) status = (Nss > 1)
       allocate (Vi(dev%par%nct, 2))
       do ict = 1, dev%par%nct
         Vi(ict,:) = dev%volt(ict)%x
-        if (dev%par%contacts(ict)%type == CT_OHMIC) Vi(ict,1) = 0.0
+        if ((Nss > 1) .and. (dev%par%contacts(ict)%type == CT_OHMIC)) Vi(ict,1) = 0.0
       end do
       call input%init([0.0, 1.0], Vi)
-      allocate (tt(Nss))
-      tt = linspace(0.0, 1.0, Nss)
+      if (Nss == 0) then
+        tt = [ 0.0 ]
+      else
+        tt = linspace(0.0, 1.0, Nss)
+      end if
+
+      block
+        use grid_generator_m, only: DIR_NAME
+        integer :: funit, i, dir
+
+        do dir = 1, 3
+          open (newunit = funit, file = output%s//DIR_NAME(dir)//".csv", status = "replace", action = "write")
+          do i = 1, dev%par%g1D(dir)%n
+            write (funit, "(ES25.16E3)") denorm(dev%par%g1D(dir)%x(i), "um")
+          end do
+          close (funit)
+        end do
+      end block
 
       ! solve steady-state
       gummel_restart = .true.
@@ -465,27 +393,43 @@ end block
       ! run small-signal analysis
       call ac%run_analysis(dev%sys_full, s, ofile = ofile, oname = name%s)
 
-block
-  integer :: funit, ii
+      call ac%select_abs(2, 1)
+      call output_xy(dev%pot,     0.0, output%s//"ac1_potxy.csv")
+      call output_xz(dev%pot,     0.0, output%s//"ac1_potxz.csv")
+      call output_xy(dev%dens(1), 0.0, output%s//"ac1_nxy.csv")
+      call output_xz(dev%dens(1), 0.0, output%s//"ac1_nxz.csv")
+      call output_xy(dev%dens(2), 0.0, output%s//"ac1_pxy.csv")
+      call output_xz(dev%dens(2), 0.0, output%s//"ac1_pxz.csv")
 
-  open (newunit = funit, file = "ac.csv", status = "replace", action = "write")
-  ! write (funit, "(A)") "f rY11 rY12 rY21 rY22"
-  do ii = 1, Nf
-    write (funit, "(ES25.16E3)", advance = "no") denorm(f(ii), "Hz")
+      call ac%select_abs(2, Nf)
+      call output_xy(dev%pot,     0.0, output%s//"ac"//int2str(Nf)//"_potxy.csv")
+      call output_xz(dev%pot,     0.0, output%s//"ac"//int2str(Nf)//"_potxz.csv")
+      call output_xy(dev%dens(1), 0.0, output%s//"ac"//int2str(Nf)//"_nxy.csv")
+      call output_xz(dev%dens(1), 0.0, output%s//"ac"//int2str(Nf)//"_nxz.csv")
+      call output_xy(dev%dens(2), 0.0, output%s//"ac"//int2str(Nf)//"_pxy.csv")
+      call output_xz(dev%dens(2), 0.0, output%s//"ac"//int2str(Nf)//"_pxz.csv")
 
-    call ac%select_real(3, ii)
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(3)%x, "A/V")
-    call ac%select_real(2, ii)
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(3)%x, "A/V")
-    call ac%select_real(3, ii)
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(2)%x, "A/V")
-    call ac%select_real(2, ii)
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(2)%x, "A/V")
+      do i = 1, Nf
+        print "(I6,ES25.16E3)", i, denorm(f(i), "Hz")
+        call ac%select_abs(2, i)
+        call output_xy(dev%dens(2), 0.0, output%s//"ac"//int2str(i)//"_pxy.csv")
+      end do
 
-    write (funit, *)
-  end do
-  close (funit)
-end block
+      block
+        integer :: funit, i
+
+        open (newunit = funit, file = output%s//"ac_Y.csv", status = "replace", action = "write")
+        do i = 1, Nf
+          write (funit, "(ES25.16E3)", advance = "no") denorm(f(i), "Hz")
+
+          call ac%select_real(2, i)
+          write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(2)%x, "A/V")
+          call ac%select_imag(2, i)
+          write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(2)%x, "A/V")
+          write (funit, *)
+        end do
+        close (funit)
+      end block
 
       deallocate (f, s, tt)
     end do
@@ -607,30 +551,7 @@ end block
 
       call trbdf2%init(dev%sys_full, ti(1), ti(Nt), delta_t = dt0, nopt = opt_tr, adaptive = .true., log = .true.)
       call trbdf2%run(input = input)
-
-block
-  integer, parameter :: Ntt = 201
-  integer            :: funit, ii
-  real, allocatable  :: tt(:)
-
-  allocate (tt(Ntt))
-  tt = logspace(ti(3), ti(Nt), Ntt)
-
-  open (newunit = funit, file = "tr.csv", status = "replace", action = "write")
-  do ii = 1, Ntt
-    write (funit, "(ES25.16E3)", advance = "no") denorm(tt(ii), "s")
-
-    call trbdf2%select(tt(ii))
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(1)%x, "A")
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(2)%x, "A")
-    write (funit, "(ES25.16E3)", advance = "no") denorm(dev%curr(3)%x, "A")
-
-    write (funit, *)
-  end do
-  close (funit)
-end block
     end do
-    print *
   end subroutine
 
   subroutine solve_responsivity()
@@ -764,6 +685,60 @@ end block
     if ((i > opt_gum%max_it) .and. (error > opt_gum%atol(1))) then
       call program_error("Gummel iteration did not converge (maximum number of iterations reached)")
     end if
+  end subroutine
+
+  subroutine output_xy(v, z, file)
+    class(variable_real), intent(in) :: v
+    real,                 intent(in) :: z
+    character(*),         intent(in) :: file
+
+    integer           :: i, idx(3), idx_bnd(2,3), j, k
+    real, allocatable :: data(:,:)
+
+    call dev%par%g%get_idx_bnd(v%idx_type, v%idx_dir, idx_bnd)
+    allocate (data(idx_bnd(1,1):idx_bnd(2,1),idx_bnd(1,2):idx_bnd(2,2)), source = 0.0)
+    k = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, z)
+    do j = idx_bnd(1,2), idx_bnd(2,2); do i = idx_bnd(1,1), idx_bnd(2,1)
+      idx = [i, j, k]
+      data(i,j) = denorm(v%get(idx), v%unit)
+    end do; end do
+
+    call write_to_file(data, file)
+  end subroutine
+
+  subroutine output_xz(v, y, file)
+    class(variable_real), intent(in) :: v
+    real,                 intent(in) :: y
+    character(*),         intent(in) :: file
+
+    integer           :: i, idx(3), idx_bnd(2,3), j, k
+    real, allocatable :: data(:,:)
+
+    call dev%par%g%get_idx_bnd(v%idx_type, v%idx_dir, idx_bnd)
+    allocate (data(idx_bnd(1,1):idx_bnd(2,1),idx_bnd(1,3):idx_bnd(2,3)), source = 0.0)
+    j = idx_bnd(1,2) - 1 + bin_search(dev%par%g1D(2)%x, y)
+    do k = idx_bnd(1,3), idx_bnd(2,3); do i = idx_bnd(1,1), idx_bnd(2,1)
+      idx = [i, j, k]
+      data(i,k) = denorm(v%get(idx), v%unit)
+    end do; end do
+
+    call write_to_file(data, file)
+  end subroutine
+
+  subroutine write_to_file(data, file)
+    real,         intent(in) :: data(:,:)
+    character(*), intent(in) :: file
+
+    integer :: i, j, funit
+
+    open (newunit = funit, file = file, status = "replace", action = "write")
+    do i = 1, size(data, 1)
+      do j = 1, size(data, 2)
+        write (funit, "(ES25.16E3)", advance = "no") data(i,j)
+      end do
+      write (funit, *)
+    end do
+    close (funit)
   end subroutine
 
 end program

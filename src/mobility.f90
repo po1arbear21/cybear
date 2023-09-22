@@ -87,6 +87,8 @@ contains
     type(mobility),      target, intent(in)  :: mob
       !! mobility variable
 
+    print "(A)", "calc_mobility_init"
+
     ! init base
     call this%equation_init("calc_"//mob%name)
     this%par  => par

@@ -4,7 +4,7 @@ module region_m
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
-  use semiconductor_m, only: DOP_DCON, DOP_ACON
+  use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
   use string_m,        only: string
 
   implicit none
@@ -28,6 +28,15 @@ module region_m
   type, extends(region) :: region_doping
     real :: dop(2)
       !! donor/acceptor concentration
+    logical :: set_dop(2)
+      !! enable/disable set doping for each carrier
+  end type
+
+  type, extends(region) :: region_mobility
+    real    :: mob0(2)
+      !! zero-field mobility
+    logical :: set_mob(2)
+      !! enable/disable set mobility for each carrier
   end type
 
   type, extends(region) :: region_contact
@@ -121,10 +130,13 @@ contains
 
     class is (region_doping)
       ! get ND, NA
-      call file%get(sid, "dcon", this%dop(DOP_DCON), status = st)
-      if (.not. st) this%dop(DOP_DCON) = 0
-      call file%get(sid, "acon", this%dop(DOP_ACON), status = st)
-      if (.not. st) this%dop(DOP_ACON) = 0
+      call file%get(sid, "dcon", this%dop(DOP_DCON), status = this%set_dop(DOP_DCON))
+      call file%get(sid, "acon", this%dop(DOP_ACON), status = this%set_dop(DOP_ACON))
+
+    class is (region_mobility)
+      ! get ND, NA
+      call file%get(sid, "nmob0", this%mob0(CR_ELEC), status = this%set_mob(CR_ELEC))
+      call file%get(sid, "pmob0", this%mob0(CR_HOLE), status = this%set_mob(CR_HOLE))
 
     class is (region_contact)
       ! get name, type and phims

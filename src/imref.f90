@@ -112,6 +112,8 @@ contains
     integer               :: i, iprov
     integer, allocatable  :: idx(:)
 
+    print "(A)", "calc_imref_init"
+
     ! init equation
     call this%equation_init("calc_"//iref%name)
     this%par  => par
@@ -184,6 +186,8 @@ contains
       !! imref variable
 
     integer :: iprov
+
+    print "(A)", "calc_density_init"
 
     ! init equation
     call this%equation_init("calc_"//dens%name)

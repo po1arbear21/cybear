@@ -82,6 +82,8 @@ contains
     integer, allocatable  :: idx1(:), idx2(:), idx(:)
     logical               :: status
 
+    print "(A)", "ramo_shockley_init"
+
     ! init equation system
     call sys%init("ramo")
 
@@ -178,6 +180,8 @@ contains
     real, allocatable     :: d(:,:)
     integer, allocatable  :: idx1(:), idx2(:), idx(:), idx_bnd(:,:)
     logical               :: status
+
+    print "(A)", "ramo_shockley_current_init"
 
     ! init base
     call this%equation_init("ramo_shockley")

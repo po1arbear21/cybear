@@ -91,6 +91,8 @@ contains
     type(jacobian), pointer :: jaco
     integer, allocatable    :: idx(:)
 
+    print "(A)", "calc_charge_density_init"
+
     ! init equation
     call this%equation_init("calc_charge_density")
     this%par  => par

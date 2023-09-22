@@ -63,6 +63,8 @@ contains
     integer, allocatable  :: idx1(:), idx2(:), idx(:)
     logical               :: status
 
+    print "(A)", "poisson_init"
+
     ! init base
     call this%equation_init("poisson")
     this%par => par

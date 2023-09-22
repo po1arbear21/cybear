@@ -68,6 +68,8 @@ contains
     logical              :: status
     real                 :: surf, F1h, dF1h
 
+    print "(A)", "continuity_init"
+
     ci = dens%ci
 
     ! init base

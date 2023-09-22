@@ -119,6 +119,8 @@ contains
 
     integer :: idx_dir, ci, iprov
 
+    print "(A)", "calc_current_density_init"
+
     idx_dir = cdens%idx_dir
     ci      = cdens%ci
 
