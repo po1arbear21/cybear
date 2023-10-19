@@ -261,6 +261,7 @@ contains
 
       ! number of right-hand sides
       m%NRHS = size(b)/m%N
+      m%LRHS = m%N
 
       ! solve
       call exec_dmumps(m, 3)
@@ -283,6 +284,7 @@ contains
 
       ! number of right-hand sides
       m%NRHS = size(b)/m%N
+      m%LRHS = m%N
 
       ! solve
       call exec_zmumps(m, 3)
