@@ -85,10 +85,14 @@ contains
     real, intent(in) :: x
     real             :: b
 
-    if (abs(x) > 1e-6) then
+    if (x < -37) then
+      b = - x
+    elseif (abs(x) < 1e-6) then
+      b = 1.0 + x * (-0.5 + x / 12.0)
+    elseif (x < 712.5) then
       b = 0.5 * x * exp(-0.5 * x) / sinh(0.5 * x)
     else
-      b = 1.0 + x * (-0.5 + x / 12.0)
+      b = 0.0
     end if
   end function
 
