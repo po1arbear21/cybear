@@ -237,6 +237,10 @@ contains
     integer :: i
     real    :: dx
 
+    if (nx < 1) return
+    x(nx) = x1
+    if (nx == 1) return
+
     ! spacing between values
     dx = (x1 - x0) / (nx - 1)
 
@@ -244,7 +248,6 @@ contains
     do i = 2, nx - 1
       x(i) = x0 + (i - 1) * dx
     end do
-    x(nx) = x1
   end function
 
   function logspace(x0, x1, nx) result(x)
@@ -265,6 +268,10 @@ contains
     m4_assert(x0 > 0.0)
     m4_assert(x1 > 0.0)
 
+    if (nx < 1) return
+    x(nx) = x1
+    if (nx == 1) return
+
     e0 = log(x0)
     e1 = log(x1)
     de = (e1 - e0) / (nx - 1)
@@ -273,7 +280,6 @@ contains
     do i = 2, nx - 1
       x(i) = exp(e0 + (i - 1) * de)
     end do
-    x(nx) = x1
   end function
 
   pure function eye_int(n) result(e)
