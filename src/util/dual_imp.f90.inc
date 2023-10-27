@@ -177,7 +177,7 @@ elemental function dual_div_dual_{}N{}(x, y) result(r)
   type(dual_{}N)             :: r
 
   r%x  = x%x / y%x
-  r%dx = x%dx / y%x - (x%x / y%x**2) * y%dx
+  r%dx = (x%dx - (x%x / y%x) * y%dx) / y%x
 end function
 
 elemental function dual_div_real_{}N{}(x, y) result(r)
@@ -207,7 +207,7 @@ elemental function real_div_dual_{}N{}(x, y) result(r)
   type(dual_{}N)             :: r
 
   r%x  = x / y%x
-  r%dx = (- x / y%x**2) * y%dx
+  r%dx = - (r%x * y%dx) / y%x
 end function
 
 elemental function int_div_dual_{}N{}(x, y) result(r)
@@ -217,7 +217,7 @@ elemental function int_div_dual_{}N{}(x, y) result(r)
   type(dual_{}N)             :: r
 
   r%x  = x / y%x
-  r%dx = (- x / y%x**2) * y%dx
+  r%dx = - (r%x * y%dx) / y%x
 end function
 
 elemental function dual_pow_dual_{}N{}(x, y) result(r)
