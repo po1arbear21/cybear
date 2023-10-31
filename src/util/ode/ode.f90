@@ -62,13 +62,15 @@ module ode_m
         !! output derivatives of f wrt P (nU,nP)
     end subroutine
 
-    subroutine ode_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
-      &                                 dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
+    subroutine ode_kernel(fun, xold, Uold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
+      &                                       dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
       import ode_options, ode_fun
       procedure(ode_fun)               :: fun
         !! function to integrate
       real,              intent(in)    :: xold
         !! initial x position of previous step
+      real,              intent(in)    :: Uold(:)
+        !! state at beginning of previous step
       real,              intent(in)    :: x
         !! initial x position of step
       real,              intent(in)    :: dxk
@@ -149,6 +151,7 @@ contains
       integer :: i, j, rejection_counter
       integer :: ismp, nsmp, dsmp, ismpmax
       real    :: x, xold, dxk, dxn, err
+      real    :: Uold(nU)
       real    :: Uk(nU), dUkdQ(nU,nU+nP), fk(nU), dfkdUk(nU,nU), dfkdP(nU,nP), polyk(nU,nS)
       real    :: Un(nU), dUndQ(nU,nU+nP), fn(nU), dfndUn(nU,nU), dfndP(nU,nP), polyn(nU,nS), dpolyndQ(nU,nU+nP,nS)
 
@@ -163,6 +166,7 @@ contains
 
       ! initial state
       Uk    = U0
+      Uold  = U0
       dUkdQ = 0
       do i = 1, nU
         dUkdQ(i,i) = 1.0
@@ -214,8 +218,8 @@ contains
       ! main loop
       do while (abs(x - x0) < abs(x1 - x0))
         ! kernel
-        call kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
-                                  dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
+        call kernel(fun, xold, Uold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
+                                        dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
 
         if (.not. status) then
           ! reject step
@@ -250,6 +254,7 @@ contains
           x    = x + dxk
 
           ! copy n state to k state
+          Uold   = Uk
           Uk     = Un
           dUkdQ  = dUndQ
           fk     = fn

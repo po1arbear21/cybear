@@ -63,13 +63,15 @@ contains
     call ode_solve(radau5_kernel, 3, fun, x0, x1, xsmp, U0, P, opt, status, res)
   end subroutine
 
-  subroutine radau5_kernel(fun, xold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
+  subroutine radau5_kernel(fun, xold, Uold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, &
     P, opt, dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
     !! kernel for radau5 ode solver
     procedure(ode_fun)               :: fun
       !! function to integrate
     real,              intent(in)    :: xold
       !! initial x position of previous step
+    real,              intent(in)    :: Uold(:)
+      !! state at beginning of previous step
     real,              intent(in)    :: x
       !! initial x position of step
     real,              intent(in)    :: dxk
@@ -136,7 +138,7 @@ contains
       dpolyndQ = 0
 
       ! initial guess for z (use interpolation polynomial from last step)
-      call initial_guess(nU, xold, x, dxk, polyk, z)
+      call initial_guess(nU, xold, Uold, x, dxk, Uk, polyk, z)
 
       ! newton iteration
       newt_err0 = 2e99
@@ -224,15 +226,19 @@ contains
     end block
   end subroutine
 
-  subroutine initial_guess(nU, xold, x, dxk, polyk, z)
+  subroutine initial_guess(nU, xold, Uold, x, dxk, Uk, polyk, z)
     integer, intent(in)  :: nU
       !! system size
     real,    intent(in)  :: xold
       !! initial x position of previous step
+    real,    intent(in)    :: Uold(:)
+      !! state at beginning of previous step
     real,    intent(in)  :: x
       !! initial x position of step
     real,    intent(in)  :: dxk
       !! stepsize
+    real,    intent(in)  :: Uk(:)
+      !! state at beginning of step
     real,    intent(in)  :: polyk(:,:)
       !! interpolation polynomial (from previous step)
     real,    intent(out) :: z(:)
@@ -246,7 +252,7 @@ contains
       i0 = i1 + 1
       i1 = i1 + nU
 
-      z(i0:i1) = 0
+      z(i0:i1) = Uold - Uk
       do j = 1, 3
         z(i0:i1) = z(i0:i1) + polyk(:,j) * (x + C(i) * dxk - xold)**j
       end do
@@ -510,10 +516,15 @@ contains
 
       ! estimate new step size by two different methods
       dxn1 = fac * dxk * err**(-0.25)
-      dxn2 = dxn1 * dxk / dx_old * (err_old / err)**(0.25)
 
-      ! take minimum of both results
-      dxn = min(dxn1, dxn2)
+      if (dx_old /= 0) then
+        dxn2 = dxn1 * dxk / dx_old * (err_old / err)**(0.25)
+
+        ! take minimum of both results
+        dxn = min(dxn1, dxn2)
+      else
+        dxn = dxn1
+      end if
     end if
 
     ! apply stepsize limiter
