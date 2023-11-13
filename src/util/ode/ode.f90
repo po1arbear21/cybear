@@ -26,8 +26,8 @@ module ode_m
       !! maximum number of allowed rejected steps
     real              :: min_rx
       !! minimum relative stepsize
-    real              :: initial_dx
-      !! initial stepsize
+    real              :: initial_rx
+      !! initial relative stepsize
   contains
     procedure :: init => ode_options_init ! initialize
   end type
@@ -160,7 +160,7 @@ contains
       ! initial x and dx
       x    = x0
       xold = x0
-      dxk = (x1 - x0) * opt%initial_dx
+      dxk = (x1 - x0) * opt%initial_rx
 
       ! reset step and rejection counter
       res%nsteps = 0
@@ -274,7 +274,7 @@ contains
     end block
   end subroutine
 
-  subroutine ode_options_init(this, nU, atol, rtol, newton_atol, newton_rtol, newton_max_it, max_rejected, min_rx, initial_dx)
+  subroutine ode_options_init(this, nU, atol, rtol, newton_atol, newton_rtol, newton_max_it, max_rejected, min_rx, initial_rx)
     !! initialize ode solver options
     class(ode_options), intent(out) :: this
     integer,            intent(in)  :: nU
@@ -293,48 +293,25 @@ contains
       !! maximum number of allowed rejected steps (default: 10)
     real,    optional,  intent(in)  :: min_rx
       !! minimum relative stepsize (default: 1e-8)
-    real,    optional,  intent(in)  :: initial_dx
+    real,    optional,  intent(in)  :: initial_rx
       !! initial stepsize, normalized to total interval size (default: 0.125)
 
     allocate (this%atol(nU), source = 1e-16)
+    if (present(atol)) this%atol = atol
     allocate (this%rtol(nU), source = 1e-12)
-
-    if (present(atol)) then
-      this%atol = atol
-    end if
-    if (present(rtol)) then
-      this%rtol = rtol
-    end if
-    if (present(newton_atol)) then
-      this%newton_atol = newton_atol
-    else
-      this%newton_atol = 1e-16
-    end if
-    if (present(newton_rtol)) then
-      this%newton_rtol = newton_rtol
-    else
-      this%newton_rtol = 1e-14
-    end if
-    if (present(newton_max_it)) then
-      this%newton_max_it = newton_max_it
-    else
-      this%newton_max_it = 5
-    end if
-    if (present(max_rejected)) then
-      this%max_rejected = max_rejected
-    else
-      this%max_rejected = 10
-    end if
-    if (present(min_rx)) then
-      this%min_rx = min_rx
-    else
-      this%min_rx = 1e-8
-    end if
-    if (present(initial_dx)) then
-      this%initial_dx = initial_dx
-    else
-      this%initial_dx = 0.125
-    end if
+    if (present(rtol)) this%rtol = rtol
+    this%newton_atol = 1e-16
+    if (present(newton_atol)) this%newton_atol = newton_atol
+    this%newton_rtol = 1e-14
+    if (present(newton_rtol)) this%newton_rtol = newton_rtol
+    this%newton_max_it = 5
+    if (present(newton_max_it)) this%newton_max_it = newton_max_it
+    this%max_rejected = 10
+    if (present(max_rejected)) this%max_rejected = max_rejected
+    this%min_rx = 1e-8
+    if (present(min_rx)) this%min_rx = min_rx
+    this%initial_rx = 0.125
+    if (present(initial_rx)) this%initial_rx = initial_rx
   end subroutine
 
 end module
