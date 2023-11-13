@@ -10,9 +10,6 @@ module ode_m
   public ode_result
   public ode_solve
 
-public MYDEBUG
-logical :: MYDEBUG = .false.
-
   type ode_options
     !! options for ode solver
     real, allocatable :: atol(:)
@@ -29,6 +26,8 @@ logical :: MYDEBUG = .false.
       !! maximum number of allowed rejected steps
     real              :: min_rx
       !! minimum relative stepsize
+    real              :: initial_dx
+      !! initial stepsize
   contains
     procedure :: init => ode_options_init ! initialize
   end type
@@ -161,7 +160,7 @@ contains
       ! initial x and dx
       x    = x0
       xold = x0
-      dxk = (x1 - x0) / 8
+      dxk = (x1 - x0) * opt%initial_dx
 
       ! reset step and rejection counter
       res%nsteps = 0
@@ -275,7 +274,7 @@ contains
     end block
   end subroutine
 
-  subroutine ode_options_init(this, nU, atol, rtol, newton_atol, newton_rtol, newton_max_it, max_rejected, min_rx)
+  subroutine ode_options_init(this, nU, atol, rtol, newton_atol, newton_rtol, newton_max_it, max_rejected, min_rx, initial_dx)
     !! initialize ode solver options
     class(ode_options), intent(out) :: this
     integer,            intent(in)  :: nU
@@ -294,6 +293,8 @@ contains
       !! maximum number of allowed rejected steps (default: 10)
     real,    optional,  intent(in)  :: min_rx
       !! minimum relative stepsize (default: 1e-8)
+    real,    optional,  intent(in)  :: initial_dx
+      !! initial stepsize, normalized to total interval size (default: 0.125)
 
     allocate (this%atol(nU), source = 1e-16)
     allocate (this%rtol(nU), source = 1e-12)
@@ -328,6 +329,11 @@ contains
       this%min_rx = min_rx
     else
       this%min_rx = 1e-8
+    end if
+    if (present(initial_dx)) then
+      this%initial_dx = initial_dx
+    else
+      this%initial_dx = 0.125
     end if
   end subroutine
 
