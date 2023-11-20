@@ -3,6 +3,7 @@ m4_include(../macro.f90.inc)
 module radau5_m
 
   use ieee_arithmetic
+  use high_precision_m
   use lapack95
   use ode_m
 
@@ -406,19 +407,21 @@ contains
     real,              intent(out) :: err
       !! output scalar error estimate
 
-    integer :: i, i0, i1, ipiv(nU)
-    logical :: status2
-    real    :: eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
+    integer       :: i, i0, i1, ipiv(nU)
+    logical       :: status2
+    real          :: eU(nU,1), eU_tmp(nU), eUmat(nU,nU)
+    type(hp_real) :: h(nU)
 
     ! delta U
-    eU(:,1) = G0 * dxk * fk
+    h = real_to_hp(G0 * dxk * fk)
     i1 = 0
     do i = 1, 3
       i0 = i1 + 1
       i1 = i1 + nU
 
-      eU(:,1) = eU(:,1) + E(i) * z(i0:i1)
+      h = h + E(i) * z(i0:i1)
     end do
+    eU(:,1) = hp_to_real(h)
 
     ! matrix to refine error estimate
     eUmat = - dxk * G0 * dfkdUk
