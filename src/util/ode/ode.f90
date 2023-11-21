@@ -142,8 +142,8 @@ contains
     type(ode_result),  intent(out) :: res
       !! output result object
 
-    ! local variables
     integer :: nU, nP
+    logical :: final_step
 
     ! get system size and number of parameters
     nU = size(U0)
@@ -161,6 +161,8 @@ contains
       x    = x0
       xold = x0
       dxk = (x1 - x0) * opt%initial_rx
+      final_step = (sign(1.0, dxk) * (x + dxk - x1) > - x1 * opt%min_rx)
+      if (final_step) dxk = x1 - x
 
       ! reset step and rejection counter
       res%nsteps = 0
@@ -218,7 +220,7 @@ contains
       err    = 1e99
 
       ! main loop
-      do while (abs(x - x0) < abs(x1 - x0))
+      do while (.true.)
         ! kernel
         call kernel(fun, xold, Uold, x, dxk, Uk, dUkdQ, fk, dfkdUk, dfkdP, polyk, P, opt, &
                                         dxn, Un, dUndQ, fn, dfndUn, dfndP, polyn, dpolyndQ, err, status)
@@ -226,23 +228,26 @@ contains
         if (.not. status) then
           ! reject step
           rejection_counter = rejection_counter + 1
-          if (rejection_counter > opt%max_rejected) then
-            return
-          end if
+          if (rejection_counter > opt%max_rejected) return
         else
           ! accept step, reset rejection counter
           rejection_counter = 0
 
+          ! advance x
+          xold = x
+          x = x + dxk
+          if (final_step) x = x1
+
           ! get samples
           if (ismp /= ismpmax+dsmp) then
-            do while ((min(x,x+dxk) <= xsmp(ismp)) .and. (max(x,x+dxk) >= xsmp(ismp)))
+            do while ((min(xold, x) <= xsmp(ismp)) .and. (max(xold, x) >= xsmp(ismp)))
               res%Usmp(    :  ,ismp) = Uk
               res%dUsmpdU0(:,:,ismp) = dUkdq(:,1:nU)
               res%dUsmpdP( :,:,ismp) = dUkdq(:,(nU+1):(nU+nP))
               do j = 1, nS
-                res%Usmp(    :  ,ismp) = res%Usmp(    :,  ismp) + polyn(   :               ,j) * (xsmp(ismp) - x)**j
-                res%dUsmpdU0(:,:,ismp) = res%dUsmpdU0(:,:,ismp) + dpolyndQ(:,          1:nU,j) * (xsmp(ismp) - x)**j
-                res%dUsmpdP( :,:,ismp) = res%dUsmpdP( :,:,ismp) + dpolyndQ(:,(nU+1):(nU+nP),j) * (xsmp(ismp) - x)**j
+                res%Usmp(    :  ,ismp) = res%Usmp(    :,  ismp) + polyn(   :               ,j) * (xsmp(ismp) - xold)**j
+                res%dUsmpdU0(:,:,ismp) = res%dUsmpdU0(:,:,ismp) + dpolyndQ(:,          1:nU,j) * (xsmp(ismp) - xold)**j
+                res%dUsmpdP( :,:,ismp) = res%dUsmpdP( :,:,ismp) + dpolyndQ(:,(nU+1):(nU+nP),j) * (xsmp(ismp) - xold)**j
               end do
 
               ! go to next sample point
@@ -250,10 +255,6 @@ contains
               if (ismp == ismpmax + dsmp) exit
             end do
           end if
-
-          ! advance x
-          xold = x
-          x    = x + dxk
 
           ! copy n state to k state
           Uold   = Uk
@@ -265,11 +266,15 @@ contains
 
           ! update step counter
           res%nsteps = res%nsteps + 1
+
+          ! finished?
+          if (final_step) exit
         end if
 
         ! adjust step size
         dxk = dxn
-        if (abs(x + dxk - x0) > abs(x1 - x0)) dxk = x1 - x
+        final_step = (sign(1.0, dxk) * (x + dxk - x1) > - x1 * opt%min_rx)
+        if (final_step) dxk = x1 - x
       end do
     end block
   end subroutine
