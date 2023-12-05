@@ -20,7 +20,7 @@ module mpfr_m
   public mpfr_startup, mpfr_cleanup
   public get_default_rnd, set_default_rnd
   public get_default_prec, set_default_prec
-  public add, sub, mul, sqr, div, pow, sqrt, neg, abs
+  public add, sub, mul, sqr, div, pow, sqrt_mpfr, neg, abs
   public log, log1p, exp, expm1
   public sin, asin, cos, acos, tan, atan
   public sinh, asinh, cosh, acosh, tanh, atanh
@@ -101,9 +101,9 @@ module mpfr_m
     module procedure :: pow_int_mpfr
   end interface
 
-  interface sqrt
-    module procedure :: sqrt_mpfr
-  end interface
+  ! interface sqrt
+  !   module procedure :: sqrt_mpfr
+  ! end interface
 
   interface neg
     module procedure :: neg_mpfr

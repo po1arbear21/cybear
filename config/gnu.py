@@ -136,8 +136,8 @@ class Config:
 
             addlib(mpfrroot, "lib", "gnu_ilp64", "libmpfr.a")
             addlib(gmproot, "lib", "gnu_ilp64", "libgmp.a")
-            self._cinc.append("-I" + os.path.join(mpfrroot, "include", "gnu_ilp64"))
-            self._cinc.append("-I" + os.path.join(gmproot, "include", "gnu_ilp64"))
+            self.CINC.append("-I" + os.path.join(mpfrroot, "include", "gnu_ilp64"))
+            self.CINC.append("-I" + os.path.join(gmproot, "include", "gnu_ilp64"))
 
         # TRIANGLE
         if "TRIANGLE" in libraries:
