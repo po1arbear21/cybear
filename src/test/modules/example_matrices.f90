@@ -102,7 +102,7 @@ contains
     block
       type(dense_real), pointer :: A
 
-      ! get pointer into bl's blocks
+      ! get pointer into blocks
       call bl%get(1, 1, A)
 
       ! A=dense=
@@ -118,7 +118,7 @@ contains
       type(sparse_real), pointer :: B
       type(spbuild_real)         :: sb
 
-      ! get pointer into bl's blocks
+      ! get pointer into blocks
       call bl%get(1, 2, B)
 
       ! B = sparse =
@@ -143,7 +143,7 @@ contains
     block
       type(band_real), pointer :: D
 
-      ! get pointer into bl's blocks
+      ! get pointer into blocks
       call bl%get(2, 1, D)
 
       ! D =
@@ -158,7 +158,7 @@ contains
     block
       type(band_real), pointer :: E
 
-      ! get pointer into bl's blocks
+      ! get pointer into blocks
       call bl%get(2, 2, E)
 
       ! E =
@@ -317,7 +317,7 @@ contains
     real                :: re, im
     type(spbuild_cmplx) :: sb
 
-    open (newunit=iounit, file='src/test/example_matrix4.dat', action='read')
+    open (newunit=iounit, file = "example_matrix4.dat", action = "read")
     read (iounit, *)
     read (iounit, *) rows, cols, n
     call s%init(rows)

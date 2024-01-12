@@ -1,9 +1,11 @@
 .*
 *.asc
+*.log
 *.i90
 *.csv
 *.pdf
 *.gv
 doc
 build
+run
 !.gitignore

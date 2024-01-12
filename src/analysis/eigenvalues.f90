@@ -2,7 +2,7 @@ m4_include(../util/macro.f90.inc)
 
 module eigenvalues_m
 
-  use error_m,   only: assert_failed
+  use error_m,   only: assert_failed, program_error
   use esystem_m, only: esystem
   use lapack95,  only: ggev
   use math_m,    only: PI
@@ -104,6 +104,8 @@ subroutine eigenvalues_run_feast(this, sys, M0, abcd)
       logical, optional, intent(in) :: ctrans
         !! factorize (Ze*B-A)^H. default: .false.
 
+      m4_ignore(ctrans)
+
       if (ZeB_A%factorized) call ZeB_A%destruct()
       if (ZeB_Ap%factorized) call ZeB_Ap%destruct()
 
@@ -125,16 +127,27 @@ subroutine eigenvalues_run_feast(this, sys, M0, abcd)
       logical, optional, intent(in)    :: ctrans
         !! solve (Ze*B-A)^H*x=b. default: .false.
 
+      logical              :: ctrans_
+      character(1)         :: trans
       integer              :: i
       complex, allocatable :: b(:,:)
 
+      ctrans_ = .false.
+      if (present(ctrans)) ctrans_ = ctrans
+      if (ctrans_) then
+        trans = "C"
+      else
+        trans = "N"
+      end if
+
       b = xb
       if (precon) then
+        if (trans == "C") call program_error("trans not supported together with iterative solver")
         do i = 1, size(xb, dim = 2)
           call gmres(b(:,i), ZeB_A_mul, xb(:,i), precon = ZeB_Ap_solve)
         end do
       else
-        call ZeB_A%solve_mat(b, xb)
+        call ZeB_A%solve_mat(b, xb, trans = trans)
       end if
     end subroutine
 
@@ -147,7 +160,18 @@ subroutine eigenvalues_run_feast(this, sys, M0, abcd)
       logical, optional, intent(in)  :: ctrans
         !! y <- A^H*x. default: .false.
 
-      call A%mul_mat(x, y)
+      logical      :: ctrans_
+      character(1) :: trans
+
+      ctrans_ = .false.
+      if (present(ctrans)) ctrans_ = ctrans
+      if (ctrans_) then
+        trans = "C"
+      else
+        trans = "N"
+      end if
+
+      call A%mul_mat(x, y, trans = trans)
     end subroutine
 
     subroutine mulvec_B(x, y, ctrans)
@@ -159,7 +183,18 @@ subroutine eigenvalues_run_feast(this, sys, M0, abcd)
       logical, optional, intent(in)  :: ctrans
         !! y <- B^H*x. default: .false.
 
-      call B%mul_mat(x, y)
+      logical      :: ctrans_
+      character(1) :: trans
+
+      ctrans_ = .false.
+      if (present(ctrans)) ctrans_ = ctrans
+      if (ctrans_) then
+        trans = "C"
+      else
+        trans = "N"
+      end if
+
+      call B%mul_mat(x, y, trans = trans)
     end subroutine
 
   end subroutine
