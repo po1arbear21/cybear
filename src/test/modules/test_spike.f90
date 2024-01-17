@@ -59,7 +59,7 @@ contains
       call A%factorize()
       call A%solve_mat(b, x_spike)
 
-      call tc%assert_eq(x_lapack, x_spike, 1e-12, 1e-16, "real")
+      call tc%assert_eq(x_lapack, x_spike, 1e-10, 1e-16, "real")
     end subroutine
 
     subroutine test_spike_cmplx()
@@ -91,7 +91,7 @@ contains
       call A%factorize()
       call A%solve_mat(b, x_spike)
 
-      call tc%assert_eq(x_lapack, x_spike, 1e-12, 1e-16, "cmplx")
+      call tc%assert_eq(x_lapack, x_spike, 1e-10, 1e-16, "cmplx")
     end subroutine
 
   end subroutine

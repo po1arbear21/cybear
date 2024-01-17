@@ -173,22 +173,22 @@ contains
       type(json_file) :: jsfile
       type(string)    :: s1, s2
 
-      call jsfile%load("src/test/test1.json")
-      call jsfile%save("src/test/test3.json")
+      call jsfile%load("test1.json")
+      call jsfile%save("test3.json")
       call jsfile%destruct()
 
       ! try to open saved file
-      open (newunit = funit1, file = "src/test/test3.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
+      open (newunit = funit1, file = "test3.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
       call tc%assert_eq(0, iostat, "json_save 1")
       if (.not. tc%last_passed) goto 100
 
-      open (newunit = funit2, file = "src/test/test2.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
+      open (newunit = funit2, file = "test2.json", access = "stream", form = "unformatted", status = "old", action = "read", iostat = iostat, iomsg = iomsg)
       call tc%assert_eq(0, iostat, "json_save 2")
       if (.not. tc%last_passed) goto 100
 
       ! compare file sizes
-      inquire (file = "src/test/test3.json", size = n1)
-      inquire (file = "src/test/test2.json", size = n2)
+      inquire (file = "test3.json", size = n1)
+      inquire (file = "test2.json", size = n2)
       call tc%assert_eq(n2, n1, "json_save 3")
       if (.not. tc%last_passed) goto 100
 

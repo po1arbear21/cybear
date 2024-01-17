@@ -591,9 +591,9 @@ contains
 
       ! test 3: large matrices in extern files
       ! C <- A*B
-      call sA%input(file = "src/test/S1.test")
-      call sB%input(file = "src/test/S2.test")
-      call sE%input(file = "src/test/S3.test") ! expected S1 * S2
+      call sA%input(file = "S1.test")
+      call sB%input(file = "S2.test")
+      call sE%input(file = "S3.test") ! expected S1 * S2
       call matrix_mul(sA, sB, sC)
       call tc%assert_eq(int(sE%ia), int(sC%ia),  "mul sparse 3: ia")
       call tc%assert_eq(sE%ja, sC%ja,            "mul sparse 3: ja")

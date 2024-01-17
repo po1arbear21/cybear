@@ -17,7 +17,7 @@ module mpfr_m
   public MPFR_RNDN, MPFR_RNDZ, MPFR_RNDU, MPFR_RNDD, MPFR_RNDA, MPFR_RNDF, MPFR_RNDNA
   public MPFR_FREE_LOCAL_CACHE, MPFR_FREE_GLOBAL_CACHE
   public mpfr
-  public mpfr_startup, mpfr_cleanup
+  public mpfr_startup, mpfr_cleanup, mpfr_cleanup_cache
   public get_default_rnd, set_default_rnd
   public get_default_prec, set_default_prec
   public add, sub, mul, sqr, div, pow, sqrt_mpfr, neg, abs
@@ -249,6 +249,12 @@ contains
 
     ret = mpfr_mp_memory_cleanup()
     if (ret /= 0) call program_error("MPFR internal error while cleaning up memory")
+  end subroutine
+
+  subroutine mpfr_cleanup_cache()
+    !! cleanup caches and pools used internally
+
+    call mpfr_free_cache()
   end subroutine
 
   pure function get_default_rnd() result(rnd)

@@ -20,7 +20,7 @@ contains
     call tc%init("input")
 
     ! init input file
-    call f%init("src/test/example.inp")
+    call f%init("example.inp")
 
     ! reals (+ check normalization implicitly)
     block
