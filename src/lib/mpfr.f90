@@ -20,7 +20,7 @@ module mpfr_m
   public mpfr_startup, mpfr_cleanup, mpfr_cleanup_cache
   public get_default_rnd, set_default_rnd
   public get_default_prec, set_default_prec
-  public add, sub, mul, sqr, div, pow, sqrt_mpfr, neg, abs
+  public add, sub, mul, sqr, fma, fms, fmma, fmms, div, pow, sqrt_mpfr, neg, abs
   public log, log1p, exp, expm1
   public sin, asin, cos, acos, tan, atan
   public sinh, asinh, cosh, acosh, tanh, atanh
@@ -85,6 +85,22 @@ module mpfr_m
 
   interface sqr
     module procedure :: sqr_mpfr
+  end interface
+
+  interface fma
+    module procedure :: fma_mpfr
+  end interface
+
+  interface fms
+    module procedure :: fms_mpfr
+  end interface
+
+  interface fmma
+    module procedure :: fmma_mpfr
+  end interface
+
+  interface fmms
+    module procedure :: fmms_mpfr
   end interface
 
   interface div
@@ -782,6 +798,77 @@ contains
 
     ret = mpfr_sqr(r%m, x%m, rnd_)
   end subroutine
+
+  subroutine fma_mpfr(r, x, y, z, rnd)
+    !! r = x*y + z
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    type(mpfr),        intent(in)    :: z
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_fma(r%m, x%m, y%m, z%m, rnd_)
+  end subroutine
+
+  subroutine fms_mpfr(r, x, y, z, rnd)
+    !! r = x*y - z
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    type(mpfr),        intent(in)    :: z
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_fms(r%m, x%m, y%m, z%m, rnd_)
+  end subroutine
+
+  subroutine fmma_mpfr(r, x, y, z, u, rnd)
+    !! r = x*y + z*u
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    type(mpfr),        intent(in)    :: z
+    type(mpfr),        intent(in)    :: u
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_fmma(r%m, x%m, y%m, z%m, u%m, rnd_)
+  end subroutine
+
+  subroutine fmms_mpfr(r, x, y, z, u, rnd)
+    !! r = x*y - z*u
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    type(mpfr),        intent(in)    :: y
+    type(mpfr),        intent(in)    :: z
+    type(mpfr),        intent(in)    :: u
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_fmms(r%m, x%m, y%m, z%m, u%m, rnd_)
+  end subroutine
+
 
   subroutine div_mpfr_mpfr(r, x, y, rnd)
     !! r = x / y
