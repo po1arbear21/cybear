@@ -35,6 +35,8 @@ subroutine hashmap_{}T{}_reset(this)
   class(hashmap_{}T), intent(inout) :: this
 
   call this%keys%reset()
+  call this%keys_i0%reset()
+  call this%keys_i0%push(1)
   call this%values%reset()
   if (allocated(this%table)) this%table = -1
 end subroutine
