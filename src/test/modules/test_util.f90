@@ -1,8 +1,10 @@
+m4_include(../../util/macro.f90.inc)
+
 module test_util_m
 
   use string_m
   use test_case_m, only: test_case
-  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, log2str, real2str, split_string, select_int
+  use util_m,      only: c2fstring, cstrlen, f2cstring, int2str, log2str, real2str, split_string, select_int, hash
 
   implicit none
 
@@ -184,6 +186,28 @@ contains
       ints = [     -1,     500,       3,       4,       5]
       mask = [.false., .false., .false., .false., .false.]
       call tc%assert_eq(0, select_int(mask, ints), "select_int 3")
+    end block
+
+    ! hash string
+    block
+      integer :: h1, h2, h3, h4
+
+      h1 = hash("asdf")
+      h2 = hash("asdg")
+      h3 = hash("bsdf")
+      h4 = hash("adsfdfdf_*wefgsgsd:fgyjxhvjlbaerjbga5b^fob3a5w7oehbrajl)%%hswbfhbalsjhb<ylozvklbjk")
+
+      m4_ifelse(m4_intsize,32,{
+        call tc%assert_eq(int(Z'08bb5a57'), h1, "hash_string 1")
+        call tc%assert_eq(int(Z'07bb58c4'), h2, "hash_string 2")
+        call tc%assert_eq(int(Z'f78ea93c'), h3, "hash_string 3")
+        call tc%assert_eq(int(Z'2379e621'), h4, "hash_string 4")
+      },{
+        call tc%assert_eq(int(Z'90285684421f9857'), h1, "hash_string 1")
+        call tc%assert_eq(int(Z'90285584421f96a4'), h2, "hash_string 2")
+        call tc%assert_eq(int(Z'355ad49c01c02ffc'), h3, "hash_string 3")
+        call tc%assert_eq(int(Z'199406fae2f73141'), h4, "hash_string 4")
+      })
     end block
 
     call tc%finish()

@@ -5,6 +5,7 @@ module test_logging_m
   use logging_m,   only: init_logging, finish_logging, logging, LVL_DEBUG, LVL_INFO, LVL_WARN
   use string_m,    only: new_string, string
   use test_case_m, only: test_case
+  use util_m,      only: get_temp_fname
 
   implicit none
 
@@ -14,13 +15,15 @@ module test_logging_m
 contains
 
   subroutine test_logging()
-    type(string)    :: line
-    integer         :: funit, iostat
-    type(test_case) :: tc
+    integer                   :: funit, iostat
+    character(:), allocatable :: fname
+    type(string)              :: line
+    type(test_case)           :: tc
 
     call tc%init("logging")
 
-    call init_logging(file = "/tmp/test_logging.log", record_date = .false., record_time = .false., record_mem = .false., verbosity = 5, fmt = "%LVL: %MSG")
+    fname = get_temp_fname("/tmp/test_logging.log")
+    call init_logging(file = fname, record_date = .false., record_time = .false., record_mem = .false., verbosity = 5, fmt = "%LVL: %MSG")
 
     ! long version
     call logging(LVL_INFO, "logging test 1", file = "m4___file__", line = m4___line__)
@@ -42,7 +45,7 @@ contains
 
     allocate (character(80) :: line%s)
 
-    open (newunit = funit, file = "/tmp/test_logging.log", status = "old", action = "read", iostat = iostat)
+    open (newunit = funit, file = fname, status = "old", action = "read", iostat = iostat)
     call tc%assert_eq(0, iostat, "file exists")
     read (funit, "(A)", iostat = iostat) line%s
     call tc%assert_eq(0, iostat, "line 1 exists")
@@ -84,7 +87,8 @@ contains
     call tc%assert_eq(0, iostat, "line 13 exists")
     if (iostat /= 0) goto 10
     call tc%assert_eq(new_string("ERROR: logging test 10"), line, "line 13")
-    10 close (funit)
+    10 close (funit, status = "delete")
+
     call tc%finish()
   end subroutine
 

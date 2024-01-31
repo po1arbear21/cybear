@@ -12,6 +12,7 @@ module util_m
   private
   public fsleep
   public get_hostname
+  public get_temp_fname
   public strlen, cstrlen, c2fstring, f2cstring
   public hash
   public int2str, log2str, real2str
@@ -22,7 +23,7 @@ module util_m
   public get_memory_usage
 
   interface hash
-    module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array
+    module procedure :: hash_int32, hash_int32_array, hash_int64, hash_int64_array, hash_string
   end interface
 
   ! interfaces to C routines
@@ -49,14 +50,36 @@ module util_m
       integer(c_size_t), value, intent(in) :: n
       integer(c_int64_t)                   :: h
     end function
+    function c_hash_string32(c) result(h) bind(c)
+      import :: c_char, c_int32_t
+      character(c_char), intent(in) :: c(*)
+      integer(c_int32_t)            :: h
+    end function
+    function c_hash_string64(c) result(h) bind(c)
+      import :: c_char, c_int64_t
+      character(c_char), intent(in) :: c(*)
+      integer(c_int64_t)            :: h
+    end function
   end interface
 
   interface
-     function strlen(s) result(len) bind(c)
-       import :: c_size_t, c_ptr
-       type(c_ptr), value, intent(in) :: s
-       integer(c_size_t)              :: len
-     end function strlen
+    function strlen(s) result(len) bind(c)
+      import :: c_size_t, c_ptr
+      type(c_ptr), value, intent(in) :: s
+      integer(c_size_t)              :: len
+    end function
+
+    function mkstemp(template) result(fd) bind(c)
+      import :: c_int, c_char
+      character(c_char), intent(in) :: template(*)
+      integer(c_int)                :: fd
+    end function
+
+    function c_close(fd) result(r) bind(c, name = "close")
+      import :: c_int
+      integer(c_int), value, intent(in) :: fd
+      integer(c_int)                    :: r
+    end function
   end interface
 
 contains
@@ -99,6 +122,25 @@ contains
     })
 
     hostname = trim(hn)
+  end function
+
+  function get_temp_fname(template) result(fname)
+    !! create temporary file
+    character(*), intent(in)  :: template
+      !! file template, will get appended by ".XXXXXX"
+    character(:), allocatable :: fname
+      !! return filename of newly created file
+
+    integer(kind=4) :: fd
+    character(1), allocatable, target :: temp(:)
+
+    temp = f2cstring(template // ".XXXXXX")
+    fd = mkstemp(temp)
+    if (fd > 0) then
+      fd = c_close(fd)
+    end if
+
+    fname = c2fstring(temp)
   end function
 
   pure function cstrlen(cstr) result(len)
@@ -357,6 +399,14 @@ contains
     n = size(i)
 
     h = c_hash_int64_array(i, n)
+  end function
+
+  function hash_string(s) result(h)
+    !! hash function for strings
+    character(*), intent(in) :: s
+    integer                  :: h
+
+    h = c_hash_string{}m4_intsize{}(f2cstring(s))
   end function
 
   subroutine load_array(file, x)

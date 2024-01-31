@@ -253,6 +253,7 @@ contains
     call this%units%insert(new_string("°"), PI / 180)
     call this%units%insert(new_string("deg"), PI / 180)
     call this%units%insert(new_string("rad"), 1.0)
+    call this%units%insert(new_string("Ry"), 13.605693122994 * volt)
   end subroutine
 
   function normalization_lookup(this, unit) result(val)

@@ -100,6 +100,14 @@ contains
         call tc%assert_eq(PI/4.0, deg, 1e-14, 1e-16, "norming degrees")
       end block
 
+      ! check Rydberg
+      block
+        real :: ry
+
+        ry = norm(1.0, "Ry")
+        call tc%assert_eq(norm(13.605693122994, "eV"), ry, 1e-14, 1e-16, "norming Rydberg")
+      end block
+
       call destruct_normconst()
     end subroutine
 
