@@ -93,3 +93,29 @@ int64_t c_hash_int64_array(const int64_t *a, size_t n) {
 
   return uh.i;
 }
+
+// string hash function (FNV-1a for 32 and 64 bits)
+int32_t c_hash_string32(const unsigned char *str) {
+  union uint32 hash;
+  uint32_t c;
+
+  hash.u = 2166136261u;
+  while (c = *str++) {
+    hash.u ^= c;
+    hash.u *= 16777619u;
+  }
+
+  return hash.i;
+}
+int64_t c_hash_string64(const unsigned char *str) {
+  union uint64 hash;
+  uint64_t c;
+
+  hash.u = 14695981039346656037ull;
+  while (c = *str++) {
+    hash.u ^= c;
+    hash.u *= 1099511628211ull;
+  }
+
+  return hash.i;
+}
