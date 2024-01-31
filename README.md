@@ -18,71 +18,48 @@ $ git checkout master
 $ git merge upstream/master
 ```
 
-## Usage
-### FMake
-Configuration of libraries, intsizes and compiler can be found in ´config.toml´.
+## Fargo
 
-To compile all programs run: 
+The project can be built and run using our custom build-system named **fargo**. The configuration is contained in the
+file `fargo.toml`. See the **fargo documentation** at `/home/pd/fargo/doc/` for further information.
+
+To compile and run the job specified in the first section in `fargo.toml` you can simply use the command
 ```bash
-$ ./fmake
+$ fargo
 ```
 
-The executables can be found in the subdirectory `<compiler>-<mode>/` of the configured build directory.
-
-For more information on how to use the command, run 
+To run a different section run
 ```bash
-$ ./fmake -h
+$ fargo run my_section_name
 ```
 
-To *clean* build files run
-
+To *clean* jobs and build artifacts run
 ```bash
-$ ./fmake clean
+$ fargo clean
 ```
 
-### Makefile
-Set default options in *options.mk*.
+If you get strange Python errors, try to delete the `run` and the `build` folders (backup any data you want to keep
+first).
 
-To compile (with default options) run
-```bash
-$ make
-```
+## Library Support
 
-Options can be overwritten by passing values to make, e.g.
-```bash
-$ make BUILD=release
-```
-
-For *fast/parallel* compilation use the -j option:
-```bash
-$ make -j4
-```
-
-To *clean* build files run
-
-```bash
-$ make clean
-```
-
-To create *documentation* run
-```bash
-$ make doc
-```
-
-### Library Support
-The intel MKL must be installed on your system, and MKLROOT should be set as an environment variable (e.g. in ~/.bashrc).
-If you want to use any supported additional libraries, clone the git repository fortran-basic-libs and follow the instructions.
-
-Libraries currently contained in *fortran-basic-libs*:
+The following libraries are currently installed and available at the ITHE:
 * ARPACK
 * EXPOKIT
 * FEAST
 * ILUPACK
+* MPFR
 * MUMPS
 * QUADPACK
+* SPIKE
+* TRIANGLE
 
-ITHE only: Note that all supported libraries are available at /home/pd/library.
-Make available via ~/.bashrc
+The libraries are located at `/home/pd/library`. To be able to use them, simply add the following line to your
+`.bashrc`:
 ```bash
 source /home/pd/library/set_lib_paths.sh
 ```
+
+## Setup on your own computer at home
+If you want to use this software on your own computer, you need to clone and compile the **fortran-basic-libs**
+repository first. For further instructions see the README.md file of that repository.
