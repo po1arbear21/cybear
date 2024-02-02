@@ -1,3 +1,5 @@
+m4_include(../../util/macro.f90.inc)
+
 module test_math_m
 
   use ieee_arithmetic, only: ieee_next_after, ieee_value, ieee_positive_inf, ieee_negative_inf
@@ -9,6 +11,15 @@ module test_math_m
 
   private
   public test_math
+
+  m4_define({m4_test_smoothness},{
+    ym = $1{}(ieee_next_after($2, -huge(1.0)))
+    y0 = $1{}($2)
+    yp = $1{}(ieee_next_after($2,  huge(1.0)))
+
+    call tc%assert_eq(y0, ym, 1e-15, 1e-32, $3 // " -")
+    call tc%assert_eq(y0, yp, 1e-15, 1e-32, $3 // " +")
+  })
 
 contains
 
@@ -82,32 +93,49 @@ contains
     end block
 
     ! ber(x) = x / (exp(x) - 1)
-    ! testing single values from x and smoothness around |x| = 1e-6
     block
-      real :: x(6), y(6), y_exp(6)
+      real :: x(6), y(6), y0, ym, yp, z(6)
 
-      x     = [0.0, -5.0,                 -100.0, 15.0,              -1e-6,              1e-6]
-      y_exp = [1.0,  5.0339182745315121,   100.0,  0.000004588536211, 1.000000500000083, 0.999999500000083]
+      x = [-40.0, -30.0, -1.5, 0.0, 9.0, 22.0]
+      y = [ 4.0000000000000000E+001, 3.0000000000002807E+001, 1.9308253751833024E+000, &
+            1.0000000000000000E+000, 1.1108253235156655E-003, 6.1368298060234837E-009 ]
+      z = ber(x)
 
-      y     = ber(x)
-
-      call tc%assert_eq(y_exp, y,                               1e-12, 1e-14, "ber(x) values")
-      call tc%assert_eq(y(5), ber(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "ber(x) smoothness negative")
-      call tc%assert_eq(y(6), ber(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "ber(x) smoothness positive")
+      call tc%assert_eq(y, z, 1e-15, 1e-32, "ber(x) values")
+      m4_test_smoothness(ber, -37.0, "ber(x) smoothness at  -37")
+      m4_test_smoothness(ber,  1e-9, "ber(x) smoothness at 1e-9")
+      m4_test_smoothness(ber,  1e-4, "ber(x) smoothness at 1e-4")
     end block
 
     ! dberdx(x)
-    ! testing single values from x and smoothness around |x| = 1e-6
     block
-      real :: x(6), y(6), y_exp(6)
+      real :: x(6), y(6), y0, ym, yp, z(6)
 
-      x     = [ 0.0, -5.0,                -100.0, 15.0,             -1e-6,                1e-6]
-      y_exp = [-0.5, -0.9726352905053439,  - 1.0, -0.00000428263520,-0.5000001666666667, -0.4999998333333333]
+      x = [-40.0, -30.0, -1.5, 0.0, 9.0, 22.0]
+      y = [ -9.9999999999999983E-001, -9.9999999999728629E-001, -7.3265120567101038E-001, &
+            -5.0000000000000000E-001, -9.8753739122496533E-004, -5.8578829983706290E-009 ]
+      z = dberdx(x)
 
-      y     = dberdx(x)
-      call tc%assert_eq(y_exp, y,                                   1e-12, 1e-14, "dberdx(x) values"             )
-      call tc%assert_eq(y(5),  dberdx(ieee_next_after(-1e-6,-1.0)), 1e-14, 1e-16, "dberdx(x) smoothness negative")
-      call tc%assert_eq(y(6),  dberdx(ieee_next_after( 1e-6, 1.0)), 1e-14, 1e-16, "dberdx(x) smoothness positive")
+      call tc%assert_eq(y, z, 1e-15, 1e-32, "dberdx(x) values")
+      m4_test_smoothness(dberdx, 1e-6, "dberdx(x) smoothness at 1e-6")
+      m4_test_smoothness(dberdx, 1e-3, "dberdx(x) smoothness at 1e-3")
+      m4_test_smoothness(dberdx, 1e-2, "dberdx(x) smoothness at 1e-2")
+      m4_test_smoothness(dberdx, 6e-2, "dberdx(x) smoothness at 6e-2")
+      m4_test_smoothness(dberdx,  0.5, "dberdx(x) smoothness at  0.5")
+      m4_test_smoothness(dberdx,  1e2, "dberdx(x) smoothness at  1e2")
+    end block
+
+    ! dberdx2(x)
+    block
+      real :: x(6), y(6), y0, ym, yp, z(6)
+
+      x = [-40.0, -30.0, -1.5, 0.0, 9.0, 22.0]
+      y = [ 1.6143746170108038E-016, 2.6201344312762646E-012, 1.3370607036890870E-001, &
+            1.6666666666666667E-001, 8.6435612895480056E-004, 5.5789361922740007E-009 ]
+      z = dberdx2(x)
+
+      call tc%assert_eq(y, z, 1e-15, 1e-32, "dberdx2(x) values")
+      m4_test_smoothness(dberdx, 0.5, "dberdx2(x) smoothness at 0.5")
     end block
 
     ! phi1(x)
@@ -383,6 +411,5 @@ contains
 
     call tc%finish()
   end subroutine
-
 
 end module
