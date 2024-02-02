@@ -17,7 +17,7 @@ module math_m
   public heaviside
   public interp1
   public isinf
-  public ber, dberdx
+  public ber, dberdx, dberdx2
   public eye_int, eye_real
   public expm1, log1p
   public linspace, logspace
@@ -87,7 +87,9 @@ contains
 
     if (x < -37) then
       b = - x
-    elseif (abs(x) < 1e-6) then
+    elseif (abs(x) < 1e-9) then
+      b = 1.0 - 0.5 * x
+    elseif (abs(x) < 1e-4) then
       b = 1.0 + x * (-0.5 + x / 12.0)
     elseif (x < 712.5) then
       b = 0.5 * x * exp(-0.5 * x) / sinh(0.5 * x)
@@ -101,26 +103,77 @@ contains
     real, intent(in) :: x
     real             :: dbdx
 
-    real :: x_
+    real    :: x_, A, dA, xn, fact
+    integer :: n
 
     x_ = x
     if (x < 0) x_ = -x
 
-    if (x_ > 1e2) then
-      dbdx = (1 - x_) * exp(-x_)
-    elseif (x_ > 0.075) then
+    if (x_ < 1e-6) then
+      dbdx = -0.5 + x_ / 6.0
+    elseif (x_ < 1e-3) then
+      dbdx = -0.5 + x_ * (1.0/6.0 - x_**2 / 180.0);
+    elseif (x_ < 1e-2) then
+      dbdx = -0.5 + x_ * (1.0/6.0 - x_**2 * (1.0/180.0 - x_**2 / 5040.0));
+    elseif (x_ < 6e-2) then
+      dbdx = -0.5 + x_ * (1.0/6.0 - x_**2 * (1.0/180.0 - x_**2 * (1.0/5040.0 - x_**2 / 151200.0)))
+    elseif (x_ < 0.50) then
+      ! dbdx = -B(x)**2 * sum_{n=0}^{inf} x**n * (n+1) / (n+2)!
+      A    = 0.5 + x_ / 3
+      dA   = 1e99
+      xn   = x_
+      n    = 2
+      fact = 1.0 / 3.0
+      do while (abs(dA) > abs(A) * 2e-16)
+        dbdx = n
+        xn   = xn * x_ ! x**n
+        fact = (fact * (n + 1)) / ((n+2) * n)  ! (n+1) / (n+2)!
+        dA   = xn * fact
+        A    = A + dA
+        n    = n + 1
+      end do
+      dbdx = - ber(x_)**2 * A
+    elseif (x_ < 1e2) then
       dbdx = (2.0 * exp(-0.5 * x_) * sinh(0.5 * x_) - x_) / (4.0 * sinh(0.5 * x_)**2)
-    elseif (x_ > 0.025) then
-      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2*(1.0/810 - x_**2*(1.0/68040 + x_**2/6123600)))) - 1)
-    elseif (x_ > 1e-3) then
-      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2*(1.0/810 - x_**2/68040))) - 1)
-    elseif (x_ > 1e-5) then
-      dbdx = 0.5 * (tanh(x_*(1.0/3 + x_**2/810)) - 1)
     else
-      dbdx = 0.5 * (tanh(x_/3) - 1)
+      dbdx = (1 - x_) * exp(-x_)
     end if
 
     if (x < 0) dbdx = - dbdx - 1
+  end function
+
+  elemental function dberdx2(x) result(dbdx2)
+    !! second derivative of bernoulli function
+    real, intent(in) :: x
+    real             :: dbdx2
+
+    real, parameter :: C(16) = [ &
+      1.6666666666666666e-01,-1.6666666666666666e-02,9.9206349206349201e-04,-4.6296296296296294e-05, &
+      1.8789081289081290e-06,-6.9751309830674911e-08,2.4356216485846117e-09,-8.1352327111741995e-11, &
+      2.6273349892210203e-12,-8.2645010545206355e-14,2.5451593067024260e-15,-7.7028645065685133e-17, &
+      2.2975595757591539e-18,-6.7688591748403859e-20,1.9731186335337843e-21,-5.6988323435212252e-23  &
+    ]
+
+    integer :: n
+    real    :: x_, x2, xn, d
+
+    x_ = abs(x)
+
+    if (x_ < 0.5) then
+      ! taylor series
+      dbdx2 = C(1)
+      n     = 2
+      x2    = x_ * x_
+      xn    = 1
+      do while (abs(d) > abs(dbdx2) * 2e-16)
+        xn    = xn * x2
+        d     = C(n) * xn
+        dbdx2 = dbdx2 + d
+      end do
+    else
+      ! FIXME: not that accurate at 0.5..0.8 (error of 5e-15)
+      dbdx2 = exp(x_) * (expm1(x_) * (x_ - 2) + 2 * x_) / expm1(x_)**3
+    end if
   end function
 
   elemental function phi1(x) result(phi)
