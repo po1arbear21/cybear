@@ -1,3 +1,7 @@
+m4_include(../util/macro.f90.inc)
+
+m4_divert(m4_ifdef({m4_zlib},0,-1))
+
 module zlib_m
 
   use, intrinsic :: iso_c_binding
@@ -312,3 +316,5 @@ contains
   end function
 
 end module
+
+m4_divert(0)
