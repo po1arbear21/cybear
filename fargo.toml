@@ -12,6 +12,7 @@
     MPFR     = false
     TRIANGLE = false
     SPIKE    = false
+    ZLIB     = false
 
 [debug]
   name     = "debug"
