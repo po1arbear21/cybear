@@ -191,9 +191,9 @@ contains
     if (present(fmt)) then
       write(tmp, fmt) i
     else
-      write(tmp, "(I24)") i
+      write(tmp, "(I0)") i
     end if
-    str = trim(adjustl(tmp))
+    str = trim(tmp)
   end function
 
   function log2str(l) result(str)
@@ -218,7 +218,7 @@ contains
       write(tmp, "(ES25.16E3)") r
     end if
 
-    str = trim(adjustl(tmp))
+    str = trim(tmp)
   end function
 
   pure function is_digit(ch) result(ret)
