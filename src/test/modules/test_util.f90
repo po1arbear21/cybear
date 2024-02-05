@@ -75,17 +75,17 @@ contains
       r     = 123.27858499357
       cval  = real2str(r)
       val%s = cval
-      exp%s = "1.2327858499357001E+002"
+      exp%s = "  1.2327858499357001E+002"
       call tc%assert_eq(exp, val, "real2str 1")
 
       r     = -4567.45655
       cval  = real2str(r)
       val%s = cval
-      exp%s = "-4.5674565499999999E+003"
+      exp%s = " -4.5674565499999999E+003"
       call tc%assert_eq(exp, val, "real2str 2")
 
       r     = 3.141592653589793238462643
-      cval  = real2str(r, fmt="(F10.2)")
+      cval  = real2str(r, fmt="(F0.2)")
       val%s = cval
       exp%s = "3.14"
       call tc%assert_eq(exp, val, "real2str 3")

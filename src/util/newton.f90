@@ -143,7 +143,9 @@ contains
       if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
     end if
 
+
     ! newton iteration with bisection stabilization
+    if (opt%log) m4_info(opt%msg  // " ITER      ABS_ERROR")
     do while ((it < 1) .or. ((err > opt%atol) .and. (err > abs(x) * opt%rtol)))
       it = it + 1
 
@@ -205,7 +207,7 @@ contains
       ! update solution
       x = x - dx
 
-      if (opt%log) m4_info(opt%msg  // " " //  int2str(it) // " "  // real2str(err))
+      if (opt%log) m4_info(opt%msg  // " " // int2str(it, "(I4)") // " "  // real2str(err, "(ES14.6E3)"))
 
       ! exit if close to solution
       if (ieee_is_finite(xmin) .and. ieee_is_finite(xmax)) then
@@ -272,6 +274,7 @@ contains
     x = x0
 
     ! newton-raphson iteration
+    if (opt%log) m4_info(opt%msg // " ITER      REL_ERROR      ABS_ERROR       RESIDUAL")
     do while (any(err > opt%rtol) .and. any(abs(f) > opt%ftol))
       it = it + 1
 
@@ -327,7 +330,7 @@ contains
       err     = maxval(abs(x-xold) / (abs(xold) + opt%atol / opt%rtol))
       abs_err = maxval(abs(x-xold))
 
-      if (opt%log) m4_info(opt%msg // " " // int2str(it) // " " // real2str(err) // " " // real2str(abs_err) // " " // real2str(maxval(abs(f))))
+      if (opt%log) m4_info(opt%msg // " " // int2str(it, "(I4)") // " " // real2str(err, "(ES14.6E3)") // " " // real2str(abs_err, "(ES14.6E3)") // " " // real2str(maxval(abs(f)), "(ES14.6E3)"))
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation
