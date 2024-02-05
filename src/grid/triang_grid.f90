@@ -6,11 +6,11 @@ module triang_grid_m
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use json_m,          only: json_object
   use math_m,          only: cross_product_2d
-  use normalization_m, only: denorm
+  use normalization_m, only: denorm, norm
   use output_file_m,   only: output_file
   use plotmtv_m,       only: plotmtv, plotset_options
   use qsort_m,         only: qsort
-  use vector_m,        only: vector_int
+  use vector_m,        only: vector_int, vector_real
 
   implicit none
 
@@ -70,6 +70,8 @@ module triang_grid_m
     procedure :: get_adjoint    => triang_grid_get_adjoint
     procedure :: output         => triang_grid_output
     procedure :: output_plotmtv => triang_grid_output_plotmtv
+    procedure :: output_matlab  => triang_grid_output_matlab
+    procedure :: read_matlab    => triang_grid_read_matlab
   end type
 
   type node
@@ -721,6 +723,94 @@ contains
     end associate
 
     call pmtv%close()
+  end subroutine
+
+  subroutine triang_grid_output_matlab(this, fname, unit)
+    !! write grid to plot with matlab's routine triplot(c2v,x,y)
+    class(triang_grid), intent(in) :: this
+    character(*),       intent(in) :: fname
+      !! output file name
+    character(*),       intent(in) :: unit
+      !! unit of grid variable, e.g. "nm"
+
+    integer :: iounit, iostat, i
+
+    ! vertices
+    open (newunit = iounit, file = fname // "_vert.dat", status = "new", action = "write", iostat = iostat)
+    if (iostat /= 0) call program_error("File could not be opened")
+    do i = 1, this%nvert
+      write (iounit, "(ES25.16E3,ES25.16E3)") denorm(this%vert(:,i), unit)
+    end do
+    close (iounit)
+
+    ! triangle connectivity
+    open (newunit = iounit, file = fname // "_c2v.dat", status = "new", action = "write", iostat = iostat)
+    if (iostat /= 0) call program_error("File could not be opened")
+    do i = 1, this%ncell
+      write (iounit, "(I0, x, I0, x, I0)") this%cell2vert(1:3,i)
+    end do
+    close (iounit)
+  end subroutine
+
+  subroutine triang_grid_read_matlab(this, name, fname, unit)
+    !! read grid from data files made for plotting with Matlab (see subroutine triang_grid_output_matlab)
+    class(triang_grid), intent(out) :: this
+    character(*),       intent(in)  :: name
+      !! grid name
+    character(*),       intent(in)  :: fname
+      !! output file name
+    character(*),       intent(in)  :: unit
+      !! unit of grid variable, e.g. "nm"
+
+    integer              :: iounit, iostat, i, cell2vert(3)
+    integer, allocatable :: cells(:,:)
+    real                 :: coord(2)
+    real,    allocatable :: vert(:,:)
+    type(vector_int)     :: c2v(3)
+    type(vector_real)    :: v(2)
+
+    ! init vecs
+    do i = 1, 3
+      if (i < 3) call v(i)%init(0)
+      call c2v(i)%init(0)
+    end do
+
+    ! read vertices
+    open (newunit = iounit, file = fname // "_vert.dat", status = "old", action = "read", iostat = iostat)
+    if (iostat /= 0) call program_error("File could not be opened")
+
+    do while (iostat == 0)
+      read (iounit, fmt="(ES25.16E3,ES25.16E3)", iostat=iostat) coord
+      if (iostat == 0) then
+        coord = norm(coord, unit)
+        do i = 1, 2
+          call v(i)%push(coord(i))
+        end do
+      end if
+    end do
+    close (iounit)
+
+    ! read triangle connectivity
+    open (newunit = iounit, file = fname // "_c2v.dat", status = "old", action = "read", iostat = iostat)
+    if (iostat /= 0) call program_error("File could not be opened")
+
+    do while (iostat == 0)
+      read (iounit, fmt=*, iostat=iostat) cell2vert
+      if (iostat == 0) then
+        do i = 1, 3
+          call c2v(i)%push(cell2vert(i))
+        end do
+      end if
+    end do
+    close (iounit)
+
+    ! init triangular grid
+    allocate (vert(2,v(1)%n), cells(3,c2v(1)%n))
+    do i = 1, 3
+      if (i < 3) vert(i,:) = v(i)%to_array()
+      cells(i,:) = c2v(i)%to_array()
+    end do
+    call this%init(name, vert, cells)
   end subroutine
 
 end module
