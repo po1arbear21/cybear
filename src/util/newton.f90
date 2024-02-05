@@ -29,6 +29,8 @@ module newton_m
       !! upper solution bound (can be +inf)
     real    :: dx_lim
       !! limit solution update
+    integer :: min_it
+      !! minimum number of iterations
     integer :: max_it
       !! maximum number of iterations
 
@@ -53,6 +55,8 @@ module newton_m
       !! limit solution update
     real, allocatable :: xmin(:), xmax(:)
       !! lower/upper solution bound (can be -inf/+inf)
+    integer :: min_it
+      !! minimum number of iterations
     integer           :: max_it
       !! maximum number of iterations
 
@@ -143,10 +147,9 @@ contains
       if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
     end if
 
-
     ! newton iteration with bisection stabilization
     if (opt%log) m4_info(opt%msg  // " ITER      ABS_ERROR")
-    do while ((it < 1) .or. ((err > opt%atol) .and. (err > abs(x) * opt%rtol)))
+    do while ((it < opt%min_it) .or. ((err > opt%atol) .and. (err > abs(x) * opt%rtol)))
       it = it + 1
 
       ! check for maximum number of iterations
@@ -155,6 +158,7 @@ contains
         m4_info("rtol   = " // real2str(opt%rtol))
         m4_info("xmin   = " // real2str(xmin))
         m4_info("xmax   = " // real2str(xmax))
+        m4_info("min_it = " // int2str(it))
         m4_info("max_it = " // int2str(it))
         m4_info("x      = " // real2str(x))
         m4_info("f      = " // real2str(f))
@@ -275,7 +279,7 @@ contains
 
     ! newton-raphson iteration
     if (opt%log) m4_info(opt%msg // " ITER      REL_ERROR      ABS_ERROR       RESIDUAL")
-    do while (any(err > opt%rtol) .and. any(abs(f) > opt%ftol))
+    do while ((it < opt%min_it) .or. (any(err > opt%rtol) .and. any(abs(f) > opt%ftol)))
       it = it + 1
 
       ! check for maximum number of iterations
@@ -350,7 +354,7 @@ contains
     end if
   end subroutine
 
-  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, dx_lim, max_it, log, msg)
+  subroutine newton1D_opt_init(this, atol, rtol, xmin, xmax, dx_lim, min_it, max_it, log, msg)
     !! initialize 1D newton iteration options
     class(newton1D_opt),    intent(out) :: this
     real,         optional, intent(in)  :: atol
@@ -363,6 +367,8 @@ contains
       !! upper solution bound (default: +inf)
     real,         optional, intent(in)  :: dx_lim
       !! update limit (default: huge)
+    integer,      optional, intent(in)  :: min_it
+      !! minimum number of iterations (default: 1)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
     logical,      optional, intent(in)  :: log
@@ -380,6 +386,8 @@ contains
     if (present(xmax)) this%xmax = xmax
     this%dx_lim = huge(1.0)
     if (present(dx_lim)) this%dx_lim = dx_lim
+    this%min_it = 1
+    if (present(min_it)) this%min_it = min_it
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
     this%log = .false.
@@ -388,7 +396,7 @@ contains
     if (present(msg)) this%msg = msg
   end subroutine
 
-  subroutine newton_opt_init(this, n, atol, rtol, ftol, dx_lim, xmin, xmax, max_it, it_solver, log, error_if_not_converged, msg)
+  subroutine newton_opt_init(this, n, atol, rtol, ftol, dx_lim, xmin, xmax, min_it, max_it, it_solver, log, error_if_not_converged, msg)
     !! initialize multidimensional newton iteration options
     class(newton_opt),      intent(out) :: this
     integer,                intent(in)  :: n
@@ -403,6 +411,8 @@ contains
       !! limit for newton update (default: inf)
     real,         optional, intent(in)  :: xmin, xmax
       !! lower/upper solution bound (default: -inf/+inf)
+    integer,      optional, intent(in)  :: min_it
+      !! minimum number of iterations (default: 1)
     integer,      optional, intent(in)  :: max_it
       !! maximum number of iterations (default: huge)
     logical,      optional, intent(in)  :: it_solver
@@ -428,6 +438,8 @@ contains
     if (present(xmin)) this%xmin = xmin
     this%xmax = ieee_value(1.0, ieee_positive_inf)
     if(present(xmax)) this%xmax = xmax
+    this%min_it = 1
+    if (present(min_it)) this%min_it = min_it
     this%max_it = huge(0)
     if (present(max_it)) this%max_it = max_it
     this%it_solver = .false.
