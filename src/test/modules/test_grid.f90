@@ -489,6 +489,11 @@ contains
         call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
       end block
 
+      ! test output quadtree
+      call g%qtree%init(g, 6, 256)
+      call g%output_matlab("gtri", "1")
+      call g%qtree%output("qtree.dat")
+
       ! testing get_idx_bnd
       block
         integer :: bnd_n(2,1), bnd(2)

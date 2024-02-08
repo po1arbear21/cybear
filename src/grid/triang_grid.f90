@@ -113,6 +113,7 @@ module triang_grid_m
     procedure :: overlap    => quadtree_overlap
     procedure :: lookup_pnt => quadtree_lookup_pnt
     procedure :: print      => quadtree_print
+    procedure :: output     => quadtree_output
   end type
 
   ! interface to submodule routines in grid/quadtree.f90
@@ -163,6 +164,11 @@ module triang_grid_m
 
     module subroutine quadtree_print(this)
       class(quadtree), intent(in) :: this
+    end subroutine
+    module subroutine quadtree_output(this, fname)
+      class(quadtree), intent(in) :: this
+      character(*),    intent(in) :: fname
+        !! file name
     end subroutine
   end interface
 
