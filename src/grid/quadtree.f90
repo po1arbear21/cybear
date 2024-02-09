@@ -23,22 +23,27 @@ contains
       !! default: false
 
     integer :: i
-    logical :: with_edge_
+    logical :: with_edge_, wprint_
+    real, parameter :: eps = 1e-14
 
     with_edge_ = .false.
     if (present(with_edge)) with_edge_ = with_edge
 
-    res = .false.
-    do i=1, 2
-      if (with_edge_) then
-        if (pnt(i) < this%bnds(i, LOWER)) return
-        if (pnt(i) > this%bnds(i, UPPER)) return
+    if (with_edge_) then
+      if (pnt(X_IDX) >= this%bnds(X_IDX, LOWER) - eps .and. pnt(X_IDX) <= this%bnds(X_IDX, UPPER) + eps .and. &
+        & pnt(Y_IDX) >= this%bnds(Y_IDX, LOWER) - eps .and. pnt(Y_IDX) <= this%bnds(Y_IDX, UPPER) + eps) then
+        res =.true.
       else
-        if (pnt(i) <= this%bnds(i, LOWER)) return
-        if (pnt(i) >= this%bnds(i, UPPER)) return
+        res = .false.
       end if
-    end do
-    res = .true.
+    else
+      if (pnt(X_IDX) > this%bnds(X_IDX, LOWER) - eps .and. pnt(X_IDX) < this%bnds(X_IDX, UPPER) + eps .and. &
+        & pnt(Y_IDX) > this%bnds(Y_IDX, LOWER) - eps .and. pnt(Y_IDX) < this%bnds(Y_IDX, UPPER) + eps) then
+        res =.true.
+      else
+        res = .false.
+      end if
+    end if
   end subroutine
 
   module subroutine quadtree_init(this, g, Ntri_max, Nnodes)
@@ -106,7 +111,7 @@ contains
 
     dr = 0.5*(n%bnds(:,2)-n%bnds(:,1))
     do ix=1, 2; do iy=1, 2
-      nchild(ix,iy)%bnds(:,1) = n%bnds(:,1) + [ix-1, iy-1]*dr ! lower, left corner
+      nchild(ix,iy)%bnds(:,1) = n%bnds(:,1) + [real(ix)-1.0, real(iy)-1.0]*dr ! lower, left corner
       nchild(ix,iy)%bnds(:,2) = nchild(ix,iy)%bnds(:,1) + dr
 
       ! determine which triangles are within bnds of nchild(ix,iy)
@@ -280,9 +285,9 @@ contains
 
     do i=1, this%nodes%n
       if (this%nodes%d(i)%ichild == 0) then
-        write (iounit, '(F6.2, x, F6.2, x, F6.2, x, F6.2)'), minval(this%nodes%d(i)%bnds(1,:)), minval(this%nodes%d(i)%bnds(2,:)), &
-                                                           & abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)),  &
-                                                           & abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1))
+        write (iounit, '(ES25.16E3, x, ES25.16E3, x, ES25.16E3, x, ES25.16E3)'),      &
+              & minval(this%nodes%d(i)%bnds(1,:)), minval(this%nodes%d(i)%bnds(2,:)), &
+              & abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1))
       end if
     end do
 
