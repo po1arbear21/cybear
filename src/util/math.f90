@@ -172,7 +172,7 @@ contains
       end do
     else
       ! FIXME: not that accurate at 0.5..0.8 (error of 5e-15)
-      dbdx2 = exp(x_) * (expm1(x_) * (x_ - 2) + 2 * x_) / expm1(x_)**3
+      dbdx2 = exp(x_) / expm1(x_) * (x_ - 2 + 2 * x_ / expm1(x_)) / expm1(x_)
     end if
   end function
 
