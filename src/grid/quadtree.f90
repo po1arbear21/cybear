@@ -20,25 +20,30 @@ contains
     logical,     intent(out) :: res
     logical,     intent(in), optional :: with_edge
       !! return res=true if pnt lies on a edge of node
-      !! default: false  
+      !! default: false
 
     integer :: i
-    logical :: with_edge_
+    logical :: with_edge_, wprint_
+    real, parameter :: eps = 1e-14
 
     with_edge_ = .false.
     if (present(with_edge)) with_edge_ = with_edge
 
-    res = .false.
-    do i=1, 2
-      if (with_edge_) then
-        if (pnt(i) < this%bnds(i, LOWER)) return
-        if (pnt(i) > this%bnds(i, UPPER)) return
-      else 
-        if (pnt(i) <= this%bnds(i, LOWER)) return
-        if (pnt(i) >= this%bnds(i, UPPER)) return
-      end if 
-    end do
-    res = .true.
+    if (with_edge_) then
+      if (pnt(X_IDX) >= this%bnds(X_IDX, LOWER) - eps .and. pnt(X_IDX) <= this%bnds(X_IDX, UPPER) + eps .and. &
+        & pnt(Y_IDX) >= this%bnds(Y_IDX, LOWER) - eps .and. pnt(Y_IDX) <= this%bnds(Y_IDX, UPPER) + eps) then
+        res =.true.
+      else
+        res = .false.
+      end if
+    else
+      if (pnt(X_IDX) > this%bnds(X_IDX, LOWER) - eps .and. pnt(X_IDX) < this%bnds(X_IDX, UPPER) + eps .and. &
+        & pnt(Y_IDX) > this%bnds(Y_IDX, LOWER) - eps .and. pnt(Y_IDX) < this%bnds(Y_IDX, UPPER) + eps) then
+        res =.true.
+      else
+        res = .false.
+      end if
+    end if
   end subroutine
 
   module subroutine quadtree_init(this, g, Ntri_max, Nnodes)
@@ -58,11 +63,11 @@ contains
     this%vert      = g%vert
     Ntri           = size(g%cell2vert(1,:))
     call this%itr_vec%init(Ntri, c=5*Ntri, x=[(i, i=1, Ntri)])
-    
+
     ! init quadtree
     this%Ntri_max = Ntri_max
     call this%nodes%init(0, c=Nnodes)
-    
+
     ! init first node
     do i=1, 2
       n1%bnds(i,:) = [minval(g%vert(i,:)), maxval(g%vert(i,:))]
@@ -76,8 +81,11 @@ contains
     do i=1, Nnodes
       if (i > this%nodes%n) exit
       call this%subdivide(this%nodes%d(i))
-      if (this%nodes%n > Nnodes) call program_error('The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.')
-    end do 
+      if (this%nodes%n > Nnodes) then
+        print *, "this%nodes%n", this%nodes%n
+        call program_error('The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.')
+      end if
+    end do
   end subroutine
 
   module subroutine quadtree_subdivide(this, n)
@@ -103,26 +111,26 @@ contains
 
     dr = 0.5*(n%bnds(:,2)-n%bnds(:,1))
     do ix=1, 2; do iy=1, 2
-      nchild(ix,iy)%bnds(:,1) = n%bnds(:,1) + [ix-1, iy-1]*dr ! lower, left corner
+      nchild(ix,iy)%bnds(:,1) = n%bnds(:,1) + [real(ix)-1.0, real(iy)-1.0]*dr ! lower, left corner
       nchild(ix,iy)%bnds(:,2) = nchild(ix,iy)%bnds(:,1) + dr
-      
+
       ! determine which triangles are within bnds of nchild(ix,iy)
       call itr_vec_%init(0, c=n%iupper-n%ilower+1)
       do i=n%ilower, n%iupper
-        if (this%overlap(nchild(ix,iy), this%itr_vec%d(i))) call itr_vec_%push(this%itr_vec%d(i)) 
+        if (this%overlap(nchild(ix,iy), this%itr_vec%d(i))) call itr_vec_%push(this%itr_vec%d(i))
           !! push triangles overlapping with bnds of nchild
       end do
 
-      ! store indices of overlapping triangles in this%itr_vec 
+      ! store indices of overlapping triangles in this%itr_vec
       nchild(ix,iy)%ilower = this%itr_vec%n + 1
       nchild(ix,iy)%iupper = this%itr_vec%n + itr_vec_%n
       call this%itr_vec%push(itr_vec_%to_array())
-      
+
       call this%nodes%push(nchild(ix,iy))
       call itr_vec_%destruct()
     end do; end do
   end subroutine
- 
+
   module function quadtree_overlap(this, n, itriang) result(res)
     class(quadtree), intent(in) :: this
     type(node),      intent(in) :: n
@@ -235,18 +243,18 @@ contains
               !! triangle found
               icell = itr
               return
-            end if 
-          end do 
-        else 
+            end if
+          end do
+        else
           k = 0
           i = this%nodes%d(i)%ichild
-        end if 
+        end if
       else
         i = i + 1
-        k = k + 1 
-        if (k > 4) return ! a node cannot have more than 4 childern 
-      end if 
-    end do 
+        k = k + 1
+        if (k > 4) return ! a node cannot have more than 4 childern
+      end if
+    end do
   end function
 
   module subroutine quadtree_print(this)
@@ -264,14 +272,36 @@ contains
       end if
     end do
   end subroutine
+
+  module subroutine quadtree_output(this, fname)
+    class(quadtree), intent(in) :: this
+    character(*),    intent(in) :: fname
+      !! file name
+
+    integer :: iounit, ios, i
+
+    open (newunit=iounit, file=fname, iostat=ios, action="WRITE")
+    if (ios /= 0) call program_error("Error opening file")
+
+    do i=1, this%nodes%n
+      if (this%nodes%d(i)%ichild == 0) then
+        write (iounit, '(ES25.16E3, x, ES25.16E3, x, ES25.16E3, x, ES25.16E3)'),      &
+              & minval(this%nodes%d(i)%bnds(1,:)), minval(this%nodes%d(i)%bnds(2,:)), &
+              & abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1))
+      end if
+    end do
+
+    close (iounit)
+  end subroutine
+
   function tri_contain_pnt(vert, p) result(res)
     real, intent(in) :: vert(2,3)
       !! vertices of triangle
     real, intent(in) :: p(2)
-      !! point  
+      !! point
     logical          :: res
 
-    real :: s, t, A 
+    real :: s, t, A
 
     res = .false.
 
@@ -296,7 +326,7 @@ contains
     a = l1(:,2)-l1(:,1)
     b = l2(:,2)-l2(:,1)
     c = l2(:,1)-l1(:,1)
-    
+
     res = .false.
     if (cross_product_2d(a,b) == 0) return! lines parallel
 
