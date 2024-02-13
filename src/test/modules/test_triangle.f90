@@ -20,7 +20,7 @@ contains
 subroutine test_triangle()
   type(test_case)     :: tc
   type(triangulation) :: tr
-  type(triang_grid)   :: g
+  type(triang_grid)   :: g, g2
 
   call tc%init("triangle")
 
@@ -66,8 +66,15 @@ subroutine test_triangle()
   call tr%get_grid("tr", g)
   call tc%assert_eq(tr%xy%n/2, size(g%vert, dim = 2), "triangle: get_grid")
   call tc%assert_eq(tr%triangles%n/3, size(g%cell2vert, dim = 2), "triangle: get_grid")
-  ! call init_normconst(300.0)
-  ! call g%output_plotmtv("tr", "1")
+  call init_normconst(300.0)
+
+  ! write matlab output
+  call g%output_matlab("grid", "1")
+
+  ! read matlab output
+  call g2%read_matlab("g", "grid", "1")
+  call tc%assert_eq(g%vert,      g2%vert     , 1e-12, 1e-12, "triangle: read matlab output (vert)")
+  call tc%assert_eq(g%cell2vert, g2%cell2vert,               "triangle: read matlab output (cell2vert)")
 
   call tc%finish()
 end subroutine
