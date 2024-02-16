@@ -22,8 +22,7 @@ contains
       !! return res=true if pnt lies on a edge of node
       !! default: false
 
-    integer :: i
-    logical :: with_edge_, wprint_
+    logical :: with_edge_
     real, parameter :: eps = 1e-14
 
     with_edge_ = .false.

@@ -475,24 +475,24 @@ contains
       call tc%assert_eq( 3,  g%cell_nvert, "triang_grid: cell_nvert")
       call tc%assert_eq([3], g%cell_nedge, "triang_grid: cell_nedge")
 
-      ! testing get_icell
-      block
-        integer :: itr
-
-        call g%get_icell([2.0, 2.0], itr)
-        call tc%assert_eq(1, itr, "triang_grid: get_icell 1")
-        call g%get_icell([3.2, 2.5], itr)
-        call tc%assert_eq(3, itr, "triang_grid: get_icell 3")
-        call g%get_icell([3.5, 2.0], itr)
-        call tc%assert_eq(4, itr, "triang_grid: get_icell 4")
-        call g%get_icell([1.0, 4.0], itr)
-        call tc%assert_eq(6, itr, "triang_grid: get_icell 6")
-      end block
-
       ! test output quadtree
-      call g%qtree%init(g, 6, 256)
+      call g%init_qtree(Nnodes=30, Ntri_max=6)
       call g%output_matlab("gtri", "1")
       call g%qtree%output("qtree.dat")
+
+      ! testing get_idx_cell
+      block
+        integer :: itr(1)
+
+        call g%get_idx_cell([2.0, 2.0], itr)
+        call tc%assert_eq(1, itr(1), "triang_grid: get_idx_cell 1")
+        call g%get_idx_cell([3.2, 2.5], itr)
+        call tc%assert_eq(3, itr(1), "triang_grid: get_idx_cell 3")
+        call g%get_idx_cell([3.5, 2.0], itr)
+        call tc%assert_eq(4, itr(1), "triang_grid: get_idx_cell 4")
+        call g%get_idx_cell([1.0, 4.0], itr)
+        call tc%assert_eq(6, itr(1), "triang_grid: get_idx_cell 6")
+      end block
 
       ! testing get_idx_bnd
       block
