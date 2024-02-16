@@ -344,10 +344,10 @@ contains
 
   subroutine triang_grid_get_idx_cell(this, pnt, idx)
     !! get idx of cell that contains point (pnt)
-    class(triang_grid), intent(inout) :: this
-    real,               intent(in)    :: pnt(2)
+    class(triang_grid), intent(in)  :: this
+    real,               intent(in)  :: pnt(2)
       !! pnt = [x, y]
-    integer,            intent(out)   :: idx(1)
+    integer,            intent(out) :: idx(1)
       !! idx of triangle
 
     if(.not. allocated(this%qtree)) call program_error("call subroutine init_qtree before using get_idx_cell")
