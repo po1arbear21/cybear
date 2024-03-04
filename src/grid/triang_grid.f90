@@ -166,10 +166,12 @@ module triang_grid_m
     module subroutine quadtree_print(this)
       class(quadtree), intent(in) :: this
     end subroutine
-    module subroutine quadtree_output(this, fname)
+    module subroutine quadtree_output(this, fname, unit)
       class(quadtree), intent(in) :: this
       character(*),    intent(in) :: fname
         !! file name
+      character(*),    intent(in) :: unit
+        !! name of unit
     end subroutine
   end interface
 
@@ -321,13 +323,13 @@ contains
     this%max_neighb(IDX_FACE,           :) = this%max_neighb(IDX_EDGE,:)
   end subroutine
 
-  subroutine triang_grid_init_qtree(this, Nnodes, Ntri_max)
+  subroutine triang_grid_init_qtree(this, Ntri_max, Nnodes)
     !! init quadtree before using subroutine get_idx_cell
     class(triang_grid), intent(inout) :: this
-    integer, optional,  intent(in)    :: Nnodes
-      !! maximum #nodes in quadtree. default: 2*nvert
     integer, optional,  intent(in)    :: Ntri_max
       !! maximum number of cells associated with a node. default: 20
+    integer, optional,  intent(in)    :: Nnodes
+      !! maximum #nodes in quadtree. default: 2*nvert
 
     integer :: Nnodes_, Ntri_max_
 
@@ -339,7 +341,7 @@ contains
     if (present(Ntri_max)) Ntri_max_ = Ntri_max
 
     allocate (this%qtree)
-    call this%qtree%init(this, Nnodes_, Ntri_max_)
+    call this%qtree%init(this, Ntri_max_, Nnodes_)
   end subroutine
 
   subroutine triang_grid_get_idx_cell(this, pnt, idx)

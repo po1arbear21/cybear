@@ -272,10 +272,12 @@ contains
     end do
   end subroutine
 
-  module subroutine quadtree_output(this, fname)
+  module subroutine quadtree_output(this, fname, unit)
     class(quadtree), intent(in) :: this
     character(*),    intent(in) :: fname
       !! file name
+    character(*),    intent(in) :: unit
+      !! name of unit
 
     integer :: iounit, ios, i
 
@@ -284,9 +286,9 @@ contains
 
     do i=1, this%nodes%n
       if (this%nodes%d(i)%ichild == 0) then
-        write (iounit, '(ES25.16E3, x, ES25.16E3, x, ES25.16E3, x, ES25.16E3)'),      &
-              & minval(this%nodes%d(i)%bnds(1,:)), minval(this%nodes%d(i)%bnds(2,:)), &
-              & abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1))
+        write (iounit, '(ES25.16E3, x, ES25.16E3, x, ES25.16E3, x, ES25.16E3)'), &
+              &denorm(minval(this%nodes%d(i)%bnds(1,:)), unit), denorm(minval(this%nodes%d(i)%bnds(2,:)), unit),&
+              &denorm(abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), unit), denorm(abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1)), unit)
       end if
     end do
 

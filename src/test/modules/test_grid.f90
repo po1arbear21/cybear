@@ -478,7 +478,7 @@ contains
       ! test output quadtree
       call g%init_qtree(Nnodes=30, Ntri_max=6)
       call g%output_matlab("gtri", "1")
-      call g%qtree%output("qtree.dat")
+      call g%qtree%output("qtree.dat", "1")
 
       ! testing get_idx_cell
       block
