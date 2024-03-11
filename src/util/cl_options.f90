@@ -2,7 +2,7 @@ m4_include(macro.f90.inc)
 
 module cl_options_m
 
-  use error_m,  only: program_error
+  use error_m,  only: assert_failed, program_error
   use map_m,    only: map_string_int, mapnode_string_int
   use string_m, only: new_string, string
   use util_m,   only: int2str
@@ -12,7 +12,7 @@ module cl_options_m
 
   private
   public cl_option_descriptor, new_cl_option_descriptor
-  public cl_option, get_cl_options
+  public cl_option, get_cl_options, get_cl_options_simple
 
   integer, parameter :: MAX_LONG_NAME = 256
 
@@ -168,6 +168,50 @@ contains
       idesc = vparse%d(2 * i - 1)
       jopt(iopt(idesc) + kopt(idesc)) = i
       kopt(idesc) = kopt(idesc) + 1
+    end do
+  end subroutine
+
+  subroutine get_cl_options_simple(names, values)
+    !! provide long names, return corresponding values, without need for descriptors
+    type(string), intent(in)  :: names(:)
+      !! long names (short = first letter, req = true, multi = false, arg = true, arg_req = true)
+    type(string), intent(out) :: values(:)
+      !! return values
+
+    character(1)                            :: short
+    type(string)                            :: s
+    integer                                 :: i, ii, j, k, n
+    type(cl_option_descriptor), allocatable :: desc(:)
+    type(cl_option),            allocatable :: opt(:)
+    type(map_string_int)                    :: short_map
+    type(mapnode_string_int),   pointer     :: node
+    integer,                    allocatable :: iopt(:), jopt(:)
+
+    n = size(names)
+    m4_assert(size(values) == n)
+
+    ! create descriptors
+    allocate (desc(n))
+    call short_map%init()
+    do i = 1, n
+      short = names(i)%s(1:1)
+      s = new_string(short)
+      node => short_map%find(s)
+      if (associated(node)) then
+        call program_error("Found multiple option names starting with letter '" // short // "'")
+      end if
+      desc(i) = cl_option_descriptor(names(i)%s(1:1), names(i)%s, .true., .false., .true., .true.)
+      call short_map%insert(s, i)
+    end do
+
+    ! get command line options and collect corresponding values
+    call get_cl_options(desc, opt, iopt, jopt)
+    do i = 1, n
+      do ii = iopt(i), iopt(i + 1) - 1
+        j = jopt(ii)
+        k = short_map%get(new_string(opt(j)%short))
+        values(k)%s = opt(j)%arg
+      end do
     end do
   end subroutine
 
