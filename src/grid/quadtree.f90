@@ -15,15 +15,16 @@ contains
 
   module subroutine node_contain_pnt(this, pnt, res, with_edge)
     !! check if pnt lies within bnds of node
-    class(node), intent(in)  :: this
-    real,        intent(in)  :: pnt(2)
-    logical,     intent(out) :: res
-    logical,     intent(in), optional :: with_edge
+    class(node),       intent(in)  :: this
+    real,              intent(in)  :: pnt(2)
+    logical,           intent(out) :: res
+    logical, optional, intent(in)  :: with_edge
       !! return res=true if pnt lies on a edge of node
       !! default: false
 
-    logical :: with_edge_
     real, parameter :: eps = 1e-14
+
+    logical :: with_edge_
 
     with_edge_ = .false.
     if (present(with_edge)) with_edge_ = with_edge
@@ -82,7 +83,7 @@ contains
       call this%subdivide(this%nodes%d(i))
       if (this%nodes%n > Nnodes) then
         print *, "this%nodes%n", this%nodes%n
-        call program_error('The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.')
+        call program_error("The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.")
       end if
     end do
   end subroutine
@@ -261,13 +262,14 @@ contains
 
     integer :: i
 
-    print '(A, I10, /)', 'total #nodes', this%nodes%n
-    print '(A)', 'all leafs:'
+    print "(A, I10, /)", "total #nodes", this%nodes%n
+    print "(A)", "all leafs:"
     do i=1, this%nodes%n
       if (this%nodes%d(i)%ichild == 0) then
-        print '(F6.2, x, F6.2, x, F6.2, x, F6.2, I3)', this%nodes%d(i)%bnds(1,1), this%nodes%d(i)%bnds(1,2), &
-                                                      &this%nodes%d(i)%bnds(2,1), this%nodes%d(i)%bnds(2,2), &
-                                                      &(this%nodes%d(i)%iupper - this%nodes%d(i)%ilower + 1)
+        print "(F6.2,x,F6.2,x,F6.2,x,F6.2, I3)", &
+          & this%nodes%d(i)%bnds(1,1), this%nodes%d(i)%bnds(1,2), &
+          & this%nodes%d(i)%bnds(2,1), this%nodes%d(i)%bnds(2,2), &
+          & (this%nodes%d(i)%iupper - this%nodes%d(i)%ilower + 1)
       end if
     end do
   end subroutine
@@ -281,14 +283,14 @@ contains
 
     integer :: iounit, ios, i
 
-    open (newunit=iounit, file=fname, iostat=ios, action="WRITE")
+    open (newunit = iounit, file = fname, iostat = ios, status = "replace", action=  "write")
     if (ios /= 0) call program_error("Error opening file")
 
     do i=1, this%nodes%n
       if (this%nodes%d(i)%ichild == 0) then
-        write (iounit, '(ES25.16E3, x, ES25.16E3, x, ES25.16E3, x, ES25.16E3)'), &
-              &denorm(minval(this%nodes%d(i)%bnds(1,:)), unit), denorm(minval(this%nodes%d(i)%bnds(2,:)), unit),&
-              &denorm(abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), unit), denorm(abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1)), unit)
+        write (iounit, "(ES25.16E3,x,ES25.16E3,x,ES25.16E3,x,ES25.16E3)") &
+          & denorm(minval(this%nodes%d(i)%bnds(1,:)), unit), denorm(minval(this%nodes%d(i)%bnds(2,:)), unit), &
+          & denorm(abs(this%nodes%d(i)%bnds(1,2)-this%nodes%d(i)%bnds(1,1)), unit), denorm(abs(this%nodes%d(i)%bnds(2,2)-this%nodes%d(i)%bnds(2,1)), unit)
       end if
     end do
 
@@ -337,4 +339,5 @@ contains
 
     if (s>0 .and. s<1 .and. t>0 .and. t<1) res = .true.
   end function
+
 end submodule
