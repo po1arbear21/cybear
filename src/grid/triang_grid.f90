@@ -54,7 +54,8 @@ module triang_grid_m
       !! quadtree to efficiently search cells based on point coordinates
   contains
     procedure :: init           => triang_grid_init
-    procedure :: get_icell      => triang_grid_get_icell
+    procedure :: init_qtree     => triang_grid_init_qtree
+    procedure :: get_idx_cell   => triang_grid_get_idx_cell
     procedure :: get_idx_bnd_n  => triang_grid_get_idx_bnd_n
     procedure ::                   triang_grid_get_idx_bnd_1
     generic   :: get_idx_bnd    => triang_grid_get_idx_bnd_1
@@ -165,10 +166,12 @@ module triang_grid_m
     module subroutine quadtree_print(this)
       class(quadtree), intent(in) :: this
     end subroutine
-    module subroutine quadtree_output(this, fname)
+    module subroutine quadtree_output(this, fname, unit)
       class(quadtree), intent(in) :: this
       character(*),    intent(in) :: fname
         !! file name
+      character(*),    intent(in) :: unit
+        !! name of unit
     end subroutine
   end interface
 
@@ -320,32 +323,39 @@ contains
     this%max_neighb(IDX_FACE,           :) = this%max_neighb(IDX_EDGE,:)
   end subroutine
 
-  subroutine triang_grid_get_icell(this, pnt, icell, Nnodes, Ntri_max)
-    !! get cell idx of triangle that contains point pnt
+  subroutine triang_grid_init_qtree(this, Ntri_max, Nnodes)
+    !! init quadtree before using subroutine get_idx_cell
     class(triang_grid), intent(inout) :: this
-    real,               intent(in)    :: pnt(2)
-      !! pnt = [x, y]
-    integer,            intent(out)   :: icell
-      !! idx of triangle
     integer, optional,  intent(in)    :: Ntri_max
-      !! maximum #triangles associated with a node. default: 4
+      !! maximum number of cells associated with a node. default: 20
     integer, optional,  intent(in)    :: Nnodes
-      !! maximum #nodes in quadtree. default: 256
+      !! maximum #nodes in quadtree. default: 2*nvert
 
     integer :: Nnodes_, Ntri_max_
 
-    if (.not. allocated(this%qtree)) then
-      Ntri_max_ = 4
-      Nnodes_   = 256
-      if (present(Ntri_max)) Ntri_max_ = Ntri_max
-      if (present(Nnodes  )) Nnodes_   = Nnodes
+    m4_assert(.not. allocated(this%qtree))
 
-      allocate (this%qtree)
-      call this%qtree%init(this, Nnodes_, Ntri_max_)
-    end if
+    Nnodes_   = 2*this%nvert
+    Ntri_max_ = 20
+    if (present(Nnodes  )) Nnodes_   = Nnodes
+    if (present(Ntri_max)) Ntri_max_ = Ntri_max
 
-    icell = this%qtree%lookup_pnt(pnt)
-    if (icell == 0) call program_error("Unable to find cell")
+    allocate (this%qtree)
+    call this%qtree%init(this, Ntri_max_, Nnodes_)
+  end subroutine
+
+  subroutine triang_grid_get_idx_cell(this, pnt, idx)
+    !! get idx of cell that contains point (pnt)
+    class(triang_grid), intent(in)  :: this
+    real,               intent(in)  :: pnt(2)
+      !! pnt = [x, y]
+    integer,            intent(out) :: idx(1)
+      !! idx of triangle
+
+    if(.not. allocated(this%qtree)) call program_error("call subroutine init_qtree before using get_idx_cell")
+
+    idx(1) = this%qtree%lookup_pnt(pnt)
+    if (idx(1) == 0) call program_error("Unable to find cell")
   end subroutine
 
   subroutine triang_grid_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)

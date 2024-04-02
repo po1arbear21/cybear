@@ -45,3 +45,12 @@
     ] }
   ]
 
+[test_cl_simple]
+  name     = "test_cl_simple"
+  single   = true
+  compiler = "gnu"
+  mode     = "debug"
+  runner   = "local"
+  order    = "sequential"
+  target   = "cl_test_simple"
+  args     = "--file abc.txt -o out"
