@@ -201,7 +201,7 @@ contains
     logical,     intent(in)  :: l
     character(1)             :: str
 
-    write(str, "(L)") l
+    write(str, "(L1)") l
   end function
 
   function real2str(r, fmt) result(str)

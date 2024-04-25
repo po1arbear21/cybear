@@ -86,14 +86,14 @@ module spike_m
         !! upper bandwidth of A
       integer, intent(in)    :: nrhs
         !! number of right-hand sides
-      $2,      intent(in)    :: A(lda,*)
-        !! matrix A
       integer, intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
-      $2,      intent(inout) :: B(ldb,*)
-        !! right hand sides, overwritten by solution
+      $2,      intent(in)    :: A(lda,*)
+        !! matrix A
       integer, intent(in)    :: ldb
         !! leading dimension of B
+      $2,      intent(inout) :: B(ldb,*)
+        !! right hand sides, overwritten by solution
       integer, intent(out)   :: info
         !! output information
         !! 0: fact. required no boosting
@@ -111,10 +111,10 @@ module spike_m
         !! lower bandwidth of A
       integer, intent(in)    :: ku
         !! upper bandwidth of A
-      $2,      intent(inout) :: A(lda,*)
-        !! matrix A, overwritten by factorization
       integer, intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
+      $2,      intent(inout) :: A(lda,*)
+        !! matrix A, overwritten by factorization
       $2,      intent(inout) :: work(*)
         !! work array of size klu**2 * spm(10)
       integer, intent(out)   :: info
@@ -140,16 +140,16 @@ module spike_m
         !! upper bandwidth of A
       integer,   intent(in)    :: nrhs
         !! number of right-hand sides
-      $2,        intent(in)    :: A(lda,*)
-        !! factorized matrix A
       integer,   intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
+      $2,        intent(in)    :: A(lda,*)
+        !! factorized matrix A
       $2,        intent(in)    :: work(*)
         !! work array of size klu**2 * spm(10)
-      $2,        intent(inout) :: B(ldb,*)
-        !! right hand sides, overwritten by solution
       integer,   intent(in)    :: ldb
         !! leading dimension of B
+      $2,        intent(inout) :: B(ldb,*)
+        !! right hand sides, overwritten by solution
     end subroutine
 
     subroutine $1spike_gbtrsi(spm, trans, n, kl, ku, nrhs, C, ldc, A, lda, work, B, ldb)
@@ -168,20 +168,20 @@ module spike_m
         !! upper bandwidth of A
       integer,   intent(in)    :: nrhs
         !! number of right-hand sides
-      $2,        intent(in)    :: C(ldc,*)
-        !! original matrix A
       integer,   intent(in)    :: ldc
         !! leading dimension of C (ldc  = kl + ku + 1)
-      $2,        intent(in)    :: A(lda,*)
-        !! factorized matrix A
+      $2,        intent(in)    :: C(ldc,*)
+        !! original matrix A
       integer,   intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
+      $2,        intent(in)    :: A(lda,*)
+        !! factorized matrix A
       $2,        intent(in)    :: work(*)
         !! work array of size klu**2 * spm(10)
-      $2,        intent(inout) :: B(ldb,*)
-        !! right hand sides, overwritten by solution
       integer,   intent(in)    :: ldb
         !! leading dimension of B
+      $2,        intent(inout) :: B(ldb,*)
+        !! right hand sides, overwritten by solution
     end subroutine
 
     subroutine $1spike_gbtrfp(spm, n, kl, ku, A, lda, work, ipiv, info)
@@ -194,10 +194,10 @@ module spike_m
         !! lower bandwidth of A
       integer, intent(in)    :: ku
         !! upper bandwidth of A
-      $2,      intent(inout) :: A(lda,*)
-        !! matrix A, overwritten by factorization
       integer, intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
+      $2,      intent(inout) :: A(lda,*)
+        !! matrix A, overwritten by factorization
       $2,      intent(inout) :: work(*)
         !! work array of size klu**2 * spm(10)
       integer, intent(out)   :: ipiv(*)
@@ -221,18 +221,18 @@ module spike_m
         !! upper bandwidth of A
       integer, intent(in)    :: nrhs
         !! number of right-hand sides
-      $2,      intent(in)    :: A(lda,*)
-        !! factorized matrix A
       integer, intent(in)    :: lda
         !! leading dimension of A (lda  = kl + ku + 1)
+      $2,      intent(in)    :: A(lda,*)
+        !! factorized matrix A
       $2,      intent(inout) :: work(*)
         !! work array of size klu**2 * spm(10)
       integer, intent(in)    :: ipiv(*)
         !! pivoting array of size n
-      $2,      intent(inout) :: B(ldb,*)
-        !! right hand sides, overwritten by solution
       integer, intent(in)    :: ldb
         !! leading dimension of B
+      $2,      intent(inout) :: B(ldb,*)
+        !! right hand sides, overwritten by solution
     end subroutine
 
     })

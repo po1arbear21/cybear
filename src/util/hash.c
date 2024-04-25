@@ -100,7 +100,7 @@ int32_t c_hash_string32(const unsigned char *str) {
   uint32_t c;
 
   hash.u = 2166136261u;
-  while (c = *str++) {
+  while ((c = *str++)) {
     hash.u ^= c;
     hash.u *= 16777619u;
   }
@@ -112,7 +112,7 @@ int64_t c_hash_string64(const unsigned char *str) {
   uint64_t c;
 
   hash.u = 14695981039346656037ull;
-  while (c = *str++) {
+  while ((c = *str++)) {
     hash.u ^= c;
     hash.u *= 1099511628211ull;
   }

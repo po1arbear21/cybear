@@ -1,36 +1,21 @@
 [project]
-  INTSIZE = 32
-  IDXSIZE = 32
-
-  [project.libraries]
-    ARPACK   = false
-    EXPOKIT  = false
-    FEAST    = false
-    ILUPACK  = false
-    MUMPS    = false
-    QUADPACK = false
-    MPFR     = false
-    TRIANGLE = false
-    SPIKE    = false
-    ZLIB     = false
+  libraries = ["ARPACK", "EXPOKIT", "FEAST", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE"]
 
 [debug]
-  name     = "debug"
-  single   = true
-  compiler = "gnu"
-  mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "main"
+  single      = true
+  compiler    = "gfortran"
+  mode        = "debug"
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
+  target      = "main"
 
 [test]
-  name     = "test"
-  single   = true
-  compiler = "gnu"
-  mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "test"
+  single      = true
+  compiler    = "gfortran"
+  mode        = "debug"
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
+  target      = "test"
 
   templates = [
     { files = [
@@ -46,11 +31,10 @@
   ]
 
 [test_cl_simple]
-  name     = "test_cl_simple"
-  single   = true
-  compiler = "gnu"
-  mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "cl_test_simple"
-  args     = "--file abc.txt -o out"
+  single      = true
+  compiler    = "gfortran"
+  mode        = "debug"
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
+  target      = "cl_test_simple"
+  args        = "--file abc.txt -o out"
