@@ -1,56 +1,42 @@
 [project]
-  INTSIZE = 32
-  IDXSIZE = 32
-
-  [project.libraries]
-    ARPACK   = false
-    EXPOKIT  = false
-    FEAST    = false
-    ILUPACK  = false
-    MUMPS    = false
-    QUADPACK = false
-    MPFR     = false
-    TRIANGLE = false
-    SPIKE    = false
-    ZLIB     = false
+  libraries = ["MPFR", "MUMPS", "TRIANGLE", "ZLIB"]
 
 [debug]
-  name     = "debug"
-  single   = true
   compiler = "gnu"
   mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "main"
+  single   = true
+  target   = "dd"
+  args     = "--project_dir {project_dir} --run {files[0]} --temperature 4.0 --device {files[1]}"
 
-[test]
-  name     = "test"
-  single   = true
-  compiler = "gnu"
-  mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "test"
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
 
   templates = [
-    { files = [
-        "src/test/example.inp",
-        "src/test/example_matrix4.dat",
-        "src/test/S1.test",
-        "src/test/S2.test",
-        "src/test/S3.test",
-        "src/test/table.csv",
-        "src/test/test1.json",
-        "src/test/test2.json",
-    ] }
+    { files = [ "run.ini" ] },
+    { files = [ "ED2023_tiny.ini" ], action="expand" }
   ]
 
-[test_cl_simple]
-  name     = "test_cl_simple"
-  single   = true
+[release]
   compiler = "gnu"
-  mode     = "debug"
-  runner   = "local"
-  order    = "sequential"
-  target   = "cl_test_simple"
-  args     = "--file abc.txt -o out"
+  mode     = "release"
+  single   = true
+  target   = "dd"
+  args     = "--project_dir {project_dir} --run {files[0]} --temperature 4.0 --device {files[1]}"
+
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
+
+  templates = [
+    { files = [ "run.ini" ] },
+    { files = [ "ED2023_tiny.ini" ], action="expand" }
+  ]
+
+[degen_table_test]
+  compiler = "gnu"
+  mode     = "release"
+  single   = true
+  target   = "degen_table_test"
+  args     = ""
+
+  runner      = "local"
+  runner_args = {mode = "synchronous"}
