@@ -156,7 +156,7 @@ module mpfr_c_m
       import
       type(mpfr_t),                    intent(inout) :: rop
       character(kind=c_char),          intent(in)    :: nptr(*)
-      character(kind=c_char), pointer, intent(out)   :: endptr
+      type(c_ptr),                     intent(in)    :: endptr(*)
       integer(c_int),         value,   intent(in)    :: base
       integer(mpfr_rnd_t),    value,   intent(in)    :: rnd
       integer(c_int)                                 :: ret

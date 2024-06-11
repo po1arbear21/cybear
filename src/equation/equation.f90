@@ -389,6 +389,9 @@ contains
 
     do j = 1, this%vdep%n
       associate (dep => this%vdep%d(j)%p)
+        ! no test if empty
+        if (dep%n < 1) cycle
+
         ! allocate memory for dependencies
         allocate (x0(dep%n), dx(dep%n), xm(dep%n), xp(dep%n))
 
