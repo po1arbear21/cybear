@@ -14,6 +14,7 @@ module approx_m
   use jacobian_m,       only: jacobian
   use math_m,           only: eye_real
   use matrix_m,         only: sparse_real
+  use normalization_m,  only: norm
   use poisson_m,        only: poisson
   use potential_m,      only: potential
   use res_equation_m,   only: res_equation
@@ -131,9 +132,17 @@ contains
         end if
         call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + sign(p, dop_eff))
       elseif (par%ci0 == CR_ELEC) then
-        call pot%set(idx, ireff(CR_ELEC) + log(max(dop(DOP_DCON)/max(par%smc%n_intrin,1e-30), 1.0)))
+        if (dop(DOP_DCON) > 0) then
+          call pot%set(idx, ireff(CR_ELEC) + 0.5 * par%smc%band_gap + log(dop(DOP_DCON) / sqrt(par%smc%edos(CR_ELEC) * par%smc%edos(CR_HOLE))))
+        else
+          call pot%set(idx, ireff(CR_ELEC))
+        end if
       elseif (par%ci0 == CR_HOLE) then
-        call pot%set(idx, ireff(CR_HOLE) - log(max(dop(DOP_ACON)/max(par%smc%n_intrin,1e-30), 1.0)))
+        if (dop(DOP_ACON) > 0) then
+          call pot%set(idx, ireff(CR_HOLE) + 0.5 * par%smc%band_gap - log(dop(DOP_ACON) / sqrt(par%smc%edos(CR_ELEC) * par%smc%edos(CR_HOLE))))
+        else
+          call pot%set(idx, ireff(CR_HOLE))
+        end if
       end if
     end do
 
@@ -152,10 +161,12 @@ contains
       !! voltages for all contacts
 
     integer              :: i, idx_dir, ict, dum(0)
-    real                 :: eps, cap
+    real                 :: eps, cap, ndum
     real,    allocatable :: d_volt(:,:), eye(:,:)
     integer, allocatable :: idx1(:), idx2(:), idx(:)
     logical              :: status
+
+    ndum = norm(1e-10, "1/cm^3")
 
     ! init base
     call this%equation_init("imref_approx_eq")
@@ -192,7 +203,7 @@ contains
         call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
         ! get "permittivity" (= mob * dens)
-        eps = par%mob0(IDX_EDGE,idx_dir,iref%ci)%get(idx) * max(par%smc%n_intrin, par%dop(IDX_EDGE,idx_dir,iref%ci)%get(idx))
+        eps = par%mob0(IDX_EDGE,idx_dir,iref%ci)%get(idx) * max(ndum, par%dop(IDX_EDGE,idx_dir,iref%ci)%get(idx))
 
         ! "capacitance" (= surf * mob * dens / len)
         cap = par%tr_surf(idx_dir)%get(idx) * eps / par%g%get_len(idx, idx_dir)

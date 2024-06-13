@@ -117,10 +117,10 @@ contains
     ! depends on ionization concentration (only defined if corresponding carrier density is enabled)
     if (par%smc%incomp_ion) then
       do ci = par%ci0, par%ci1
-        idep = this%depend(ion(ci), tab = par%dopvert(ci))
+        idep = this%depend(ion(ci), tab = par%ionvert(ci))
         jaco => this%init_jaco(iprov, idep, const = .true.)
-        do i = 1, par%dopvert(ci)%n
-          idx = par%dopvert(ci)%get_idx(i)
+        do i = 1, par%ionvert(ci)%n
+          idx = par%ionvert(ci)%get_idx(i)
           call jaco%set(idx, idx, DOP_CHARGE(ci))
         end do
       end do
@@ -151,11 +151,16 @@ contains
       ! doping
       do ci = DOP_DCON, DOP_ACON
         if (this%par%dopvert(ci)%flags%get(idx)) then
-          ! use full ionization if corresponding carrier type is disabled
+          ! full ionization
           ion = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
-          if (this%par%smc%incomp_ion) then
-            if ((ci >= this%par%ci0) .and. (ci <= this%par%ci1)) ion = this%ion(ci)%get(idx)
+
+          ! incomplete ionization
+          if (this%par%smc%incomp_ion .and. (ci >= this%par%ci0) .and. (ci <= this%par%ci1)) then
+            if (this%par%ionvert(ci)%flags%get(idx)) then
+              ion = this%ion(ci)%get(idx)
+            end if
           end if
+
           rho = rho + DOP_CHARGE(ci) * ion
         end if
       end do

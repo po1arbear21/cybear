@@ -2,7 +2,7 @@ module ionization_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
-  use distributions_m, only: fermi_dirac_integral_1h
+  use fermi_m,         only: fermi_dirac_integral_1h, fermi_dirac_generation_reg
   use equation_m,      only: equation
   use error_m,         only: program_error
   use grid_m,          only: IDX_VERTEX
@@ -167,12 +167,12 @@ contains
     this%iref => iref
 
     ! provides ionization
-    iprov = this%provide(ion, par%dopvert(ion%ci))
+    iprov = this%provide(ion, par%ionvert(ion%ci))
 
     ! depends on potential and imref if incomplete ionization is enabled
     if (par%smc%incomp_ion) then
-      this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%dopvert(ion%ci)), const = .false.)
-      this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%dopvert(ion%ci)), const = .false.)
+      this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%ionvert(ion%ci)), const = .false.)
+      this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%ionvert(ion%ci)), const = .false.)
     end if
 
     ! finish initialization
@@ -185,45 +185,34 @@ contains
 
     integer              :: i, ci
     integer, allocatable :: idx(:)
-    real                 :: b, ch, dop, e, E_dop, f, g, ion, dion, iref, pot
+    real                 :: ch, dop, Edop, ii_g, iref, pot, eta, f, df, g, dg, tmp, ion, dion
 
-    ci = this%ion%ci
-    ch = CR_CHARGE(ci)
     allocate (idx(this%par%g%idx_dim))
 
-    ! full ionization
-    if (.not. this%par%smc%incomp_ion) then
-      do i = 1, this%par%dopvert(ci)%n
-        idx = this%par%dopvert(ci)%get_idx(i)
-        call this%ion%set(idx, 1.0)
-      end do
-      return
-    end if
+    ci   = this%ion%ci
+    ch   = CR_CHARGE(ci)
+    ii_g = this%par%smc%ii_g(ci) ! degeneracy factor (2 or 4)
 
-    g = this%par%smc%ii_g(ci)
-    do i = 1, this%par%dopvert(ci)%n
-      idx  = this%par%dopvert(ci)%get_idx(i)
+    do i = 1, this%par%ionvert(ci)%n
+      idx = this%par%ionvert(ci)%get_idx(i)
 
-      b     = this%par%ii_b(ci)%get(idx)
-      E_dop = this%par%smc%band_edge(ci) + ch * this%par%ii_E_dop(ci)%get(idx)
-      dop   = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
-      iref  = this%iref%get(idx)
-      pot   = this%pot%get(idx)
+      dop  = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
+      Edop = this%par%ii_E_dop(ci)%get(idx) ! E_C - E_D or E_A - E_V , should be > 0
+      iref = this%iref%get(idx)
+      pot  = this%pot%get(idx)
+      eta  = - ch * (pot - iref - this%par%smc%band_edge(ci))
 
-      ! exponent
-      e = ch * ((pot - iref) - E_dop)
-
-      ! factor (exp(e) can overflow)
-      f = 1.0 / (1.0 + g * exp(e))
-
-      ! ionization and derivative
-      ion  = dop * (1 - b * f)
-      dion = dop * b * f * (1 - f)
-
-      ! save
+      if (eta < 300.0) then
+        tmp  = ii_g * exp(Edop) * exp(eta)
+        ion  = dop / (1.0 + tmp)
+        dion = - dop * tmp / (1.0 + tmp)**2
+      else
+        ion  = 0
+        dion = 0
+      end if
       call this%ion%set(idx, ion)
-      call this%jaco_pot%set(idx, idx,    ch * dion)
-      call this%jaco_iref%set(idx, idx, - ch * dion)
+      call this%jaco_pot%set( idx, idx, - ch * dion)
+      call this%jaco_iref%set(idx, idx,   ch * dion)
     end do
   end subroutine
 
@@ -250,8 +239,8 @@ contains
     this%ci = ci
 
     ! init variable selectors
-    call this%ion%init(ion, par%dopvert(ci))
-    call this%genrec%init(genrec, par%dopvert(ci))
+    call this%ion%init(ion, par%ionvert(ci))
+    call this%genrec%init(genrec, par%ionvert(ci))
 
     ! init residuals using this%ion as main variable
     call this%init_f(this%ion)
@@ -265,10 +254,10 @@ contains
 
     ! set jacobian entries
     allocate (idx(par%g%idx_dim))
-    do i = 1, par%dopvert(ci)%n
-      idx = par%dopvert(ci)%get_idx(i)
-      call this%jaco_t%set(     idx, idx,  1.0)
-      call this%jaco_genrec%set(idx, idx, -1.0)
+    do i = 1, par%ionvert(ci)%n
+      idx = par%ionvert(ci)%get_idx(i)
+      call this%jaco_t%set(     idx, idx, 1.0)
+      call this%jaco_genrec%set(idx, idx, 1.0)
     end do
 
     ! finish initialization
@@ -279,7 +268,7 @@ contains
     !! evaluate ionization continuity equation
     class(ion_continuity), intent(inout) :: this
 
-    call this%f%set(- this%genrec%get())
+    call this%f%set(this%genrec%get())
   end subroutine
 
   subroutine generation_recombination_init(this, par, ci)
@@ -334,12 +323,12 @@ contains
     this%ion    => ion
 
     ci    = genrec%ci
-    iprov = this%provide(genrec, par%dopvert(ci))
+    iprov = this%provide(genrec, par%ionvert(ci))
 
     ! dependencies
-    this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%dopvert(ci)), const = .false.)
-    this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%dopvert(ci)), const = .false.)
-    this%jaco_ion  => this%init_jaco(iprov, this%depend(ion,  par%dopvert(ci)), const = .false.)
+    this%jaco_pot  => this%init_jaco(iprov, this%depend(pot,  par%ionvert(ci)), const = .false.)
+    this%jaco_iref => this%init_jaco(iprov, this%depend(iref, par%ionvert(ci)), const = .false.)
+    this%jaco_ion  => this%init_jaco(iprov, this%depend(ion,  par%ionvert(ci)), const = .false.)
 
     ! finish initialization
     call this%init_final()
@@ -349,69 +338,46 @@ contains
     !! evaluate generation-recombination equation
     class(calc_generation_recombination), intent(inout) :: this
 
-    real, parameter :: alpha = sqrt(0.125)
-
-    integer              :: ci, i
+    integer              :: i, ci
     integer, allocatable :: idx(:)
-    logical              :: degen
-    real                 :: b, ch, dop, dens, ddens, E_dop, e, eta, fac, dfac, g, ion, iref, pot, gen, dgen, rec, drec
-    real                 :: genrec, dgenrecdeta, dgenrecdion
+    real                 :: ch, dop, Edop, ii_g, iref, pot, ion, eta, f, df, g, dg
+    real                 :: gen, dgen, rec, drec, genrec, dgenrecdeta, dgenrecdion
 
     ci    = this%genrec%ci
     ch    = CR_CHARGE(ci)
-    g     = this%par%smc%ii_g(ci)
-    degen = this%par%smc%degen
+    ii_g  = this%par%smc%ii_g(ci) ! degeneracy factor (2 or 4)
 
     allocate (idx(this%par%g%idx_dim))
-    do i = 1, this%par%dopvert(ci)%n
-      idx = this%par%dopvert(ci)%get_idx(i)
+    do i = 1, this%par%ionvert(ci)%n
+      idx = this%par%ionvert(ci)%get_idx(i)
 
-      ! doping and doping energy level
-      b     = this%par%ii_b(ci)%get(idx)
-      E_dop = this%par%smc%band_edge(ci) + ch * this%par%ii_E_dop(ci)%get(idx)
-      dop   = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
-
-      ! variables
-      pot  = this%pot%get( idx)
+      dop  = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
+      Edop = this%par%ii_E_dop(ci)%get(idx) ! E_C - E_D or E_A - E_V , should be > 0
       iref = this%iref%get(idx)
+      pot  = this%pot%get(idx)
       ion  = this%ion%get(idx)
+      eta  = - ch * (pot - iref - this%par%smc%band_edge(ci))
 
       ! generation
-      gen  = exp(- ch * (E_dop - this%par%smc%band_edge(ci)))
-      dgen = 0
-      if (degen) then
-        eta = - ch * (pot - iref - this%par%smc%band_edge(ci))
-
-        ! get normalized density
-        call fermi_dirac_integral_1h(eta, dens, ddens)
-
-        ! update generation rate
-        if (eta >= -17) then
-          e    = exp(-eta)
-          dgen = gen * e * (ddens - dens)
-          gen  = gen * e * dens
-        elseif (eta >= -36) then
-          e    = exp(eta)
-          fac  = 1.0 / (1.0 + alpha * e)
-          dfac = - alpha * e * fac**2
-          dgen = gen * dfac
-          gen  = gen * fac
-        end if
+      if (this%par%smc%degen) then
+        call fermi_dirac_integral_1h(eta, f, df) ! use non-regularized value in rec for correct stationary ionization rate
+        call fermi_dirac_generation_reg(eta, g, dg)
+        gen  = exp(- Edop) * g
+        dgen = exp(- Edop) * dg
       else
-        ! get normalized density for Maxwell-Boltzmann statistics
-        eta = - ch * (pot - iref) - 0.5 * this%par%smc%band_gap
-        e     = exp(eta)
-        dens  = sqrt(this%par%smc%edos(1) * this%par%smc%edos(2)) / this%par%smc%edos(ci) * e
-        ddens = dens
+        f    = exp(eta)
+        df   = f
+        gen  = exp(- Edop)
+        dgen = 0
       end if
 
       ! recombination
-      rec  = dens / g
-      drec = ddens / g
+      rec  = ii_g * f
+      drec = ii_g * df
 
       ! combined rate
-      genrec      = hp_to_real((TwoSum(gen, (1 - b) * rec) * dop - TwoSum(gen, rec) * ion) / this%tau)
-      dgenrecdeta = ((dgen + (1 - b) * drec) * dop - (dgen + drec) * ion) / this%tau
+      genrec      = hp_to_real((gen * dop - TwoSum(gen, rec) * ion) / this%tau)
+      dgenrecdeta = (dgen * dop - (dgen + drec) * ion) / this%tau
       dgenrecdion = - (gen + rec) / this%tau
 
       ! save

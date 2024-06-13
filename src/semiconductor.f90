@@ -13,8 +13,6 @@ module semiconductor_m
   real,         parameter :: DOP_CHARGE(2) = [ 1.0, -1.0]
 
   type semiconductor
-    real              :: n_intrin
-      !! intrinsic carrier density
     real              :: edos(2)
       !! effective density of states Nc, Nv
     real              :: band_gap
@@ -45,18 +43,12 @@ module semiconductor_m
       !! enable/disable incomplete ionization (Altermatt-Schenk model)
     real, allocatable :: ii_E_dop0(:)
       !! dopant energy relative to the carrier band for a single dopant
-    real, allocatable :: ii_N_ref(:)
-      !! dopant energy reference density for dopant energy
-    real, allocatable :: ii_c(:)
-      !! dopant energy exponent
-    real, allocatable :: ii_N_b(:)
-      !! reference density for fraction of bound states in dopant clusters
-    real, allocatable :: ii_d(:)
-      !! exponent for fitting the fraction of bound states
     real, allocatable :: ii_g(:)
       !! degeneracy factor of dopant states
     real, allocatable :: ii_N_crit(:)
       !! cricital concentration (alternative to altermatt-schenk)
+    real, allocatable :: ii_dop_th(:)
+      !! full ionization if doping > threshold
   end type
 
 end module

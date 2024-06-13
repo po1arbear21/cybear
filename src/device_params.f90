@@ -4,6 +4,7 @@ module device_params_m
 
   use bin_search_m,     only: bin_search
   use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use degen_table_m,    only: degen_table
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
@@ -17,7 +18,7 @@ module device_params_m
   use map_m,            only: map_string_int, mapnode_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, region_contact
-  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, semiconductor
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_NAME, semiconductor
   use string_m,         only: string, new_string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
@@ -49,8 +50,6 @@ module device_params_m
       !! adjoint volume surfaces
     class(grid_data_real), allocatable :: dop(:,:,:)
       !! donator/acceptor concentration (idx_type, idx_dir, dcon/acon)
-    class(grid_data_real), allocatable :: ii_b(:)
-      !! incomplete ionization factor (dcon/acon)
     class(grid_data_real), allocatable :: ii_E_dop(:)
       !! incomplete ionization donator/acceptor dopant energy level (dcon/acon)
     class(grid_data_real), allocatable :: mob0(:,:,:)
@@ -70,6 +69,8 @@ module device_params_m
       !! transport grid tables (idx_type, idx_dir)
     type(grid_table)                   :: dopvert(2)
       !! uncontacted transport vertices with doping > 0 (donor, acceptor)
+    type(grid_table)                   :: ionvert(2)
+      !! uncontacted transport vertices with partial ionization enabled
     type(contact),         allocatable :: contacts(:)
       !! device contacts
     type(map_string_int)               :: contact_map
@@ -127,6 +128,9 @@ module device_params_m
       !! GALENE III permittivities
     real                 :: gal_phims
       !! GALENE III phims for gate contacts
+
+    type(degen_table) :: degen_tab
+      !! current table for degenerate case
   contains
     procedure :: init     => device_params_init
     procedure :: destruct => device_params_destruct
@@ -146,11 +150,12 @@ module device_params_m
 
 contains
 
-  subroutine device_params_init(this, file, T)
+  subroutine device_params_init(this, file, projectdir, T)
     !! initialize device parameter object
     class(device_params), target, intent(out) :: this
     type(input_file),             intent(in)  :: file
       !! device file
+    character(*),                 intent(in)  :: projectdir
     real,                         intent(in)  :: T
       !! temperature in K
 
@@ -210,6 +215,8 @@ contains
     call this%init_doping(file)
     call this%init_mobility()
     call this%init_contacts()
+    if (this%smc%degen) call this%degen_tab%init(100, 100, 5.0, 1e4, 1e-3, 2e2, 500, 1e3, "/tmp")
+
   end subroutine
 
   subroutine device_params_destruct(this)
@@ -240,7 +247,7 @@ contains
     call file%get(sid, "N_v0",       this%smc%edos(CR_HOLE))
     this%smc%edos(:) = this%smc%edos(:) * this%T ** 1.5
     call file%get(sid, "E_gap",      this%smc%band_gap)
-    this%smc%n_intrin = sqrt(this%smc%edos(CR_ELEC) * this%smc%edos(CR_HOLE) * exp(-this%smc%band_gap))
+    ! this%smc%n_intrin = sqrt(this%smc%edos(CR_ELEC) * this%smc%edos(CR_HOLE) * exp(-this%smc%band_gap))
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     call file%get(sid, "mass",       this%smc%mass)
@@ -257,12 +264,9 @@ contains
     ! incomplete ionization
     call file%get(sid, "incomp_ion", this%smc%incomp_ion)
     call file%get(sid, "ii_E_dop0",  this%smc%ii_E_dop0)
-    call file%get(sid, "ii_N_ref",   this%smc%ii_N_ref)
-    call file%get(sid, "ii_c",       this%smc%ii_c)
-    call file%get(sid, "ii_N_b",     this%smc%ii_N_b)
-    call file%get(sid, "ii_d",       this%smc%ii_d)
     call file%get(sid, "ii_g",       this%smc%ii_g)
     call file%get(sid, "ii_N_crit",  this%smc%ii_N_crit)
+    call file%get(sid, "ii_dop_th",  this%smc%ii_dop_th)
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
@@ -275,10 +279,6 @@ contains
     m4_assert(size(this%smc%v_sat)      == 2)
     m4_assert(size(this%smc%genrec_tau) == 2)
     m4_assert(size(this%smc%ii_E_dop0)  == 2)
-    m4_assert(size(this%smc%ii_N_ref)   == 2)
-    m4_assert(size(this%smc%ii_c)       == 2)
-    m4_assert(size(this%smc%ii_N_b)     == 2)
-    m4_assert(size(this%smc%ii_d)       == 2)
     m4_assert(size(this%smc%ii_g)       == 2)
   end subroutine
 
@@ -419,7 +419,7 @@ contains
     integer                  :: dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status
-    real                     :: mid(2), p(2,3)
+    real                     :: mid(2), p(2,3), eps
     real,    allocatable     :: surf(:,:), vol(:)
     type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
@@ -542,25 +542,29 @@ contains
       end do
 
       ! enable poisson for edges and update adjoint surfaces + permittivity
+      eps = this%eps(IDX_CELL,0)%get(idx)
       do idx_dir = 1, idx_dim
         do j = 1, this%g%cell_nedge(idx_dir)
           call this%g%get_neighb(IDX_CELL, 0, IDX_EDGE, idx_dir, idx, j, idx2, status)
           call this%poisson(IDX_EDGE,idx_dir)%flags%set(idx2, .true.)
           call this%surf(idx_dir)%update(idx2, surf(j,idx_dir))
-          call this%eps(IDX_EDGE,idx_dir)%update(idx2, surf(j,idx_dir) * this%eps(IDX_CELL,0)%get(idx))
+          call this%eps(IDX_EDGE,idx_dir)%update(idx2, surf(j,idx_dir) * eps)
         end do
       end do
-    end do
-
-    ! weighted average of permittivity on adjoint surfaces
-    do idx_dir = 1, idx_dim
-      call this%eps(IDX_EDGE,idx_dir)%set(this%eps(IDX_EDGE,idx_dir)%get() / this%surf(idx_dir)%get())
     end do
 
     ! finish vertex + edge tables
     call this%poisson(IDX_VERTEX,0)%init_final()
     do idx_dir = 1, idx_dim
       call this%poisson(IDX_EDGE,idx_dir)%init_final()
+    end do
+
+    ! weighted average of permittivity on adjoint surfaces
+    do idx_dir = 1, idx_dim
+      do i = 1, this%poisson(IDX_EDGE,idx_dir)%n
+        idx = this%poisson(IDX_EDGE,idx_dir)%get_idx(i)
+        call this%eps(IDX_EDGE,idx_dir)%set(idx, this%eps(IDX_EDGE,idx_dir)%get(idx) / this%surf(idx_dir)%get(idx))
+      end do
     end do
 
     print "(A,I0)", "#(Poisson vertices): ", this%poisson(IDX_VERTEX,0)%n
@@ -723,7 +727,7 @@ contains
     integer                  :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status, load
-    real                     :: cdop, dop(2), p(2,3), mid(2), ii_b, ii_E_dop, ni
+    real                     :: cdop, dop(2), p(2,3), mid(2), ii_E_dop, ni
     real,    allocatable     :: surf(:,:), vol(:), tmp(:), ddop(:), tdop(:)
     type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
@@ -740,7 +744,6 @@ contains
 
     ! allocate/initialize grid data
     call allocate_grid_data3_real(this%dop,  this%g%idx_dim, [1, 0, DOP_DCON], [4, this%g%idx_dim, DOP_ACON])
-    call allocate_grid_data1_real(this%ii_b,     idx_dim, DOP_DCON, DOP_ACON)
     call allocate_grid_data1_real(this%ii_E_dop, idx_dim, DOP_DCON, DOP_ACON)
     do ci = DOP_DCON, DOP_ACON
       call this%dop(IDX_VERTEX,0,ci)%init(this%g, IDX_VERTEX, 0)
@@ -890,19 +893,13 @@ contains
 
     ! Altermatt-Schenk ionization model init
     do ci = DOP_DCON, DOP_ACON
-      call this%ii_b(    ci)%init(this%g, IDX_VERTEX, 0)
       call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
       cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
       do i = 1, this%transport(IDX_VERTEX,0)%n
         idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-        ii_b = 1.0
         ii_E_dop = max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
-        ! ii_b = 1.0 / (1.0 + (dop(ci) / this%smc%ii_N_b(ci))**this%smc%ii_d(ci))
-        ! ii_E_dop = this%smc%ii_E_dop0(ci) / (1 + (dop(ci) / this%smc%ii_N_ref(ci))**this%smc%ii_c(ci))
-
-        call this%ii_b(    ci)%set(idx, ii_b)
         call this%ii_E_dop(ci)%set(idx, ii_E_dop)
       end do
     end do
@@ -1035,7 +1032,7 @@ contains
 
     integer                           :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, k0, k1, kk, nct, ri, nv_poiss, nv_conti
     integer, allocatable              :: idx(:), gimat(:)
-    real                              :: dop(2), ii_b(2), ii_E_dop(2), p(2)
+    real                              :: dop(2), ii_E_dop(2), p(2)
     type(string)                      :: name
     type(string), allocatable         :: gmat(:)
     type(mapnode_string_int), pointer :: node
@@ -1221,11 +1218,9 @@ contains
         ! calculate phims using charge neutrality
         dop(DOP_DCON) = this%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
         dop(DOP_ACON) = this%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
-        ii_b(    DOP_DCON) = this%ii_b(    DOP_DCON)%get(idx)
-        ii_b(    DOP_ACON) = this%ii_b(    DOP_ACON)%get(idx)
         ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
         ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
-        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_b, ii_E_dop, this%smc)
+        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
       end if
 
       ! update contact vertex tables
@@ -1254,19 +1249,25 @@ contains
 
     ! doping vertices
     do ci = DOP_DCON, DOP_ACON
-      call this%dopvert(ci)%init("dop_v", this%g, IDX_VERTEX, 0)
+      call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
+      call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
     end do
     do i = 1, this%transport_vct(0)%n
       idx = this%transport_vct(0)%get_idx(i)
 
       do ci = DOP_DCON, DOP_ACON
-        if (this%dop(IDX_VERTEX,0,ci)%get(idx) > 0) then
+        dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
+        if (dop(ci) > 0) then
           call this%dopvert(ci)%flags%set(idx, .true.)
+          if (dop(ci) < this%smc%ii_dop_th(ci)) then
+            call this%ionvert(ci)%flags%set(idx, .true.)
+          end if
         end if
       end do
     end do
     do ci = DOP_DCON, DOP_ACON
       call this%dopvert(ci)%init_final()
+      call this%ionvert(ci)%init_final()
     end do
   end subroutine
 

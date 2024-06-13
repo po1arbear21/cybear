@@ -2,7 +2,7 @@ module imref_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
-  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
+  use fermi_m,         only: fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
@@ -160,9 +160,8 @@ contains
       pot  = this%pot%get(idx)
       dens = this%dens%get(idx)
       if (this%par%smc%degen) then
-        call inv_fermi_dirac_integral_1h(dens / this%par%smc%edos(ci), IF12, dIF12)
+        call inv_fermi_dirac_integral_1h_reg(dens / this%par%smc%edos(ci), IF12, dIF12)
         iref = pot - this%par%smc%band_edge(ci) + ch * IF12
-
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%smc%edos(ci))
       else
@@ -228,7 +227,7 @@ contains
       pot  = this%pot%get(idx)
       iref = this%iref%get(idx)
       if (this%par%smc%degen) then
-        call fermi_dirac_integral_1h(ch * (iref - pot + this%par%smc%band_edge(ci)), F12, dF12)
+        call fermi_dirac_integral_1h_reg(ch * (iref - pot + this%par%smc%band_edge(ci)), F12, dF12)
         dens = this%par%smc%edos(ci) * F12
 
         call this%dens%set(idx, dens)

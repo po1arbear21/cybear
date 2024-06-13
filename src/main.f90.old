@@ -9,9 +9,9 @@ program main
   use input_m,            only: input_file
   use input_src_m,        only: const_src, polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI
+  ! use matrix_m,           only: default_spsolver, SPSOLVER_MUMPS
   use newton_m,           only: newton_opt
   use normalization_m,    only: init_normconst, norm, denorm
-  use output_file_m,      only: output_file
   use small_signal_m,     only: small_signal
   use steady_state_m,     only: steady_state
   use string_m,           only: string
@@ -25,10 +25,32 @@ program main
   ! integer                   :: idx_dir
   logical                   :: gummel_restart, gummel_once, gummel_enabled
   real                      :: T
-  type(string)              :: dev_filename, ofilename, output
+  type(string)              :: dev_filename, output
   type(input_file)          :: file
   type(newton_opt)          :: opt_nlpe, opt_dd(2), opt_gum, opt_full
-  type(output_file)         :: ofile
+
+  ! default_spsolver = SPSOLVER_MUMPS
+
+! block
+!   use distributions_m, only: fermi_dirac_integral_1h_reg
+
+!   integer, parameter :: N = 1001
+!   integer           :: i, funit
+!   real              :: y, dydx
+!   real, allocatable :: x(:)
+
+!   allocate (x(N))
+!   x = linspace(-1000.0, 0.0, N)
+
+!   open (newunit = funit, file = "t", status = "replace", action = "write")
+!   do i = 1, N
+!     call fermi_dirac_integral_1h_reg(x(i), y, dydx)
+
+!     write (funit, "(2ES25.16E3)") x(i), y
+!   end do
+!   close (funit)
+!   stop
+! end block
 
   ! get input filename from command line arguments
   call parse_command_line_args()
@@ -44,82 +66,52 @@ program main
   call file%get("", "device", dev_filename)
   call dev%init(dev_filename%s, T)
 
-! block
-!   use normalization_m
-!   use grid_m
-!   integer :: ii, idx1(1), idx2(1), funit1, funit2
-!   logical, allocatable :: oxide(:), silicon(:)
-!   real    :: p1(2), p2(2), x0, x1, y0, y1, Lx, Ly
-!   real, allocatable :: x(:,:), y(:,:)
+print "(ES25.16E3)", norm(1e22, "1/cm^3") / dev%par%smc%edos(1)
+print "(ES25.16E3)", norm(1e22, "1/cm^3") / dev%par%smc%edos(2)
+stop
 
-!   allocate (oxide(dev%par%gtr%nedge), silicon(dev%par%gtr%nedge), source = .false.)
-!   do ii = 1, dev%par%oxide(IDX_CELL,0)%n
-!     idx1 = dev%par%oxide(IDX_CELL,0)%get_idx(ii)
-!     oxide(dev%par%gtr%cell2edge(1,idx1(1))) = .true.
-!     oxide(dev%par%gtr%cell2edge(2,idx1(1))) = .true.
-!     oxide(dev%par%gtr%cell2edge(3,idx1(1))) = .true.
-!   end do
-!   do ii = 1, dev%par%transport(IDX_CELL,0)%n
-!     idx1 = dev%par%transport(IDX_CELL,0)%get_idx(ii)
-!     silicon(dev%par%gtr%cell2edge(1,idx1(1))) = .true.
-!     silicon(dev%par%gtr%cell2edge(2,idx1(1))) = .true.
-!     silicon(dev%par%gtr%cell2edge(3,idx1(1))) = .true.
-!   end do
+block
+  real :: n(2), dpot, j, djdn(2), djddpot
 
-!   allocate (x(2,dev%par%gtr%nedge), y(2,dev%par%gtr%nedge))
+  n    = [3.1470840292794123E+003, 7.1681355166113656E-063]
+  dpot = -3.3042935961050921E+003
 
-!   x0 = -8
-!   x1 = 300
-!   y0 = -215
-!   y1 = 215
-
-!   Lx = 12
-!   Ly = 8
-
-!   do ii = 1, dev%par%gtr%nedge
-!     idx1 = [dev%par%gtr%edge2vert(1,ii)]
-!     idx2 = [dev%par%gtr%edge2vert(2,ii)]
-!     call dev%par%gtr%get_vertex(idx1, p1)
-!     call dev%par%gtr%get_vertex(idx2, p2)
-!     x(1,ii) = (denorm(p1(2), "nm") - y0) / (y1 - y0) * Lx
-!     y(1,ii) = Ly - (denorm(p1(1), "nm") - x0) / (x1 - x0) * Ly
-!     x(2,ii) = (denorm(p2(2), "nm") - y0) / (y1 - y0) * Lx
-!     y(2,ii) = Ly - (denorm(p2(1), "nm") - x0) / (x1 - x0) * Ly
-!   end do
-
-!   open (newunit = funit1, file = "gtr_oxide.csv", status = "replace", action = "write")
-!   open (newunit = funit2, file = "gtr_silicon.csv", status = "replace", action = "write")
-!   do ii = 1, dev%par%gtr%nedge
-!     if (oxide(ii)) then
-!       write (funit1, "(2ES25.16E3)") x(1,ii), y(1,ii)
-!       write (funit1, "(2ES25.16E3)") x(2,ii), y(2,ii)
-!       write (funit1, *)
-!     end if
-!     if (silicon(ii)) then
-!       write (funit2, "(2ES25.16E3)") x(1,ii), y(1,ii)
-!       write (funit2, "(2ES25.16E3)") x(2,ii), y(2,ii)
-!       write (funit2, *)
-!     end if
-!   end do
-!   close (funit1)
-!   close (funit2)
-!   stop
-! end block
-
-  ! output file
-  call file%get("", "ofile", ofilename)
-  call ofile%init(ofilename%s)
+  call dev%calc_cdens(1,1)%get_curr_degen(n, dpot, j, djdn, djddpot)
+  print "(A,2ES25.16E3)", "n       = ", n
+  print "(A,ES25.16E3)",  "dpot    = ", dpot
+  print "(A,ES25.16E3)",  "j       = ", j
+  print "(A,2ES25.16E3)", "djdn    = ", djdn
+  print "(A,ES25.16E3)",  "djddpot = ", djddpot
+  error stop "main debug"
+end block
 
   ! output folder
   call file%get("", "output", output)
+
+  block
+    integer :: ii, funit
+
+    open (newunit = funit, file = output%s // "x.csv", status = "replace", action = "write")
+    do ii = 1, dev%par%g1D(1)%n
+      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(1)%x(ii), "um")
+    end do
+    close (funit)
+    open (newunit = funit, file = output%s // "y.csv", status = "replace", action = "write")
+    do ii = 1, dev%par%g1D(2)%n
+      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(2)%x(ii), "um")
+    end do
+    close (funit)
+    open (newunit = funit, file = output%s // "z.csv", status = "replace", action = "write")
+    do ii = 1, dev%par%g1D(3)%n
+      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(3)%x(ii), "um")
+    end do
+    close (funit)
+  end block
 
   ! ! output grids
   ! do idx_dir = 1, dev%par%g%idx_dim
   !   call dev%par%g1D(idx_dir)%output(ofile, unit = "nm")
   ! end do
-
-  ! output variable data
-  call dev%sys_full%output_info(ofile)
 
   ! get iteration options
   call load_iteration_params("nlpe params",        dev%sys_nlpe%n,  opt_nlpe)
@@ -148,7 +140,7 @@ program main
         ibl = dev%sys_full%res2block(idens)%d(itab)
         i0 = dev%sys_full%i0(ibl)
         i1 = dev%sys_full%i1(ibl)
-        opt_full%xmin(i0:i1) = norm(1e-10, "1/cm^3")
+        opt_full%xmin(i0:i1) = norm(1e-60, "1/cm^3")
       end do
 
       idens = dev%sys_dd(ci)%search_main_var(dev%dens(ci)%name)
@@ -156,7 +148,7 @@ program main
         ibl = dev%sys_dd(ci)%res2block(idens)%d(itab)
         i0 = dev%sys_dd(ci)%i0(ibl)
         i1 = dev%sys_dd(ci)%i1(ibl)
-        opt_dd(ci)%xmin(i0:i1) = norm(1e-10, "1/cm^3")
+        opt_dd(ci)%xmin(i0:i1) = norm(1e-60, "1/cm^3")
       end do
 
       if (dev%par%smc%incomp_ion) then
@@ -188,9 +180,6 @@ program main
   call solve_harmonic_balance()
   call solve_transient()
   call solve_responsivity()
-
-  ! save and close output file
-  call ofile%close()
 
 contains
 
@@ -283,7 +272,7 @@ contains
       gummel_once    = .true.
       gummel_enabled = .true.
 
-      call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel, ofile = ofile, oname = name%s)
+      call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel)
 
       call ss%select(1)
       call output_xy(dev%pot,     0.0, output%s // "potxy.csv")
@@ -368,6 +357,7 @@ contains
       if (Nss == 0) then
         tt = [ 0.0 ]
       else
+        print *, Nss
         tt = linspace(0.0, 1.0, Nss)
       end if
 
@@ -391,7 +381,7 @@ contains
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = tt, gum = gummel)
 
       ! run small-signal analysis
-      call ac%run_analysis(dev%sys_full, s, ofile = ofile, oname = name%s)
+      call ac%run_analysis(dev%sys_full, s)
 
       call ac%select_abs(2, 1)
       call output_xy(dev%pot,     0.0, output%s//"ac1_potxy.csv")
@@ -559,7 +549,7 @@ contains
     integer,      allocatable :: sids(:)
     real                      :: VA, f0, f1, power, curr, resp
     real,         allocatable :: f(:), c(:,:), s(:,:)
-    type(string)              :: source, drain, ofile
+    type(string)              :: source, drain, output
 
     type(harmonic_src)        :: input
     type(harmonic_balance)    :: hb
@@ -595,7 +585,7 @@ contains
       call file%get(sids(si), "Nt", Nt)
 
       ! output file
-      call file%get(sids(si), "output", ofile)
+      call file%get(sids(si), "output", output)
 
       ! init input source
       allocate (c(dev%par%nct,0:1))
@@ -615,7 +605,7 @@ contains
       call load_iteration_params("harmonic balance params", dev%sys_full%n*(1+2*NH), opt_hb)
       call hb%run(dev%sys_full, NH, f, input, nopt = opt_hb, nt = Nt)
 
-      open (newunit = ofunit, file = ofile%s, status = "replace", action = "write")
+      open (newunit = ofunit, file = output%s, status = "replace", action = "write")
       do i = 1, Nf
         call hb%select_harmonic(1, i, sine = .true.)
         power = 0.5 * VA * dev%curr(isrc)%x
@@ -633,10 +623,10 @@ contains
   subroutine gummel()
     !! gummel iteration
 
-    integer            :: i, ci
+    integer            :: it, ci
     real               :: error, err_pot, err_iref(2)
     real, allocatable  :: pot0(:), iref0(:,:)
-    type(steady_state) :: ss_nlpe, ss_dd(2)
+    type(steady_state) :: ss_dd(2)
 
     if (.not. gummel_enabled) return
     if (gummel_once) gummel_enabled = .false.
@@ -654,21 +644,59 @@ contains
     end if
 
     ! gummel iteration
-    i = 0
+    it = 0
     error = huge(1.0)
-    do while ((error > opt_gum%atol(1)) .and. (i < opt_gum%max_it))
-      i = i + 1
+    do while (((error > opt_gum%atol(1)) .and. (it < opt_gum%max_it)) .or. (it < 3))
+      it = it + 1
 
       ! solve non-linear poisson equation
       pot0 = dev%pot%get()
-      call ss_nlpe%run(dev%sys_nlpe, nopt = opt_nlpe)
-      call ss_nlpe%select(1)
+      call solve_nlpe()
       err_pot = maxval(abs(dev%pot%get() - pot0))
       error = err_pot
+
+! call output_xy(dev%pot, 0.0, "pot0.csv")
+! call output_xy(dev%dens(1), 0.0, "n0.csv")
+! call output_xy(dev%dens(2), 0.0, "p0.csv")
+
+
+! call dev%sys_dd(1)%eval()
+! call output_xy(dev%cdens(1,1), 0.0, "jnx0.csv")
+
+! block
+!   integer :: ii, funit
+!   real, allocatable :: ff(:)
+
+!   allocate (ff(dev%sys_dd(1)%n))
+!   call dev%sys_dd(1)%eval(f = ff)
+
+!   call dev%sys_dd(1)%print()
+
+!   open (newunit = funit, file = "ff0.csv", status = "replace", action = "write")
+!   do ii = 1, size(ff)
+!     write (funit,"(ES25.16E3)") ff(ii)
+!   end do
+!   close (funit)
+! end block
+
 
       ! solve dd model for electrons and holes
       do ci = dev%par%ci0, dev%par%ci1
         iref0(:,ci) = dev%iref(ci)%get()
+! block
+!   use matrix_m, only: sparse_real
+
+!   type(sparse_real) :: df
+
+!   if (ci == 2) then
+!     call dev%sys_full%eval(df = df)
+
+!     call dev%sys_full%print()
+!     call df%output("df.csv")
+!     error stop "df"
+!   end if
+! end block
+
         call ss_dd(ci)%run(dev%sys_dd(ci), nopt = opt_dd(ci))
         call ss_dd(ci)%select(1)
         call dev%calc_iref(ci)%eval()
@@ -676,15 +704,196 @@ contains
         error = max(error, err_iref(ci))
       end do
 
+! call dev%sys_dd(1)%eval()
+! call output_xy(dev%cdens(1,1), 0.0, "jnx1.csv")
+
+! block
+!   integer :: ii, funit
+!   real, allocatable :: ff(:)
+
+!   allocate (ff(dev%sys_dd(1)%n))
+!   call dev%sys_dd(1)%eval(f = ff)
+
+!   call dev%sys_dd(1)%print()
+
+!   open (newunit = funit, file = "ff1.csv", status = "replace", action = "write")
+!   do ii = 1, size(ff)
+!     write (funit,"(ES25.16E3)") ff(ii)
+!   end do
+!   close (funit)
+! end block
+
+! call output_xy(dev%dens(1), 0.0, "n1.csv")
+! call output_xy(dev%dens(2), 0.0, "p1.csv")
+
+! call solve_nlpe()
+
+! call output_xy(dev%pot, 0.0, "pot2.csv")
+! call output_xy(dev%dens(1), 0.0, "n2.csv")
+! call output_xy(dev%dens(2), 0.0, "p2.csv")
+
+
+! do ci = dev%par%ci0, dev%par%ci1
+!   iref0(:,ci) = dev%iref(ci)%get()
+! ! block
+! !   use matrix_m, only: sparse_real
+
+! !   type(sparse_real) :: df
+
+! !   if (ci == 2) then
+! !     call dev%sys_full%eval(df = df)
+
+! !     call dev%sys_full%print()
+! !     call df%output("df.csv")
+! !     error stop "df"
+! !   end if
+! ! end block
+
+!   call ss_dd(ci)%run(dev%sys_dd(ci), nopt = opt_dd(ci))
+!   call ss_dd(ci)%select(1)
+!   call dev%calc_iref(ci)%eval()
+!   err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:,ci)))
+!   error = max(error, err_iref(ci))
+! end do
+
+! call dev%sys_dd(1)%eval()
+! call output_xy(dev%cdens(1,1), 0.0, "jnx2.csv")
+
+! block
+!   integer :: ii, funit
+!   real, allocatable :: ff(:)
+
+!   allocate (ff(dev%sys_dd(1)%n))
+!   call dev%sys_dd(1)%eval(f = ff)
+
+!   call dev%sys_dd(1)%print()
+
+!   open (newunit = funit, file = "ff2.csv", status = "replace", action = "write")
+!   do ii = 1, size(ff)
+!     write (funit,"(ES25.16E3)") ff(ii)
+!   end do
+!   close (funit)
+! end block
+
+! stop
+
+
+print "(3ES25.16E3)", denorm(err_pot, "V"), denorm(err_iref, "V")
+
       ! log
       if (opt_gum%log) then
-        print "(A,I6,ES25.16E3)", "Gummel: ", i, denorm(error, "V")
+        print "(A,I6,ES25.16E3)", "Gummel: ", it, denorm(error, "V")
       end if
     end do
 
-    if ((i > opt_gum%max_it) .and. (error > opt_gum%atol(1))) then
+    if ((it > opt_gum%max_it) .and. (error > opt_gum%atol(1))) then
       call program_error("Gummel iteration did not converge (maximum number of iterations reached)")
     end if
+
+! block
+!   use matrix_m, only: sparse_real
+!   integer :: ii
+!   real, allocatable :: f(:)
+!   type(sparse_real) :: df
+
+!   allocate (f(dev%sys_full%n))
+!   call dev%sys_full%eval(f = f, df = df)
+
+!   do ii = 1, size(f)
+!     print "(I6,ES25.16E3)", ii, f(ii)
+!   end do
+!   call dev%sys_full%print()
+!   call df%output("df.csv")
+
+!   print *
+!   print *
+!   print *
+!   call dev%sys_dd(2)%print()
+!   call dev%sys_dd(2)%eval(df = df)
+!   call df%output("df_pdd.csv")
+
+!   stop
+! end block
+  end subroutine
+
+  subroutine solve_nlpe()
+    !! solve non-linear poisson equation
+
+    use matrix_m, only: sparse_real
+
+    integer, parameter :: NSEARCH = 5
+    integer            :: i, it, nx
+    real               :: err, res(0:NSEARCH), damping
+    real, allocatable  :: x(:), x0(:), f(:), dx(:)
+    type(sparse_real)  :: dfdx
+
+    ! memory
+    nx = dev%sys_nlpe%n
+    allocate (x(nx), x0(nx), f(nx), dx(nx))
+
+    ! init iteration params
+    it = 0
+    err = huge(err)
+
+    ! initial approximation
+    x0 = dev%sys_nlpe%get_x()
+
+    do while (((err > opt_nlpe%atol(1)) .and. (it <= opt_nlpe%max_it)) .or. (it < 2))
+      it = it + 1
+
+      ! evaluate system
+      call dev%sys_nlpe%eval(f = f, df = dfdx)
+
+      ! solve
+      call dfdx%factorize()
+      call dfdx%solve_vec(f, dx)
+      call dfdx%reset()
+
+      ! absolute error
+      err = maxval(abs(dx))
+      res(0) = dot_product(f, f)
+
+      if (err < 1.0) then
+        ! small error: full update
+        damping = 1.0
+      else
+        ! limit update
+        do i = 1, nx
+          if (abs(dx(i)) > opt_nlpe%dx_lim(i)) then
+            dx(i) = sign(opt_nlpe%dx_lim(i), dx(i))
+          end if
+        end do
+
+        ! calculate residuum for different damping factors
+        print "(2ES25.16E3)", 0.0, res(0)
+        do i = 1, NSEARCH
+          damping = 0.5 ** (NSEARCH - i)
+          x = x0 - dx * damping
+          call dev%sys_nlpe%set_x(x)
+          call dev%sys_nlpe%eval(f = f)
+          res(i) = dot_product(f, f)
+          print "(2ES25.16E3)", damping, res(i)
+        end do
+
+        ! get the damping factor which minimizes the residuum
+        i = minloc(res, 1) - 1
+
+        if (i == 0) then
+          ! worst case: residuum gets larger for any dx /= 0, use full udpate and hope for the best
+          damping = 1.0
+        else
+          ! use the dx that minimizes residuum
+          damping = 0.5 ** (NSEARCH - i)
+        end if
+      end if
+
+      ! update variables
+      x = x0 - dx * damping
+      call dev%sys_nlpe%set_x(x)
+      x0 = x
+
+      print "(A,I6,3ES25.16E3)", "NLPE: ", it, denorm(err, "V"), res(0), damping
+    end do
   end subroutine
 
   subroutine output_xy(v, z, file)

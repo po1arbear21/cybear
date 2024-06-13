@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module contact_m
 
   use ieee_arithmetic, only: ieee_is_finite
-  use distributions_m, only: fermi_dirac_integral_1h, inv_fermi_dirac_integral_1h
+  use fermi_m,         only: fermi_dirac_integral_1h_reg, fermi_dirac_generation_reg
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   use grid_data_m,     only: grid_data_real
@@ -36,17 +36,15 @@ module contact_m
 
 contains
 
-  subroutine contact_set_phims_ohmic(this, ci0, ci1, dop, ii_b, ii_E_dop, smc)
+  subroutine contact_set_phims_ohmic(this, ci0, ci1, dop, ii_E_dop, smc)
     !! set phims for ohmic contacts by assuming charge neutrality
     class(contact),        intent(inout) :: this
     integer,               intent(in)    :: ci0, ci1
       !! lower/upper carrier index (CR_ELEC, CR_HOLE)
     real,                  intent(in)    :: dop(2)
       !! donor/acceptor concentration
-    real,                  intent(in)    :: ii_b(2)
-      !! Altermatt-Schenk b parameter
     real,                  intent(in)    :: ii_E_dop(2)
-      !! Altermatt-Schenk doping energy level
+      !! dopant energy level (for incomplete ionization)
     type(semiconductor),   intent(in)    :: smc
       !! semiconductor parameters
 
@@ -86,6 +84,77 @@ contains
   contains
 
     subroutine phims_newton(x, p, f, dfdx, dfdp)
+    !   !! residual for newton iteration: f = rho = p - n + ND^{+} - NA^{-}
+    !   real,              intent(in)  :: x
+    !     !! argument (phims)
+    !   real,              intent(in)  :: p(:)
+    !     !! parameters (empty)
+    !   real,              intent(out) :: f
+    !     !! output function value
+    !   real,    optional, intent(out) :: dfdx
+    !     !! optional output derivative of f wrt x
+    !   real,    optional, intent(out) :: dfdp(:)
+    !     !! optional output derivatives of f wrt p
+
+    !   integer       :: ci
+    !   real          :: ch, eta(2), dens(2), ddens(2), dff, g, dg, fac, dfac, ion, dion
+    !   type(hp_real) :: ff
+
+    !   m4_ignore(p)
+
+    !   ! work with high precision residual, double precision derivative
+    !   ff  = real_to_hp(0.0)
+    !   dff = 0.0
+
+    !   ! densities
+    !   do ci = ci0, ci1
+    !     ch = CR_CHARGE(ci)
+
+    !     eta(ci) = ch * (smc%band_edge(ci) - x)
+
+    !     if (smc%degen) then
+    !       call fermi_dirac_integral_1h_reg(eta(ci), dens(ci), ddens(ci))
+    !       ddens(ci) = - ch * ddens(ci)
+    !     else
+    !       dens( ci) = exp(eta(ci))
+    !       ddens(ci) = - ch * dens(ci)
+    !     end if
+
+    !     ff  =  ff + ch * smc%edos(ci) *  dens(ci)
+    !     dff = dff + ch * smc%edos(ci) * ddens(ci)
+    !   end do
+
+    !   ! doping
+    !   do ci = DOP_DCON, DOP_ACON
+    !     ch = CR_CHARGE(ci)
+    !     if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
+    !       if (smc%degen) then
+    !         ....wrong
+    !         call fermi_dirac_generation_reg(eta(ci), g, dg)
+    !         dg = - ch * dg
+    !         fac  = smc%ii_g(ci) * exp(ii_E_dop(ci)) * dens(ci) / g
+    !         dfac = smc%ii_g(ci) * exp(ii_E_dop(ci)) * (ddens(ci) - dens(ci) / g * dg) / g
+    !       else
+    !         fac  = smc%ii_g(ci) * exp(ii_E_dop(ci)) * dens(ci)
+    !         dfac = smc%ii_g(ci) * exp(ii_E_dop(cI)) * ddens(ci)
+    !       end if
+    !       ion  =   dop(ci) / (1.0 + fac)
+    !       dion = - dop(ci) * dfac / (1.0 + fac)**2
+
+    !       ff  =  ff - ch *  ion
+    !       dff = dff - ch * dion
+    !     else
+    !       ! fully ionized
+    !       ff = ff - ch * dop(ci)
+    !     end if
+    !   end do
+
+    !   f = hp_to_real(ff)
+    !   if (present(dfdx)) dfdx = dff
+    !   if (present(dfdp)) then
+    !     m4_ignore(dfdp)
+    !   end if
+    ! end subroutine
       !! residual for newton iteration: f = rho = p - n + ND^{+} - NA^{-}
       real,              intent(in)  :: x
         !! argument (phims)
@@ -113,7 +182,7 @@ contains
         ch = CR_CHARGE(ci)
 
         if (smc%degen) then
-          call fermi_dirac_integral_1h(ch * (smc%band_edge(ci) - x), F1h, dF1h)
+          call fermi_dirac_integral_1h_reg(ch * (smc%band_edge(ci) - x), F1h, dF1h)
           ff  =  ff + ch * smc%edos(ci) * F1h
           dff = dff -      smc%edos(ci) * dF1h
         else
@@ -125,20 +194,22 @@ contains
       ! doping
       do ci = DOP_DCON, DOP_ACON
         ch = CR_CHARGE(ci)
-        if (smc%incomp_ion) then
-          e = exp(ch * TwoSum(x, - (smc%band_edge(ci) + ch * ii_E_dop(ci))))
+        if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
+          e = ch * TwoSum(x, - (smc%band_edge(ci) + ch * ii_E_dop(ci)))
           t = hp_to_real(e)
-          if (.not. ieee_is_finite(t) .or. (t > 1e300)) then
+          if (t > 300) then
             fac = real_to_hp(0.0)
           else
-            fac  = 1.0 / (1.0 + smc%ii_g(ci) * e)
+            e   = exp(e)
+            fac = 1.0 / (1.0 + smc%ii_g(ci) * e)
           end if
-          ion  = 1.0 - ii_b(ci) * fac
-          dion = hp_to_real(ii_b(ci) * fac * (1.0 - fac))
+          ion  = 1.0 - fac
+          dion = hp_to_real(fac * (1.0 - fac))
 
-          ff  = ff   - ch * dop(ci) * ion
+          ff  = ff  - ch * dop(ci) * ion
           dff = dff -      dop(ci) * dion
         else
+          ! fully ionized
           ff = ff - ch * dop(ci)
         end if
       end do
