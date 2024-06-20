@@ -150,12 +150,11 @@ module device_params_m
 
 contains
 
-  subroutine device_params_init(this, file, projectdir, T)
+  subroutine device_params_init(this, file, T)
     !! initialize device parameter object
     class(device_params), target, intent(out) :: this
     type(input_file),             intent(in)  :: file
       !! device file
-    character(*),                 intent(in)  :: projectdir
     real,                         intent(in)  :: T
       !! temperature in K
 

@@ -99,11 +99,9 @@ module device_m
 
 contains
 
-  subroutine device_init(this, projectdir, filename, T)
+  subroutine device_init(this, filename, T)
     !! initialize device using device file
     class(device), intent(out) :: this
-    character(*),  intent(in)  :: projectdir
-      !! project directory
     character(*),  intent(in)  :: filename
       !! device file name
     real,          intent(in)  :: T
@@ -114,7 +112,7 @@ contains
 
     ! load device parameters
     call file%init(filename)
-    call this%par%init(file, projectdir, T)
+    call this%par%init(file, T)
 
     ! init variables
     allocate (this%cdens(this%par%g%idx_dim,2))

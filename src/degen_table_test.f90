@@ -13,18 +13,30 @@ program degen_table_test
   integer            :: i, j, k, funit
 
   ! block
-  !   use distributions_m, only: fermi_dirac_integral_1h
-  !   use fermi_m,         only: fermi_dirac_integral_1h_reg
-  !   real :: F, dF, FF, g, gg
-  !   eta1 = linspace(-100.0, 100.0, NE1)
+  !   use math_m, only: ber, dberdx, linspace
+  !   integer, parameter :: NN = 10001
+  !   real, allocatable  :: x(:)
+
+  !   x = linspace(-100.0, 1000.0, NN)
 
   !   open (newunit = funit, file = "t", status = "replace", action = "write")
-  !   do i = 1, NE1
+  !   do i = 1, NN
+  !     write (funit, "(3ES25.16E3)") x(i), ber(x(i)), dberdx(x(i))
+  !   end do
+  !   close (funit)
+  !   stop
+  ! end block
+  ! block
+  !   use distributions_m, only: fermi_dirac_integral_1h
+  !   use fermi_m,         only: fermi_dirac_integral_1h_reg
+  !   real :: F, dF, FF
+  !   eta1 = linspace(-200.0, 100.0, 1001)
+
+  !   open (newunit = funit, file = "t", status = "replace", action = "write")
+  !   do i = 1, 1001
   !     call fermi_dirac_integral_1h(eta1(i), F, dF)
-  !     g = F * exp(-eta1(i))
   !     call fermi_dirac_integral_1h_reg(eta1(i), FF, dF)
-  !     gg = FF * exp(-eta1(i))
-  !     write (funit, "(6ES25.16E3)") eta1(i), g, gg, F / g, FF / gg, FF / g
+  !     write (funit, "(3ES25.16E3)") eta1(i), F, FF
   !   end do
   !   close (funit)
   !   stop
@@ -103,48 +115,42 @@ program degen_table_test
   ! stop
 
 
-  block
-    real :: eta(2), dpot, j, djdeta(2), djddpot
+  ! block
+  !   real :: eta(2), dpot, j, djdeta(2), djddpot
 
-    eta  = [3.7235770182533972E+000, -1.6716182563084476E+002]
-    dpot = -1.7088540261047979E+002
-    ! eta  = [3.7235770182465924E+000, -1.6716182562546874E+002]
-    ! dpot = -1.7088540261049457E+002
-    ! eta  = [3.7235770182474308E+000, -1.6716182554387524E+002]
-    ! dpot = -1.7088540261048229E+002
-    ! eta  = [3.7235770182535934E+000, -1.6716182558811397E+002]
-    ! dpot = -1.7088540261049434E+002
+  !   eta  = [-65.0, -17.0]
+  !   dpot = 48.0001
 
-    eta1p = eta(1) + dd
-    eta1m = eta(1) - dd
-    eta2p = eta(2) + dd
-    eta2m = eta(2) - dd
-    dpotp = dpot + dd
-    dpotm = dpot - dd
+  !   eta1p = eta(1) + dd
+  !   eta1m = eta(1) - dd
+  !   eta2p = eta(2) + dd
+  !   eta2m = eta(2) - dd
+  !   dpotp = dpot + dd
+  !   dpotm = dpot - dd
 
-    call tab%get(eta, dpot, j, djdeta, djddpot)
-    print *, j
+  !   call tab%get(eta, dpot, j, djdeta, djddpot)
+  !   print *, j
 
-    call tab%get([eta1p, eta(2)], dpot, cjp, dtmp, tmp)
-    call tab%get([eta1m, eta(2)], dpot, cjm, dtmp, tmp)
-    dcj1 = (cjp - j) / dd
-    dcj2 = (cjp - cjm) / (2 * dd)
-    print *, djdeta(1), dcj1, dcj2
+  !   call tab%get([eta1p, eta(2)], dpot, cjp, dtmp, tmp)
+  !   call tab%get([eta1m, eta(2)], dpot, cjm, dtmp, tmp)
+  !   dcj1 = (cjp - j) / dd
+  !   dcj2 = (cjp - cjm) / (2 * dd)
+  !   print *, djdeta(1), dcj1, dcj2
 
-    call tab%get([eta(1), eta2p], dpot, cjp, dtmp, tmp)
-    call tab%get([eta(1), eta2m], dpot, cjm, dtmp, tmp)
-    dcj1 = (cjp - j) / dd
-    dcj2 = (cjp - cjm) / (2 * dd)
-    print *, djdeta(2), dcj1, dcj2
+  !   call tab%get([eta(1), eta2p], dpot, cjp, dtmp, tmp)
+  !   call tab%get([eta(1), eta2m], dpot, cjm, dtmp, tmp)
+  !   dcj1 = (cjp - j) / dd
+  !   dcj2 = (cjp - cjm) / (2 * dd)
+  !   print *, djdeta(2), dcj1, dcj2
 
-    call tab%get(eta, dpotp, cjp, dtmp, tmp)
-    call tab%get(eta, dpotm, cjm, dtmp, tmp)
-    dcj1 = (cjp - j) / dd
-    dcj2 = (cjp - cjm) / (2 * dd)
-    print *, djddpot, dcj1, dcj2
+  !   call tab%get(eta, dpotp, cjp, dtmp, tmp)
+  !   call tab%get(eta, dpotm, cjm, dtmp, tmp)
+  !   dcj1 = (cjp - j) / dd
+  !   dcj2 = (cjp - cjm) / (2 * dd)
+  !   print *, djddpot, dcj1, dcj2
 
-    stop
-  end block
+  !   stop
+  ! end block
 
   ! dpot = 20.0
 

@@ -15,7 +15,7 @@ module degen_table_m
     &                        fermi_dirac_integral_3h, &
     &                        inv_fermi_dirac_integral_1h
   use error_m,         only: program_error
-  use fermi_m,         only: GAMMA, ETA_SMALL, ETA_TINY, ETA_MICRO, ETA_REF, F_REF
+  use fermi_m,         only: GAMMA, ETA_SMALL, ETA_TINY, ETA_MICRO, F_MICRO, BETA
   use math_m,          only: linspace, logspace, expm1, log1p, PI
   use qsort_m,         only: qsort
   use util_m,          only: hash
@@ -25,9 +25,9 @@ module degen_table_m
 
   implicit none
 
-  integer, parameter :: NGS = 21
-  integer, parameter :: MAXN = 2 * NGS - 1
-  integer, parameter :: NCHEBY = 5
+  integer, parameter :: NGS     = 21
+  integer, parameter :: MAXN    = 2 * NGS - 1
+  integer, parameter :: NCHEBY  = 5
   integer, parameter :: NCHEBY3 = NCHEBY * NCHEBY * NCHEBY
 
   real, parameter :: XI_GL(NGS) = [ &
@@ -104,9 +104,6 @@ module degen_table_m
     procedure :: destruct => mpfr_vars_destruct
   end type
 
-logical :: DEGEN_TABLE_DEBUG = .false.
-public DEGEN_TABLE_DEBUG
-
 contains
 
   subroutine degen_table_init(this, Meta_lin, Meta_log, eta_lin, eta_max, delta_min, delta_max, Mdpot, dpot_max, folder)
@@ -141,7 +138,7 @@ contains
     type(gauss_table) :: gtab
 
     ! try to load
-    write (id, "(2I6,4ES25.16E3,I6,ES25.16E3,2I6,3ES25.16E3)") Meta_lin, Meta_log, eta_lin, eta_max, delta_min, delta_max, Mdpot, dpot_max, NGS, NCHEBY, ETA_MICRO, ETA_REF, F_REF
+    write (id, "(2I6,4ES25.16E3,I6,ES25.16E3,2I6)") Meta_lin, Meta_log, eta_lin, eta_max, delta_min, delta_max, Mdpot, dpot_max, NGS, NCHEBY
     write (fname, "(2A,Z0,A)") folder, "/degentab_", hash(trim(id)), ".bin"
     call this%load(trim(fname), trim(id), status)
     if (status) return
@@ -678,33 +675,26 @@ contains
     end if
 
     if (all(eta <= ETA_MICRO)) then
-      ! if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "REG:    ", eta, dpot
       ! use regularization to avoid numbers that are too small
       call this%get_REG(eta_, dpot_, j, djdeta, djddpot)
     elseif (all(eta >= ETA_SMALL)) then
-      ! if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "INTERP:    ", eta, dpot
       ! directly interpolate from table
       call this%get_INTERP(eta_, dpot_, j, djdeta, djddpot)
     elseif (any(eta > ETA_SMALL)) then
       if (any(eta < ETA_MICRO)) then
-        if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "SPLIT2:    ", eta, dpot
         ! split between regularized (R), approximated (S) and full Fermi-Dirac-Integral (T) regions (RS and ST split)
         call this%get_SPLIT2(eta_, dpot_, j, djdeta, djddpot)
       else
-        if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "SPLIT1 ST:    ", eta, dpot
         ! split between approximated (S) and full Fermi-Dirac-Integral (T) regions
         call this%get_SPLIT1(eta_, dpot_, j, djdeta, djddpot)
       end if
     elseif (any(eta < ETA_MICRO)) then
-      if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "SPLIT1 RS:    ", eta, dpot
       ! split between regularized (R) and approximated Fermi-Dirac-Integral (S) regions
       call this%get_SPLIT1(eta_, dpot_, j, djdeta, djddpot)
     elseif (all(eta <= ETA_TINY)) then
-      ! if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "SG:    ", eta, dpot
       ! Scharfetter-Gummel
       call this%get_SG(eta_, dpot_, j, djdeta, djddpot)
     else
-      ! if (DEGEN_TABLE_DEBUG) print "(A,3ES25.16E3,A)", "SGFP:    ", eta, dpot
       ! modified Scharfetter-Gummel fixed-point iteration (approximated Fermi-Dirac-Integral region)
       call this%get_SGFP(eta_, dpot_, j, djdeta, djddpot)
     end if
@@ -732,25 +722,24 @@ contains
     real,               intent(out) :: djddpot
       !! output derivatives of j wrt dpot
 
-    real, parameter :: beta  = (ETA_MICRO - log(F_REF)) / (ETA_MICRO - ETA_REF)
-    real, parameter :: alpha = exp(beta * ETA_REF) / F_REF
+    real, parameter :: alpha = exp(BETA * ETA_MICRO) / F_MICRO
 
     real :: B1, B2, n1, n2, h
 
     m4_ignore(this)
 
-    B1 = ber( beta * dpot)
-    B2 = ber(-beta * dpot)
+    B1 = ber( BETA * dpot)
+    B2 = ber(-BETA * dpot)
 
-    n1 = exp(beta * eta(1)) / alpha
-    n2 = exp(beta * eta(2)) / alpha
+    n1 = exp(BETA * eta(1)) / alpha
+    n2 = exp(BETA * eta(2)) / alpha
 
     h = hp_to_real(TwoSum(eta(2), -eta(1)) - dpot)
-    j = - B2 * n1 * expm1(beta * h) / beta
+    j = - B2 * n1 * expm1(BETA * h) / BETA
 
     djdeta(1) =   B2 * n1
     djdeta(2) = - B1 * n2
-    djddpot   = - dberdx(-beta * dpot) * n1 - dberdx(beta * dpot) * n2
+    djddpot   = - dberdx(-BETA * dpot) * n1 - dberdx(BETA * dpot) * n2
   end subroutine
 
   subroutine degen_table_get_INTERP(this, eta, dpot, j, djdeta, djddpot)

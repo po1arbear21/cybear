@@ -185,7 +185,7 @@ contains
 
     integer              :: i, ci
     integer, allocatable :: idx(:)
-    real                 :: ch, dop, Edop, ii_g, iref, pot, eta, f, df, g, dg, tmp, ion, dion
+    real                 :: ch, dop, Edop, ii_g, iref, pot, eta, tmp, ion, dion
 
     allocate (idx(this%par%g%idx_dim))
 

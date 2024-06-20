@@ -7,42 +7,15 @@ module fermi_m
   real, parameter :: GAMMA     = sqrt(0.125)
   real, parameter :: ETA_SMALL = -16.0
   real, parameter :: ETA_TINY  = -36.0
-  real, parameter :: ETA_MICRO = -50.0
+  real, parameter :: ETA_MICRO = -25.0
   real, parameter :: ETA_REF   = -5000.0
   real, parameter :: F_SMALL   = 1.0 / (exp(-ETA_SMALL) + GAMMA)
   real, parameter :: F_TINY    = exp(ETA_TINY)
-  real, parameter :: F_MICRO   = exp(ETA_MICRO)
-  real, parameter :: F_REF     = 1e-50
+  real, parameter :: F_MICRO   = 1.0 / (exp(-ETA_MICRO) + GAMMA)
+  real, parameter :: F_REF     = 1e-12
+  real, parameter :: BETA      = log(F_REF / F_MICRO) / (ETA_REF - ETA_MICRO)
 
 contains
-
-  subroutine fermi_dirac_integral_m1h_reg(eta, f, dfdeta)
-    !! derivative of fermi_dirac_integral_1h_reg
-    real, intent(in)  :: eta
-      !! argument
-    real, intent(out) :: f
-      !! value of fermi-dirac integral
-    real, intent(out) :: dfdeta
-      !! output derivative of y wrt x
-
-    real :: e
-
-    if (eta > ETA_SMALL) then
-      call fermi_dirac_integral_m1h(eta, f, dfdeta)
-    elseif (eta > ETA_TINY) then
-      e      = exp(-eta)
-      f      = e / (e + GAMMA)**2
-      dfdeta = e * (e - GAMMA) / (e + GAMMA)**3
-    elseif (eta > ETA_MICRO) then
-      e      = exp(eta)
-      f      = e
-      dfdeta = e
-    else
-      e      = (ETA_MICRO - log(F_REF)) / (ETA_MICRO - ETA_REF)
-      f      = F_REF * exp((eta - ETA_REF) * e) * e
-      dfdeta = f * e
-    end if
-  end subroutine
 
   subroutine fermi_dirac_integral_1h_reg(eta, f, dfdeta)
     !! fermi-dirac integral for j = 1/2 with regularization to avoid underflow
@@ -55,20 +28,18 @@ contains
 
     real :: e
 
-    if (eta > ETA_SMALL) then
+    if (eta < ETA_MICRO) then
+      f      = F_MICRO * exp(BETA * (eta - ETA_MICRO))
+      dfdeta = f * BETA
+    elseif (eta > ETA_SMALL) then
       call fermi_dirac_integral_1h(eta, f, dfdeta)
     elseif (eta > ETA_TINY) then
       e      = exp(-eta)
       f      = 1.0 / (e + GAMMA)
       dfdeta = e / (e + GAMMA)**2
-    elseif (eta > ETA_MICRO) then
-      e      = exp(eta)
-      f      = e
-      dfdeta = e
     else
-      e      = (ETA_MICRO - log(F_REF)) / (ETA_MICRO - ETA_REF)
-      f      = F_REF * exp((eta - ETA_REF) * e)
-      dfdeta = f * e
+      f      = exp(eta)
+      dfdeta = f
     end if
   end subroutine
 
@@ -81,20 +52,43 @@ contains
     real, intent(out) :: detadf
       !! output derivative of eta wrt f
 
-    real :: e
-
-    if (f > F_SMALL) then
+    if (f < F_MICRO) then
+      eta    = ETA_MICRO + log(f / F_MICRO) / BETA
+      detadf = 1.0 / (BETA * f)
+    elseif (f > F_SMALL) then
       call inv_fermi_dirac_integral_1h(f, eta, detadf)
     elseif (f > F_TINY) then
       eta    = - log(1 / f - GAMMA)
       detadf = 1.0 / (f * (1 - GAMMA * f))
-    elseif (f > F_MICRO) then
+    else
       eta    = log(f)
       detadf = 1 / f
+    end if
+  end subroutine
+
+  subroutine fermi_dirac_integral_m1h_reg(eta, f, dfdeta)
+    !! derivative of fermi_dirac_integral_1h_reg
+    real, intent(in)  :: eta
+      !! argument
+    real, intent(out) :: f
+      !! value of fermi-dirac integral
+    real, intent(out) :: dfdeta
+      !! output derivative of y wrt x
+
+    real :: e
+
+    if (f < F_MICRO) then
+      f      = F_MICRO * exp(BETA * (eta - ETA_MICRO)) * BETA
+      dfdeta = f * BETA
+    elseif (eta > ETA_SMALL) then
+      call fermi_dirac_integral_m1h(eta, f, dfdeta)
+    elseif (eta > ETA_TINY) then
+      e      = exp(-eta)
+      f      = e / (e + GAMMA)**2
+      dfdeta = e * (e - GAMMA) / (e + GAMMA)**3
     else
-      e      = (ETA_MICRO - ETA_REF) / (ETA_MICRO - log(F_REF))
-      eta    = ETA_REF + e * log(f / F_REF)
-      detadf = e / f
+      f      = exp(eta)
+      dfdeta = f
     end if
   end subroutine
 

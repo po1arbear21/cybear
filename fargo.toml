@@ -1,12 +1,10 @@
-[project]
-  libraries = ["MPFR", "MUMPS", "TRIANGLE", "ZLIB"]
-
 [debug]
-  compiler = "gnu"
-  mode     = "debug"
-  single   = true
-  target   = "dd"
-  args     = "--project_dir {project_dir} --run {files[0]} --temperature 4.0 --device {files[1]}"
+  compiler  = "gnu"
+  mode      = "debug"
+  single    = true
+  target    = "dd"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+  args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
   runner_args = {mode = "synchronous"}
@@ -17,11 +15,12 @@
   ]
 
 [release]
-  compiler = "gnu"
-  mode     = "release"
-  single   = true
-  target   = "dd"
-  args     = "--project_dir {project_dir} --run {files[0]} --temperature 4.0 --device {files[1]}"
+  compiler  = "gnu"
+  mode      = "release"
+  single    = true
+  target    = "dd"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+  args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
   runner_args = {mode = "synchronous"}
@@ -32,11 +31,12 @@
   ]
 
 [degen_table_test]
-  compiler = "gnu"
-  mode     = "release"
-  single   = true
-  target   = "degen_table_test"
-  args     = ""
+  compiler  = "gnu"
+  mode      = "release"
+  single    = true
+  target    = "degen_table_test"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+  args      = ""
 
   runner      = "local"
   runner_args = {mode = "synchronous"}

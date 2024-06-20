@@ -10,7 +10,6 @@ program dd
   use input_m,            only: input_file
   use input_src_m,        only: const_src, polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI
-  use matrix_m,           only: default_spsolver, SPSOLVER_MUMPS
   use newton_m,           only: newton_opt
   use normalization_m,    only: init_normconst, norm, denorm
   use small_signal_m,     only: small_signal
@@ -24,32 +23,8 @@ program dd
 
   logical          :: gummel_restart, gummel_once, gummel_enabled
   real             :: temperature
-  type(string)     :: projectdir
   type(input_file) :: runfile
   type(newton_opt) :: opt_nlpe, opt_dd(2), opt_gum, opt_full
-
-! block
-!   use distributions_m, only: fermi_dirac_integral_1h
-!   use fermi_m,         only: fermi_dirac_integral_1h_reg
-!   use math_m,          only: linspace
-
-!   integer, parameter :: N = 1001
-!   integer            :: funit, i
-!   real               :: tmp, y, yreg
-!   real, allocatable  :: x(:)
-
-!   allocate (x(N))
-!   x = linspace(-10000.0, 100.0, N)
-!   open (newunit = funit, file = "F.csv", status = "replace", action = "write")
-!   do i = 1, N
-!     call fermi_dirac_integral_1h(x(i), y, tmp)
-!     call fermi_dirac_integral_1h_reg(x(i), yreg, tmp)
-
-!     write (funit, "(3ES25.16E3)") x(i), y, yreg
-!   end do
-!   close (funit)
-!   stop
-! end block
 
   ! parse command line arguments
   call command_line()
@@ -66,9 +41,6 @@ program dd
   opt_dd(2)%msg = "PDD: "
   opt_gum%msg   = "Gummel: "
   opt_full%msg  = "Newton: "
-
-  ! use mumps solver
-  ! default_spsolver = SPSOLVER_MUMPS
 
   opt_nlpe%msg  = "NLPE: "
   opt_dd(1)%msg = "NDD: "
@@ -100,26 +72,6 @@ program dd
         i1 = dev%sys_dd(ci)%i1(ibl)
         opt_dd(ci)%xmin(i0:i1) = norm(1e-80, "1/cm^3")
       end do
-
-      if (dev%par%smc%incomp_ion) then
-        ! iion = dev%sys_full%search_main_var(dev%ion(ci)%name)
-        ! do itab = 1, size(dev%sys_full%res2block(iion)%d)
-        !   ibl = dev%sys_full%res2block(iion)%d(itab)
-        !   i0 = dev%sys_full%i0(ibl)
-        !   i1 = dev%sys_full%i1(ibl)
-        !   opt_full%xmin(i0:i1) = norm(1e-10, "1/cm^3")
-        !   opt_full%xmax(i0:i1) = huge(1.0)
-        ! end do
-
-        ! iion = dev%sys_dd(ci)%search_main_var(dev%ion(ci)%name)
-        ! do itab = 1, size(dev%sys_dd(ci)%res2block(iion)%d)
-        !   ibl = dev%sys_dd(ci)%res2block(iion)%d(itab)
-        !   i0 = dev%sys_dd(ci)%i0(ibl)
-        !   i1 = dev%sys_dd(ci)%i1(ibl)
-        !   opt_dd(ci)%xmin(i0:i1) = norm(1e-10, "1/cm^3")
-        !   opt_dd(ci)%xmax(i0:i1) = huge(1.0)
-        ! end do
-      end if
     end do
   end block
 
@@ -138,8 +90,7 @@ contains
     integer                      :: idesc, i, j, funit
     integer,         allocatable :: iclopt(:), jclopt(:)
     type(cl_option), allocatable :: clopt(:)
-    type(cl_option_descriptor)   :: desc(4) = [ &
-      cl_option_descriptor('P', "project_dir", .true., .false., .true., .true.), &
+    type(cl_option_descriptor)   :: desc(3) = [ &
       cl_option_descriptor('T', "temperature", .true., .false., .true., .true.), &
       cl_option_descriptor('d', "device",      .true., .false., .true., .true.), &
       cl_option_descriptor('r', "run",         .true., .false., .true., .true.)  &
@@ -150,16 +101,13 @@ contains
       do i = iclopt(idesc), iclopt(idesc + 1) - 1
         j = jclopt(i)
         select case (clopt(j)%short)
-        case ('P')
-          projectdir%s = clopt(j)%arg
-
         case ('T')
           read (clopt(j)%arg, *) temperature
           call init_normconst(temperature)
           print "(A,ES25.16E3,A)", "T = ", temperature, " K"
 
         case ('d')
-          call dev%init(projectdir%s, clopt(j)%arg, temperature)
+          call dev%init(clopt(j)%arg, temperature)
 
         case ('r')
           call runfile%init(clopt(j)%arg)
@@ -169,59 +117,27 @@ contains
     end do
 
     ! output grids
-    open (newunit = funit, file = "x.csv", status = "replace", action = "write")
-    do i = 1, dev%par%g1D(1)%n
-      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(1)%x(i), "um")
-    end do
-    close (funit)
-    open (newunit = funit, file = "y.csv", status = "replace", action = "write")
-    do i = 1, dev%par%g1D(2)%n
-      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(2)%x(i), "um")
-    end do
-    close (funit)
-    open (newunit = funit, file = "z.csv", status = "replace", action = "write")
-    do i = 1, dev%par%g1D(3)%n
-      write (funit, "(ES25.16E3)") denorm(dev%par%g1D(3)%x(i), "um")
-    end do
-    close (funit)
-
-    ! block
-    !   use grid_m, only: IDX_VERTEX, IDX_EDGE, IDX_CELL
-    !   integer :: idx(3), idx_bnd(2,3)
-
-
-    !   call dev%par%g%get_idx_bnd(IDX_CELL, 0, idx_bnd)
-    !   idx(3) = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, 0.0)-1
-    !   idx(1) = idx_bnd(2,1)
-    !   do j = idx_bnd(1,2), idx_bnd(2,2)
-    !     idx(2) = j
-    !     print "(2ES25.16E3)", denorm(dev%par%g1D(2)%x(j), "um"), denorm(dev%par%eps(IDX_CELL,0)%get(idx), "eps0")
-    !   end do
-    !   print *
-    !   idx(3) = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, 0.0)
-    !   idx(1) = idx_bnd(2,1)
-    !   do j = idx_bnd(1,2), idx_bnd(2,2)
-    !     idx(2) = j
-    !     print "(2ES25.16E3)", denorm(dev%par%g1D(2)%x(j), "um"), denorm(dev%par%eps(IDX_CELL,0)%get(idx), "eps0")
-    !   end do
-    !   print *
-    !   call dev%par%g%get_idx_bnd(IDX_EDGE, 1, idx_bnd)
-    !   idx(3) = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, 0.0)
-    !   idx(1) = idx_bnd(2,1)
-    !   do j = idx_bnd(1,2), idx_bnd(2,2)
-    !     idx(2) = j
-    !     print "(2ES25.16E3)", denorm(dev%par%g1D(2)%x(j), "um"), denorm(dev%par%eps(IDX_EDGE,1)%get(idx), "eps0")
-    !   end do
-    !   print *
-    !   call dev%par%g%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
-    !   idx(3) = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, 0.0)
-    !   idx(1) = idx_bnd(2,1)
-    !   do j = idx_bnd(1,2), idx_bnd(2,2)
-    !     idx(2) = j
-    !     print "(2ES25.16E3)", denorm(dev%par%g1D(2)%x(j), "um"), denorm(dev%par%vol%get(idx), "um^3")
-    !   end do
-    !   stop
-    ! end block
+    if (allocated(dev%par%g1D(1)%x)) then
+      open (newunit = funit, file = "x.csv", status = "replace", action = "write")
+      do i = 1, dev%par%g1D(1)%n
+        write (funit, "(ES25.16E3)") denorm(dev%par%g1D(1)%x(i), "um")
+      end do
+      close (funit)
+    end if
+    if (allocated(dev%par%g1D(2)%x)) then
+      open (newunit = funit, file = "y.csv", status = "replace", action = "write")
+      do i = 1, dev%par%g1D(2)%n
+        write (funit, "(ES25.16E3)") denorm(dev%par%g1D(2)%x(i), "um")
+      end do
+      close (funit)
+    end if
+    if (allocated(dev%par%g1D(3)%x)) then
+      open (newunit = funit, file = "z.csv", status = "replace", action = "write")
+      do i = 1, dev%par%g1D(3)%n
+        write (funit, "(ES25.16E3)") denorm(dev%par%g1D(3)%x(i), "um")
+      end do
+      close (funit)
+    end if
   end subroutine
 
   subroutine load_iteration_params(section, n, opt)
@@ -289,39 +205,7 @@ contains
       gummel_restart = .true.
       gummel_once    = .true.
       gummel_enabled = .true.
-opt_full%error_if_not_converged = .false.
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel)
-
-! block
-!   print *, "poisson"
-!   call dev%poiss%test(500)
-!   print *, "rho"
-!   call dev%calc_rho%test(500, no_sign_change = [.true., .true., .true., .true.])
-!   print *, "contin 1"
-!   call dev%contin(1)%test(500, no_sign_change = [.true., .false., .false., .false., .true.])
-!   print *, "contin 2"
-!   call dev%contin(2)%test(500, no_sign_change = [.true., .false., .false., .false., .true.])
-!   print *, "ion_contin 1"
-!   call dev%ion_contin(1)%test(500, no_sign_change = [.true., .false.])
-!   print *, "ion_contin 2"
-!   call dev%ion_contin(2)%test(500, no_sign_change = [.true., .false.])
-!   print *, "genrec 1"
-!   call dev%calc_genrec(1)%test(500, no_sign_change = [.false., .false., .true.])
-!   print *, "genrec 2"
-!   call dev%calc_genrec(2)%test(500, no_sign_change = [.false., .false., .true.])
-!   print *, "iref 1"
-!   call dev%calc_iref(1)%test(500, no_sign_change = [.false., .true.])
-!   print *, "iref 2"
-!   call dev%calc_iref(2)%test(500, no_sign_change = [.false., .true.])
-!   print *, "calc_cdens 1"
-!   call dev%calc_cdens(1,1)%test(500, no_sign_change = [.false., .true., .true.])
-!   call dev%calc_cdens(2,1)%test(500, no_sign_change = [.false., .true., .true.])
-!   call dev%calc_cdens(3,1)%test(500, no_sign_change = [.false., .true., .true.])
-!   print *, "calc_cdens 2"
-!   call dev%calc_cdens(1,2)%test(500, no_sign_change = [.false., .true., .true.])
-!   call dev%calc_cdens(2,2)%test(500, no_sign_change = [.false., .true., .true.])
-!   call dev%calc_cdens(3,2)%test(500, no_sign_change = [.false., .true., .true.])
-! end block
 
       if (nsweep < 1) then
         nsweep = 1
@@ -742,77 +626,6 @@ opt_full%error_if_not_converged = .false.
     if ((it > opt_gum%max_it) .and. (error > opt_gum%atol(1))) then
       call program_error("Gummel iteration did not converge (maximum number of iterations reached)")
     end if
-
-! block
-!   use steady_state_m, only: MYDEBUG, DEBUG_PROC
-
-!   MYDEBUG = .true.
-!   DEBUG_PROC => mydebug_proc
-! end block
-  end subroutine
-
-  subroutine mydebug_proc()
-    integer, save :: i = 0
-
-    integer                       :: ix, iy, iz
-    real                          :: dens
-    class(variable_real), pointer :: vp
-
-    i = i + 1
-    print *, "mydebug_proc: ", i
-
-    if (i == 2) then
-      do iz = 1, dev%par%g1D(3)%n
-        do iy = 1, dev%par%g1D(2)%n
-          do ix = 1, dev%par%g1D(1)%n
-            dens = denorm(dev%dens(1)%x3(ix,iy,iz), "1/cm^3")
-            if ((dens > 0) .and. (dens < 1e-75)) then
-              print "(3I6,ES25.16E3)", ix, iy, iz, dens
-            end if
-          end do
-        end do
-      end do
-    end if
-    ! 11     1    43
-
-
-    call output_xz(dev%pot,       0.0,     "potxz_" // int2str(i) // ".csv")
-    call output_xz(dev%dens(1),   0.0,       "nxz_" // int2str(i) // ".csv")
-    call output_xz(dev%dens(2),   0.0,       "pxz_" // int2str(i) // ".csv")
-    call output_xz(dev%iref(1),   0.0,  "nimrefxz_" // int2str(i) // ".csv")
-    call output_xz(dev%iref(2),   0.0,  "pimrefxz_" // int2str(i) // ".csv")
-    call output_xz(dev%ion(1),    0.0,    "nionxz_" // int2str(i) // ".csv")
-    call output_xz(dev%ion(2),    0.0,    "pionxz_" // int2str(i) // ".csv")
-    call output_xz(dev%genrec(1), 0.0, "ngenrecxz_" // int2str(i) // ".csv")
-    call output_xz(dev%genrec(2), 0.0, "pgenrecxz_" // int2str(i) // ".csv")
-
-    select type (p => dev%poiss%f%v(1)%p)
-    class is (variable_real)
-      vp => p
-    end select
-    call output_xz(vp, 0.0, "fpoissxz_" // int2str(i) // ".csv")
-
-    select type (p => dev%contin(1)%f%v(1)%p)
-    class is (variable_real)
-      vp => p
-    end select
-    call output_xz(vp, 0.0, "fnxz_" // int2str(i) // ".csv")
-    select type (p => dev%contin(2)%f%v(1)%p)
-    class is (variable_real)
-      vp => p
-    end select
-    call output_xz(vp, 0.0, "fpxz_" // int2str(i) // ".csv")
-
-    select type (p => dev%ion_contin(1)%f%v(1)%p)
-    class is (variable_real)
-      vp => p
-    end select
-    call output_xz(vp, 0.0, "fnionxz_" // int2str(i) // ".csv")
-    select type (p => dev%ion_contin(2)%f%v(1)%p)
-    class is (variable_real)
-      vp => p
-    end select
-    call output_xz(vp, 0.0, "fpionxz_" // int2str(i) // ".csv")
   end subroutine
 
   subroutine solve_nlpe()
@@ -881,14 +694,23 @@ opt_full%error_if_not_converged = .false.
     real,                 intent(in) :: z
     character(*),         intent(in) :: file
 
-    integer           :: i, idx(3), idx_bnd(2,3), j, k
-    real, allocatable :: data(:,:)
+    integer              :: i, j, k
+    integer, allocatable :: idx(:), idx_bnd(:,:)
+    real,    allocatable :: data(:,:)
+
+    allocate (idx(dev%par%g%idx_dim), idx_bnd(2,dev%par%g%idx_dim))
 
     call dev%par%g%get_idx_bnd(v%idx_type, v%idx_dir, idx_bnd)
     allocate (data(idx_bnd(1,1):idx_bnd(2,1),idx_bnd(1,2):idx_bnd(2,2)), source = 0.0)
-    k = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, z)
+    if (dev%par%g%idx_dim == 3) then
+      k = idx_bnd(1,3) - 1 + bin_search(dev%par%g1D(3)%x, z)
+    end if
     do j = idx_bnd(1,2), idx_bnd(2,2); do i = idx_bnd(1,1), idx_bnd(2,1)
-      idx = [i, j, k]
+      if (dev%par%g%idx_dim == 3) then
+        idx = [i, j, k]
+      else
+        idx = [i, j]
+      end if
       data(i,j) = denorm(v%get(idx), v%unit)
     end do; end do
 

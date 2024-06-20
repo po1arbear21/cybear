@@ -155,8 +155,6 @@ contains
   end subroutine
 
   subroutine calc_current_density_eval(this)
-use degen_table_m, only: DEGEN_TABLE_DEBUG
-
     !! evaluate drift-diffusion equation
     class(calc_current_density), intent(inout) :: this
 
@@ -170,19 +168,13 @@ use degen_table_m, only: DEGEN_TABLE_DEBUG
     allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim))
 
     ! loop over transport edges in parallel
-    ! $omp parallel do default(none) schedule(dynamic) &
-    ! $omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
-    ! $omp shared(this,idx_dir,idx_dim)
+    !$omp parallel do default(none) schedule(dynamic) &
+    !$omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
+    !$omp shared(this,idx_dir,idx_dim)
     do i = 1, this%par%transport(IDX_EDGE, idx_dir)%n
       idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
-
-if ((((idx1(1) >= 11) .and. (idx1(1) <= 19)) .and. (idx1(3) == 43)) .or. (((idx2(1) >= 11) .or. (idx2(1) <= 19)) .and. (idx2(3) == 43))) then
-  DEGEN_TABLE_DEBUG = .true.
-else
-  DEGEN_TABLE_DEBUG = .false.
-end if
 
       ! parameters
       len     = this%par%g%get_len(idx1, idx_dir)
@@ -203,7 +195,7 @@ end if
       call this%jaco_dens%set(idx, idx2, djddens(2))
       call this%jaco_mob%set( idx, idx,  djdmob)
     end do
-    ! $omp end parallel do
+    !$omp end parallel do
   end subroutine
 
   subroutine calc_current_density_get_curr(this, degen, len, pot, dens, mob, j, djdpot, djddens, djdmob)
@@ -236,10 +228,9 @@ end if
     ch   = CR_CHARGE(ci)
     edos = this%par%smc%edos(ci)
 
-    ! normalize potential drop
+    ! normalize potential drop and density
     dpot = - ch * (pot(2) - pot(1))
-
-    n = dens / edos
+    n    = dens / edos
 
     if (degen) then
       ! generalized Scharfetter-Gummel
@@ -254,7 +245,7 @@ end if
 
     ! denormalize
     j       = j * mob * edos / len
-    djdpot  = - ch * [-1.0, 1.0] * djddpot * mob * edos / len
+    djdpot  = ch * [1.0, -1.0] * djddpot * mob * edos / len
     djddens = djdn * mob / len
     djdmob  = j / mob
   end subroutine
