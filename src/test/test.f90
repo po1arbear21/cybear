@@ -42,6 +42,9 @@ program test
   m4_ifdef({m4_ilupack},{
   use test_ilupack_m
   })
+  m4_ifdef({m4_klu2},{
+  use test_klu2_m
+  })
   m4_ifdef({m4_mumps},{
   use test_mumps_m
   })
@@ -101,6 +104,7 @@ program test
 
   m4_ifdef({m4_feast},{call test_feast()})
   m4_ifdef({m4_ilupack},{call test_ilupack()})
+  m4_ifdef({m4_klu2},{call test_klu2()})
   m4_ifdef({m4_mumps},{call test_mumps()})
   m4_ifdef({m4_quadpack},{call test_quadpack()})
   m4_ifdef({m4_mpfr},{call test_mpfr()})

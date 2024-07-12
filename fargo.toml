@@ -1,13 +1,36 @@
+[defaults]
+  intsize   = 32                     # integer size in bits (32 or 64)
+  idxsize   = 32                     # integer size of sparse matrix row pointers (32 or 64, >= intsize)
+  compiler  = "gfortran"             # "gfortran", "ifort", "ifx"
+  mode      = "debug"                # "debug", "release", "profile"
+  march     = "broadwell"            # cpu architecture, broadwell should work on all nodes
+  m4flags   = ["-P", "-s"]           # do not change
+  libraries = ["BLAS95", "LAPACK95"] # list of libraries to link with
+  single    = false                  # single or multiple jobs in section?
+  workers   = 0                      # builder number of workers (0 = number of cpu cores)
+  timeout   = 60.0                   # builder timeout
+
+  # additionally required in each section:
+  # runner      = "..."              # runner: "local" or "node"
+  # runner_args = {...}              # runner arguments
+
+  # optional:
+  # task_name   = "..."              # task sub-directory name template (default: automatic)
+  # m4vars      = {...}              # additional variables for M4
+  # args        = "..."              # arguments passed to target
+  # wanted      = [...]              # list of additional targets
+  # variables   = [{...}]            # variables
+  # templates   = [{...}]            # template files
+  # postprocess = [{...}]            # postprocessing
+
 [debug]
-  compiler  = "gnu"
-  mode      = "debug"
   single    = true
   target    = "dd"
   libraries = ["MPFR", "TRIANGLE", "ZLIB"]
   args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
-  runner_args = {mode = "synchronous"}
+  runner_args = {}
 
   templates = [
     { files = [ "run.ini" ] },
@@ -15,7 +38,6 @@
   ]
 
 [release]
-  compiler  = "gnu"
   mode      = "release"
   single    = true
   target    = "dd"
@@ -23,7 +45,7 @@
   args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
-  runner_args = {mode = "synchronous"}
+  runner_args = {}
 
   templates = [
     { files = [ "run.ini" ] },
@@ -31,7 +53,6 @@
   ]
 
 [degen_table_test]
-  compiler  = "gnu"
   mode      = "release"
   single    = true
   target    = "degen_table_test"
@@ -39,4 +60,4 @@
   args      = ""
 
   runner      = "local"
-  runner_args = {mode = "synchronous"}
+  runner_args = {}

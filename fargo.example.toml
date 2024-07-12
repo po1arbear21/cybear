@@ -1,0 +1,101 @@
+[defaults]
+  intsize   = 32                     # integer size in bits (32 or 64)
+  idxsize   = 32                     # integer size of sparse matrix row pointers (32 or 64, >= intsize)
+  compiler  = "gfortran"             # "gfortran", "ifort", "ifx"
+  mode      = "debug"                # "debug", "release", "profile"
+  march     = "broadwell"            # cpu architecture, broadwell should work on all nodes
+  m4flags   = ["-P", "-s"]           # do not change
+  libraries = ["BLAS95", "LAPACK95"] # list of libraries to link with
+  single    = false                  # single or multiple jobs in section?
+  workers   = 0                      # builder number of workers (0 = number of cpu cores)
+  timeout   = 60.0                   # builder timeout
+
+  # additionally required in each section:
+  # runner      = "..."              # runner: "local" or "node"
+  # runner_args = {...}              # runner arguments
+
+  # optional:
+  # task_name   = "..."              # task sub-directory name template (default: automatic)
+  # m4vars      = {...}              # additional variables for M4
+  # args        = "..."              # arguments passed to target
+  # wanted      = [...]              # list of additional targets
+  # variables   = [{...}]            # variables
+  # templates   = [{...}]            # template files
+  # postprocess = [{...}]            # postprocessing
+
+[debug]
+  single      = true
+  runner      = "local"
+  runner_args = {}
+  target      = "main"
+
+[test]
+  single      = true
+  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "KLU2", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE"]
+  runner      = "local"
+  runner_args = {}
+  target      = "test"
+
+  templates = [
+    { files = [
+        "src/test/example.inp",
+        "src/test/example_matrix4.dat",
+        "src/test/S1.test",
+        "src/test/S2.test",
+        "src/test/S3.test",
+        "src/test/table.csv",
+        "src/test/test1.json",
+        "src/test/test2.json",
+    ] }
+  ]
+
+[test_ifort]
+  single      = true
+  compiler    = "ifort"
+  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "KLU2", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE"]
+  runner      = "local"
+  runner_args = {}
+  target      = "test"
+
+  templates = [
+    { files = [
+        "src/test/example.inp",
+        "src/test/example_matrix4.dat",
+        "src/test/S1.test",
+        "src/test/S2.test",
+        "src/test/S3.test",
+        "src/test/table.csv",
+        "src/test/test1.json",
+        "src/test/test2.json",
+    ] }
+  ]
+
+[test_64]
+  single      = true
+  intsize     = 64
+  idxsize     = 64
+  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "KLU2", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE"]
+  runner      = "local"
+  runner_args = {}
+  target      = "test"
+
+  templates = [
+    { files = [
+        "src/test/example.inp",
+        "src/test/example_matrix4.dat",
+        "src/test/S1.test",
+        "src/test/S2.test",
+        "src/test/S3.test",
+        "src/test/table.csv",
+        "src/test/test1.json",
+        "src/test/test2.json",
+    ] }
+  ]
+
+[test_cl_simple]
+  single      = true
+  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE"]
+  runner      = "local"
+  runner_args = {}
+  target      = "cl_test_simple"
+  args        = "--file abc.txt -o out"
