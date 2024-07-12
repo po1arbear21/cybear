@@ -6,7 +6,7 @@ module mumps_m
 
   use deque_m,      only: deque_int
   use error_m,      only: program_error
-  use sparse_idx_m, only: sparse_idx
+  use sparse_idx_m, only: SPARSE_IDX
 
   implicit none
 
@@ -194,7 +194,7 @@ contains
     integer(SPARSE_IDX) :: j, nnz
 
     associate (m => dmumps_handles(h))
-      ! matrix size and number of zeros
+      ! matrix size and number of non-zeros
       n   = size(ia) - 1
       nnz = size(a, kind = SPARSE_IDX)
 
@@ -227,7 +227,7 @@ contains
     integer(SPARSE_IDX) :: j, nnz
 
     associate (m => zmumps_handles(h))
-      ! matrix size and number of zeros
+      ! matrix size and number of non-zeros
       n   = size(ia) - 1
       nnz = size(a, kind = SPARSE_IDX)
 

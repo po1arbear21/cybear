@@ -25,10 +25,10 @@ module test_case_m
     procedure :: init
     procedure :: finish
     generic   :: assert    => assert_1, assert_arr, assert_arr2D, assert_arr3D
-    generic   :: assert_eq => assert_eq_int      , assert_eq_real      , assert_eq_cmplx      , assert_eq_string      , &
-                              assert_eq_int_arr  , assert_eq_real_arr  , assert_eq_cmplx_arr  , assert_eq_string_arr  , &
-                              assert_eq_int_arr2D, assert_eq_real_arr2D, assert_eq_cmplx_arr2D, assert_eq_string_arr2D, &
-                              assert_eq_int_arr3D, assert_eq_real_arr3D, assert_eq_cmplx_arr3D, assert_eq_string_arr3D
+    generic   :: assert_eq => assert_eq_int      , assert_eq_real      , assert_eq_real128,       assert_eq_cmplx      , assert_eq_string      , &
+                              assert_eq_int_arr  , assert_eq_real_arr  , assert_eq_real128_arr,   assert_eq_cmplx_arr  , assert_eq_string_arr  , &
+                              assert_eq_int_arr2D, assert_eq_real_arr2D, assert_eq_real128_arr2D, assert_eq_cmplx_arr2D, assert_eq_string_arr2D, &
+                              assert_eq_int_arr3D, assert_eq_real_arr3D, assert_eq_real128_arr3D, assert_eq_cmplx_arr3D, assert_eq_string_arr3D
 
     ! private procedures
     procedure, private :: assert_1
@@ -43,6 +43,10 @@ module test_case_m
     procedure, private :: assert_eq_real_arr
     procedure, private :: assert_eq_real_arr2D
     procedure, private :: assert_eq_real_arr3D
+    procedure, private :: assert_eq_real128
+    procedure, private :: assert_eq_real128_arr
+    procedure, private :: assert_eq_real128_arr2D
+    procedure, private :: assert_eq_real128_arr3D
     procedure, private :: assert_eq_cmplx
     procedure, private :: assert_eq_cmplx_arr
     procedure, private :: assert_eq_cmplx_arr2D
@@ -458,6 +462,149 @@ contains
     end do
   end subroutine
 
+  subroutine assert_eq_real128(this, expected, value, rtol, atol, msg)
+    !! check real value (scalar) for equality to expected value within tolerance
+
+    class(test_case),  intent(inout) :: this
+      !! test case
+    real(kind=16),     intent(in)    :: expected
+      !! expected value
+    real(kind=16),     intent(in)    :: value
+      !! actual value
+    real(kind=16),     intent(in)    :: rtol
+      !! relative tolerance to compare value to
+    real(kind=16),     intent(in)    :: atol
+      !! absolute tolerance to compare value to
+    character(*),      intent(in)    :: msg
+      !! message to print if error detected
+
+    call this%check(abs(expected - value) <= max(atol, rtol * abs(expected)), msg, &
+                    msg2 = "scalar value differs", rpar128 = [expected, value])
+  end subroutine
+
+  subroutine assert_eq_real128_arr(this, expected, values, rtol, atol, msg)
+    !! Check real values (1D array) for equality to expected values within tolerance.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    real(kind=16),    intent(in)    :: expected(:)
+      !! Expected values
+    real(kind=16),    intent(in)    :: values(:)
+      !! Actual values
+    real(kind=16),    intent(in)    :: rtol
+      !! relative tolerance
+    real(kind=16),    intent(in)    :: atol
+      !! absolute tolerance
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    integer :: i, failed
+
+    ! check array sizes
+    call this%check((size(expected) == size(values)), msg, &
+                    msg2 = "array lengths differ")
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values)
+      call this%check(abs(expected(i) - values(i)) <= max(atol, rtol * abs(expected(i))), msg, &
+                      msg2 = "array values differ; (row; expected, value)", ipar = [i], rpar128 = [expected(i), values(i)])
+      if (.not. this%last_passed) failed = failed + 1
+      if (failed > 5) then
+        print "(A)", "    Failed for more than 5 elements, discontinue test!"
+        return
+      end if
+    end do
+  end subroutine
+
+  subroutine assert_eq_real128_arr2D(this, expected, values, rtol, atol, msg)
+    !! Check real values (2D array) for equality to expected values within tolerance.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    real(kind=16),    intent(in)    :: expected(:,:)
+      !! Expected values
+    real(kind=16),    intent(in)    :: values(:,:)
+      !! Actual values
+    real(kind=16),    intent(in)    :: rtol
+      !! relative tolerance
+    real(kind=16),    intent(in)    :: atol
+      !! absolute tolerance
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    integer :: i, j, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        call this%check(abs(expected(i,j) - values(i,j)) <= max(atol, rtol * abs(expected(i,j))), msg, &
+                        msg2 = "array values differ; (row, col; expected, value)", ipar = [i, j], rpar128 = [expected(i,j), values(i,j)])
+        if (.not. this%last_passed) failed = failed + 1
+        if (failed > 5) then
+          print "(A)", "    Failed for more than 5 elements, discontinue test!"
+          return
+        end if
+      end do
+    end do
+  end subroutine
+
+  subroutine assert_eq_real128_arr3D(this, expected, values, rtol, atol, msg)
+    !! Check real values (3D array) for equality to expected values within tolerance.
+
+    class(test_case), intent(inout) :: this
+      !! Test case
+    real(kind=16),    intent(in)    :: expected(:,:,:)
+      !! Expected values
+    real(kind=16),    intent(in)    :: values(:,:,:)
+      !! Actual values
+    real(kind=16),    intent(in)    :: rtol
+      !! relative tolerance
+    real(kind=16),    intent(in)    :: atol
+      !! absolute tolerance
+    character(*),     intent(in)    :: msg
+      !! Message to print if error detected
+
+    integer :: i, j, k, failed
+
+    ! check array sizes
+    call this%check((size(expected,1) == size(values,1)), msg, &
+                    msg2 = "number of rows differ", ipar = [size(expected,1), size(values,1)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,2) == size(values,2)), msg, &
+                    msg2 = "number of cols differ", ipar = [size(expected,2), size(values,2)])
+    if (.not. this%last_passed) return
+    call this%check((size(expected,3) == size(values,3)), msg, &
+                    msg2 = "number of slices differ", ipar = [size(expected,3), size(values,3)])
+    if (.not. this%last_passed) return
+
+    ! check values one by one
+    failed = 0
+    do i = 1, size(values,1)
+      do j = 1, size(values,2)
+        do k = 1, size(values,3)
+          call this%check(abs(expected(i,j,k) - values(i,j,k)) <= max(atol, rtol * abs(expected(i,j,k))), msg, &
+                          msg2 = "array values differ; (row, col, slice; expected, value)", ipar = [i, j, k], rpar128 = [expected(i,j,k), values(i,j,k)])
+          if (.not. this%last_passed) failed = failed + 1
+          if (failed > 5) then
+            print "(A)", "    Failed for more than 5 elements, discontinue test!"
+            return
+          end if
+        end do
+      end do
+    end do
+  end subroutine
+
   subroutine assert_eq_cmplx(this, expected, value, rtol, atol, msg)
     !! Check real value (scalar) for equality to expected value within tolerance.
 
@@ -728,22 +875,24 @@ contains
     end do
   end subroutine
 
-  subroutine check(this, chk, msg, msg2, ipar, rpar, cpar)
+  subroutine check(this, chk, msg, msg2, ipar, rpar, rpar128, cpar)
     !! Perform check.
 
-    class(test_case),       intent(inout) :: this
+    class(test_case),        intent(inout) :: this
       !! Test case
-    logical,                intent(in)    :: chk
+    logical,                 intent(in)    :: chk
       !! True means test will pass
-    character(*),           intent(in)    :: msg
+    character(*),            intent(in)    :: msg
       !! Message to print if test fails
-    character(*), optional, intent(in)    :: msg2
+    character(*),  optional, intent(in)    :: msg2
       !! 2nd part of message (new line)
-    integer,      optional, intent(in)    :: ipar(:)
+    integer,       optional, intent(in)    :: ipar(:)
       !! Additional integer parameters to print (new line)
-    real,         optional, intent(in)    :: rpar(:)
+    real,          optional, intent(in)    :: rpar(:)
       !! Additional real parameters to print (new line)
-    complex,      optional, intent(in)    :: cpar(:)
+    real(kind=16), optional, intent(in)    :: rpar128(:)
+      !! Additional real parameters to print (new line)
+    complex,       optional, intent(in)    :: cpar(:)
       !! Additional complex parameters to print (new line)
 
     integer :: i
@@ -777,6 +926,17 @@ contains
             write(*, fmt="(ES25.16E3,A)", advance="no") rpar(i), ", "
           else
             write(*, fmt="(ES25.16E3)") rpar(i)
+          end if
+        end do
+        print *
+      end if
+      if (present(rpar128)) then
+        write(*, fmt="(1A)", advance="no") "      "
+        do i = 1, size(rpar128)
+          if (i < size(rpar128)) then
+            write(*, fmt="(ES41.32E3,A)", advance="no") rpar128(i), ", "
+          else
+            write(*, fmt="(ES41.32E3)") rpar128(i)
           end if
         end do
         print *
