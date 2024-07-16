@@ -16,7 +16,7 @@ scaling fact = 2.0
 ! comment
 [transport]
   x_width = 1 : um
-  y_dir = true ! comment
+  y_dir = True ! comment
 
 [region]
   poisson = true
@@ -27,13 +27,13 @@ scaling fact = 2.0
   eps = 3.9 : eps0
 
 [region]
-  transport = true
+  transport = False
   y0 = 6e2 : um
   y1 = 0.9 : um
 
 [contact]
   name = "GAT"
-  gate = true
+  gate = false
   x0 = -0.5 : um
   x1 = -0.5 : um
   y0 =  0.2 : um
