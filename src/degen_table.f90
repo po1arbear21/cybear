@@ -946,8 +946,10 @@ contains
     a = (exp(eta_split) - exp(eta(1))) / (exp(eta(2)) - exp(eta(1)))
     if (abs(dpot) < 1e-3) then
       x = a - 0.5 * a * (a - 1) * dpot
-    else
+    elseif (dpot < 700) then
       x = log1p(a * expm1(dpot)) / dpot
+    else
+      x = log(a) / dpot + 1
     end if
     if (x < 0) x = 0
     if (x > 1) x = 1
