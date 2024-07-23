@@ -290,7 +290,7 @@ contains
         end if
 
         ! try reading as bool
-        if ((trim(item) == "true") .or. (trim(item) == "false")) then
+        if ((trim(item) == "true") .or. (trim(item) == "True") .or. (trim(item) == "false") .or. (trim(item) == "False")) then
           this%type = INPUT_TYPE_LOGIC
           exit DEDUCE_TYPE
         end if
@@ -399,9 +399,9 @@ contains
         end if
 
         ! convert to logical
-        if (item == "true") then
+        if ((item == "true") .or. (item == "True")) then
           this%logic_data(i) = .true.
-        elseif (item == "false") then
+        elseif ((item == "false") .or. (item == "False")) then
           this%logic_data(i) = .false.
         else
           valid = .false.

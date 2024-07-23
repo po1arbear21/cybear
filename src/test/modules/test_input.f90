@@ -142,7 +142,7 @@ contains
 
       ! check get_name_logical
       call f%get("contact", "gate", tf)
-      call tc%assert_eq(count([.true.]), count([tf]), "get_name_logical")
+      call tc%assert_eq(count([.false.]), count([tf]), "get_name_logical")
 
       ! check get_name_logical_arr
       call f%get("contact", "tf", tf_arr)
@@ -151,7 +151,7 @@ contains
       ! check get_logical
       call f%get_sections("contact", sid)
       call f%get(sid(1), "gate", tf)
-      call tc%assert_eq(count([.true.]), count([tf]), "get_logical")
+      call tc%assert_eq(count([.false.]), count([tf]), "get_logical")
 
       ! check get_logical_arr
       call f%get_sections("contact", sid)
