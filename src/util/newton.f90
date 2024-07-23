@@ -288,7 +288,7 @@ contains
         m4_info("err     = " // real2str(err))
         m4_info("abs_err = " // real2str(abs_err))
         if (opt%error_if_not_converged) then
-          m4_error("solution could not be found within maximum number of iterations")
+          call program_error("solution could not be found within maximum number of iterations")
         else
           m4_info("solution could not be found within maximum number of iterations")
           return
