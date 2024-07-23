@@ -6,6 +6,5 @@
 *.pdf
 *.gv
 doc
-build
-run
+jobs
 !.gitignore
