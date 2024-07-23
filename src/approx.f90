@@ -64,7 +64,7 @@ contains
       !! voltages for all contacts
 
     integer               :: ict
-    real, allocatable     :: x(:), f(:)
+    real, allocatable     :: dx(:), f(:)
     type(imref_approx_eq) :: eq
     type(esystem)         :: sys
     type(sparse_real)     :: df
@@ -81,11 +81,11 @@ contains
     call sys%init_final()
 
     ! solve for imref
-    allocate (x(sys%n), f(sys%n))
+    allocate (dx(sys%n), f(sys%n))
     call sys%eval(f = f, df = df)
     call df%factorize()
-    call df%solve_vec(-f, x)
-    call sys%set_x(x)
+    call df%solve_vec(f, dx)
+    call sys%set_x(sys%get_x() - dx)
 
     ! free memory
     call eq%destruct()
