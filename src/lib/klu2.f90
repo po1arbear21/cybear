@@ -37,36 +37,36 @@ module klu2_m
 
   interface
     ! extern "C" void klu2_init(klu2_handle *h)
-  subroutine klu2_init_lib(h) bind(c, name="klu2_init")
-    import klu2_handle, m4_c_int
-    type(klu2_handle), intent(out) :: h
-  end subroutine
+    subroutine klu2_init_lib(h) bind(c, name="klu2_init")
+      import klu2_handle, m4_c_int
+      type(klu2_handle), intent(out) :: h
+    end subroutine
 
-  ! extern "C" void klu2_factorize(klu2_handle *h, const Int n, const Int nnz, const Int *ia, const Int *ja, const __float128 *a)
-  subroutine klu2_factorize_lib(h, n, nnz, ia, ja, a) bind(c, name="klu2_factorize")
-    import klu2_handle, m4_c_int
-    type(klu2_handle),        intent(inout) :: h
-    integer(m4_c_int), value, intent(in)    :: n
-    integer(m4_c_int), value, intent(in)    :: nnz
-    integer(m4_c_int),        intent(in)    :: ia(*)
-    integer(m4_c_int),        intent(in)    :: ja(*)
-    real(kind=16),            intent(in)    :: a(*)
-  end subroutine
+    ! extern "C" void klu2_factorize(klu2_handle *h, const Int n, const Int nnz, const Int *ia, const Int *ja, const __float128 *a)
+    subroutine klu2_factorize_lib(h, n, nnz, ia, ja, a) bind(c, name="klu2_factorize")
+      import klu2_handle, m4_c_int
+      type(klu2_handle),        intent(inout) :: h
+      integer(m4_c_int), value, intent(in)    :: n
+      integer(m4_c_int), value, intent(in)    :: nnz
+      integer(m4_c_int),        intent(in)    :: ia(*)
+      integer(m4_c_int),        intent(in)    :: ja(*)
+      real(kind=16),            intent(in)    :: a(*)
+    end subroutine
 
-  ! extern "C" void klu2_solve(const klu2_handle *h, Int nrhs, const Real *b, Real *x)
-  subroutine klu2_solve_lib(h, nrhs, b, x) bind(c, name="klu2_solve")
-    import klu2_handle, m4_c_int
-    type(klu2_handle),        intent(in)  :: h
-    integer(m4_c_int), value, intent(in)  :: nrhs
-    real(kind=16),            intent(in)  :: b(*)
-    real(kind=16),            intent(out) :: x(*)
-  end subroutine
+    ! extern "C" void klu2_solve(const klu2_handle *h, Int nrhs, const Real *b, Real *x)
+    subroutine klu2_solve_lib(h, nrhs, b, x) bind(c, name="klu2_solve")
+      import klu2_handle, m4_c_int
+      type(klu2_handle),        intent(in)  :: h
+      integer(m4_c_int), value, intent(in)  :: nrhs
+      real(kind=16),            intent(in)  :: b(*)
+      real(kind=16),            intent(out) :: x(*)
+    end subroutine
 
-  ! extern "C" void klu2_cleanup(klu2_handle *h)
-  subroutine klu2_cleanup_lib(h) bind(c, name="klu2_cleanup")
-    import klu2_handle, m4_c_int
-    type(klu2_handle), intent(inout) :: h
-  end subroutine
+    ! extern "C" void klu2_cleanup(klu2_handle *h)
+    subroutine klu2_cleanup_lib(h) bind(c, name="klu2_cleanup")
+      import klu2_handle, m4_c_int
+      type(klu2_handle), intent(inout) :: h
+    end subroutine
   end interface
 
 contains
