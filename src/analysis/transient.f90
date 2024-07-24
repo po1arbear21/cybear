@@ -154,7 +154,7 @@ contains
       this%n       = n
     else if (.not. present(n) .and. present(delta_t)) then
       this%delta_t = delta_t
-      this%n       = int((t_1 - t_0) / delta_t)
+      this%n       = nint((t_1 - t_0) / delta_t)
     else
       m4_assert(.false.)
     end if
@@ -268,6 +268,9 @@ contains
     allocate (tmp_x(this%sys%n, 0:i))
     tmp_x(:,0:i) = this%x(:,0:i)
     call move_alloc(tmp_x, this%x)
+
+    ! Update number of time steps
+    this%n = i
 
     call this%dft%destruct()
   end subroutine
