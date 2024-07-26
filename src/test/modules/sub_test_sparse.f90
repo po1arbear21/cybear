@@ -623,8 +623,26 @@ contains
       call sA%destruct()
       call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: pardiso solver")
 
+      m4_divert(m4_ifdef({m4_klu2},0,-1))
+        ! test 3: using klu2 solver
+        call example_matrix3(sA)
+        sA%solver=SPSOLVER_KLU2
+        call sA%factorize()
+        call sA%solve_vec(b, x)
+        call sA%destruct()
+        call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: klu2 solver")
+
+      m4_divert(m4_ifdef({m4_mumps},0,-1))
+        ! test 4: using mumps solver
+        call example_matrix3(sA)
+        sA%solver=SPSOLVER_MUMPS
+        call sA%factorize()
+        call sA%solve_vec(b, x)
+        call sA%destruct()
+        call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: mumps solver")
+
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
-        ! test 3: using ilupack solver
+        ! test 5: using ilupack solver
         call example_matrix3(sA)
         sA%solver=SPSOLVER_ILUPACK
         call sA%factorize()
@@ -632,7 +650,7 @@ contains
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: ilupack solver")
 
-        ! test 4: using ilupack solver, changing ilupack parameters
+        ! test 6: using ilupack solver, changing ilupack parameters
         block
           use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
 
@@ -680,8 +698,17 @@ contains
       call sA%destruct()
       call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: pardiso solver")
 
+      m4_divert(m4_ifdef({m4_mumps},0,-1))
+        ! test 3: using mumps solver
+        call example_matrix5(sA)
+        sA%solver=SPSOLVER_MUMPS
+        call sA%factorize()
+        call sA%solve_vec(b, x)
+        call sA%destruct()
+        call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: mumps solver")
+
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
-        ! test 3: using ilupack solver
+        ! test 4: using ilupack solver
         call example_matrix5(sA)
         sA%solver=SPSOLVER_ILUPACK
         call sA%factorize()
@@ -689,7 +716,7 @@ contains
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: ilupack solver")
 
-        ! test 4: using ilupack solver, changing ilupack parameters
+        ! test 5: using ilupack solver, changing ilupack parameters
         block
           use ilupack_m, only: get_ilupack_handle_ptr, ilupack_handle
 
