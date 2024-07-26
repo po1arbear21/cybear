@@ -120,6 +120,11 @@ contains
       !! real klu2 handle index
 
     call klu2_cleanup_lib(klu2_handles(h))
+
+    !$omp critical (omp_klu2r_handles)
+    call klu2_free_handles%push_back(h)
+    !$omp end critical (omp_klu2r_handles)
+    
     h = 0
   end subroutine
 
