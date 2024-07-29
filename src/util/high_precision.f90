@@ -13,7 +13,7 @@ module high_precision_m
   public hp_real
   public hp_to_real, real_to_hp
   public operator(+), operator(-), operator(*), operator(/), operator(**)
-  public abs, sqrt, exp, expm1, log, log1p, sin, cos, tan, sinh, cosh, tanh, ber
+  public abs, sqrt, exp, expm1, log, log1p, sin, cos, tan, sinh, cosh, tanh, atanh, ber
   public hp_sum, hp_dot
   public TwoSum, TwoProduct, TwoDivision
 
@@ -113,6 +113,10 @@ module high_precision_m
 
   interface tanh
     module procedure :: hp_tanh
+  end interface
+
+  interface atanh
+    module procedure :: hp_atanh
   end interface
 
   interface ber
@@ -738,6 +742,20 @@ contains
     tmp = h%x
     tmp = tmp + h%y
     tmp = tanh(tmp)
+
+    t = SplitQuad(tmp)
+  end function
+
+  elemental function hp_atanh(h) result(t)
+    !! high precision inverse hyperbolic tangent function (simply uses quadruple precision)
+    type(hp_real), intent(in) :: h
+    type(hp_real)             :: t
+
+    real(kind=16) :: tmp
+
+    tmp = h%x
+    tmp = tmp + h%y
+    tmp = atanh(tmp)
 
     t = SplitQuad(tmp)
   end function
