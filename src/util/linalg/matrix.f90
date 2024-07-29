@@ -10,6 +10,10 @@ module matrix_m
   use ilupack_m
   })
   use iso_fortran_env,  only: int32, int64
+  m4_ifdef({m4_klu2},{
+  use klu2_m,           only: create_klu2_handle_c, create_klu2_handle_r, destruct_klu2_handle_c, &
+    &                         destruct_klu2_handle_r, klu2_factorize, klu2_solve
+  })
   use lapack95
   m4_ifdef({m4_mumps},{
   use mumps_m,          only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, &
@@ -29,6 +33,9 @@ module matrix_m
 
   private
   public SPSOLVER_PARDISO
+  m4_ifdef({m4_klu2},{
+  public SPSOLVER_KLU2
+  })
   m4_ifdef({m4_mumps},{
   public SPSOLVER_MUMPS
   })
@@ -80,11 +87,14 @@ module matrix_m
 
   ! sparse solvers
   integer, parameter :: SPSOLVER_PARDISO = 1
+  m4_ifdef({m4_klu2},{
+  integer, parameter :: SPSOLVER_KLU2    = 2
+  })
   m4_ifdef({m4_mumps},{
-  integer, parameter :: SPSOLVER_MUMPS   = 2
+  integer, parameter :: SPSOLVER_MUMPS   = 3
   })
   m4_ifdef({m4_ilupack},{
-  integer, parameter :: SPSOLVER_ILUPACK = 3
+  integer, parameter :: SPSOLVER_ILUPACK = 4
   })
   integer            :: default_spsolver = SPSOLVER_PARDISO
 

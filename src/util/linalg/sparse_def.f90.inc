@@ -6,9 +6,9 @@ type, extends(matrix_{}T) :: sparse_{}T
   m4_type(T),          allocatable :: a(:)
 
   integer :: solver = 0
-    !! SPSOLVER_PARDISO, SPSOLVER_MUMPS or SPSOLVER_ILUPACK
+    !! SPSOLVER_PARDISO, SPSOLVER_KLU2, SPSOLVER_MUMPS or SPSOLVER_ILUPACK
   integer :: solver_handle = 0
-    !! pardiso, mumps or ilupack solver handle
+    !! pardiso, klu2, mumps or ilupack solver handle
 contains
   procedure :: sparse_{}T{}_init
   generic   :: init          => sparse_{}T{}_init
