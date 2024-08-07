@@ -254,6 +254,8 @@ contains
     class(matrix_real), pointer     :: dfdx, dfdx_prec
     type(gmres_options)             :: gmres_opt_
     type(single_matop_real)         :: mulvec, precon
+    logical                         :: limmin, limmax
+    character(:), allocatable       :: msg_lim
 
     m4_assert(size(x0      ) == size(x))
     m4_assert(size(opt%atol) == size(x))
@@ -276,10 +278,16 @@ contains
 
     ! start values
     x = x0
+    limmin = any(x < opt%xmin)
+    limmax = any(x > opt%xmax)
+    where(x < opt%xmin) x = opt%xmin
+    where(x > opt%xmax) x = opt%xmax
 
     ! newton-raphson iteration
     if (opt%log) m4_info(opt%msg // " ITER      REL_ERROR      ABS_ERROR       RESIDUAL")
-    do while ((it < opt%min_it) .or. (any(err > opt%rtol) .and. any(abs(f) > opt%ftol)))
+    if (limmin .and. opt%log) m4_info(opt%msg // " " // int2str(it, "(I4)") // " " // achar(27)//'[31m Solution limited to min'//achar(27)//'[0m')
+    if (limmax .and. opt%log) m4_info(opt%msg // " " // int2str(it, "(I4)") // " " // achar(27)//'[31m Solution limited to max'//achar(27)//'[0m')
+    do while ((it < opt%min_it) .or. (any(err > opt%rtol) .and. any(abs(f) > opt%ftol)) .or. limmin .or. limmax)
       it = it + 1
 
       ! check for maximum number of iterations
@@ -327,6 +335,8 @@ contains
       x    = x - dx
 
       ! limit solution to bounds if necessary
+      limmin = any(x < opt%xmin)
+      limmax = any(x > opt%xmax)
       where(x < opt%xmin) x = opt%xmin
       where(x > opt%xmax) x = opt%xmax
 
@@ -334,7 +344,17 @@ contains
       err     = maxval(abs(x-xold) / (abs(xold) + opt%atol / opt%rtol))
       abs_err = maxval(abs(x-xold))
 
-      if (opt%log) m4_info(opt%msg // " " // int2str(it, "(I4)") // " " // real2str(err, "(ES14.6E3)") // " " // real2str(abs_err, "(ES14.6E3)") // " " // real2str(maxval(abs(f)), "(ES14.6E3)"))
+      if(limmin .and. limmax) then
+        msg_lim = achar(27)//'[31m Solution limited to min and max'//achar(27)//'[0m'
+      elseif(limmin) then
+        msg_lim = achar(27)//'[31m Solution limited to min'//achar(27)//'[0m'
+      elseif(limmax) then
+        msg_lim = achar(27)//'[31m Solution limited to max'//achar(27)//'[0m'
+      else
+        msg_lim = ''
+      end if
+      if (opt%log) m4_info(opt%msg // " " // int2str(it, "(I4)") // " " // real2str(err, "(ES14.6E3)") // " " // &
+        &                  real2str(abs_err, "(ES14.6E3)") // " " // real2str(maxval(abs(f)), "(ES14.6E3)") // " " // msg_lim)
     end do
 
     ! calculate derivatives of solution wrt params by implicit differentiation
