@@ -125,10 +125,10 @@ contains
       call this%par%g%get_neighb(IDX_EDGE, this%mob%idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
       ! parameters
-      mob0  = this%par%mob0(IDX_EDGE,this%mob%idx_dir,this%mob%ci)%get(idx1)
+      mob0  = this%par%mob0(IDX_EDGE,this%mob%idx_dir,this%mob%ci)%get(idx)
       v_sat = this%par%smc%v_sat(this%mob%ci)
       beta  = this%par%smc%beta( this%mob%ci)
-      len   = this%par%g%get_len(idx1, this%mob%idx_dir)
+      len   = this%par%g%get_len(idx, this%mob%idx_dir)
 
       ! delta imref
       diref%x = this%iref%get(idx2) - this%iref%get(idx1)
@@ -137,7 +137,7 @@ contains
       mob = mob0 / (1.0 + ((mob0/(v_sat*len)) * abs(diref))**beta)**(1.0/beta)
 
       ! extract result and derivative from dual number
-      call this%mob%set(idx1, mob%x)
+      call this%mob%set(idx, mob%x)
       call this%jaco_iref%set(idx, idx1, - mob%dx(1))
       call this%jaco_iref%set(idx, idx2,   mob%dx(1))
     end do

@@ -182,7 +182,7 @@ contains
       pot( 2) = this%pot%get( idx2)
       dens(1) = this%dens%get(idx1)
       dens(2) = this%dens%get(idx2)
-      mob     = this%mob%get( idx1)
+      mob     = this%mob%get( idx )
 
       ! get current along edge
       call this%get_curr(this%par%smc%degen, len, pot, dens, mob, j, djdpot, djddens, djdmob)
