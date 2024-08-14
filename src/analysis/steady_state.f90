@@ -126,6 +126,9 @@ contains
       if (present(gum))   call gum()
       call newton(fun, p, nopt_, sys%get_x(), this%x(:,i), gmres_opt = gopt)
 
+      ! save newton results in esystem variables
+      call sys%set_x(this%x(:,i))
+
       ! release factorization
       if (nopt_%it_solver) then
         call dfp%destruct()

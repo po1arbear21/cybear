@@ -278,8 +278,8 @@ contains
 
     ! start values
     x = x0
-    limmin = any(x < opt%xmin)
-    limmax = any(x > opt%xmax)
+    limmin = any(x <= opt%xmin)
+    limmax = any(x >= opt%xmax)
     where(x < opt%xmin) x = opt%xmin
     where(x > opt%xmax) x = opt%xmax
 
@@ -335,8 +335,8 @@ contains
       x    = x - dx
 
       ! limit solution to bounds if necessary
-      limmin = any(x < opt%xmin)
-      limmax = any(x > opt%xmax)
+      limmin = any(x <= opt%xmin)
+      limmax = any(x >= opt%xmax)
       where(x < opt%xmin) x = opt%xmin
       where(x > opt%xmax) x = opt%xmax
 
