@@ -42,12 +42,6 @@ program dd
   opt_gum%msg   = "Gummel: "
   opt_full%msg  = "Newton: "
 
-  opt_nlpe%msg  = "NLPE: "
-  opt_dd(1)%msg = "NDD: "
-  opt_dd(2)%msg = "PDD: "
-  opt_gum%msg   = "Gummel: "
-  opt_full%msg  = "Newton: "
-
   block
     integer :: ci, icurr, idens, itab, ibl, i0, i1
     icurr = dev%sys_full%search_main_var("currents")
@@ -163,7 +157,7 @@ contains
   end subroutine
 
   subroutine solve_steady_state()
-    integer              :: si, ict, ict_sweep, nsweep, isweep
+    integer              :: si, ict, ict_sweep, nsweep, isweep, N_sweep
     integer, allocatable :: sids(:)
     logical              :: status
     real,    allocatable :: Vi(:,:), Vbounds(:), t(:)
@@ -181,11 +175,13 @@ contains
 
       ! voltage input source
       ict_sweep = 0
+      N_sweep = 1
       do ict = 1, dev%par%nct
         call runfile%get(sids(si), "N_"//dev%par%contacts(ict)%name, nsweep, status = status)
         if (status) status = (nsweep > 1)
         if (status) then
           if (ict_sweep /= 0) call program_error("only one voltage sweep per steady-state section allowed")
+          N_sweep = nsweep
           ict_sweep = ict
           call runfile%get(sids(si), "V_"//dev%par%contacts(ict)%name, Vbounds)
           Vi(ict,:) = Vbounds
@@ -199,7 +195,7 @@ contains
       if (ict_sweep == 0) then
         t = [ 0.0 ]
       else
-        t = linspace(0.0, 1.0, nsweep)
+        t = linspace(0.0, 1.0, N_sweep)
       end if
 
       gummel_restart = .true.
@@ -207,10 +203,7 @@ contains
       gummel_enabled = .true.
       call ss%run(dev%sys_full, nopt = opt_full, input = input, t_input = t, gum = gummel)
 
-      if (nsweep < 1) then
-        nsweep = 1
-      end if
-      do isweep = 1, nsweep
+      do isweep = 1, N_sweep
         call ss%select(isweep)
 
         call output_xy(dev%pot,     0.0, "potxy_" // int2str(isweep) // ".csv")
@@ -470,7 +463,11 @@ contains
       allocate (Vi(dev%par%nct, Nt))
       do ict = 1, dev%par%nct
         call runfile%get(sids(si), "V_"//dev%par%contacts(ict)%name, Vtmp)
-        Vi(ict,:) = Vtmp
+        if (size(Vtmp) == 1) then
+          Vi(ict,:) = Vtmp(1)
+        else
+          Vi(ict,:) = Vtmp
+        end if
       end do
 
       call input%init(ti, Vi)
@@ -613,6 +610,7 @@ contains
 
         call ss_dd(ci)%run(dev%sys_dd(ci), nopt = opt_dd(ci))
         call ss_dd(ci)%select(1)
+        call dev%calc_iref(ci)%eval()
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:,ci)))
         error = max(error, err_iref(ci))
       end do
@@ -634,7 +632,7 @@ contains
     use matrix_m, only: sparse_real
 
     integer           :: it, nx
-    real              :: err, res0, res1, damping
+    real              :: err, res0, res1, damping, dx0
     real, allocatable :: x0(:), f(:), dx(:)
     type(sparse_real) :: dfdx
 
@@ -678,6 +676,10 @@ contains
       call dfdx%factorize()
       call dfdx%solve_vec(-f, dx)
       call dfdx%reset()
+
+      ! limit update
+      dx0 = maxval(abs(dx) / opt_nlpe%dx_lim, dim=1)
+      if (dx0 > 1) dx = dx / dx0
 
       ! absolute error
       err = maxval(abs(dx))

@@ -209,7 +209,7 @@ contains
     end do
     n = j
 
-    call xv%init(0, c = 2 * ceiling((xtmp(n) - xtmp(1)) / dx))
+    call xv%init(0, c = 2 * ceiling((xtmp(n) - xtmp(1)) / dx - TOL))
     call xv%push(xtmp(1))
     iref = 1
     do i = 1, n-1
@@ -228,7 +228,7 @@ contains
         iref = iref + 1
       else
         ! linear spacing
-        m  = ceiling((xtmp(i+1)-xtmp(i))/dx) + 1
+        m  = ceiling((xtmp(i+1) - xtmp(i)) / dx - TOL) + 1
         xx = linspace(xtmp(i), xtmp(i+1), m)
       end if
       call xv%push(xx(2:size(xx)))

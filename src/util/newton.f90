@@ -144,15 +144,7 @@ contains
       bounded = .true.
       call fun(xmin, p, fmin)
       call fun(xmax, p, fmax)
-      if ((fmin == 0) .and. (fmax == 0)) then
-        x = 0.5 * (xmin + xmax)
-      elseif (fmin == 0) then
-        x = xmin
-      elseif (fmax == 0) then
-        x = xmax
-      else
-        if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
-      end if
+      if (sign(1.0, fmin) == sign(1.0, fmax)) call program_error("solution bounds are invalid, no sign change")
     end if
 
     ! newton iteration with bisection stabilization
