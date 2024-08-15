@@ -24,6 +24,8 @@ module mpfr_m
   public log, log1p, exp, expm1
   public sin, asin, cos, acos, tan, atan
   public sinh, asinh, cosh, acosh, tanh, atanh
+  public gamma_mpfr
+  public const_log2, const_pi, const_euler, const_catalan
   public operator(==), operator(/=), operator(<), operator(<=), operator(>), operator(>=)
 
   type mpfr
@@ -306,7 +308,6 @@ contains
     default_prec = int(prec, kind = mpfr_prec_t)
     call mpfr_set_default_prec(default_prec)
   end subroutine
-
 
   subroutine mpfr_init(this, prec)
     !! initialize multiprecision number
@@ -869,7 +870,6 @@ contains
     ret = mpfr_fmms(r%m, x%m, y%m, z%m, u%m, rnd_)
   end subroutine
 
-
   subroutine div_mpfr_mpfr(r, x, y, rnd)
     !! r = x / y
     type(mpfr),        intent(inout) :: r
@@ -1282,6 +1282,77 @@ contains
     if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
 
     ret = mpfr_atanh(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine gamma_mpfr(r, x, rnd)
+    !! r = gamma(x)
+    type(mpfr),        intent(inout) :: r
+    type(mpfr),        intent(in)    :: x
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)       :: ret
+    integer(mpfr_rnd_t)  :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_gamma(r%m, x%m, rnd_)
+  end subroutine
+
+  subroutine const_log2(r, rnd)
+    !! r = log(2)
+    type(mpfr),        intent(inout) :: r
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_const_log2(r%m, rnd_)
+  end subroutine
+
+  subroutine const_pi(r, rnd)
+    !! r = pi
+    type(mpfr),        intent(inout) :: r
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_const_pi(r%m, rnd_)
+  end subroutine
+
+  subroutine const_euler(r, rnd)
+    !! r = e
+    type(mpfr),        intent(inout) :: r
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_const_euler(r%m, rnd_)
+  end subroutine
+
+  subroutine const_catalan(r, rnd)
+    !! r = G
+    type(mpfr),        intent(inout) :: r
+    integer, optional, intent(in)    :: rnd
+
+    integer(c_int)      :: ret
+    integer(mpfr_rnd_t) :: rnd_
+
+    rnd_ = default_rnd
+    if (present(rnd)) rnd_ = int(rnd, kind = mpfr_rnd_t)
+
+    ret = mpfr_const_catalan(r%m, rnd_)
   end subroutine
 
   elemental function cmp_mpfr_real(x, y) result(i)
