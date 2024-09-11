@@ -235,7 +235,7 @@ contains
     ! find transport parameters section id
     call file%get_section("transport parameters", sid)
 
-    ! load parameters
+    ! general parameters
     call file%get(sid, "electrons", elec)
     call file%get(sid, "holes",     hole)
     this%ci0 = CR_ELEC
@@ -246,22 +246,24 @@ contains
     call file%get(sid, "N_v0",       this%smc%edos(CR_HOLE))
     this%smc%edos(:) = this%smc%edos(:) * this%T ** 1.5
     call file%get(sid, "E_gap",      this%smc%band_gap)
-    ! this%smc%n_intrin = sqrt(this%smc%edos(CR_ELEC) * this%smc%edos(CR_HOLE) * exp(-this%smc%band_gap))
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
-    call file%get(sid, "mass",       this%smc%mass)
     call file%get(sid, "degen",      this%smc%degen)
+
+    ! mobility
+    call file%get(sid, "mob",        this%smc%mob)
     call file%get(sid, "alpha",      this%smc%alpha)
     call file%get(sid, "beta",       this%smc%beta)
     call file%get(sid, "mob_min",    this%smc%mob_min)
     call file%get(sid, "mob_max",    this%smc%mob_max)
     call file%get(sid, "N_ref",      this%smc%N_ref)
     call file%get(sid, "v_sat",      this%smc%v_sat)
+
     call file%get(sid, "curr_fact",  this%curr_fact)
-    call file%get(sid, "genrec_tau", this%smc%genrec_tau)
 
     ! incomplete ionization
     call file%get(sid, "incomp_ion", this%smc%incomp_ion)
+    call file%get(sid, "ii_tau",     this%smc%ii_tau)
     call file%get(sid, "ii_E_dop0",  this%smc%ii_E_dop0)
     call file%get(sid, "ii_g",       this%smc%ii_g)
     call file%get(sid, "ii_N_crit",  this%smc%ii_N_crit)
@@ -269,16 +271,15 @@ contains
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
-    m4_assert(size(this%smc%mass)       == 2)
-    m4_assert(size(this%smc%alpha)      == 2)
-    m4_assert(size(this%smc%beta)       == 2)
-    m4_assert(size(this%smc%mob_min)    == 2)
-    m4_assert(size(this%smc%mob_max)    == 2)
-    m4_assert(size(this%smc%N_ref)      == 2)
-    m4_assert(size(this%smc%v_sat)      == 2)
-    m4_assert(size(this%smc%genrec_tau) == 2)
-    m4_assert(size(this%smc%ii_E_dop0)  == 2)
-    m4_assert(size(this%smc%ii_g)       == 2)
+    m4_assert(size(this%smc%alpha)     == 2)
+    m4_assert(size(this%smc%beta)      == 2)
+    m4_assert(size(this%smc%mob_min)   == 2)
+    m4_assert(size(this%smc%mob_max)   == 2)
+    m4_assert(size(this%smc%N_ref)     == 2)
+    m4_assert(size(this%smc%v_sat)     == 2)
+    m4_assert(size(this%smc%ii_tau)    == 2)
+    m4_assert(size(this%smc%ii_E_dop0) == 2)
+    m4_assert(size(this%smc%ii_g)      == 2)
   end subroutine
 
   subroutine device_params_init_regions(this, file)

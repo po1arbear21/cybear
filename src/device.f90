@@ -138,7 +138,7 @@ contains
 
     ! init equations
     allocate (this%calc_cdens(this%par%g%idx_dim,2))
-    allocate (this%calc_mob(this%par%g%idx_dim,2))
+    if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
@@ -149,11 +149,11 @@ contains
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
         call this%calc_ion(ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
-        call this%calc_genrec(ci)%init(this%par, this%par%smc%genrec_tau(ci), this%genrec(ci), this%pot, this%iref(ci), this%ion(ci))
+        call this%calc_genrec(ci)%init(this%par, this%par%smc%ii_tau(ci), this%genrec(ci), this%pot, this%iref(ci), this%ion(ci))
         call this%ion_contin(ci)%init(this%par, this%ion(ci), this%genrec(ci))
       end if
       do idx_dir = 1, this%par%g%idx_dim
-        call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
+        if (this%par%smc%mob) call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
         call this%calc_cdens(idx_dir,ci)%init(this%par, this%pot, this%dens(ci), this%cdens(idx_dir,ci), this%mob(idx_dir,ci))
       end do
     end do
@@ -174,7 +174,7 @@ contains
       call this%sys_nlpe%provide(this%volt(ict))
     end do
     call this%sys_nlpe%init_final()
-    ! call this%sys_nlpe%g%output("nlpe")
+    call this%sys_nlpe%g%output("nlpe")
 
     ! init drift-diffusion equation system
     do ci = this%par%ci0, this%par%ci1
@@ -182,7 +182,7 @@ contains
       call this%sys_dd(ci)%add_equation(this%contin(ci))
       do idx_dir = 1, this%par%g%idx_dim
         call this%sys_dd(ci)%add_equation(this%calc_cdens(idx_dir,ci))
-        call this%sys_dd(ci)%add_equation(this%calc_mob(idx_dir,ci))
+        if (this%par%smc%mob) call this%sys_dd(ci)%add_equation(this%calc_mob(idx_dir,ci))
       end do
       if (this%par%smc%incomp_ion) then
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
@@ -203,7 +203,7 @@ contains
       call this%sys_full_stat%add_equation(this%calc_dens(ci))
       do idx_dir = 1, this%par%g%idx_dim
         call this%sys_full_stat%add_equation(this%calc_cdens(idx_dir,ci))
-        call this%sys_full_stat%add_equation(this%calc_mob(idx_dir,ci))
+        if (this%par%smc%mob) call this%sys_full_stat%add_equation(this%calc_mob(idx_dir,ci))
       end do
       if (this%par%smc%incomp_ion) then
         call this%sys_full_stat%add_equation(this%ion_contin(ci))
@@ -225,7 +225,7 @@ contains
       call this%sys_full%add_equation(this%contin(ci))
       do idx_dir = 1, this%par%g%idx_dim
         call this%sys_full%add_equation(this%calc_cdens(idx_dir,ci))
-        call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
+        if (this%par%smc%mob) call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
       end do
       if (this%par%smc%incomp_ion) then
         call this%sys_full%add_equation(this%ion_contin(ci))

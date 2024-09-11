@@ -19,10 +19,11 @@ module semiconductor_m
       !! band gap
     real              :: band_edge(2)
       !! conduction/valence band edge
-    real, allocatable :: mass(:)
-      !! effective mass
     logical           :: degen
       !! degenerate case: Fermi-Dirac statistics
+
+    logical           :: mob
+      !! enable/disable mobility saturation
     real, allocatable :: alpha(:)
       !! Caughey-Thomas alpha parameter
     real, allocatable :: beta(:)
@@ -36,11 +37,10 @@ module semiconductor_m
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
 
-    real, allocatable :: genrec_tau(:)
-      !! generation/recombination time constants (carrier index)
-
     logical           :: incomp_ion
       !! enable/disable incomplete ionization (Altermatt-Schenk model)
+    real, allocatable :: ii_tau(:)
+      !! generation/recombination time constant (carrier index)
     real, allocatable :: ii_E_dop0(:)
       !! dopant energy relative to the carrier band for a single dopant
     real, allocatable :: ii_g(:)
