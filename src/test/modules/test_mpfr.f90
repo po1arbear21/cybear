@@ -318,6 +318,8 @@ contains
       call b%destruct()
     end block
 
+    call mpfr_cleanup()
+
     call tc%finish()
   end subroutine
 
