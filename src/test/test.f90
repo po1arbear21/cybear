@@ -30,6 +30,7 @@ program test
   use test_normalization_m
   use test_plotmtv_m
   use test_poly_m
+  use test_quad_m
   use test_qsort_m
   use test_radau5_m
   use test_random_m
@@ -96,6 +97,7 @@ program test
   call test_normalization()
   call test_plotmtv()
   call test_poly()
+  call test_quad()
   call test_qsort()
   call test_radau5()
   call test_random()

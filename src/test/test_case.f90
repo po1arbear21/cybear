@@ -761,7 +761,7 @@ contains
       !! Message to print if error detected
 
     call this%check((value%s == expected%s), msg, &
-                    msg2 = "scalar strings differs")
+                    msg2 = "scalar string differs")
   end subroutine
 
   subroutine assert_eq_string_arr(this, expected, values, msg)
