@@ -4,9 +4,9 @@ m4_divert(m4_ifdef({m4_mpfr},0,-1))
 
 module test_gauss_m
 
-  use gauss_m,     only: gauss
+  use gauss_m,     only: gauss, gauss_legendre, gauss_laguerre, gauss_hermite
   use math_m,      only: PI
-  use mpfr_m,      only: div, mpfr
+  use mpfr_m,      only: add, div, mpfr, mul, sqr
   use test_case_m, only: test_case
 
   implicit none
@@ -20,14 +20,17 @@ contains
     integer, parameter :: N = 8
     real,    parameter :: rtol = 1e-15, atol = 1e-16
 
-    type(test_case) :: tc
     integer         :: i, j
-    real            :: x(N), w(N), f, FF
+    real            :: x(N), w(N), dxdp(N,1), dwdp(N,1), f, dfdp, FF, dFFdp
+    type(gauss)     :: gs
+    type(test_case) :: tc
+
+    ! test polynomial: f(x) = 1 + x*(2 + x*(3 + x*(4 + x*(5 + x))))
 
     call tc%init("gauss")
 
     ! test Gauss-Legendre
-    call gauss("legendre", x, w)
+    call gauss_legendre(x, w)
     FF = 0
     do i = 1, N
       f = 1.0
@@ -39,7 +42,7 @@ contains
     call tc%assert_eq(6.0, FF, rtol, atol, "Gauss-Legendre")
 
     ! test Gauss-Laguerre
-    call gauss("laguerre", x, w)
+    call gauss_laguerre(x, w)
     FF = 0
     do i = 1, N
       f = 1.0
@@ -51,7 +54,7 @@ contains
     call tc%assert_eq(273.0, FF, rtol, atol, "Gauss-Laguerre")
 
     ! test Gauss-Hermite
-    call gauss("hermite", x, w)
+    call gauss_hermite(x, w)
     FF = 0
     do i = 1, N
       f = 1.0
@@ -63,30 +66,74 @@ contains
     call tc%assert_eq(25 * sqrt(PI) / 4, FF, rtol, atol, "Gauss-Hermite")
 
     ! test Gauss quadrature with custom weight function (sqrt(x) in interval 0 to 1)
-    call gauss("custom", x, w, momfun = moments)
-    FF = 0
+    call gs%init(N, NP=1)
+    call gs%generate(moments, [1.0], x, w, dxdp, dwdp)
+    FF    = 0
+    dFFdp = 0
     do i = 1, N
-      f = 1.0
+      f    = 1.0
+      dfdp = 0.0
       do j = 5, 1, -1
-        f = j + x(i) * f
+        dfdp = dxdp(i,1) * f + x(i) * dfdp
+        f    = j + x(i) * f
       end do
-      FF = FF + w(i) * f
+      FF    = FF + w(i) * f
+      dFFdp = dFFdp + dwdp(i,1) * f + w(i) * dfdp
     end do
-    call tc%assert_eq(192596.0 / 45045.0, FF, rtol, atol, "Gauss sqrt(x)")
+    call tc%assert_eq(11.0 / 6.0, FF, rtol, atol, "Gauss custom 1")
+    call tc%assert_eq(83.0 / 72.0, dFFdp, rtol, atol, "Gauss custom 1 d/dp")
+
+    call gs%generate(moments, [1.5], x, w, dxdp, dwdp)
+    FF    = 0
+    dFFdp = 0
+    do i = 1, N
+      f    = 1.0
+      dfdp = 0.0
+      do j = 5, 1, -1
+        dfdp = dxdp(i,1) * f + x(i) * dfdp
+        f    = j + x(i) * f
+      end do
+      FF    = FF + w(i) * f
+      dFFdp = dFFdp + dwdp(i,1) * f + w(i) * dfdp
+    end do
+    call tc%assert_eq(454.0 / 195.0, FF, rtol, atol, "Gauss custom 2")
+    call tc%assert_eq(97304.0 / 114075.0, dFFdp, rtol, atol, "Gauss custom 2 d/dp")
+
+    call gs%destruct()
 
     call tc%finish()
   end subroutine
 
-  subroutine moments(s)
-    !! moments for weight function sqrt(x) in interval 0 to 1
+  subroutine moments(p, s, dsdp)
+    !! moments for weight function 1 - abs(x)**p in interval -1 to 1
+    real,       intent(in)    :: p(:)
+      !! parameters
     type(mpfr), intent(inout) :: s(0:)
+      !! moments, already initialized
+    type(mpfr), intent(inout) :: dsdp(0:,:)
+      !! derivatives of s wrt p
 
-    integer :: i
+    integer :: k, n
 
-    ! s_n = integral_0^1 sqrt(x) * x**n dx = 2 / (2 * n + 3)
-    do i = 0, ubound(s, 1)
-      call s(i)%set(2 * i + 3)
-      call div(s(i), 2.0, s(i))
+    n = (ubound(s, 1) + 1) / 2
+
+    ! s_{2k}   = integral_{-1}^1 (1 - abs(x)**p) * x**{2k} dx = 2*p/((2k+1)*(p+2k+1))
+    ! s_{2k+1} = 0
+    do k = 0, n - 1
+      ! s    = 2*p/((2*k+1)*(2*k+1 + p))
+      ! dsdp = 2 / (2*k+1 + p)**2
+      call s(2*k)%set(p(1))
+      call add(s(2*k), s(2*k), 2*k+1)
+      call dsdp(2*k,1)%set(s(2*k))
+      call mul(s(2*k), s(2*k), 2*k+1)
+      call div(s(2*k), p(1), s(2*k))
+      call add(s(2*k), s(2*k), s(2*k))
+      call sqr(dsdp(2*k,1), dsdp(2*k,1))
+      call div(dsdp(2*k,1), 2, dsdp(2*k,1))
+
+      call s(2*k+1)%set(0)
+
+      call dsdp(2*k+1,1)%set(0)
     end do
   end subroutine
 
