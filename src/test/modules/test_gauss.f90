@@ -21,7 +21,7 @@ contains
     real,    parameter :: rtol = 1e-15, atol = 1e-16
 
     integer         :: i, j
-    real            :: x(N), w(N), dxdp(N,1), dwdp(N,1), f, dfdp, FF, dFFdp
+    real            :: x(N), w(N), s, dxdp(N,1), dwdp(N,1), dsdp(1), f, dfdp, FF, dFFdp
     type(gauss)     :: gs
     type(test_case) :: tc
 
@@ -67,7 +67,7 @@ contains
 
     ! test Gauss quadrature with custom weight function (sqrt(x) in interval 0 to 1)
     call gs%init(N, NP=1)
-    call gs%generate(moments, [1.0], x, w, dxdp, dwdp)
+    call gs%generate(moments, [1.0], x, w, s, dxdp, dwdp, dsdp)
     FF    = 0
     dFFdp = 0
     do i = 1, N
@@ -77,13 +77,13 @@ contains
         dfdp = dxdp(i,1) * f + x(i) * dfdp
         f    = j + x(i) * f
       end do
-      FF    = FF + w(i) * f
-      dFFdp = dFFdp + dwdp(i,1) * f + w(i) * dfdp
+      FF    = FF + w(i) * s * f
+      dFFdp = dFFdp + dwdp(i,1) * s * f + w(i) * dsdp(1) * f + w(i) * s * dfdp
     end do
     call tc%assert_eq(11.0 / 6.0, FF, rtol, atol, "Gauss custom 1")
     call tc%assert_eq(83.0 / 72.0, dFFdp, rtol, atol, "Gauss custom 1 d/dp")
 
-    call gs%generate(moments, [1.5], x, w, dxdp, dwdp)
+    call gs%generate(moments, [1.5], x, w, s, dxdp, dwdp, dsdp)
     FF    = 0
     dFFdp = 0
     do i = 1, N
@@ -93,8 +93,8 @@ contains
         dfdp = dxdp(i,1) * f + x(i) * dfdp
         f    = j + x(i) * f
       end do
-      FF    = FF + w(i) * f
-      dFFdp = dFFdp + dwdp(i,1) * f + w(i) * dfdp
+      FF    = FF + w(i) * s * f
+      dFFdp = dFFdp + dwdp(i,1) * s * f + w(i) * dsdp(1) * f + w(i) * s * dfdp
     end do
     call tc%assert_eq(454.0 / 195.0, FF, rtol, atol, "Gauss custom 2")
     call tc%assert_eq(97304.0 / 114075.0, dFFdp, rtol, atol, "Gauss custom 2 d/dp")
