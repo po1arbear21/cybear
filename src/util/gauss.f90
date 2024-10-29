@@ -167,7 +167,7 @@ contains
     call mpfr_cleanup()
   end subroutine
 
-  subroutine gauss_generate(this, momfun, p, x, w, dxdp, dwdp)
+  subroutine gauss_generate(this, momfun, p, x, w, s, dxdp, dwdp, dsdp)
     !! generate gauss nodes and weights
     class(gauss), intent(inout) :: this
     procedure(moments)          :: momfun
@@ -177,11 +177,15 @@ contains
     real,         intent(out)   :: x(:)
       !! output gauss quadrature nodes
     real,         intent(out)   :: w(:)
-      !! output gauss quadrature weights
+      !! output unscaled gauss quadrature weights (sum(w) == 1)
+    real,         intent(out)   :: s
+      !! output scaling factor for weights (0-th moment of weight function)
     real,         intent(out)   :: dxdp(:,:)
       !! output derivatives of x wrt p
     real,         intent(out)   :: dwdp(:,:)
       !! output derivatives of w wrt p
+    real,         intent(out)   :: dsdp(:)
+      !! output derivatives of s wrt p
 
     integer           :: i, ip, j, k, n, np, m
     real, allocatable :: b(:), v(:,:), dadp(:), dbdp(:), dAdpv(:,:), vdAdpv(:,:)
@@ -198,23 +202,30 @@ contains
     m4_assert(size(dxdp, 2) == np)
     m4_assert(size(dwdp, 1) == n)
     m4_assert(size(dwdp, 2) == np)
+    m4_assert(size(dsdp, 1) == np)
 
     ! get moments
     if (.not. allocated(this%dsdp)) allocate (this%dsdp(0:n,1:np))
     call momfun(p, this%s, this%dsdp)
 
-    ! simple case n=1: x = s1/s0; w = s0
+    ! extract 0-th moment
+    s = this%s(0)%to_real()
+    do ip = 1, np
+      dsdp(ip) = this%dsdp(0,ip)%to_real()
+    end do
+
+    ! simple case n=1: x = s1/s0; w = 1
     if (n == 1) then
       call div(this%x, this%s(1), this%s(0))
       x(1) = this%x%to_real()
-      w(1) = this%s(0)%to_real()
+      w(1) = 1.0
 
       do ip = 1, np
         call mul(this%t, this%dsdp(0,ip), this%x)
         call sub(this%t, this%dsdp(1,ip), this%t)
         call div(this%t, this%t, this%s(0))
         dxdp(1,ip) = this%t%to_real()
-        dwdp(1,ip) = this%dsdp(0,ip)%to_real()
+        dwdp(1,ip) = 0
       end do
 
       return
@@ -378,9 +389,9 @@ contains
         end do
       end if
 
-      ! extract weight w = v(1)**2 * s(0)
+      ! extract unscaled weight w = v(1)**2
       call sqr(this%t, this%v(1))
-      call mul(this%t, this%t, this%s(0))
+      ! call mul(this%t, this%t, this%s(0))
       w(j) = this%t%to_real()
     end do
 
@@ -413,7 +424,8 @@ contains
             dwdp(i,ip) = dwdp(i,ip) + vdAdpv(j,i) / (x(i) - x(j)) * v(1,j)
           end do
         end do
-        dwdp(:,ip) = v(1,:) * (2 * dwdp(:,ip) * this%s(0)%to_real() + v(1,:) * this%dsdp(0,ip)%to_real())
+        ! dwdp(:,ip) = v(1,:) * (2 * dwdp(:,ip) * this%s(0)%to_real() + v(1,:) * this%dsdp(0,ip)%to_real())
+        dwdp(:,ip) = 2 * v(1,:) * dwdp(:,ip)
       end do
     end if
   end subroutine
@@ -426,7 +438,7 @@ contains
       !! gauss weights
 
     integer     :: n
-    real        :: dum1(0), dum2(size(x),0), dum3(size(x),0)
+    real        :: s, dum1(0), dum2(size(x),0), dum3(size(x),0), dum4(0)
     type(gauss) :: gs
 
     n = size(x)
@@ -434,7 +446,8 @@ contains
     m4_assert(size(w) == n)
 
     call gs%init(n)
-    call gs%generate(moms, dum1, x, w, dum2, dum3)
+    call gs%generate(moms, dum1, x, w, s, dum2, dum3, dum4)
+    w = w * s
     call gs%destruct()
 
   contains
@@ -474,7 +487,7 @@ contains
       !! gauss weights
 
     integer     :: n
-    real        :: dum1(0), dum2(size(x),0), dum3(size(x),0)
+    real        :: s, dum1(0), dum2(size(x),0), dum3(size(x),0), dum4(0)
     type(gauss) :: gs
 
     n = size(x)
@@ -482,7 +495,8 @@ contains
     m4_assert(size(w) == n)
 
     call gs%init(n)
-    call gs%generate(moms, dum1, x, w, dum2, dum3)
+    call gs%generate(moms, dum1, x, w, s, dum2, dum3, dum4)
+    w = w * s
     call gs%destruct()
 
   contains
@@ -517,7 +531,7 @@ contains
       !! gauss weights
 
     integer     :: n
-    real        :: dum1(0), dum2(size(x),0), dum3(size(x),0)
+    real        :: s, dum1(0), dum2(size(x),0), dum3(size(x),0), dum4(0)
     type(gauss) :: gs
 
     n = size(x)
@@ -525,7 +539,8 @@ contains
     m4_assert(size(w) == n)
 
     call gs%init(n)
-    call gs%generate(moms, dum1, x, w, dum2, dum3)
+    call gs%generate(moms, dum1, x, w, s, dum2, dum3, dum4)
+    w = w * s
     call gs%destruct()
 
   contains
