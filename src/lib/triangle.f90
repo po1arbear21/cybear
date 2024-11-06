@@ -7,10 +7,11 @@ module triangle_m
   use, intrinsic :: iso_c_binding
 
   use error_m,        only: program_error
-  use util_m,         only: f2cstring
-  use vector_m,       only: vector_int, vector_real
   use grid_m,         only: grid, grid_ptr
+  use hashmap_m,      only: hashmap_int
   use triang_grid_m,  only: triang_grid
+  use util_m,         only: f2cstring, int2str
+  use vector_m,       only: vector_int, vector_real
 
   implicit none
 
@@ -75,6 +76,8 @@ module triangle_m
       !! triangles (point indices)
     type(vector_real) :: holes
       !! hole points
+    type(hashmap_int) :: hmap
+      !! hash map for segments
 
   contains
     procedure :: init        => triangulation_init
@@ -82,7 +85,6 @@ module triangle_m
     procedure :: add_segment => triangulation_add_segment
     procedure :: add_polygon => triangulation_add_polygon
     procedure :: triangulate => triangulation_triangulate
-    ! procedure :: refine      => triangulation_refine
     procedure :: get_grid    => triangulation_get_grid
 
 
@@ -90,42 +92,152 @@ module triangle_m
 
 contains
 
-  subroutine triangulation_init(this)
+  subroutine triangulation_init(this, c_xy, c_segments)
     !! initialize triangulation
     class(triangulation), intent(out) :: this
+    integer, optional,    intent(in)  :: c_xy, c_segments
+      !! initial capacity
+
+    integer :: c_xy_, c_segments_
+
+    ! deal with optional inputs
+    c_xy_ = 32
+    if (present(c_xy)) c_xy_ = c_xy
+    c_segments_ = 32
+    if (present(c_segments)) c_segments_ = c_segments
 
     ! init vectors
-    call this%xy%init(0, c = 32)
-    call this%segments%init(0, c = 32)
+    call this%xy%init(0, c = c_xy_)
+    call this%segments%init(0, c = c_segments_)
     call this%triangles%init(0, c = 32)
     call this%holes%init(0, c=32)
+    call this%hmap%init()
   end subroutine
 
-  function triangulation_add_point(this, x, y) result(i)
+  function triangulation_add_point(this, x, y, fast) result(i)
     !! append new point(x,y) to end of vector xy
     class(triangulation), intent(inout) :: this
     real,                 intent(in)    :: x, y
-      !! new point(x,y)
+      !! point coordinates
     integer                             :: i
-      !! return the index of the new point
+      !! index of the new point
+    logical, optional,    intent(in)    :: fast
+      !! speed up inclusion of point by not checking whether a point is part of a segment
+      !! default: false
 
+    integer :: j, k, ix, iy, n
+    logical :: status, fast_
+    real    :: x1, y1, x2, y2
+
+    real, parameter :: TOL = 1e-10
+
+    fast_ = .false.
+    if (present(fast)) fast_ = fast
+
+    ! check if the point already exists in xy
+    ix = nint(x*1e10)
+    iy = nint(y*1e10)
+    call this%hmap%get([ix, iy], j, status=status)
+    if (status) then
+      i = (j + 1) / 2
+      return
+    end if
+
+    ! check if the point is part of an existing segment with tolerance
+    if (.not. fast_) then
+      do j = 1, this%segments%n, 2
+        x1 = this%xy%d(2 * this%segments%d(j) - 1)
+        y1 = this%xy%d(2 * this%segments%d(j))
+        x2 = this%xy%d(2 * this%segments%d(j+1) - 1)
+        y2 = this%xy%d(2 * this%segments%d(j+1))
+
+        ! check if the point lies on the segment
+        if (is_pnt_on_segment(x1, y1, x2, y2, x, y, TOL)) then
+            ! add the new point (x, y)
+            call this%xy%push(x)
+            call this%xy%push(y)
+
+            ! get the index of the new point
+            i = this%xy%n / 2
+
+            ! replace the current segment with two new segments
+            k = this%segments%d(j+1)
+            this%segments%d(j+1) = i  ! update the second endpoint of the original segment
+
+            ! add a new segment with the new point and the second original endpoint
+            call this%segments%push(i)
+            call this%segments%push(k)
+
+            return
+        end if
+      end do
+  end if
+
+    ! add the new point (x, y) if it doesn't exist and isn't on a segment
     call this%xy%push(x)
     call this%xy%push(y)
-    ! index
+    call this%hmap%set([ix, iy], this%xy%n)
+
+    ! return the index of the new point
     i = this%xy%n / 2
+  end function
+
+  logical function is_pnt_on_segment(x1, y1, x2, y2, x, y, tol) result(res)
+    !! check if point (x, y) is on the segment (x1, y1) - (x2, y2) with tolerance tol
+    real, intent(in) :: x1, y1, x2, y2
+      !! segment: (x1, y1) -- (x2, y2)
+    real, intent(in) :: x, y
+      !! point: (x, y)
+    real, intent(in) :: tol
+      !! absolute tolerance
+
+    real :: cross, cdot, len2
+
+    ! check if point (x, y) is on the segment (x1, y1) - (x2, y2) with tolerance tol
+    cross = (y - y1) * (x2 - x1) - (x - x1) * (y2 - y1)
+    if (abs(cross) > tol) then
+        res = .false.
+        return
+    end if
+
+    cdot = (x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)
+    if (cdot < 0.0) then
+        res = .false.
+        return
+    end if
+
+    len2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
+    if (cdot > len2) then
+        res = .false.
+        return
+    end if
+
+    res = .true.
   end function
 
   subroutine triangulation_add_segment(this, i1, i2)
     !! append new segment to end of vector segments
     class(triangulation), intent(inout) :: this
     integer,              intent(in)    :: i1, i2
-     !! endpoints index of the new segment
+      !! endpoints index of the new segment
 
+    integer :: j, n
+    logical, allocatable :: exist(:)
+
+    ! check if the segment already exists
+    n = this%segments%n
+    exist = (i1 == this%segments%d(1:n-1:2) .and. i2 == this%segments%d(2:n:2))
+    if (any(exist)) return
+    exist = (i2 == this%segments%d(1:n-1:2) .and. i1 == this%segments%d(2:n:2))
+    if (any(exist)) return
+
+    ! push segment
     call this%segments%push(i1)
     call this%segments%push(i2)
   end subroutine
 
-  subroutine triangulation_add_polygon(this, x, y, closed, hole)
+  subroutine triangulation_add_polygon(this, x, y, closed, hole, fast)
+    !! append polygon to vector of points and segments
     class(triangulation), intent(inout) :: this
     real,                 intent(in)    :: x(:)
       !! x coordinate of points
@@ -135,6 +247,9 @@ contains
       !! true, enclosure
     real,    optional,    intent(in)    :: hole(:)
       !! hole points
+    logical, optional,    intent(in)    :: fast
+      !! speed up inclusion of point by not checking whether a point is part of a segment
+      !! default: false
 
     integer              :: i, n
     logical              :: closed_, hole_
@@ -145,10 +260,10 @@ contains
     ! indices of points
     allocate(p(n))
 
-    p(1) = this%add_point(x(1), y(1))
+    p(1) = this%add_point(x(1), y(1), fast=fast)
     do i = 2, n
       ! get index of the point
-      p(i) = this%add_point(x(i), y(i))
+      p(i) = this%add_point(x(i), y(i), fast=fast)
       ! add segment
       call this%add_segment(p(i-1), p(i))
     end do
@@ -166,16 +281,21 @@ contains
       call this%holes%push(hole(1))
       call this%holes%push(hole(2))
     end if
-
   end subroutine
 
-  subroutine triangulation_triangulate(this, quiet, max_area)
+  subroutine triangulation_triangulate(this, quiet, max_area, wpoly, max_steiner_pnts)
     class(triangulation), intent(inout) :: this
     logical, optional,    intent(in)    :: quiet
+      !! if true -> no output. Default: true
     real,    optional,    intent(in)    :: max_area
+      !! maximum area constraint
+    logical, optional,    intent(in)    :: wpoly
+      !! if true -> polygons are to be considered . Default: false
+    integer, optional,    intent(in)    :: max_steiner_pnts
+      !! maximum number of steiner points that may be added by Triangle. Default: Infinity
 
     character(32) :: str, buf
-    logical       :: quiet_
+    logical       :: quiet_, wpoly_
 
     character(kind=c_char),   allocatable :: triswitches(:)
     real(     kind=c_double), pointer     :: pointlist(:)
@@ -193,14 +313,19 @@ contains
     ymin = minval(this%xy%d(2:this%xy%n:2))
     ymax = maxval(this%xy%d(2:this%xy%n:2))
 
-    str = "pqD"
+    ! set command line switches
+    str = ""
     quiet_ = .true.
+    wpoly_ = .true.
     if (present(quiet)) quiet_ = quiet
+    if (present(wpoly)) wpoly_ = wpoly
+    if (wpoly_) str = "pqD"
     if (quiet_) str = trim(str)//"Q"
     if (present(max_area)) then
       write (buf, "(A,F7.5)") "a", max_area / ((xmax - xmin) * (ymax - ymin))
       str = trim(str)//trim(buf)
     end if
+    if (present(max_steiner_pnts)) str = trim(str)//"S"// int2str(max_steiner_pnts)
     triswitches = f2cstring(trim(str))
 
     ! set points
@@ -236,7 +361,6 @@ contains
 
     ! regions
     c_in%numberofregions = 0
-
     call triangulate(triswitches, c_loc(c_in), c_loc(c_out), c_null_ptr)
 
     ! deallocate pointlist ....
@@ -244,19 +368,25 @@ contains
     if (associated(segmentlist)) deallocate(segmentlist)
     if (associated(holelist)) deallocate(holelist)
 
-    ! extract triangulation from c_out
+    ! extract points from c_out
     call this%xy%reset()
     call c_f_pointer(c_out%pointlist, pointlist, shape = [2*c_out%numberofpoints])
     do i = 1, c_out%numberofpoints
       call this%xy%push(pointlist(2*i-1)*(xmax - xmin) + xmin)
       call this%xy%push(pointlist(2*i  )*(ymax - ymin) + ymin)
     end do
+
+    ! extract segements from c_out
     call this%segments%reset()
     call c_f_pointer(c_out%segmentlist, segmentlist, shape = [2*c_out%numberofsegments])
-    do i = 1, c_out%numberofsegments
-      call this%segments%push(int(segmentlist(2*i-1)))
-      call this%segments%push(int(segmentlist(2*i  )))
-    end do
+    if (associated(segmentlist)) then
+      do i = 1, c_out%numberofsegments
+        call this%segments%push(int(segmentlist(2*i-1)))
+        call this%segments%push(int(segmentlist(2*i  )))
+      end do
+    end if
+
+    ! extract triangles from c_out
     call this%triangles%reset()
     call c_f_pointer(c_out%trianglelist, trianglelist, shape = [3*c_out%numberoftriangles])
     do i = 1, c_out%numberoftriangles
