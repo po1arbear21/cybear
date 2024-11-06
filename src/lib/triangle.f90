@@ -125,7 +125,7 @@ contains
       !! speed up inclusion of point by not checking whether a point is part of a segment
       !! default: false
 
-    integer :: j, k, ix, iy, n
+    integer :: j, k, ix, iy
     logical :: status, fast_
     real    :: x1, y1, x2, y2
 
@@ -221,7 +221,7 @@ contains
     integer,              intent(in)    :: i1, i2
       !! endpoints index of the new segment
 
-    integer :: j, n
+    integer :: n
     logical, allocatable :: exist(:)
 
     ! check if the segment already exists
