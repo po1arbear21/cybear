@@ -5,6 +5,7 @@ program test
   use test_analysis_m
   use test_bin_search_m
   use test_circuit_m
+  use test_container_m
   use test_deque_m
   use test_distributions_m
   use test_dual_m
@@ -34,6 +35,7 @@ program test
   use test_qsort_m
   use test_radau5_m
   use test_random_m
+  use test_storage_m
   use test_string_m
   use test_util_m
   use test_vector_m
@@ -71,6 +73,7 @@ program test
   call test_analysis()
   call test_bin_search()
   call test_circuit()
+  call test_container()
   call test_deque()
   call test_distributions()
   call test_dual()
@@ -101,6 +104,7 @@ program test
   call test_qsort()
   call test_radau5()
   call test_random()
+  call test_storage()
   call test_string()
   call test_util()
   call test_vector()
