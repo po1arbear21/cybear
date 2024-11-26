@@ -10,7 +10,7 @@ module container_m
   use grid_table_m,    only: grid_table
   use grid_data_m
   use normalization_m, only: norm, denorm
-  use storage_m,       only: storage, variable, STORAGE_UNPACK, STORAGE_NEW
+  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE
   use string_m
   use variable_m,      only: variable_real
   use vector_m,        only: vector_string
@@ -77,26 +77,27 @@ contains
   subroutine container_open(this, file, flag, stat, err_msg)
     class(container),       intent(inout) :: this
     character(*),           intent(in)    :: file
-    integer,                intent(in)    :: flag
+    integer,      optional, intent(in)    :: flag
     integer,      optional, intent(out)   :: stat
     type(string), optional, intent(out)   :: err_msg
 
-    integer :: i
+    integer :: i, flag_
     type(variable), allocatable :: vars(:)
 
-    call this%storage_open(file, flag, stat, err_msg)
+    flag_ = STORAGE_WRITE
+    if (present(flag)) flag_ = flag
+
+    call this%storage_open(file, flag_, stat, err_msg)
     allocate(vars(this%variables%n))
     
-    call this%structs%init(8)
-    if (flag == STORAGE_UNPACK) then
-      ! Load existing structs
-      call this%variables%to_array(values=vars)
-      do i = 1, this%variables%n
-        if (0 /= index(vars(i)%name%s, "sys/variables") .or. 0 /= index(vars(i)%name%s, "sys/vselectors")) then
-          call this%structs%push(vars(i)%name)
-        end if
-      end do
-    end if
+    call this%structs%init(0)
+    ! Load existing structs
+    call this%variables%to_array(values=vars)
+    do i = 1, this%variables%n
+      if (0 /= index(vars(i)%name%s, "sys/variables") .or. 0 /= index(vars(i)%name%s, "sys/vselectors")) then
+        call this%structs%push(vars(i)%name)
+      end if
+    end do
   end subroutine
 
   function container_has_struct(this, name) result(found)
@@ -105,13 +106,16 @@ contains
 
     logical :: found
     integer :: i
-    type(string) :: structs(this%structs%n)
+    type(string), allocatable :: list(:)
 
     found = .false.
 
-    structs = this%structs%to_array()
-    do i = 1, this%structs%n
-      if (structs(i)%s == name) found = .true.; return
+    list = this%structs%to_array()
+    do i = 1, size(list)
+      if (list(i)%s == name) then 
+        found = .true.
+        return
+      end if
     end do
 
   end function
@@ -205,24 +209,7 @@ contains
     ! select type(data => var%data)
     !   type is (grid_data0_real)
     !     call this%write(parent // "/" // var%name, data%data)
-    !   type is (grid_data1_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data2_real)
-    !     write (*,*) " lbounds = ", lbound(data%data), "sizes = ", size(data%data)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data3_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data4_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data5_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data6_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data7_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    !   type is (grid_data8_real)
-    !     call this%write(parent // "/" // var%name, data%data%get())
-    ! end select
+    !   type is (grid_data1_real) ...
   end subroutine
 
   subroutine container_save_vselector(this, vsel, parent)
@@ -230,7 +217,7 @@ contains
     type(vselector), target, intent(in)    :: vsel
     character(*),            intent(in)    :: parent
 
-    integer      :: i, j, k, l, lbnd, ubnd
+    integer      :: i, j, k, lbnd, ubnd
     real         :: values(vsel%n)
     type(string) :: var_names(vsel%nvar), tab_names(vsel%ntab)
 

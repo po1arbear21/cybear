@@ -3,7 +3,6 @@ module test_container_m
   use test_case_m,     only: test_case
   use container_m,     only: container
   use error_m,         only: program_error
-  use storage_m,       only: STORAGE_NEW, STORAGE_UNPACK
   use string_m,        only: new_string
   use grid_m,          only: grid, IDX_VERTEX, IDX_CELL, IDX_EDGE, IDX_FACE
   use grid0D_m,        only: grid0D
@@ -61,7 +60,7 @@ contains
     call tc%init("container")
 
     ! Save to file
-    call depot%open("container.fbs", STORAGE_NEW)
+    call depot%open("container.fbs")
 
     call g0%init("0D-test-grid")
     call gx%init("x", linspace(-1.0, 2.0, 31), -10)
@@ -78,6 +77,11 @@ contains
 
     call var0%init("0var", "1", g0, IDX_VERTEX, 0)
     call var0%set([1.0])
+    call depot%save(var0, "vars_1")
+    call var0%set([2.0])
+    call depot%save(var0, "vars_2")
+    call var0%set([3.0])
+    call depot%save(var0, "vars_3")
 
     call vart%init("tensor_var", "1", gt, IDX_CELL, 0)
     do i = 1, tab%n
@@ -106,7 +110,6 @@ contains
     call tab_edge2%init_final()
     call vsel_edge%init([vart2%get_ptr(), vart3%get_ptr(), vart4%get_ptr()], [tab_edge1%get_ptr(), tab_edge2%get_ptr()], "edgy")
 
-    call depot%save(var0, "vars")
     call depot%save(vart, "vars")
     call depot%save(tab)
 
@@ -128,7 +131,7 @@ contains
     call vsel_edge%set(x)
 
     ! Load from file
-    call topedo%open("container.fbs", STORAGE_UNPACK)
+    call topedo%open("container.fbs")
 
     call topedo%load("0D-test-grid", g0_readback)
     call topedo%load("x", gx_read)
@@ -144,8 +147,12 @@ contains
     call topedo%load("tab", tab_read)
     call tc%assert(all(tab%flags%get() .eqv. tab_read%flags%get()), "Grid tables do not match")
 
-    call topedo%load("vars/0var", var0)
+    call topedo%load("vars_1/0var", var0)
     call tc%assert_eq([1.0], var0%get(), 1e-16, 1e-16, "Variable values do not match")
+    call topedo%load("vars_2/0var", var0)
+    call tc%assert_eq([2.0], var0%get(), 1e-16, 1e-16, "Variable values do not match")
+    call topedo%load("vars_3/0var", var0)
+    call tc%assert_eq([3.0], var0%get(), 1e-16, 1e-16, "Variable values do not match")
     call topedo%load("vars/tensor_var", vart)
     call tc%assert_eq(7.7, vart%get([1, 1]), 1e-16, 1e-16, "Variable values do not match")
     call vart%set([1,1], 9.9)

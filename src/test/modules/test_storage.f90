@@ -1,7 +1,7 @@
 module test_storage_m
 
   use test_case_m, only: test_case
-  use storage_m,   only: storage, STORAGE_NEW, STORAGE_UNPACK, DYNAMIC_APP, DYNAMIC_EXT
+  use storage_m,   only: storage, STORAGE_READ, STORAGE_WRITE, DYNAMIC_APP, DYNAMIC_EXT
   use string_m
   
   implicit none
@@ -31,7 +31,7 @@ contains
     
     call tc%init("storage")
 
-    call store%open("test_storage.fbs", STORAGE_NEW)
+    call store%open("test_storage.fbs", STORAGE_WRITE)
 
     dyn = [1, 2, 3]
     call store%write("dynamic", dyn(1), dynamic=DYNAMIC_EXT)
@@ -72,8 +72,9 @@ contains
     call store%write(new_string("iarr"), iarr)
 
     call store%write(new_string("string"), new_string("This is a test string for ssssssssssssss."))
+
     call store%close()
-    call shop%open("test_storage.fbs", STORAGE_UNPACK)
+    call shop%open("test_storage.fbs", STORAGE_READ)
 
     call shop%read(new_string("dynamic"), extract)
     call tc%assert(allocated(extract), "Did not allocate array")
