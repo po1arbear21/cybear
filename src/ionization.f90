@@ -56,7 +56,7 @@ module ionization_m
   end type
 
   type, extends(res_equation) :: ion_continuity
-    !! continuity equation for dopant ionization concentration: d/dt ion + (G - R) = 0
+    !! continuity equation for dopant ionization concentration: d/dt ion - (G - R) = 0
 
     type(device_params), pointer :: par => null()
 
@@ -256,8 +256,8 @@ contains
     allocate (idx(par%g%idx_dim))
     do i = 1, par%ionvert(ci)%n
       idx = par%ionvert(ci)%get_idx(i)
-      call this%jaco_t%set(     idx, idx, 1.0)
-      call this%jaco_genrec%set(idx, idx, 1.0)
+      call this%jaco_t%set(     idx, idx,  1.0)
+      call this%jaco_genrec%set(idx, idx, -1.0)
     end do
 
     ! finish initialization
@@ -268,7 +268,7 @@ contains
     !! evaluate ionization continuity equation
     class(ion_continuity), intent(inout) :: this
 
-    call this%f%set(this%genrec%get())
+    call this%f%set(-1.0*this%genrec%get())
   end subroutine
 
   subroutine generation_recombination_init(this, par, ci)

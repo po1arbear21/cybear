@@ -195,7 +195,7 @@ contains
       do ci = DOP_DCON, DOP_ACON
         ch = CR_CHARGE(ci)
         if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
-          e = ch * TwoSum(x, - (smc%band_edge(ci) + ch * ii_E_dop(ci)))
+          e = TwoSum(ii_E_dop(ci) + ch*smc%band_edge(ci), -ch*x)
           t = hp_to_real(e)
           if (t > 300) then
             fac = real_to_hp(0.0)
@@ -203,7 +203,7 @@ contains
             e   = exp(e)
             fac = 1.0 / (1.0 + smc%ii_g(ci) * e)
           end if
-          ion  = 1.0 - fac
+          ion  = fac
           dion = hp_to_real(fac * (1.0 - fac))
 
           ff  = ff  - ch * dop(ci) * ion

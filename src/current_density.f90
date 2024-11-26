@@ -177,7 +177,7 @@ contains
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
       ! parameters
-      len     = this%par%g%get_len(idx1, idx_dir)
+      len     = this%par%g%get_len(idx, idx_dir)
       pot( 1) = this%pot%get( idx1)
       pot( 2) = this%pot%get( idx2)
       dens(1) = this%dens%get(idx1)
