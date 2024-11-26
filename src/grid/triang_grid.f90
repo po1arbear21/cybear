@@ -4,6 +4,7 @@ module triang_grid_m
 
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
+  use hashmap_m,       only: hashmap_int
   use json_m,          only: json_object
   use math_m,          only: cross_product_2d
   use normalization_m, only: denorm, norm
@@ -194,7 +195,8 @@ contains
       !! 3 vertex indices per cell; size = (3, ncell)
 
     integer                       :: j, k, icell, iedge1, iedge2, ivert1, ivert2, nmax
-    integer,          allocatable :: edges(:,:)
+    logical                       :: edge_exists
+    type(hashmap_int)             :: hmap
     type(vector_int)              :: edge2vert, edge2cell, edge2edge
     type(vector_int), allocatable :: vert2edge(:), vert2cell(:)
 
@@ -210,7 +212,7 @@ contains
     this%cell2vert = cells
 
     ! allocate memory
-    allocate (this%cell2edge(3,this%ncell), this%cell2cell(3,this%ncell), edges(this%nvert,this%nvert), source = INVALID_NEIGHBOUR)
+    allocate (this%cell2edge(3,this%ncell), this%cell2cell(3,this%ncell), source = INVALID_NEIGHBOUR)
     allocate (vert2edge(this%nvert), vert2cell(this%nvert))
     call edge2vert%init(0, c = 4 * this%nvert)
     call edge2cell%init(0, c = 2 * this%nvert)
@@ -218,6 +220,7 @@ contains
       call vert2edge(ivert1)%init(0, c = 6)
       call vert2cell(ivert1)%init(0, c = 6)
     end do
+    call hmap%init(c = 2 * this%nvert)
 
     ! create neighbour tables
     this%nedge = 0
@@ -232,13 +235,14 @@ contains
         ivert2 = max(cells(j,icell), cells(k,icell))
 
         ! check whether edge exists already
-        if (edges(ivert1,ivert2) /= INVALID_NEIGHBOUR) then
-          edge2cell%d(2 * edges(ivert1,ivert2)) = icell ! fill in placeholder
-          this%cell2edge(j,icell) = edges(ivert1,ivert2)
+        call hmap%get([ivert1, ivert2], iedge1, status=edge_exists)
+        if (edge_exists) then
+          edge2cell%d(2 * iedge1) = icell ! fill in placeholder
+          this%cell2edge(j,icell) = iedge1
         else
           ! add new edge
           this%nedge = this%nedge + 1
-          edges(ivert1,ivert2) = this%nedge
+          call hmap%set([ivert1, ivert2], this%nedge)
 
           ! update tables
           this%cell2edge(j,icell) = this%nedge
@@ -752,7 +756,7 @@ contains
     integer :: iounit, iostat, i
 
     ! vertices
-    open (newunit = iounit, file = fname // "_vert.dat", status = "new", action = "write", iostat = iostat)
+    open (newunit = iounit, file = fname // "_vert.dat", status = "unknown", action = "write", iostat = iostat)
     if (iostat /= 0) call program_error("File could not be opened")
     do i = 1, this%nvert
       write (iounit, "(ES25.16E3,ES25.16E3)") denorm(this%vert(:,i), unit)
@@ -760,7 +764,7 @@ contains
     close (iounit)
 
     ! triangle connectivity
-    open (newunit = iounit, file = fname // "_c2v.dat", status = "new", action = "write", iostat = iostat)
+    open (newunit = iounit, file = fname // "_c2v.dat", status = "unknown", action = "write", iostat = iostat)
     if (iostat /= 0) call program_error("File could not be opened")
     do i = 1, this%ncell
       write (iounit, "(I0, x, I0, x, I0)") this%cell2vert(1:3,i)

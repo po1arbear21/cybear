@@ -1,7 +1,9 @@
 submodule(triang_grid_m) quadtree_sm
 
-  use math_m,    only: cross_product_2d
-  use vector_m,  only: vector_int
+  use math_m,           only: cross_product_2d
+  use high_precision_m, only: hp_dot, TwoSum, TwoProduct, hp_to_real
+  use vector_m,         only: vector_int
+
 
   implicit none
 
@@ -82,8 +84,7 @@ contains
       if (i > this%nodes%n) exit
       call this%subdivide(this%nodes%d(i))
       if (this%nodes%n > Nnodes) then
-        print *, "this%nodes%n", this%nodes%n
-        call program_error("The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.")
+        call program_error('The given upper boundary for #nodes has been exceeded. Choose a larger Nnodes.')
       end if
     end do
   end subroutine
@@ -245,6 +246,20 @@ contains
               return
             end if
           end do
+
+          ! despite leaf, pnt was not found yet -> reexecute function tri_contain_pnt with HIGH PRECISION
+          do j=this%nodes%d(i)%ilower, this%nodes%d(i)%iupper
+            itr = this%itr_vec%d(j)
+            do l=1, 3
+              vert(:,l) = this%vert(:,this%cell2vert(l, itr))
+            end do
+            if (tri_contain_pnt(vert, pnt, whp=.true.)) then
+              !! triangle found
+              icell = itr
+              return
+            end if
+          end do
+          call program_error("despite leaf, the point is not found in a triangle of node :-(")
         else
           k = 0
           i = this%nodes%d(i)%ichild
@@ -297,24 +312,40 @@ contains
     close (iounit)
   end subroutine
 
-  function tri_contain_pnt(vert, p) result(res)
-    real, intent(in) :: vert(2,3)
+  function tri_contain_pnt(vert, p, whp) result(res)
+    real,              intent(in) :: vert(2,3)
       !! vertices of triangle
-    real, intent(in) :: p(2)
+    real,              intent(in) :: p(2)
       !! point
-    logical          :: res
+    logical, optional, intent(in) :: whp
+      !! with high precision
+    logical                       :: res
 
-    real :: s, t, A
+    real    :: s, t, A
+    logical :: whp_
+
+
+    whp_ = .false.
+    if (present(whp)) whp_ = whp
 
     res = .false.
+    if (whp_) then
+      ! with high precision routines
+      A = hp_dot([-vert(Y_IDX,2), vert(Y_IDX,1), vert(X_IDX,1), vert(X_IDX,2)], [vert(X_IDX,3), hp_to_real(TwoSum(-vert(X_IDX,2), vert(X_IDX,3))), hp_to_real(TwoSum(vert(Y_IDX,2), -vert(Y_IDX,3))), vert(Y_IDX,3)])
 
-    ! area of triangle
-    A = 0.5 *(-vert(Y_IDX,2)*vert(X_IDX,3) + vert(Y_IDX,1)*(-vert(X_IDX,2)+vert(X_IDX,3)) + vert(X_IDX,1)*(vert(Y_IDX,2)-vert(Y_IDX,3)) + vert(X_IDX,2)*vert(Y_IDX,3))
+      ! use barycentric coordinates to determine if p(:) is in triangle
+      s = hp_dot([vert(Y_IDX,1), -vert(X_IDX,1), hp_to_real(TwoSum(vert(Y_IDX,3), -vert(Y_IDX,1))), hp_to_real(TwoSum(vert(X_IDX,1), -vert(X_IDX,3)))], [vert(X_IDX,3), vert(Y_IDX,3), p(X_IDX), p(Y_IDX)])/A
+      t = hp_dot([vert(X_IDX,1), -vert(Y_IDX,1), hp_to_real(TwoSum(vert(Y_IDX,1), -vert(Y_IDX,2))), hp_to_real(TwoSum(vert(X_IDX,2), -vert(X_IDX,1)))], [vert(Y_IDX,2), vert(X_IDX,2), p(X_IDX), p(Y_IDX)])/A
+    else
+      ! 2*area of triangle
+      A = (-vert(Y_IDX,2)*vert(X_IDX,3) + vert(Y_IDX,1)*(-vert(X_IDX,2)+vert(X_IDX,3)) + vert(X_IDX,1)*(vert(Y_IDX,2)-vert(Y_IDX,3)) + vert(X_IDX,2)*vert(Y_IDX,3))
 
-    ! use barycentric coordinates to determine if p(:) is in triangle
-    s = (vert(Y_IDX,1)*vert(X_IDX,3) - vert(X_IDX,1)*vert(Y_IDX,3) + (vert(Y_IDX,3)-vert(Y_IDX,1))*p(X_IDX) + (vert(X_IDX,1)-vert(X_IDX,3))*p(Y_IDX))/(2*A)
-    t = (vert(X_IDX,1)*vert(Y_IDX,2) - vert(Y_IDX,1)*vert(X_IDX,2) + (vert(Y_IDX,1)-vert(Y_IDX,2))*p(X_IDX) + (vert(X_IDX,2)-vert(X_IDX,1))*p(Y_IDX))/(2*A)
-    if (s > 0 .and. t > 0 .and. s+t < 1) res = .true.
+      ! use barycentric coordinates to determine if p(:) is in triangle
+      s = (vert(Y_IDX,1)*vert(X_IDX,3) - vert(X_IDX,1)*vert(Y_IDX,3) + (vert(Y_IDX,3)-vert(Y_IDX,1))*p(X_IDX) + (vert(X_IDX,1)-vert(X_IDX,3))*p(Y_IDX)) / A
+      t = (vert(X_IDX,1)*vert(Y_IDX,2) - vert(Y_IDX,1)*vert(X_IDX,2) + (vert(Y_IDX,1)-vert(Y_IDX,2))*p(X_IDX) + (vert(X_IDX,2)-vert(X_IDX,1))*p(Y_IDX)) / A
+    end if
+
+    if (s > 0.0 .and. t > 0.0 .and. s+t < 1.0) res = .true.
   end function
 
   function lines_intersect(l1, l2) result(res)
@@ -337,7 +368,7 @@ contains
     s = cross_product_2d(c, b)  * cross_product_2d(a, b) / abs(cross_product_2d(a, b))**2
     t = cross_product_2d(-c, a) * cross_product_2d(b, a) / abs(cross_product_2d(b, a))**2
 
-    if (s>0 .and. s<1 .and. t>0 .and. t<1) res = .true.
+    if (s>0.0 .and. s<1.0 .and. t>0.0 .and. t<1.0) res = .true.
   end function
 
 end submodule
