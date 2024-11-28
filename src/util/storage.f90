@@ -13,15 +13,13 @@ module storage_m
   
   private
   public storage, variable
-  public STORAGE_NEW, STORAGE_REPLACE, STORAGE_EDIT, STORAGE_UNPACK
+  public STORAGE_READ, STORAGE_WRITE
   public DYNAMIC_NO, DYNAMIC_EXT, DYNAMIC_APP
   public ERR_INVALID_ARGUMENTS, ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_FILE_OP, ERR_INTERNAL, ERR_MSGS
 
   ! Storage general argument flags
-  integer, parameter :: STORAGE_UNPACK  = 1
-  integer, parameter :: STORAGE_NEW     = 2
-  integer, parameter :: STORAGE_EDIT    = 3
-  integer, parameter :: STORAGE_REPLACE = 4
+  integer, parameter :: STORAGE_READ  = 1
+  integer, parameter :: STORAGE_WRITE = 2
 
   ! Dynamic variable flags
   integer, parameter :: DYNAMIC_NO  = 0 ! No dynamic variable 
@@ -36,11 +34,11 @@ module storage_m
   integer, parameter :: ERR_INTERNAL          = -5
 
   character(*), parameter :: ERR_MSGS(5) = [ &
-    & "Procedure call with invalid arguments     ", & 
-    & "The variable has not been found           ", &
-    & "The variable already exists in the storage", &
-    & "File operation failed                     ", &
-    & "An internal error occured                 "]
+    & "Invalid arguments    ", & 
+    & "Not found            ", &
+    & "Already exists       ", &
+    & "File operation failed", &
+    & "Internal error       "]
   ! Cannot use strings here: Function 'new_string' in initialization expression must be an intrinsic function
 
   ! Take care when using this macro as commas are not allowed, they will destroy everything (the macro arguments actually)
@@ -50,7 +48,7 @@ module storage_m
     if (present(err_msg)) err_msg = new_string($2); 
     return;
   else;
-    call program_error(trim(ERR_MSGS(-$1)) // ": " // $2);
+    call program_error($2);
   end if;})
 
   ! Data types
@@ -109,7 +107,7 @@ module storage_m
     type(string)                 :: name
     integer                      :: type
       !! DT_<type>
-    integer(kind=int64), allocatable :: shape(:)
+    integer(kind=int64), allocatable :: sizes(:)
       !! Needed for dynamic arrays as all entries must match in shape
     integer(kind=int64), allocatable :: lbounds(:)
       !! Lower array bounds
@@ -120,6 +118,9 @@ module storage_m
   contains
     procedure :: serialize   => variable_serialize
     procedure :: deserialize => variable_deserialize
+    generic   :: write(formatted) => variable_write_formatted ! Formatted output corresponds to log entries
+
+    procedure, private :: variable_write_formatted
   end type
 
   m4_define({T},{string})
@@ -249,33 +250,6 @@ contains
     write(funit) blob
   end subroutine
 
-  subroutine write_log_entry(funit, name, dynamic, dtype, lbounds, sizes)
-    integer,             intent(in) :: funit
-    type(string),        intent(in) :: name
-    integer,             intent(in) :: dynamic
-    integer,             intent(in) :: dtype
-    integer(kind=int64), intent(in) :: lbounds(:)
-    integer(kind=int64), intent(in) :: sizes(:)
-
-    integer      :: i
-    character(7) :: type ! "dynamic" or "static"
-    if (dynamic == DYNAMIC_NO) then
-      type = "dynamic"
-    else
-      type = "static "
-    end if
-
-    write(funit, "(A)", advance="no") '{{"op": "new", "type": "' // trim(type) // '", "name": "' // name%s //'", "dtype": "' // DT_NAMES(dtype) // '", "shape": ['
-      do i = 1, size(sizes)
-        if (i == 1) then
-          write(funit, "(A, I0, A, I0, A)", advance="no") "[",   lbounds(i), ", ", sizes(i), "]"
-        else
-          write(funit, "(A, I0, A, I0, A)", advance="no") ", [", lbounds(i), ", ", sizes(i), "]"
-        end if
-      end do
-      write(funit, "(A)") ']}}'
-  end subroutine
-
   function get_data_length(var, stat, err_msg) result(length)
     type(string), intent(in) :: var(:)
     integer,             optional, intent(out) :: stat
@@ -375,7 +349,7 @@ contains
     integer,         intent(in)    :: funit
       ! Needs to be opened in binary mode
 
-    call write_header(funit, this%name, this%type, this%lbounds, this%shape, data_length=8+this%count*8)
+    call write_header(funit, this%name, this%type, this%lbounds, this%sizes, data_length=8+this%count*8)
 
     write(funit) this%count
     write(funit) this%addr(1:this%count) ! Addresses is not necessarily the size of count
@@ -386,38 +360,113 @@ contains
     class(variable), intent(inout) :: this
     integer,         intent(in)    :: funit
 
-    call read_header(funit, name=this%name, type=this%type, lbounds=this%lbounds, sizes=this%shape)
+    call read_header(funit, name=this%name, type=this%type, lbounds=this%lbounds, sizes=this%sizes)
 
     read(funit) this%count
     allocate(this%addr(this%count))
     read(funit) this%addr
   end subroutine
 
+  subroutine variable_write_formatted(this, unit, iotype, v_list, iostat, iomsg)
+    CLASS(variable), intent(in)    :: this
+    integer,         intent(in)    :: unit
+    character(*),    intent(in)    :: iotype
+    integer,         intent(in)    :: v_list(:)
+    integer,         intent(out)   :: iostat
+    character(*),    intent(inout) :: iomsg
+
+    integer :: i
+
+    m4_ignore(iotype)
+    m4_ignore(v_list)
+
+    write(unit, "(A)", advance="no", iostat=iostat, iomsg=iomsg) '{{"op": "...", "type": "...", "name": "' // this%name%s //'", "dtype": "' // DT_NAMES(this%type) // '", "shape": ['
+      do i = 1, size(this%sizes)
+        if (i == 1) then
+          write(unit, "(A, I0, A, I0, A)", advance="no", iostat=iostat, iomsg=iomsg) "[",   this%lbounds(i), ", ", this%sizes(i), "]"
+        else
+          write(unit, "(A, I0, A, I0, A)", advance="no", iostat=iostat, iomsg=iomsg) ", [", this%lbounds(i), ", ", this%sizes(i), "]"
+        end if
+      end do
+      write(unit, "(A)", iostat=iostat, iomsg=iomsg) ']}}'
+  end subroutine
+
   subroutine storage_open(this, file, flag, stat, err_msg)
     !! Initialize the main storgae object which can be used to 
-    class(storage), intent(inout) :: this
-    character(*),   intent(in)    :: file
-    integer,        intent(in)    :: flag
-    integer,             optional, intent(out) :: stat
-    type(string),        optional, intent(out) :: err_msg
+    class(storage),         intent(inout) :: this
+    character(*),           intent(in)    :: file
+    integer,      optional, intent(in)    :: flag
+    integer,      optional, intent(out)   :: stat
+    type(string), optional, intent(out)   :: err_msg
     
-    integer         :: stat_
+    integer             :: flag_, stat_
     integer(kind=int64) :: i, addr, n
-    character(64)   :: msg
-    character(7)    :: journal_start
+    character(64)       :: msg
+    logical             :: exists
     
     type(variable), allocatable :: vars(:)
 
+    flag_ = STORAGE_READ
+    if (present(flag)) flag_ = flag
 
-    if (flag == STORAGE_UNPACK) then
+    select case (flag_)
+    case (STORAGE_READ)
       open (newunit=this%funit, file=file, access="stream", form="unformatted", status="old", action="read", iostat=stat_, iomsg=msg)
+      if (stat_ /= 0) then; m4_error(ERR_INTERNAL, trim(msg)); return; end if;
 
-      call fseek(this%funit, -8, SEEK_END, stat_)
+      call read_journal(stat_)
+      if (stat_ /= 0) then; m4_error(ERR_INTERNAL, "Reading while writing is not supported"); return; end if;
+
+    case (STORAGE_WRITE)
+      inquire (file=file, exist=exists)
+      
+      ! New storage
+      if (.not. exists) then
+        open(newunit=this%funit, file=file, access="stream", form="unformatted", status="new", action="readwrite", iostat=stat_, iomsg=msg)
+        open(newunit=this%wal, file=file//".log", status="new", action="write", iostat=stat_, iomsg=msg)
+        
+        if (stat_ /= 0) then
+          m4_error(ERR_FILE_OP, "Could not open storage: " // msg)
+        end if
+  
+        write (this%funit, iostat=stat_) "FBS1"
+        call this%variables%init()
+      
+      ! Extend old storage
+      else
+        open (newunit=this%funit, file=file, access="stream", form="unformatted", status="old", action="readwrite", iostat=stat_, iomsg=msg)
+        if (stat_ /= 0) then; m4_error(ERR_FILE_OP, trim(msg)); return; end if;
+
+        inquire (file=file//".log", exist=exists)
+        if (exists) then; m4_error(ERR_ALREADY_EXISTS, "The storage is currently openend for writing and no more than one writer allowed"); return; end if;
+        open(newunit=this%wal, file=file//".log", status="new", action="write", iostat=stat_, iomsg=msg)
+        if (stat_ /= 0) then; m4_error(ERR_FILE_OP, trim(msg)); return; end if;
+        
+        call read_journal(stat_)
+        if (stat_ /= 0) then
+          m4_error(ERR_FILE_OP, "Could not read the journal")
+        end if
+
+      end if
+      
+    case default
+      m4_error(ERR_INVALID_ARGUMENTS, "Invalid flag for creating new storages")
+    end select
+
+    this%mode = flag_
+
+    contains
+
+    subroutine read_journal(jstat)
+      integer,      intent(out)   :: jstat
+      character(7)                :: journal_start
+
+      call fseek(this%funit, -8, SEEK_END, jstat)
       read(this%funit) addr
-      call fseek(this%funit, addr, SEEK_SET, stat_)
+      call fseek(this%funit, addr, SEEK_SET, jstat)
       read(this%funit) journal_start
 
-      if ("JOURNAL" /= journal_start) then; m4_error(ERR_INTERNAL, "Invalid journal"); end if;
+      if ("JOURNAL" /= journal_start) then; jstat = ERR_NOT_FOUND; return; end if;
       read(this%funit) n
 
       call this%variables%init()
@@ -426,26 +475,7 @@ contains
         call vars(i)%deserialize(this%funit)
         call this%variables%set(vars(i)%name, vars(i))
       end do
-
-    else if (flag /= STORAGE_NEW) then
-      m4_error(ERR_INVALID_ARGUMENTS, "Invalid flag for creating new storages")
-    else
-      open(newunit=this%funit, file=file, access="stream", form="unformatted", status="new", action="write", iostat=stat_)
-      open(newunit=this%wal, file=file//".log", status="new", action="write", iostat=stat_)
-    end if
-    
-    if (stat_ /= 0) then
-      m4_error(ERR_FILE_OP, "Could not open storage: " // msg)
-    end if
-
-    this%mode = flag
-
-    if (flag == STORAGE_NEW) then
-      ! Create the header
-      write (this%funit, iostat=stat_) "FBS1"
-      call this%variables%init()
-    end if
-
+    end subroutine
   end subroutine
 
   subroutine storage_goto(this, name, stat)
@@ -484,21 +514,16 @@ contains
     found = associated(p)
   end function
 
-  subroutine storage_close(this, delete_log, stat, err_msg)
+  subroutine storage_close(this, stat, err_msg)
     class(storage), intent(inout) :: this
-    logical, optional, intent(in) :: delete_log
     integer,             optional, intent(out) :: stat
     type(string),        optional, intent(out) :: err_msg
     
-    integer :: stat_
-    logical :: delete_log_
-    integer(kind=int64)              :: i, start, n
-    type(variable), allocatable  :: variables(:)        
+    integer                     :: stat_
+    integer(kind=int64)         :: i, start, n
+    type(variable), allocatable :: variables(:)        
 
-    delete_log_ = .false.
-    if (present(delete_log)) delete_log_ = delete_log
-
-    if (this%mode /= STORAGE_UNPACK) then
+    if (this%mode > STORAGE_READ) then
       ! Write the journal to the end of the file
       n = this%variables%n
       allocate(variables(n))
@@ -521,11 +546,7 @@ contains
         m4_error(ERR_FILE_OP, "Error calling fsync")
       end if
 
-      if (delete_log_) then
-        close(this%wal, status="delete")
-      else
-        close(this%wal)
-      end if
+      close(this%wal, status="delete")
     end if
 
     call this%variables%destruct()
@@ -565,8 +586,7 @@ contains
     if (present(dynamic)) dflag = dynamic
     if (dflag < DYNAMIC_NO .or. dflag > DYNAMIC_EXT) then; m4_error(ERR_INVALID_ARGUMENTS, "Unknown dynamic flag"); end if;
 
-    if (this%mode <= STORAGE_UNPACK) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write in this storage") end if;
-
+    if (this%mode <= STORAGE_READ) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write in this storage") end if;
 
     if (DT_$2 /= DT_REAL64 .and. DT_$2 /= DT_CMPLX128 .and. present(unit)) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write in this storage") end if;
 
@@ -592,27 +612,27 @@ contains
         ! Do not allow writing if shape does not match, we simply ignore the lower bounds
                 
         if (dflag == DYNAMIC_APP) then
-          if (size(sizes) /= size(p%value%shape)) then;                                m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if; 
-          if (any(sizes(1:size(sizes) - 1) /= p%value%shape(1:size(sizes) - 1))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shapes do not match"); end if;
+          if (size(sizes) /= size(p%value%sizes)) then;                                m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if; 
+          if (any(sizes(1:size(sizes) - 1) /= p%value%sizes(1:size(sizes) - 1))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shapes do not match"); end if;
           ! Update the lbounds and sizes for writing the binary blob and add the entries to the variable
-          lbounds(size(lbounds)) = p%value%lbounds(size(sizes)) - p%value%shape(size(sizes))
+          lbounds(size(lbounds)) = p%value%lbounds(size(sizes)) - p%value%sizes(size(sizes))
           sizes(size(sizes))     = -sizes(size(sizes)) 
-          p%value%shape(size(sizes)) = p%value%shape(size(sizes)) + sizes(size(sizes))
+          p%value%sizes(size(sizes)) = p%value%sizes(size(sizes)) + sizes(size(sizes))
         else if (dflag == DYNAMIC_EXT) then
-          if (size(sizes) /= size(p%value%shape) - 1) then;     m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if;
-          if (any(sizes /= p%value%shape(1:size(sizes)))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shape do not match"); end if;
+          if (size(sizes) /= size(p%value%sizes) - 1) then;     m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if;
+          if (any(sizes /= p%value%sizes(1:size(sizes)))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shape do not match"); end if;
           
           allocate(tmp(size(p%value%lbounds)))
           tmp(1:size(lbounds)) = lbounds
-          tmp(size(tmp))       = p%value%lbounds(size(sizes) + 1) - p%value%shape(size(sizes) + 1)
+          tmp(size(tmp))       = p%value%lbounds(size(sizes) + 1) - p%value%sizes(size(sizes) + 1)
           call move_alloc(tmp, lbounds)
 
-          allocate(tmp(size(p%value%shape)))
+          allocate(tmp(size(p%value%sizes)))
           tmp(1:size(sizes)) = sizes
           tmp(size(tmp))     = int(-1, kind=int64)
           call move_alloc(tmp, sizes)
           
-          p%value%shape(size(p%value%shape)) = p%value%shape(size(p%value%shape)) - 1 ! Add one entry to the last dimension
+          p%value%sizes(size(p%value%sizes)) = p%value%sizes(size(p%value%sizes)) - 1 ! Add one entry to the last dimension
         end if
       else
         new_var%name  = name
@@ -622,12 +642,12 @@ contains
         
         if (dflag == DYNAMIC_APP) then
           sizes(size(sizes)) = -sizes(size(sizes)) ! Indicate that this is a dynamic variable
-          new_var%shape              = sizes
+          new_var%sizes              = sizes
           new_var%lbounds            = lbounds
         else if (dflag == DYNAMIC_EXT) then
-          allocate(new_var%shape(size(sizes) + 1))
-          new_var%shape(1:size(sizes)) = sizes
-          new_var%shape(size(sizes) + 1) = int(-1, kind=int64)
+          allocate(new_var%sizes(size(sizes) + 1))
+          new_var%sizes(1:size(sizes)) = sizes
+          new_var%sizes(size(sizes) + 1) = int(-1, kind=int64)
 
           allocate(new_var%lbounds(size(lbounds) + 1))
           new_var%lbounds(1:size(lbounds)) = lbounds
@@ -635,19 +655,19 @@ contains
         end if
 
         lbounds = new_var%lbounds
-        sizes   = new_var%shape
+        sizes   = new_var%sizes
 
         call this%variables%set(name, new_var)
         p => this%variables%find(name)
-        call write_log_entry(this%wal, new_var%name, dflag, new_var%type, lbounds, sizes)
+        write(this%wal, "(dt'all')") new_var
       end if
 
     else if (associated(p)) then
-      m4_error(ERR_ALREADY_EXISTS, "The variable already exists")
+      m4_error(ERR_ALREADY_EXISTS, "The variable '"// p%value%name%s //"' already exists")
     else
       new_var%name    = name
       new_var%type    = DT_$2
-      new_var%shape   = sizes
+      new_var%sizes   = sizes
       new_var%lbounds = lbounds
       new_var%count   = int(1,kind=int64)
       new_var%addr    = [offset]
@@ -685,14 +705,14 @@ contains
       m4_error(ERR_FILE_OP, "Error calling fsync")
     end if
 
-    if (all(p%value%shape > 0)) then
-      call write_log_entry(this%wal, p%value%name, dflag, p%value%type, p%value%lbounds, p%value%shape)
+    if (all(p%value%sizes > 0)) then
+      write(this%wal, *) p%value
       return
     end if
     ! Must be a dynamic variable now        
     
     p%value%count = p%value%count + 1
-    write(this%wal, "(3A, I0, A)") '{{"op": "add", "name": "', p%value%name%s, '", "idx": ', p%value%count, '}}'
+    write(this%wal, *) p%value
 
     ! Resize the arrays of the variable structure
     if (p%value%count > size(p%value%addr)) then
@@ -782,10 +802,10 @@ contains
     })
     },{
     if (any(sizes <= 0)) then ! Dynamic array
-      if (all(p%value%shape > 0)) then; m4_error(ERR_INTERNAL, "Dynamic disagree between blob and journal"); end if;
+      if (all(p%value%sizes > 0)) then; m4_error(ERR_INTERNAL, "Dynamic disagree between blob and journal"); end if;
 
       ! Allocate the array with the complete shape
-      sizes(size(sizes)) = abs(p%value%shape(size(p%value%shape)))
+      sizes(size(sizes)) = abs(p%value%sizes(size(p%value%sizes)))
       lbounds(size(lbounds)) = abs(p%value%lbounds(size(p%value%lbounds)))
       ubounds = lbounds + sizes - 1
       allocate(var({}m4_pallocate($1)))
