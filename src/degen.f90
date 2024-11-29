@@ -714,10 +714,11 @@ contains
       real, intent(out) :: dresdeta(2)
       real, intent(out) :: dresddpot
 
-      real, parameter :: EPS = 1e-2 ! FIXME: optimize
+      real, parameter :: EPS = 1e-3
 
       logical :: mask1(2), mask2(2)
-      real    :: etac1, detac1djj, bnd(2), dbnddeta(2), dbnddjj(2), I, dIdbnd(2), dIdjj(1), t(2), dtdjj(2), dtdeta(2), dum
+      real    :: etac1, etac2, detac1djj, detac2djj, bnd(2), dbnddeta(2), dbnddjj(2)
+      real    :: I, dIdbnd(2), dIdjj(1), t(2), dtdjj(2), dtdeta(2), dum
 
       ! init output
       res       = - dpot_
@@ -725,53 +726,62 @@ contains
       dresdeta  = 0
       dresddpot = -1
 
-      ! critical point
-      call idist(jj * EPS / (EPS - 1), eta = etac1, detadF = detac1djj)
-      detac1djj = detac1djj * EPS / (EPS - 1)
+      ! critical points
+      call idist(jj * (EPS / (EPS - 1)), eta = etac1, detadF = detac1djj)
+      call idist(jj * ((EPS - 1) / EPS), eta = etac2, detadF = detac2djj)
+      if (etac1 < etac) then
+        detac1djj = detac1djj * (EPS / (EPS - 1))
+      else
+        etac1     = etac
+        detac1djj = 0
+      end if
+      detac2djj = detac2djj * ((EPS - 1) / EPS)
 
       ! exponential part
-      mask1    = ([eta1, eta2] <= etac)
-      bnd      = merge([eta1, eta2], [etac, etac], mask1)
-      dbnddeta = merge([ 1.0,  1.0], [ 0.0,  0.0], mask1)
+      mask1 = ([eta1, eta2] <= etac1)
+      bnd = merge([eta1, eta2], [etac1, etac1], mask1)
       if (bnd(1) /= bnd(2)) then
+        dbnddjj  = merge([0.0, 0.0], [detac1djj, detac1djj], mask1)
+        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
+
         t      = exp(bnd) * (gamma*jj - 1) + jj
-        dtdjj  = exp(bnd) * gamma + 1
+        dtdjj  = exp(bnd) * (dbnddjj * (gamma*jj - 1) + gamma) + 1
         dtdeta = exp(bnd) * dbnddeta * (gamma*jj - 1)
 
         res      = res - log(t(2)/t(1)) / (gamma*jj - 1)
         dresdjj  = dresdjj - (dtdjj(2)/t(2) - dtdjj(1)/t(1) - log(t(2)/t(1))*gamma/(gamma*jj - 1)) / (gamma*jj - 1)
         dresdeta = dresdeta + dtdeta * [1.0, -1.0] / (t * (gamma*jj - 1))
 
+        ! numerical integration of rest term
         call integrate_gauss_exp(integrand_1a_r, bnd(1), bnd(2), [jj], 3.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dum)
         nquad    = nquad + NG
-        res      = res + I
-        dresdjj  = dresdjj + dIdjj(1)
-        dresdeta = dresdeta + dIdbnd * dbnddeta
-      end if
-
-      ! Gauss-Legendre 1
-      mask1    = ([eta1, eta2] >= etac) .and. ([eta1, eta2] <= etac1)
-      mask2    = ([eta1, eta2] <= etac) .and. (etac <= etac1)
-      bnd      = merge([eta1, eta2], merge([etac, etac], [etac1, etac1], mask2), mask1)
-      dbnddjj  = merge([detac1djj, detac1djj], [0.0, 0.0], .not. (mask2 .or. mask1))
-      dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
-      if (bnd(1) /= bnd(2)) then
-        call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-        nquad = nquad + NG
         res      = res + I
         dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
         dresdeta = dresdeta + dIdbnd * dbnddeta
       end if
 
-      ! Gauss-Legendre 2
-      mask1    = ([eta1, eta2] >= etac) .and. ([eta1, eta2] >= etac1)
-      mask2    = ([eta1, eta2] <= etac) .and. (etac >= etac1)
-      bnd      = merge([eta1, eta2], merge([etac, etac], [etac1, etac1], mask2), mask1)
-      dbnddjj  = merge([detac1djj, detac1djj], [0.0, 0.0], .not. (mask2 .or. mask1))
-      dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
+      ! transition => Gauss-Legendre
+      mask2 = ([eta1, eta2] <= etac2)
+      bnd = merge([etac1, etac1], merge([eta1, eta2], [etac2, etac2], mask2), mask1)
       if (bnd(1) /= bnd(2)) then
+        dbnddjj  = merge([detac1djj, detac1djj], merge([0.0, 0.0], [detac2djj, detac2djj], mask2), mask1)
+        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask2 .and. .not. mask1)
+
         call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-        nquad = nquad + NG
+        nquad    = nquad + NG
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+
+      ! constant region => Gauss-Legendre
+      bnd = merge([etac2, etac2], [eta1, eta2], mask2)
+      if (bnd(1) /= bnd(2)) then
+        dbnddjj  = merge([detac2djj, detac2djj], [0.0, 0.0], mask2)
+        dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask2)
+
+        call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+        nquad    = nquad + NG
         res      = res + I
         dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
         dresdeta = dresdeta + dIdbnd * dbnddeta
