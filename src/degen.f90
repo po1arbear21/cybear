@@ -415,10 +415,10 @@ contains
 
         ! treat singularity of res at interval end-points
         do while (.not. ieee_is_finite(res))
-          if (jj == jjmin) then
+          if (jj - jjmin < 2e-15) then
             jj    = ieee_next_after(jj, huge(1.0))
             jjmin = jj
-          elseif (jj == jjmax) then
+          elseif (jjmax - jj < 2e-15) then
             jj    = ieee_next_after(jj, -huge(1.0))
             jjmax = jj
           else
@@ -1051,12 +1051,15 @@ contains
     subroutine fatal_error(msg)
       character(*), intent(in) :: msg
 
-      print "(A,ES25.16E3)", "etac  = ", etac
-      print "(A,ES25.16E3)", "gamma = ", gamma
-      print "(A,ES25.16E3)", "n1    = ", n1
-      print "(A,ES25.16E3)", "n2    = ", n2
-      print "(A,ES25.16E3)", "dpot  = ", dpot
-      print "(2A)",          "case ", CASENAME(cs)
+      print "(A,I0)",        "NG        = ", NG
+      print "(A,I0)",        "NGEXP     = ", NGEXP
+      print "(A,L)",         "TANH_SINH = ", DEGEN_TANH_SINH
+      print "(A,ES25.16E3)", "etac      = ", etac
+      print "(A,ES25.16E3)", "gamma     = ", gamma
+      print "(A,ES25.16E3)", "n1        = ", n1
+      print "(A,ES25.16E3)", "n2        = ", n2
+      print "(A,ES25.16E3)", "dpot      = ", dpot
+      print "(2A)",          "case      = ", CASENAME(cs)
 
       call program_error(msg)
     end subroutine
