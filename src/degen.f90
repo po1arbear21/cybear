@@ -408,17 +408,26 @@ contains
       it  = 0
       do while ((it < 2) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
         it = it + 1
-        if (it > MAX_IT) then
-          print "(A,ES25.16E3)", "etac  = ", etac
-          print "(A,ES25.16E3)", "gamma = ", gamma
-          print "(A,ES25.16E3)", "n1    = ", n1
-          print "(A,ES25.16E3)", "n2    = ", n2
-          print "(A,ES25.16E3)", "dpot  = ", dpot
-          call program_error("No convergence after " // int2str(MAX_IT) // " iterations")
-        end if
+        if (it > MAX_IT) call fatal_error("No convergence after " // int2str(MAX_IT) // " iterations")
 
         ! evaluate residual and get Newton update
         call residual(res, dresdjj, dresdeta, dresddpot)
+
+        ! treat singularity of res at interval end-points
+        do while (.not. ieee_is_finite(res))
+          if (jj == jjmin) then
+            jj    = ieee_next_after(jj, huge(1.0))
+            jjmin = jj
+          elseif (jj == jjmax) then
+            jj    = ieee_next_after(jj, -huge(1.0))
+            jjmax = jj
+          else
+            call fatal_error("residual not finite")
+          end if
+          call residual(res, dresdjj, dresdeta, dresddpot)
+        end do
+
+        ! Newton update
         djj = - res / dresdjj
         err = abs(djj)
 
@@ -1038,6 +1047,19 @@ contains
         end if
       end if
     end function
+
+    subroutine fatal_error(msg)
+      character(*), intent(in) :: msg
+
+      print "(A,ES25.16E3)", "etac  = ", etac
+      print "(A,ES25.16E3)", "gamma = ", gamma
+      print "(A,ES25.16E3)", "n1    = ", n1
+      print "(A,ES25.16E3)", "n2    = ", n2
+      print "(A,ES25.16E3)", "dpot  = ", dpot
+      print "(2A)",          "case ", CASENAME(cs)
+
+      call program_error(msg)
+    end subroutine
 
   end subroutine
 
