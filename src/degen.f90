@@ -101,7 +101,7 @@ contains
 
   subroutine degen_get(n, dpot, j, djdn, djddpot)
     real,               intent(in)  :: n(2)
-      !! left/right density
+      !! left/right normalized density
     real,               intent(in)  :: dpot
       !! normalized potential drop
     real,               intent(out) :: j
@@ -406,7 +406,7 @@ contains
       ! Newton iteration
       err = huge(1.0)
       it  = 0
-      do while ((it < 1) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
+      do while ((it < 2) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
         it = it + 1
         if (it > MAX_IT) then
           print "(A,ES25.16E3)", "etac  = ", etac
@@ -963,7 +963,7 @@ contains
       dtdjj  = dem2djj / em2 - dem1djj / em1
       dtdeta = [- dem1deta1 / em1, dem2deta2 / em2]
 
-      res       = real(res + (t_16 / b_16 + deta / b_16) + R_16, kind = 8)
+      res       = real(res + (t_16 + deta) / b_16 + R_16, kind = 8)
       dresdjj   = dresdjj - deta / b**2 * dbdjj + (dtdjj - t * dbdjj / b) / b + dRdjj
       dresdeta  = dresdeta + [-1.0, 1.0] / b + dtdeta / b + dRdeta
     end subroutine
@@ -987,7 +987,7 @@ contains
         end if
 
         ! series expansion coefficients around eta0
-        rc(0)  = -(F0*F1 - 2*F1**2 + F0*F2)/(2*F1**2)
+        rc(0)  = (2*F1**2 - F0*F1 - F0*F2)/(2*F1**2)
         rc(1)  = -(F0*(F1**2 - 3*F2**2 + 2*F1*F3))/(12*F1**3)
         rc(2)  = -(F0*(F1**2*F4 + 3*F2**3 - 4*F1*F2*F3))/(12*F1**4)
         rc(3)  = (F0*(F1**4 - 6*F1**3*F5 + 45*F2**4 + 20*F1**2*F3**2 - 90*F1*F2**2*F3 + 30*F1**2*F2*F4))/(120*F1**5)
