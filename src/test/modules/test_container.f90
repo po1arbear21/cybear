@@ -7,7 +7,7 @@ module test_container_m
   use grid_m,          only: grid, IDX_VERTEX, IDX_CELL, IDX_EDGE, IDX_FACE
   use grid0D_m,        only: grid0D
   use grid1D_m,        only: grid1D
-  use grid_data_m,     only: grid_data0_real, grid_data2_real
+  use grid_data_m,     only: grid_data0_real, grid_data2_real, grid_data_real, allocate_grid_data2_real
   use grid_table_m,    only: grid_table
   use normalization_m, only: norm, denorm
   use tensor_grid_m,   only: tensor_grid
@@ -17,7 +17,7 @@ module test_container_m
   use math_m,          only: linspace
   
   implicit none
-
+  
   private
   public test_container
 
@@ -48,7 +48,7 @@ contains
     type(test_case) :: tc
     type(container) :: depot, topedo
     
-    integer :: i, j, idx(2)
+    integer :: i, j, idx(2), idx_dir, idx_dim
     real, allocatable :: x(:), y(:)
     type(grid0D) :: g0, g0_readback
     type(grid1D) :: gx, gy, gx_read, gy_read
@@ -56,6 +56,7 @@ contains
     type(vselector) :: vsel, vsel_edge
     type(tensor_grid) :: gt, gt_read
     type(grid_table) :: tab, tab_read, tab_edge1, tab_edge2
+    class(grid_data_real), allocatable :: eps(:,:)
 
     call tc%init("container")
 
@@ -67,6 +68,13 @@ contains
     call gy%init("y", linspace(0.0, 10.0, 101))
     call gt%init("test-tensor", [gx%get_ptr(), gy%get_ptr()])
 
+    idx_dim = gt%idx_dim
+    call allocate_grid_data2_real(eps,  idx_dim, [1, 0], [4, idx_dim])
+    call eps(IDX_CELL,0)%init(gt, IDX_CELL, 0)
+    do idx_dir = 1, idx_dim
+      call eps(IDX_EDGE,idx_dir)%init(gt, IDX_EDGE, idx_dir)
+    end do
+
     call tab%init("tab", gt, IDX_CELL, 0, initial_flags = .true.)
     call tab%init_final()
 
@@ -74,6 +82,8 @@ contains
     call depot%save(gx)
     call depot%save(gy)
     call depot%save(gt)
+
+    call depot%save("eps_edge", eps(IDX_EDGE,1))
 
     call var0%init("0var", "1", g0, IDX_VERTEX, 0)
     call var0%set([1.0])

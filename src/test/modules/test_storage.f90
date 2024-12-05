@@ -1,7 +1,7 @@
 module test_storage_m
 
   use test_case_m, only: test_case
-  use storage_m,   only: storage, STORAGE_READ, STORAGE_WRITE, DYNAMIC_APP, DYNAMIC_EXT
+  use storage_m,   only: storage, STORAGE_READ, STORAGE_WRITE, DYNAMIC_APP, DYNAMIC_EXT, COMPR_ZLIB
   use string_m
   
   implicit none
@@ -37,6 +37,10 @@ contains
     call store%write("dynamic", dyn(1), dynamic=DYNAMIC_EXT)
     call store%write("dynamic", dyn(2), dynamic=DYNAMIC_EXT)
     call store%write("dynamic", dyn(3), dynamic=DYNAMIC_EXT)
+
+    iarr = 2
+    call store%write(new_string("iarr_compressed"), iarr, compression=COMPR_ZLIB)
+    call store%write(new_string("iarr"), iarr)
     
     dynamic_append = [-0.8, 7.1, 4.9732, 45e12, -25e-32, 90.3, 1.0, 0.0, 123456.789, 1.9, 1.0, 1.111111111111, 1.0999999999999, -0.0000000001, 0.0000000001]
     call store%write("dynamic_append", dynamic_append(1:6), dynamic=DYNAMIC_APP)
@@ -68,8 +72,6 @@ contains
 
     rarr = [3.290, 0.433, 0.77234e-12, 0.87653, 0.72, 47.5e33, 0.99999999, 1.0, 0.9e99, 1.9]
     call store%write(new_string("rarr"), rarr)
-    iarr = 2
-    call store%write(new_string("iarr"), iarr)
 
     call store%write(new_string("string"), new_string("This is a test string for ssssssssssssss."))
 
@@ -97,6 +99,12 @@ contains
     call shop%read(new_string("iarr"), tiarr)
     call tc%assert(allocated(tiarr), "Did not allocate array")
     call tc%assert_eq(int(iarr), int(tiarr), "Retrieved array tiarr does not match")
+    
+    deallocate(tiarr)
+    call shop%read(new_string("iarr_compressed"), tiarr)
+    call tc%assert(allocated(tiarr), "Did not allocate array")
+    call tc%assert_eq(int(iarr), int(tiarr), "Retrieved array tiarr does not match")
+
 
     call shop%read("dynamic_append", dynamic_append_return)
     call tc%assert_eq(dynamic_append, dynamic_append_return, 1e-16, 1e-16, "The retrieved dynamic append array does match its input")

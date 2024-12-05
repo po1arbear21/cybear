@@ -2,12 +2,15 @@ m4_include(macro.f90.inc)
 
 module storage_m
   
-  use iso_fortran_env, only: int8, int16, int32, int64, real64
+  use iso_fortran_env, only: int8, int16, int32, int64, real64, logical_kinds
+  use, intrinsic :: iso_c_binding
 
   use error_m
   use normalization_m, only: norm, denorm
   use string_m
   use vector_m
+  use util_m, only: int2str
+  m4_ifdef({m4_zlib},use zlib_m,)
 
   implicit none
   
@@ -15,6 +18,7 @@ module storage_m
   public storage, variable
   public STORAGE_READ, STORAGE_WRITE
   public DYNAMIC_NO, DYNAMIC_EXT, DYNAMIC_APP
+  public COMPR_NONE, COMPR_ZLIB
   public ERR_INVALID_ARGUMENTS, ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_FILE_OP, ERR_INTERNAL, ERR_MSGS
 
   ! Storage general argument flags
@@ -25,6 +29,10 @@ module storage_m
   integer, parameter :: DYNAMIC_NO  = 0 ! No dynamic variable 
   integer, parameter :: DYNAMIC_APP = 1 ! Append to the highest dimension 
   integer, parameter :: DYNAMIC_EXT = 2 ! Dynamic dimension will be on top
+
+  ! Compression flags
+  character, parameter :: COMPR_NONE = 'n' ! No 
+  character, parameter :: COMPR_ZLIB = 'z' ! Zlib deflate best compression
 
   ! Errors
   integer, parameter :: ERR_INVALID_ARGUMENTS = -1
@@ -62,7 +70,7 @@ module storage_m
   integer, parameter :: DT_STRING   = 8
 
   character, parameter :: DT_NAMES(8) = ["b", "i", "j", "l", "r", "c", "a", "s"]
-  integer,   parameter :: DT_SIZES(7) = [ 1,   4,   8,   1,   8,   16,  1]
+  integer,   parameter :: DT_SIZES(7) = [ 1,   4,   8,   4,   8,   16,  1]
 
   ! All available output types
   m4_define({m4_typelist},{
@@ -94,9 +102,12 @@ module storage_m
     m4_Y($1,$2)
   })
 
-  ! array allocate (e.g. m4_shape(4) => :,:,:,:)
+  ! array allocate (e.g. m4_pallocate(2) => lbounds(1):ubounds(1),lbounds(2):ubounds(2)
   m4_define({m4_allocate},{m4_ifelse($1,1,lbounds(1):ubounds(1),{m4_allocate(m4_decr($1)),lbounds($1):ubounds($1)})})
   m4_define({m4_pallocate},{m4_ifelse($1,0,,{m4_allocate($1)})})
+
+  m4_define({m4_dimm1},{m4_ifelse($1,1,,{m4_dimm1(m4_decr($1)):,})})
+  m4_define({m4_pdimm1},{m4_ifelse($1,0,,{m4_dimm1($1)})})
 
   ! combine type-list with dimension-list to create full list
   m4_define({m4_X},{m4_dimlist(m4_max_dim,$1)})
@@ -113,6 +124,7 @@ module storage_m
       !! Lower array bounds
     integer(kind=int64)              :: count
       !! Number of blobs
+    integer(kind=int64), allocatable :: span(:)
     integer(kind=int64), allocatable :: addr(:)
       !! "Addresses" of the blobs belonging to this variable
   contains
@@ -173,7 +185,7 @@ contains
     i = -1
   end function
 
-  subroutine write_header(funit, name, type, lbounds, sizes, unit, compression, data_length, stat, err_msg)
+  function write_header(funit, name, type, lbounds, sizes, unit, compression, data_length, stat, err_msg) result(length)
     integer,                       intent(in)  :: funit
     type(string),                  intent(in)  :: name
     integer,                       intent(in)  :: type
@@ -230,6 +242,7 @@ contains
 
     allocate(blob(length))
 
+
     blob(1:2) = transfer(name_l-2, blob(1), 2)
     do i = 1, int(name_l - 2)
       blob(i+2) = ichar(name%s(i:i), kind=int8)
@@ -248,7 +261,7 @@ contains
     end do
 
     write(funit) blob
-  end subroutine
+  end function
 
   function get_data_length(var, stat, err_msg) result(length)
     type(string), intent(in) :: var(:)
@@ -298,8 +311,6 @@ contains
     integer(kind=int64), allocatable :: lbounds_(:), sizes_(:)
     character(len=:),    allocatable :: unit_
 
-    length = ftell(funit)
-
     read (funit) name_l
     allocate(character(name_l) :: name_%s)
     read (funit) name_%s
@@ -326,7 +337,8 @@ contains
     if (present(lbounds)) call move_alloc(lbounds_, lbounds)
     if (present(sizes))   call move_alloc(sizes_, sizes)
 
-    if (present(data_length)) data_length = length - name_l - 2 - 8 - 1 - 1 - 1 - 16*ndim
+    if (present(data_length)) data_length = length - 2 - name_l - 8 - 1 - 1 - 1 - unit_l - 1 - 16*ndim
+
   end subroutine
 
   subroutine read_string(funit, var)
@@ -349,10 +361,15 @@ contains
     integer,         intent(in)    :: funit
       ! Needs to be opened in binary mode
 
-    call write_header(funit, this%name, this%type, this%lbounds, this%sizes, data_length=8+this%count*8)
+    integer(kind=int64) :: i, header_l
+
+    header_l =  write_header(funit, this%name, this%type, this%lbounds, this%sizes, data_length=8+this%count*8)
 
     write(funit) this%count
-    write(funit) this%addr(1:this%count) ! Addresses is not necessarily the size of count
+    do i = 1, this%count ! Addresses and indices are not necessarily the size of count
+      write(funit) this%addr(i) 
+      write(funit) this%span(i)
+    end do
   end subroutine
 
   subroutine variable_deserialize(this, funit)
@@ -360,11 +377,17 @@ contains
     class(variable), intent(inout) :: this
     integer,         intent(in)    :: funit
 
+    integer(kind=int64) :: i
+
     call read_header(funit, name=this%name, type=this%type, lbounds=this%lbounds, sizes=this%sizes)
 
     read(funit) this%count
-    allocate(this%addr(this%count))
-    read(funit) this%addr
+    allocate(this%addr(this%count), this%span(this%count))
+    
+    do i = 1, this%count
+      read(funit) this%addr(i)
+      read(funit) this%span(i)
+    end do
   end subroutine
 
   subroutine variable_write_formatted(this, unit, iotype, v_list, iostat, iomsg)
@@ -559,26 +582,26 @@ contains
   m4_define({U},{variable})
   m4_include(../util/map_imp.f90.inc)
 
-  m4_define({m4_Y},{subroutine storage_write_$2_$1(this, name, var, unit, dynamic, stat, err_msg)
+  m4_define({m4_Y},{subroutine storage_write_$2_$1(this, name, var, unit, dynamic, compression, stat, err_msg)
     !! 
     class(storage),         intent(inout) :: this
     type(string),           intent(in)    :: name
-    m4_type($2),            intent(in)    :: var{}m4_pshape($1)
+    m4_type($2), target,    intent(in)    :: var{}m4_pshape($1)
     character(*), optional, intent(in)    :: unit
     integer,      optional, intent(in)    :: dynamic
+    character,    optional, intent(in)    :: compression
     integer,      optional, intent(out)   :: stat
     type(string), optional, intent(out)   :: err_msg
 
-    integer(kind=int64)              :: offset
+    integer(kind=int64)              :: offset, data_l, header_l
     integer(kind=int64), allocatable :: sizes(:), lbounds(:), tmp(:)
-    integer                          :: stat_
-    integer                          :: dflag
-    
+    integer                          :: stat_, dflag, ddim = -1
+    character                        :: compr_
+
     type(variable) :: new_var
     type(mapnode_string_variable), pointer :: p => null()
 
     m4_ifelse($2,STRING,{
-    integer(kind=int64)       :: data_l
     type(string), allocatable :: bvar(:)
     },)
 
@@ -588,7 +611,11 @@ contains
 
     if (this%mode <= STORAGE_READ) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write in this storage") end if;
 
-    if (DT_$2 /= DT_REAL64 .and. DT_$2 /= DT_CMPLX128 .and. present(unit)) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write in this storage") end if;
+    compr_ = COMPR_NONE
+    if (present(compression)) compr_ = compression
+    if (compr_ == COMPR_ZLIB) then; m4_ifdef({m4_zlib},,{m4_error(ERR_INVALID_ARGUMENTS, "Cannot use zlib compression if the library is not included")}) end if;
+
+    if (DT_$2 /= DT_REAL64 .and. DT_$2 /= DT_CMPLX128 .and. present(unit)) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot denormalize variable of type other than real or complex") end if;
 
     call fseek(this%funit, 0, SEEK_END, stat_)
     if (stat_ /= 0) then
@@ -610,29 +637,30 @@ contains
     if (dflag > DYNAMIC_NO) then
       if (associated(p)) then
         ! Do not allow writing if shape does not match, we simply ignore the lower bounds
-                
+        
         if (dflag == DYNAMIC_APP) then
+          ddim = size(sizes)
           if (size(sizes) /= size(p%value%sizes)) then;                                m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if; 
-          if (any(sizes(1:size(sizes) - 1) /= p%value%sizes(1:size(sizes) - 1))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shapes do not match"); end if;
+          if (any(sizes(1:ddim - 1) /= p%value%sizes(1:ddim - 1))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shapes do not match"); end if;
           ! Update the lbounds and sizes for writing the binary blob and add the entries to the variable
           lbounds(size(lbounds)) = p%value%lbounds(size(sizes)) - p%value%sizes(size(sizes))
-          sizes(size(sizes))     = -sizes(size(sizes)) 
-          p%value%sizes(size(sizes)) = p%value%sizes(size(sizes)) + sizes(size(sizes))
+          p%value%sizes(size(sizes)) = p%value%sizes(size(sizes)) - sizes(ddim)
         else if (dflag == DYNAMIC_EXT) then
+          ddim = size(sizes) + 1
           if (size(sizes) /= size(p%value%sizes) - 1) then;     m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the dimension does not match"); end if;
           if (any(sizes /= p%value%sizes(1:size(sizes)))) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot write to active variable; the shape do not match"); end if;
           
           allocate(tmp(size(p%value%lbounds)))
-          tmp(1:size(lbounds)) = lbounds
-          tmp(size(tmp))       = p%value%lbounds(size(sizes) + 1) - p%value%sizes(size(sizes) + 1)
+          tmp(1:ddim-1) = lbounds
+          tmp(ddim)     = p%value%lbounds(ddim) - p%value%sizes(ddim)
           call move_alloc(tmp, lbounds)
 
           allocate(tmp(size(p%value%sizes)))
-          tmp(1:size(sizes)) = sizes
-          tmp(size(tmp))     = int(-1, kind=int64)
+          tmp(1:ddim-1) = sizes
+          tmp(ddim)     = int(1, kind=int64)
           call move_alloc(tmp, sizes)
           
-          p%value%sizes(size(p%value%sizes)) = p%value%sizes(size(p%value%sizes)) - 1 ! Add one entry to the last dimension
+          p%value%sizes(ddim) = p%value%sizes(ddim) - 1 ! Add one entry to the last dimension
         end if
       else
         new_var%name  = name
@@ -641,21 +669,28 @@ contains
         new_var%addr  = [offset]
         
         if (dflag == DYNAMIC_APP) then
-          sizes(size(sizes)) = -sizes(size(sizes)) ! Indicate that this is a dynamic variable
-          new_var%sizes              = sizes
-          new_var%lbounds            = lbounds
+          ddim = size(sizes)
+          new_var%sizes       = sizes
+          new_var%sizes(ddim) = -sizes(ddim) ! Indicate that this is a dynamic variable
+          new_var%lbounds     = lbounds
+          new_var%span        = [abs(sizes(size(sizes)))]
         else if (dflag == DYNAMIC_EXT) then
-          allocate(new_var%sizes(size(sizes) + 1))
-          new_var%sizes(1:size(sizes)) = sizes
-          new_var%sizes(size(sizes) + 1) = int(-1, kind=int64)
+          ddim = size(sizes) + 1
+          allocate(new_var%sizes(ddim))
+          new_var%sizes(1:ddim-1) = sizes
+          new_var%sizes(ddim) = int(-1, kind=int64)
+          
+          allocate(new_var%lbounds(ddim))
+          new_var%lbounds(1:ddim-1) = lbounds
+          new_var%lbounds(ddim) = int(1, kind=int64)
+          
+          new_var%span = [1]
 
-          allocate(new_var%lbounds(size(lbounds) + 1))
-          new_var%lbounds(1:size(lbounds)) = lbounds
-          new_var%lbounds(size(lbounds) + 1) = int(1, kind=int64)
+          lbounds = new_var%lbounds
+          sizes   = new_var%sizes
+          sizes(ddim) = 1
         end if
-
-        lbounds = new_var%lbounds
-        sizes   = new_var%sizes
+        
 
         call this%variables%set(name, new_var)
         p => this%variables%find(name)
@@ -671,33 +706,12 @@ contains
       new_var%lbounds = lbounds
       new_var%count   = int(1,kind=int64)
       new_var%addr    = [offset]
+      new_var%span    = [0]
       call this%variables%set(name, new_var)
       p => this%variables%find(name) 
     end if
 
-    m4_ifelse($2,STRING,{
-      m4_ifelse($1,0,{
-        bvar = [var]},{
-        bvar = reshape(var, [product(sizes)])
-      })
-      data_l = get_data_length(bvar)
-      call write_header(this%funit, name, DT_$2, lbounds, sizes, data_length=data_l)
-      call write_string(this%funit, bvar)  
-    },{
-      call write_header(this%funit, name, DT_$2, lbounds, sizes)
-      m4_ifelse($2,REAL64,{
-      if (present(unit)) then
-        write (this%funit) denorm(var, unit)
-      else 
-        write (this%funit) var
-      end if},m4_ifelse($2,CMPLX128,{
-      if (present(unit)) then
-        write (this%funit) denorm(var, unit)
-      else 
-        write (this%funit) var
-      end if
-      },{write (this%funit) var}))
-    })
+    call write_blob()
 
     flush(this%funit)
     stat_ = fsync(fnum(this%funit))
@@ -717,52 +731,134 @@ contains
     ! Resize the arrays of the variable structure
     if (p%value%count > size(p%value%addr)) then
       block
-        integer(kind=int64), allocatable :: tmp_addr(:)
-        allocate (tmp_addr(size(p%value%addr)*2))  
-        tmp_addr(1:size(p%value%addr)) = p%value%addr
-        call move_alloc(tmp_addr, p%value%addr)
+        integer(kind=int64), allocatable :: tmp(:)
+        allocate (tmp(size(p%value%addr)*2))  
+        tmp(1:size(p%value%addr)) = p%value%addr
+        call move_alloc(tmp, p%value%addr)
+        allocate (tmp(size(p%value%span)*2))  
+        tmp(1:size(p%value%span)) = p%value%span
+        call move_alloc(tmp, p%value%span)
       end block
     end if
 
     p%value%addr(p%value%count) = offset
+    if (dflag == DYNAMIC_EXT) then
+      p%value%span(p%value%count) = 1
+    else
+      p%value%span(p%value%count) = sizes(size(sizes))
+    end if
 
     flush(this%wal)
+  
+  contains
+    subroutine write_blob()
+      m4_ifelse($2,STRING,{
+        m4_ifelse($1,0,{
+          bvar = [var]},{
+          bvar = reshape(var, [product(sizes)])
+        })
+        data_l = get_data_length(bvar)
+        header_l = write_header(this%funit, name, DT_$2, lbounds, sizes, compression=COMPR_NONE, data_length=data_l)
+        call write_string(this%funit, bvar)  
+      },{
+        data_l = DT_SIZES(DT_$2)
+        if (size(lbounds) > 0) data_l = data_l*product(sizes)
+        header_l = write_header(this%funit, name, DT_$2, lbounds, sizes, compression=compr_, data_length=data_l)
+        if (compr_ == COMPR_ZLIB) then
+          if (.not. present(unit)) then
+            data_l = compress_zlib(transfer(var, char(0)))
+          m4_ifelse($2,REAL64,{
+            else
+              data_l = compress_zlib(transfer(denorm(var, unit), char(0)))
+            },m4_ifelse($2,CMPLX128,{
+            else
+              data_l = compress_zlib(transfer(denorm(var, unit), char(0)))
+            }))
+            end if
+            call fseek(this%funit, offset + len(name%s, kind=int64)+2, SEEK_SET)
+            write (this%funit) header_l + data_l
+        else if (compr_ == COMPR_NONE) then          
+          if (.not. present(unit)) then
+            write (this%funit) var
+          m4_ifelse($2,REAL64,{
+            else
+              write (this%funit) denorm(var, unit)
+            },m4_ifelse($2,CMPLX128,{
+            else
+              write (this%funit) denorm(var, unit)
+            }))
+          end if
+        else
+          m4_error(ERR_INVALID_ARGUMENTS, "Undefined compression argument " // compr_)
+        end if
+      })
+    end subroutine
+
+    m4_ifelse($2,STRING,,{
+    function compress_zlib(data) result(data_length)
+      character, target, optional, intent(in)  :: data 
+      integer(kind=int64)              :: data_length
+      character, target, allocatable   :: out(:)
+      type(z_stream)                   :: zstr
+      integer                          :: ret
+
+      zstr%avail_in = int(data_l)
+      if (present(data)) then
+        zstr%next_in = c_loc(data)
+      else
+        zstr%next_in = c_loc(var)
+      end if
+      ret = deflate_init(zstr, Z_BEST_COMPRESSION)
+      if (ret /= Z_OK) then; m4_error(ERR_INTERNAL, "Cannot initialize deflate"); end if;
+      
+      data_length = deflate_bound(zstr, data_l)
+      
+      allocate(out(data_length))
+      zstr%avail_out = int(data_length)
+      zstr%next_out  = c_loc(out)
+
+      ret = deflate(zstr, Z_FINISH)
+      if (ret /= Z_STREAM_END) then; m4_error(ERR_INTERNAL, "Not all input has been consumed"); end if;
+      
+      data_length = zstr%total_out
+      ret = deflate_end(zstr)
+
+      block
+        integer :: pos
+        call ftell(this%funit, pos)
+        write (this%funit) out(:data_length)
+        call ftell(this%funit, pos)
+      end block
+    end function})
   end subroutine
 
-  subroutine storage_writec_$2_$1(this, name, var, unit, dynamic, stat, err_msg)
+  subroutine storage_writec_$2_$1(this, name, var, unit, dynamic, compression, stat, err_msg)
     class(storage),         intent(inout) :: this
     character(*),           intent(in)    :: name
     m4_type($2),            intent(in)    :: var{}m4_pshape($1)
     character(*), optional, intent(in)    :: unit
     integer,      optional, intent(in)    :: dynamic
+    character,    optional, intent(in)    :: compression
     integer,      optional, intent(out)   :: stat
     type(string), optional, intent(out)   :: err_msg
 
-    call this%write(new_string(name), var, unit, dynamic, stat, err_msg)
+    call this%write(new_string(name), var, unit, dynamic, compression, stat, err_msg)
   end subroutine})
   m4_list
 
   m4_define({m4_Y},{subroutine storage_read_$2_$1(this, name, var, stat, err_msg)
     class(storage), intent(inout) :: this
     type(string),   intent(in)    :: name
-    m4_type($2) m4_ifelse($1,0,,{, allocatable}), intent(out) :: var{}m4_pshape($1)
+    m4_type($2) m4_ifelse($1,0,,{, allocatable}), target, intent(out) :: var{}m4_pshape($1)
     integer,             optional, intent(out) :: stat
     type(string),        optional, intent(out) :: err_msg
 
     integer             :: stat_
-    integer             :: dtype    
-    integer(kind=int64) :: sizes_($1)
-    integer(kind=int8)  :: ndim
-    m4_ifelse($1,0,,{integer(kind=int64) :: i})
-    character(len=:),    allocatable :: unit
+    m4_type($2), contiguous, pointer :: pvar({}m4_pdimm1($1):)
+    m4_ifelse($1,0,,{
+    integer(kind=int64) :: i, idx
     integer(kind=int64), allocatable :: sizes(:), lbounds(:), ubounds(:)
-    m4_ifelse($2,STRING,{
-      type(string), allocatable :: bvar(:)
-      ! Better solution would be to give bvar the pointer attribute and use array bounds remapping
-      ! to avoid additional memory usage of reshape. However, testing this resulted in the compiler
-      ! complaining about 'var' not being SIMPLY CONTIGUOUS, but it should be. 
-    },)
-
+    })
     type(mapnode_string_variable), pointer :: p => null()
     
     ! Implies that the variable is registered
@@ -772,86 +868,92 @@ contains
     end if
     p => this%variables%find(name)
 
-    call read_header(this%funit, type=dtype, unit=unit, lbounds=lbounds, sizes=sizes)
-    ubounds = lbounds + sizes - 1
-    if (dtype /= DT_$2) then
-      m4_error(ERR_INVALID_ARGUMENTS, "The variable type '" // DT_NAMES(dtype) // "' does not match the called procedure ($2)")
-    end if
-    ndim = size(sizes, kind=int8)
-    if (ndim /= $1) then
-      m4_error(ERR_INVALID_ARGUMENTS, "Variable declaration does not match the stored variable")
-    end if
-    sizes_ = sizes
-
     m4_ifelse($1,0,{
-    m4_ifelse($2,STRING,{
-      bvar = [var]
-      call read_string(this%funit, bvar)
-      var = bvar(1) 
+    allocate(pvar(1:1))
+    call read_blob_$2_$1(pvar)
+    var = pvar(1)
     },{
-      read (this%funit) var
+    ! Allocate the array with the complete shape
+    sizes   = p%value%sizes
+    lbounds = p%value%lbounds
+    sizes(size(sizes)) = abs(sizes(size(sizes)))
+    ubounds = lbounds + sizes - 1
+    allocate(var({}m4_pallocate($1)))
+
+    if (all(p%value%sizes > 0)) then ! Static array
+      pvar => var
+      call read_blob_$2_$1(pvar)
+      return
+    end if
+
+    idx = lbounds(size(lbounds))
+    do i = 1, p%value%count
+      call fseek(this%funit, p%value%addr(i), SEEK_SET)
+      pvar({}m4_pallocate(m4_decr($1)) m4_ifelse($1,1,,{,}) idx:idx+p%value%span(i)-1) => var({}m4_pdimm1($1) idx:idx+p%value%span(i)-1)
+      call read_blob_$2_$1(pvar)
+      idx = idx + p%value%span(i)
+    end do
+    })
+  contains
+    subroutine read_blob_$2_$1(data)
+      m4_type($2), contiguous, pointer, intent(inout) :: data({}m4_pdimm1($1):)
+
+      integer                          :: dtype
+      integer(kind=int64)              :: data_length, pos
+      m4_ifelse($2,STRING,,{integer(kind=int64) :: var_length})
+      character(len=:),    allocatable :: unit
+      character                        :: compr
+      integer(kind=int64), allocatable :: form(:), lower_bounds(:)
+
+      call read_header(this%funit, type=dtype, unit=unit, lbounds=lower_bounds, sizes=form, compression=compr, data_length=data_length)
+      call ftell(this%funit, pos)
+      
+      if (dtype /= DT_$2) then
+        m4_error(ERR_INVALID_ARGUMENTS, "The variable type '" // DT_NAMES(dtype) // "' does not match the called procedure ($2)")
+      end if
+
+      m4_ifelse($2,STRING,{
+        block
+          type(string), contiguous, pointer :: pstr(:)
+          pstr(1:product(form)) => data
+          call read_string(this%funit, pstr)
+        end block  
+      },{
+        m4_ifelse($1,0,,{
+        if (.not. all(lbound(data, kind=int64) == lower_bounds)) then
+          m4_error(ERR_INVALID_ARGUMENTS, "Allocated lower bounds do not match")
+        end if
+
+        if (.not. all(shape(data, kind=int64) == form)) then
+          m4_error(ERR_INVALID_ARGUMENTS, "Allocated shape does not match")
+        end if
+        })
+      
+        var_length = DT_SIZES(DT_$2)
+        if (size(form) > 0) var_length = var_length * product(form)
+
+        if (compr == COMPR_ZLIB) then
+          data = reshape(transfer(decompress_zlib(this%funit, data_length, var_length), data), shape(data))
+        else
+          read(this%funit) data
+        end if
+      })
 
       m4_ifelse($2,REAL64,{
       if (len(unit) > 0) then
-        var = norm(var, unit)
-      end if},m4_ifelse($2,CMPLX128,{
+        data = norm(data, unit)
+      end if},{m4_ifelse($2,CMPLX128,{
       if (len(unit) > 0) then
-        var = norm(var, unit)
-      end if}))
-      
-    })
-    },{
-    if (any(sizes <= 0)) then ! Dynamic array
-      if (all(p%value%sizes > 0)) then; m4_error(ERR_INTERNAL, "Dynamic disagree between blob and journal"); end if;
+        data = norm(data, unit)
+      end if})})
 
-      ! Allocate the array with the complete shape
-      sizes(size(sizes)) = abs(p%value%sizes(size(p%value%sizes)))
-      lbounds(size(lbounds)) = abs(p%value%lbounds(size(p%value%lbounds)))
-      ubounds = lbounds + sizes - 1
-      allocate(var({}m4_pallocate($1)))
-
-      do i = 1, p%value%count
-        ! TODO: Check validity of each binary blob
-        call fseek(this%funit, p%value%addr(i), SEEK_SET)
-        deallocate(lbounds, sizes, ubounds)
-        call read_header(this%funit, lbounds=lbounds, sizes=sizes)
-        sizes(size(sizes)) = abs(sizes(size(sizes)))
-        ubounds = lbounds + sizes - 1
-
-        m4_ifelse($2,STRING,{
-        bvar = reshape(var({}m4_pallocate($1)), [product(sizes)])
-        call read_string(this%funit, bvar)
-        var({}m4_pallocate($1)) = reshape(bvar, sizes_)
-        },{
-        read (this%funit) var({}m4_pallocate($1))
-        m4_ifelse($2,REAL64,{
-        if (len(unit) > 0) then
-          var = norm(var, unit)
-        end if},m4_ifelse($2,CMPLX128,{
-        if (len(unit) > 0) then
-          var = norm(var, unit)
-        end if}))
-        })
-      end do
-    else ! Static array
-      allocate(var({}m4_pallocate($1)))
-      m4_ifelse($2,STRING,{
-        bvar = reshape(var, [product(sizes)])
-        call read_string(this%funit, bvar)  
-        var = reshape(bvar, sizes_)
-      },{
-        read(this%funit) var
-        m4_ifelse($2,REAL64,{
-        if (len(unit) > 0) then
-          var = norm(var, unit)
-        end if},m4_ifelse($2,CMPLX128,{
-        if (len(unit) > 0) then
-          var = norm(var, unit)
-        end if}))
-      })
-    end if
-    })
-    
+      data_length = data_length + pos
+      call ftell(this%funit, pos)
+      data_length = pos - data_length
+      if (data_length /= 0) then
+        m4_error(ERR_FILE_OP, "Read too many bytes: " // int2str(int(data_length)))
+      end if 
+    end subroutine
   end subroutine
   subroutine storage_readc_$2_$1(this, name, var, stat, err_msg)
     class(storage), intent(inout) :: this
@@ -863,4 +965,36 @@ contains
     call this%read(new_string(name), var, stat, err_msg)
   end subroutine})
   m4_list
+
+  function decompress_zlib(funit, length, var_length, stat, err_msg) result(out)
+    integer, intent(in) :: funit
+    integer(kind=int64), intent(in) :: length
+    integer(kind=int64), intent(in) :: var_length
+    integer,             optional, intent(out) :: stat
+    type(string),        optional, intent(out) :: err_msg
+    character, target               :: out(var_length)
+
+    character, target               :: in(length)
+    type(z_stream)                  :: zstr
+    integer                         :: ret
+
+    read (funit) in
+
+    zstr%avail_in  = int(length)
+    zstr%next_in   = c_loc(in)
+    zstr%avail_out = int(var_length)
+    zstr%next_out  = c_loc(out)
+
+    ret = inflate_init(zstr)
+    if (ret /= Z_OK) then; m4_error(ERR_INTERNAL, "Cannot initialize inflate"); end if;
+
+    ret = inflate(zstr, Z_FINISH)
+    if (ret /= Z_STREAM_END) then; m4_error(ERR_INTERNAL, "Could not inflate the data: " // int2str(ret)); end if;
+    
+    if (var_length /= zstr%total_out) then
+      m4_error(ERR_INTERNAL, "Inflated variable size not as expected")
+    end if
+
+  end function
+
 end module
