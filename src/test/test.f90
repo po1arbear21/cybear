@@ -67,6 +67,9 @@ program test
   m4_ifdef({m4_zlib},{
   use test_zlib_m
   })
+  m4_ifdef({m4_blosc},{
+  use test_blosc_m
+  })
 
   implicit none
 
@@ -119,6 +122,7 @@ program test
   m4_ifdef({m4_spike},{call test_spike()})
   m4_ifdef({m4_triangle},{call test_triangle()})
   m4_ifdef({m4_zlib},{call test_zlib()})
+  m4_ifdef({m4_blosc},{call test_blosc()})
 
 
 end program

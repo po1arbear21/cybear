@@ -10,38 +10,37 @@ module storage_m
   use string_m
   use vector_m
   use util_m, only: int2str
-  m4_ifdef({m4_zlib},use zlib_m,)
+  m4_ifdef({m4_zlib},use zlib_m)
+  m4_ifdef({m4_blosc},use blosc_m)
 
   implicit none
   
   private
   public storage, variable
-  public STORAGE_READ, STORAGE_WRITE
-  public DYNAMIC_NO, DYNAMIC_EXT, DYNAMIC_APP
-  public COMPR_NONE, COMPR_ZLIB
-  public ERR_INVALID_ARGUMENTS, ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_FILE_OP, ERR_INTERNAL, ERR_MSGS
 
   ! Storage general argument flags
-  integer, parameter :: STORAGE_READ  = 1
-  integer, parameter :: STORAGE_WRITE = 2
+  integer, parameter, public :: STORAGE_READ  = 1
+  integer, parameter, public :: STORAGE_WRITE = 2
 
   ! Dynamic variable flags
-  integer, parameter :: DYNAMIC_NO  = 0 ! No dynamic variable 
-  integer, parameter :: DYNAMIC_APP = 1 ! Append to the highest dimension 
-  integer, parameter :: DYNAMIC_EXT = 2 ! Dynamic dimension will be on top
+  integer, parameter, public :: DYNAMIC_NO  = 0 ! No dynamic variable 
+  integer, parameter, public :: DYNAMIC_APP = 1 ! Append to the highest dimension 
+  integer, parameter, public :: DYNAMIC_EXT = 2 ! Dynamic dimension will be on top
 
   ! Compression flags
-  character, parameter :: COMPR_NONE = 'n' ! No 
-  character, parameter :: COMPR_ZLIB = 'z' ! Zlib deflate best compression
+  character, parameter, public :: COMPR_DEFAULT = m4_ifdef({m4_blosc},'b',m4_ifdef({m4_zlib}, 'z','n'))
+  character, parameter, public :: COMPR_NONE  = 'n' ! No 
+  character, parameter, public :: COMPR_ZLIB  = 'z' ! Zlib deflate best compression
+  character, parameter, public :: COMPR_BLOSC = 'b' ! Blosc compression 9 with filter
 
   ! Errors
-  integer, parameter :: ERR_INVALID_ARGUMENTS = -1
-  integer, parameter :: ERR_NOT_FOUND         = -2
-  integer, parameter :: ERR_ALREADY_EXISTS    = -3
-  integer, parameter :: ERR_FILE_OP           = -4
-  integer, parameter :: ERR_INTERNAL          = -5
+  integer, parameter, public :: ERR_INVALID_ARGUMENTS = -1
+  integer, parameter, public :: ERR_NOT_FOUND         = -2
+  integer, parameter, public :: ERR_ALREADY_EXISTS    = -3
+  integer, parameter, public :: ERR_FILE_OP           = -4
+  integer, parameter, public :: ERR_INTERNAL          = -5
 
-  character(*), parameter :: ERR_MSGS(5) = [ &
+  character(*), parameter, public :: ERR_MSGS(5) = [ &
     & "Invalid arguments    ", & 
     & "Not found            ", &
     & "Already exists       ", &
@@ -94,6 +93,10 @@ module storage_m
   m4_ifelse($1,CHAR,character,{m4_dnl
   type($1)m4_dnl
   })})})})})})})})
+
+  m4_define({m4_denormable},{m4_dnl
+    m4_ifelse($1,REAL64,$2,{m4_ifelse($1,CMPLX128,$2)})m4_dnl
+  })
 
   ! dimensions (0..max_dim)
   m4_define({m4_max_dim},{8})
@@ -614,6 +617,7 @@ contains
     compr_ = COMPR_NONE
     if (present(compression)) compr_ = compression
     if (compr_ == COMPR_ZLIB) then; m4_ifdef({m4_zlib},,{m4_error(ERR_INVALID_ARGUMENTS, "Cannot use zlib compression if the library is not included")}) end if;
+    if (compr_ == COMPR_BLOSC) then; m4_ifdef({m4_blosc},,{m4_error(ERR_INVALID_ARGUMENTS, "Cannot use blosc compression if the library is not included")}) end if;
 
     if (DT_$2 /= DT_REAL64 .and. DT_$2 /= DT_CMPLX128 .and. present(unit)) then; m4_error(ERR_INVALID_ARGUMENTS, "Cannot denormalize variable of type other than real or complex") end if;
 
@@ -752,6 +756,9 @@ contains
   
   contains
     subroutine write_blob()
+      character, allocatable :: data(:)
+      m4_ignore(data)
+
       m4_ifelse($2,STRING,{
         m4_ifelse($1,0,{
           bvar = [var]},{
@@ -764,72 +771,31 @@ contains
         data_l = DT_SIZES(DT_$2)
         if (size(lbounds) > 0) data_l = data_l*product(sizes)
         header_l = write_header(this%funit, name, DT_$2, lbounds, sizes, compression=compr_, data_length=data_l)
-        if (compr_ == COMPR_ZLIB) then
-          if (.not. present(unit)) then
-            data_l = compress_zlib(transfer(var, char(0)))
-          m4_ifelse($2,REAL64,{
-            else
-              data_l = compress_zlib(transfer(denorm(var, unit), char(0)))
-            },m4_ifelse($2,CMPLX128,{
-            else
-              data_l = compress_zlib(transfer(denorm(var, unit), char(0)))
-            }))
-            end if
-            call fseek(this%funit, offset + len(name%s, kind=int64)+2, SEEK_SET)
-            write (this%funit) header_l + data_l
-        else if (compr_ == COMPR_NONE) then          
-          if (.not. present(unit)) then
-            write (this%funit) var
-          m4_ifelse($2,REAL64,{
-            else
-              write (this%funit) denorm(var, unit)
-            },m4_ifelse($2,CMPLX128,{
-            else
-              write (this%funit) denorm(var, unit)
-            }))
-          end if
+
+        if (.not. present(unit)) then
+          data = transfer(var, data)
+        m4_denormable($2,{else
+          data = transfer(denorm(var, unit), data)  
+        })
+        end if
+
+        if (compr_ == COMPR_NONE) then          
+          write (this%funit) data
+        m4_ifdef({m4_zlib},{elseif (compr_ == COMPR_ZLIB) then
+          data_l = compress_zlib(this%funit, data)
+          call fseek(this%funit, offset + len(name%s, kind=int64)+2, SEEK_SET)
+          write (this%funit) header_l + data_l
+        })
+        m4_ifdef({m4_blosc}, {elseif (compr_ == COMPR_BLOSC) then
+          data_l = compress_blosc(this%funit, data, int(DT_SIZES(DT_$2), kind=c_size_t))
+          call fseek(this%funit, offset + len(name%s, kind=int64)+2, SEEK_SET)
+          write (this%funit) header_l + data_l
+        })
         else
           m4_error(ERR_INVALID_ARGUMENTS, "Undefined compression argument " // compr_)
         end if
       })
     end subroutine
-
-    m4_ifelse($2,STRING,,{
-    function compress_zlib(data) result(data_length)
-      character, target, optional, intent(in)  :: data 
-      integer(kind=int64)              :: data_length
-      character, target, allocatable   :: out(:)
-      type(z_stream)                   :: zstr
-      integer                          :: ret
-
-      zstr%avail_in = int(data_l)
-      if (present(data)) then
-        zstr%next_in = c_loc(data)
-      else
-        zstr%next_in = c_loc(var)
-      end if
-      ret = deflate_init(zstr, Z_BEST_COMPRESSION)
-      if (ret /= Z_OK) then; m4_error(ERR_INTERNAL, "Cannot initialize deflate"); end if;
-      
-      data_length = deflate_bound(zstr, data_l)
-      
-      allocate(out(data_length))
-      zstr%avail_out = int(data_length)
-      zstr%next_out  = c_loc(out)
-
-      ret = deflate(zstr, Z_FINISH)
-      if (ret /= Z_STREAM_END) then; m4_error(ERR_INTERNAL, "Not all input has been consumed"); end if;
-      
-      data_length = zstr%total_out
-      ret = deflate_end(zstr)
-
-      block
-        integer :: pos
-        call ftell(this%funit, pos)
-        write (this%funit) out(:data_length)
-        call ftell(this%funit, pos)
-      end block
-    end function})
   end subroutine
 
   subroutine storage_writec_$2_$1(this, name, var, unit, dynamic, compression, stat, err_msg)
@@ -912,6 +878,9 @@ contains
         m4_error(ERR_INVALID_ARGUMENTS, "The variable type '" // DT_NAMES(dtype) // "' does not match the called procedure ($2)")
       end if
 
+      if (compr == COMPR_ZLIB) then; m4_ifdef({m4_zlib},,{m4_error(ERR_INVALID_ARGUMENTS, "Cannot decompress from zlib compression if the library is not included")}) end if;
+      if (compr == COMPR_BLOSC) then; m4_ifdef({m4_blosc},,{m4_error(ERR_INVALID_ARGUMENTS, "Cannot decompress from blosc compression if the library is not included")}) end if;
+
       m4_ifelse($2,STRING,{
         block
           type(string), contiguous, pointer :: pstr(:)
@@ -932,9 +901,13 @@ contains
         var_length = DT_SIZES(DT_$2)
         if (size(form) > 0) var_length = var_length * product(form)
 
-        if (compr == COMPR_ZLIB) then
+        m4_ifdef({m4_zlib},{if (compr == COMPR_ZLIB) then
           data = reshape(transfer(decompress_zlib(this%funit, data_length, var_length), data), shape(data))
-        else
+        end if})
+        m4_ifdef({m4_blosc},{if (compr == COMPR_BLOSC) then
+          data = reshape(transfer(decompress_blosc(this%funit, data_length, var_length), data), shape(data))
+        end if})
+        if (compr == COMPR_NONE) then
           read(this%funit) data
         end if
       })
@@ -966,6 +939,37 @@ contains
   end subroutine})
   m4_list
 
+  m4_ifdef({m4_zlib},{function compress_zlib(funit, data, stat, err_msg) result(data_length)
+    integer,                     intent(in)  :: funit
+    character, target,           intent(in)  :: data(:)
+    integer,           optional, intent(out) :: stat
+    type(string),      optional, intent(out) :: err_msg
+    integer(kind=int64)                      :: data_length
+
+    character, target, allocatable   :: out(:)
+    type(z_stream)                   :: zstr
+    integer                          :: ret
+
+    zstr%avail_in = int(sizeof(data), kind=z_uint)
+    zstr%next_in = c_loc(data)
+    ret = deflate_init(zstr, Z_BEST_COMPRESSION)
+    if (ret /= Z_OK) then; m4_error(ERR_INTERNAL, "Cannot initialize deflate"); end if;
+    
+    data_length = deflate_bound(zstr, sizeof(data))
+    
+    allocate(out(data_length))
+    zstr%avail_out = int(data_length)
+    zstr%next_out  = c_loc(out)
+
+    ret = deflate(zstr, Z_FINISH)
+    if (ret /= Z_STREAM_END) then; m4_error(ERR_INTERNAL, "Not all input has been consumed"); end if;
+    
+    data_length = zstr%total_out
+    ret = deflate_end(zstr)
+
+    write (funit) out(:data_length)
+  end function
+  
   function decompress_zlib(funit, length, var_length, stat, err_msg) result(out)
     integer, intent(in) :: funit
     integer(kind=int64), intent(in) :: length
@@ -995,6 +999,59 @@ contains
       m4_error(ERR_INTERNAL, "Inflated variable size not as expected")
     end if
 
+  end function})
+
+  m4_ifdef({m4_blosc},{function compress_blosc(funit, data, typesize, stat, err_msg) result(data_length)
+    integer,                intent(in)  :: funit
+    character, target,      intent(in)  :: data(:)
+    integer(kind=c_size_t), intent(in)  :: typesize
+    integer,      optional, intent(out) :: stat
+    type(string), optional, intent(out) :: err_msg
+    integer(kind=int64)                 :: data_length
+    
+    character(kind=int8), target, allocatable :: out(:)
+    type(c_ptr)            :: data_ptr
+    integer(kind=c_size_t) :: isize
+
+    call blosc_init()
+
+    isize = int(sizeof(data), kind=c_size_t)
+    data_ptr = c_loc(data)
+
+    allocate(out(isize + BLOSC_MIN_HEADER_LENGTH))
+    
+    data_length = blosc_compress(int(9, kind=c_int), BLOSC_BITSHUFFLE, typesize, isize, data_ptr, c_loc(out), isize + BLOSC_MIN_HEADER_LENGTH)
+    if (data_length == 0) then; m4_error(ERR_INTERNAL, "The variable is not compressible"); end if;
+    if (data_length < 0) then; m4_error(ERR_INTERNAL, "Got error on blosc compression: " // int2str(int(data_length))); end if;
+
+    write (funit) out(:data_length)
+    call blosc_destroy()
   end function
+
+  function decompress_blosc(funit, length, var_length, stat, err_msg) result(out)
+    integer,                intent(in)  :: funit
+    integer(kind=int64),    intent(in)  :: length
+    integer(kind=int64),    intent(in)  :: var_length
+    integer,      optional, intent(out) :: stat
+    type(string), optional, intent(out) :: err_msg
+    character, target                   :: out(var_length)
+
+    character, target   :: in(length)
+    integer(kind=c_int) :: ret
+
+    read (funit) in
+
+    call blosc_init()
+
+    ret = blosc_decompress(c_loc(in), c_loc(out), var_length)
+    if (ret <= 0) then; m4_error(ERR_INTERNAL, "Cannot decompress: " // int2str(ret)); end if;
+
+    if (ret /= var_length) then
+      m4_error(ERR_INTERNAL, "Decompressed variable size not as expected")
+    end if
+
+    call blosc_destroy()
+
+  end function})
 
 end module

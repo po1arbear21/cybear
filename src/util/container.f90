@@ -10,7 +10,7 @@ module container_m
   use grid_table_m,    only: grid_table
   use grid_data_m
   use normalization_m, only: norm, denorm
-  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE, COMPR_NONE, COMPR_ZLIB, DYNAMIC_NO, DYNAMIC_EXT
+  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE, COMPR_DEFAULT, DYNAMIC_NO, DYNAMIC_EXT
   use string_m
   use variable_m,      only: variable_real
   use vector_m,        only: vector_string
@@ -132,7 +132,7 @@ contains
       class is (grid1D)
         call this%write("sys/grids/" // g%name, new_string("grid1D"))
         call this%write("sys/grids/" // g%name // "/i0",       g%i0)
-        call this%write("sys/grids/" // g%name // "/vertices", g%x, unit=unit, compression=COMPR_ZLIB)
+        call this%write("sys/grids/" // g%name // "/vertices", g%x, unit=unit, compression=COMPR_DEFAULT)
 
       class is (tensor_grid)
       block
@@ -164,7 +164,7 @@ contains
 
   m4_define({m4_Y},{
   type is (grid_data$1_$2)
-    call this%write("sys/data/" // name // "/data",   data%data, unit=unit, compression=COMPR_ZLIB)
+    call this%write("sys/data/" // name // "/data",   data%data, unit=unit, compression=COMPR_DEFAULT)
 })
 m4_define({m4_X},{subroutine container_save_grid_data_$1(this, name, data, unit)
   class(container),       intent(inout) :: this
@@ -189,7 +189,7 @@ m4_typelist
     call this%write("sys/tables/" // tab%name // "/grid",     new_string(tab%g%name))
     call this%write("sys/tables/" // tab%name // "/type",     tab%idx_type)
     call this%write("sys/tables/" // tab%name // "/dir",      tab%idx_dir)
-    call this%write("sys/tables/" // tab%name // "/flat2idx", tab%flat2idx, compression=COMPR_ZLIB)
+    call this%write("sys/tables/" // tab%name // "/flat2idx", tab%flat2idx, compression=COMPR_DEFAULT)
   end subroutine
 
   subroutine container_save_variable(this, var, parent, dynamic)
@@ -213,7 +213,7 @@ m4_typelist
       call this%structs%push(new_string("sys/variables/" // var%name))
     end if
 
-    call this%write(parent // "/" // var%name, var%get(), unit=var%unit, compression=COMPR_ZLIB, dynamic=dflag)
+    call this%write(parent // "/" // var%name, var%get(), unit=var%unit, compression=COMPR_DEFAULT, dynamic=dflag)
 
     ! Maybe we can shove in the array data%data directly without calling %get().
     ! However, the array bounds are not read correctly
@@ -264,7 +264,7 @@ m4_typelist
       end do
       k = k + vsel%nvals(i)
     end do
-    call this%write(new_string(parent // "/" // vsel%name), values, compression=COMPR_ZLIB, dynamic=dflag)
+    call this%write(new_string(parent // "/" // vsel%name), values, compression=COMPR_DEFAULT, dynamic=dflag)
   end subroutine
 
   subroutine container_load_grid0D(this, name, g)
