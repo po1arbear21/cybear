@@ -353,11 +353,12 @@ contains
       !! relative tolerance (default: 1e-3)
     real,    optional, intent(in)    :: atol
       !! absolute tolerance (default: 1e-6)
-    logical, optional, intent(in)    :: no_sign_change
+    logical, optional, intent(in)    :: no_sign_change(:)
       !! forbid sign change when calculating finite differences (default: false)
 
     integer                        :: i, j, k, kk, l
-    logical                        :: nan, nan1, nan2, nsgn
+    logical                        :: nan, nan1, nan2
+    logical,           allocatable :: nsgn(:)
     real                           :: rx_, ax_, rtol_, atol_, r
     real                           :: dx1, dydx, dydx1, dydx2
     real,              allocatable :: x0(:), xm(:), xp(:), dx(:)
@@ -372,10 +373,11 @@ contains
     if (present(rtol)) rtol_ = rtol
     atol_ = 1e-6
     if (present(atol)) atol_ = atol
-    nsgn = .false.
-    if (present(no_sign_change)) nsgn = .true.
+    allocate (nsgn(this%vdep%n), source = .false.)
+    if (present(no_sign_change)) nsgn = no_sign_change
 
     ! evaluate equation and set jacobians in matrix form
+    call this%reset(const=.false., nonconst = .true.)
     call this%eval()
     call this%set_jaco_matr()
 
@@ -402,13 +404,16 @@ contains
 
         ! test all derivatives
         do kk = 1, ntest
-          if (mod(kk-1, 100) == 0) print *, kk
+          if (mod(kk, 100) == 1) print "(A,I4,A)", "Test No. ", kk, " for equation " // this%name // " and dependency " // dep%name
           call random_number(r)
           k = ceiling(size(x0) * r)
 
           ! get delta x
-          dx1 = max(abs(x0(k)) * rx_, ax_)
-          if (nsgn) dx1 = min(dx1, abs(x0(k) * (1.0 - 1e-16)))
+          dx1 = abs(x0(k)) * rx_
+          ! only use ax_ if sign change is allowed or if ax_ does not lead to sign change
+          if (.not. nsgn(j) .or. (x0(k) - ax_) * (x0(k) + ax_) > 0.0) then
+            dx1 = max(dx1, ax_)
+          end if
 
           ! set xp, xm, dx
           xm(k) = x0(k) - dx1
@@ -416,6 +421,7 @@ contains
           dx(k) = dx1
 
           ! get ym
+          call this%reset(const=.false., nonconst = .true.)
           call dep%set(xm)
           call this%eval()
           do i = 1, this%vprov%n
@@ -423,6 +429,7 @@ contains
           end do
 
           ! get yp
+          call this%reset(const=.false., nonconst = .true.)
           call dep%set(xp)
           call this%eval()
           do i = 1, this%vprov%n
@@ -442,7 +449,7 @@ contains
                 ! check if both derivatives are zero
                 if ((yp(i)%d(l) == y0(i)%d(l)) .and. (dy(i)%d(l) == 0)) cycle
 
-                ! entry from matrix
+                ! entry (l, k) from matrix
                 dydx = dy(i)%d(l) / dx1
 
                 ! finite differences (forward and centered)
@@ -467,7 +474,10 @@ contains
                   if (nan2) call program_error("Central finite difference is NaN")
                 end if
 
-                if (abs(dydx - dydx2) > max(max(2 * abs(dydx2 - dydx1), atol_), rtol_ * abs(dydx2))) then
+                if (max(abs((dydx2 - dydx1) / dydx1), abs((dydx2 - dydx1) / dydx2)) > 1.0) then
+                  print "(A)", COL_MAGENTA//"Warning: forward and centered finite difference deviate by factor > 2"//COL_DEFAULT
+                end if
+                if (abs(dydx - dydx2) > max(atol_, rtol_ * abs(dydx2))) then
                   print *
                   print *
                   print "(A)", COL_MAGENTA//"Possible Error detected:"//COL_DEFAULT
