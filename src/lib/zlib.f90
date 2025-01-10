@@ -79,6 +79,7 @@ module zlib_m
   public :: deflate_end
   public :: deflate_init
   public :: deflate_init2
+  public :: deflate_bound
   public :: inflate
   public :: inflate_end
   public :: inflate_init
@@ -185,6 +186,14 @@ module zlib_m
         type(c_ptr),         intent(in), value :: version
         integer(kind=c_int), intent(in), value :: stream_size
         integer(kind=c_int)                    :: deflate_init_
+    end function
+
+    function deflate_bound(strm, source_len) bind(c, name='deflateBound')
+        import :: z_ulong, z_stream
+        implicit none
+        type(z_stream),        intent(inout)     :: strm
+        integer(kind=z_ulong), intent(in), value :: source_len
+        integer(kind=z_ulong)                    :: deflate_bound
     end function
 
     ! int deflateInit2_(z_streamp strm, int  level, int method, int windowBits, int memLevel,

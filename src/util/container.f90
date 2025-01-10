@@ -10,7 +10,7 @@ module container_m
   use grid_table_m,    only: grid_table
   use grid_data_m
   use normalization_m, only: norm, denorm
-  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE
+  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE, COMPR_DEFAULT, DYNAMIC_NO, DYNAMIC_EXT
   use string_m
   use variable_m,      only: variable_real
   use vector_m,        only: vector_string
@@ -24,7 +24,7 @@ module container_m
     m4_X(real)
     m4_X(cmplx)
   })
-  m4_define({m4_max_dim},{0})
+  m4_define({m4_max_dim},{8})
   m4_define({m4_dimlist},{
     m4_ifelse($1,0,,{m4_dimlist(m4_decr($1),$2)})
     m4_Y($1,$2)
@@ -53,19 +53,19 @@ module container_m
                      & container_load_variable, &
                      & container_load_vselector
             
-    m4_define({m4_Y},{generic :: save => container_save_grid_data_$2_$1})
-    m4_list
+    m4_define({m4_X},{generic :: save => container_save_grid_data_$1})
+    m4_typelist
 
-    m4_define({m4_Y},{generic :: load => container_load_grid_data_$2_$1})
-    m4_list
+    m4_define({m4_X},{generic :: load => container_load_grid_data_$1})
+    m4_typelist
 
     procedure, private :: container_save_grid, container_save_grid_table, container_save_variable, container_save_vselector
-    m4_define({m4_Y},{procedure, private :: container_save_grid_data_$2_$1})
-    m4_list
+    m4_define({m4_X},{procedure, private :: container_save_grid_data_$1})
+    m4_typelist
 
     procedure, private :: container_load_grid0D, container_load_grid1D, container_load_tensor_grid, container_load_triang_grid, container_load_grid_table, container_load_variable, container_load_vselector
-    m4_define({m4_Y},{procedure, private :: container_load_grid_data_$2_$1})
-    m4_list
+    m4_define({m4_X},{procedure, private :: container_load_grid_data_$1})
+    m4_typelist
   end type
 
   m4_define({T},{string})
@@ -132,7 +132,7 @@ contains
       class is (grid1D)
         call this%write("sys/grids/" // g%name, new_string("grid1D"))
         call this%write("sys/grids/" // g%name // "/i0",       g%i0)
-        call this%write("sys/grids/" // g%name // "/vertices", g%x, unit=unit)
+        call this%write("sys/grids/" // g%name // "/vertices", g%x, unit=unit, compression=COMPR_DEFAULT)
 
       class is (tensor_grid)
       block
@@ -162,18 +162,23 @@ contains
     end select
   end subroutine
 
-  m4_define({m4_Y},{subroutine container_save_grid_data_$2_$1(this, data, name, unit)
-    class(container),              intent(inout) :: this
-    class(grid_data$1_$2), target, intent(in)    :: data
-    character(*),                  intent(in)    :: name
-    character(*), optional,        intent(in)    :: unit 
+  m4_define({m4_Y},{
+  type is (grid_data$1_$2)
+    call this%write("sys/data/" // name // "/data",   data%data, unit=unit, compression=COMPR_DEFAULT)
+})
+m4_define({m4_X},{subroutine container_save_grid_data_$1(this, name, data, unit)
+  class(container),       intent(inout) :: this
+  class(grid_data_$1),    intent(in)    :: data
+  character(*),           intent(in)    :: name
+  character(*), optional, intent(in)    :: unit
 
-    ! Write all data in a tree under grid_data/<name>
-    call this%write("sys/data/" // name, new_string("$2_$1"))
-    call this%write("sys/data/" // name // "/bounds", data%idx_bnd)
-    call this%write("sys/data/" // name // "/data",   data%data, unit=unit)
-  end subroutine})
-  m4_list
+  call this%write("sys/data/" // name, new_string("$2_$1"))
+  call this%write("sys/data/" // name // "/bounds", data%idx_bnd)
+  select type (data)
+    m4_dimlist(m4_max_dim,$1)
+  end select
+end subroutine})
+m4_typelist
 
   subroutine container_save_grid_table(this, tab)
     class(container),         intent(inout) :: this
@@ -184,13 +189,19 @@ contains
     call this%write("sys/tables/" // tab%name // "/grid",     new_string(tab%g%name))
     call this%write("sys/tables/" // tab%name // "/type",     tab%idx_type)
     call this%write("sys/tables/" // tab%name // "/dir",      tab%idx_dir)
-    call this%write("sys/tables/" // tab%name // "/flat2idx", tab%flat2idx)
+    call this%write("sys/tables/" // tab%name // "/flat2idx", tab%flat2idx, compression=COMPR_DEFAULT)
   end subroutine
 
-  subroutine container_save_variable(this, var, parent)
+  subroutine container_save_variable(this, var, parent, dynamic)
     class(container),             intent(inout) :: this
     class(variable_real), target, intent(in)    :: var
     character(*),                 intent(in)    :: parent
+    logical,            optional, intent(in)    :: dynamic
+
+    integer :: dflag = DYNAMIC_NO
+    if (present(dynamic)) then
+      if (dynamic) dflag = DYNAMIC_EXT
+    end if
 
     ! If not done already, the struct will be saved
     if (.not. this%has_struct("sys/variables/" // var%name)) then
@@ -202,7 +213,7 @@ contains
       call this%structs%push(new_string("sys/variables/" // var%name))
     end if
 
-    call this%write(parent // "/" // var%name, var%get(), unit=var%unit)
+    call this%write(parent // "/" // var%name, var%get(), unit=var%unit, compression=COMPR_DEFAULT, dynamic=dflag)
 
     ! Maybe we can shove in the array data%data directly without calling %get().
     ! However, the array bounds are not read correctly
@@ -212,14 +223,19 @@ contains
     !   type is (grid_data1_real) ...
   end subroutine
 
-  subroutine container_save_vselector(this, vsel, parent)
+  subroutine container_save_vselector(this, vsel, parent, dynamic)
     class(container),        intent(inout) :: this
     type(vselector), target, intent(in)    :: vsel
     character(*),            intent(in)    :: parent
+    logical,       optional, intent(in)    :: dynamic
 
     integer      :: i, j, k, lbnd, ubnd
     real         :: values(vsel%n)
     type(string) :: var_names(vsel%nvar), tab_names(vsel%ntab)
+    integer :: dflag = DYNAMIC_NO
+    if (present(dynamic)) then
+      if (dynamic) dflag = DYNAMIC_EXT
+    end if
 
     ! If not done already, the struct will be saved
     if (.not. this%has_struct("sys/vselectors/" // vsel%name)) then
@@ -248,7 +264,7 @@ contains
       end do
       k = k + vsel%nvals(i)
     end do
-    call this%write(new_string(parent // "/" // vsel%name), values)
+    call this%write(new_string(parent // "/" // vsel%name), values, compression=COMPR_DEFAULT, dynamic=dflag)
   end subroutine
 
   subroutine container_load_grid0D(this, name, g)
@@ -287,8 +303,9 @@ contains
 
     call this%read(var_name, gtype)
     if (gtype%s /= "grid1D") call program_error("Grid variable does not match the stored grid class")
-    call this%read(var_name%s // "/i0",        i)
-    call this%read(var_name%s // "/vertices",  x)
+    call this%read(var_name%s // "/i0",       i)
+    call this%read(var_name%s // "/vertices", x)
+
     call g%init(name, x, i)
   end subroutine
 
@@ -457,23 +474,22 @@ contains
     call var%set(values)
   end subroutine
 
-  m4_define({m4_Y},{subroutine container_load_grid_data_$2_$1(this, name, data)
-    class(container),              intent(inout) :: this
-    type(string),                  intent(in)    :: name
-    type(grid_data$1_$2),          intent(out)   :: data
+  m4_define({m4_Y},{
+  type is (grid_data$1_$2)
+    call this%read(new_string("grid_data/" // name // "/data"), data%data)
+})
+m4_define({m4_X},{subroutine container_load_grid_data_$1(this, name, data)
+  !! get data for all points in flat array
+  class(container),    intent(inout) :: this
+  class(grid_data_$1), intent(inout) :: data
+  character(*),        intent(in)    :: name
 
-    type(string)         :: data_type
-    integer, allocatable :: idx_bounds(:,:)
-
-    call this%read(name, data_type)
-    if (data_type%s /= "$2_$1") call program_error("Grid data shape/type does not match the stored data")
-
-    ! TODO: Array bounds may not be correct.
-    call this%read(new_string("grid_data/" // name%s // "/bounds"), idx_bounds)
-    call this%read(new_string("grid_data/" // name%s // "/data"), data%data)
-
-  end subroutine})
-  m4_list
+  call this%read(new_string("grid_data/" // name // "/bounds"), data%idx_bnd)
+  select type (data)
+    m4_dimlist(m4_max_dim,$1)
+  end select
+end subroutine})
+m4_typelist
 
   subroutine container_load_vselector(this, name, vsel)
     class(container),        intent(inout) :: this
