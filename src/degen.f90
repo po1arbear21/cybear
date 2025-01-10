@@ -600,14 +600,14 @@ contains
               - 12*C**2*F0*jc(1)**2*(10*A**2 - B*F0**2 + 3*A*F0*F2) &
               - 4*C**2*F0**2*jc(1)*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
               + 3*C**4*(A**2*(F0 + 2*jc(1)) + A*F0*F1**2)
-      dudetam = 384*A * dAdetam * jc(1)**5 + 960 * A**2 * jc(1)**4 * djcdetam(1) &
-        &     + 48*(F1 * jc(1)**4 + 4 * F0 * jc(1)**3 * djcdetam(1)) * (8*A**2 - B*F0**2 + 2*A*F0*F2) &
-        &     + 48*F0 * jc(1)**4 * (16*A*dAdetam - dBdetam*F0**2 - 2*B*F0*F1 + 2*dAdetam*F0*F2 + 2*A*F1*F2 + 2*A*F0*F3) &
+      dudetam = 384*A*dAdetam*jc(1)**5 + 960*A**2*jc(1)**4*djcdetam(1) &
+        &     + 48*(F1*jc(1)**4 + 4*F0*jc(1)**3*djcdetam(1)) * (8*A**2 - B*F0**2 + 2*A*F0*F2) &
+        &     + 48*F0*jc(1)**4*(16*A*dAdetam - dBdetam*F0**2 - 2*B*F0*F1 + 2*dAdetam*F0*F2 + 2*A*F1*F2 + 2*A*F0*F3) &
         &     - 72*jc(1)**2*djcdetam(1)*(2*B*F0**4 + A**2*(3*C**2 - 8*F0**2) - 4*A*F0**3*F2) &
         &     - 24*jc(1)**3*(2*dBdetam*F0**4 + 8*B*F0**3*F1 + 2*A*dAdetam*(3*C**2 - 8*F0**2) + A**2*(6*C*dCdetam - 16*F0*F1) - 4*dAdetam*F0**3*F2 - 12*A*F0**2*F1*F2 - 4*A*F0**3*F3) &
         &     - 12*(2*C*dCdetam*F0*jc(1)**2 + C**2*F1*jc(1)**2 + 2*C**2*F0*jc(1)*djcdetam(1))*(10*A**2 - B*F0**2 + 3*A*F0*F2) &
         &     - 12*C**2*F0*jc(1)**2*(20*A*dAdetam - dBdetam*F0**2 - 2*B*F0*F1 + 3*(dAdetam*F0*F2 + A*F1*F2 + A*F0*F3)) &
-        &     - 4*(2*C*F0**2*jc(1) + 2*C**2*F0*F1*jc(1) + C**2*F0**2*djcdetam(1))*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
+        &     - 4*C*F0*(2*dCdetam*F0*jc(1) + 2*C*F1*jc(1) + C*F0*djcdetam(1))*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
         &     - 4*C**2*F0**2*jc(1)*(24*A*dAdetam - 2*F0*F1*(3*B + F1*F3) - F0**2*(3*dBdetam + F2*F3 + F1*F4) + 6*F1*F2*A + 6*F0*F3*A + 6*F0*F2*dAdetam) &
         &     + 12*C**3*dCdetam*(A**2*(F0 + 2*jc(1)) + A*F0*F1**2) &
         &     + 3*C**4*(2*A*dAdetam*(F0 + 2*jc(1)) + A**2*(F1 + 2*djcdetam(1)) + dAdetam*F0*F1**2 + A*F1**3 + 2*A*F0*F1*F2)
