@@ -252,7 +252,7 @@ contains
         e = x
       else if (e - 1.0 == - 1.0) then
         e = -1
-      else
+      else if (ieee_is_finite(e)) then
         e = (e - 1.0) * x / log(e)
       end if
     end if
