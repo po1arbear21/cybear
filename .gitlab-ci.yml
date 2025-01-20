@@ -14,27 +14,18 @@ workflow:
 test:
   stage: test
   variables:
-    DEBIAN_FRONTEND: noninteractive
-    BLAS95ROOT: /usr/share/blas95
-    LAPACK95ROOT: /usr/share/lapack95
+    BLAS95ROOT: /usr/share/mkl/blas95
+    LAPACK95ROOT: /usr/share/mkl/lapack95
     MKLROOT: /opt/intel/oneapi/mkl/latest
   image: registry.git.rwth-aachen.de/ithe/fargo
   script:
-    - apt -q install -y --no-install-recommends gfortran
-    - make -C /opt/intel/oneapi/mkl/latest/share/mkl/interfaces/blas95 libintel64 INSTALL_DIR=/usr/share/blas95 FC=gfortran interface=lp64
-    - make -C /opt/intel/oneapi/mkl/latest/share/mkl/interfaces/lapack95 libintel64 INSTALL_DIR=/usr/share/lapack95 FC=gfortran interface=lp64
-    - ln -sf mkl/intel64/lp64 /usr/share/blas95/include/gnu_lp64
-    - ln -sf mkl/intel64/lp64 /usr/share/lapack95/include/gnu_lp64
-    - mkdir -p /usr/share/blas95/lib/gnu_lp64 && mv /usr/share/blas95/lib/*.a /usr/share/blas95/lib/gnu_lp64
-    - mkdir -p /usr/share/lapack95/lib/gnu_lp64 && mv /usr/share/lapack95/lib/*.a /usr/share/lapack95/lib/gnu_lp64
-    - . /app/.venv/bin/activate
     - |-
       echo '[debug]
       target = "test"
       single = true
       intsize = 32
       idxsize = 32
-      libraries = ["BLAS95", "LAPACK95", "MPFR", "GMP"]
+      libraries = ["ARPACK", "BLAS95", "GMP", "LAPACK95", "MPFR", "MUMPS", "TRIANGLE"]
       templates = [
         { files = [
           "src/test/example.inp",
