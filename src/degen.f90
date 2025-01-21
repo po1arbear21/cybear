@@ -2,15 +2,9 @@ m4_include(util/macro.f90.inc)
 
 module degen_m
 
-  use ieee_arithmetic
-  use fukushima_m,   only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, fdm9h, dfdm9h
   use gauss_m,       only: gauss_legendre, gauss_laguerre
   use gauss_table_m, only: gauss_table
-  use error_m,       only: assert_failed, program_error
-  use math_m,        only: ber, dberdx, expm1, PI
-  use mpfr_m,        only: add, cosh, div, mpfr, mul, neg, sinh
-  use quad_m,        only: quad
-  use util_m,        only: int2str
+  use mathm_m,       only: roots
 
   use fermi_m, only: fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg
 
@@ -64,10 +58,9 @@ module degen_m
 
   end interface
 
-  integer            :: NG = -1
-  integer            :: NGEXP = -1
-  real, allocatable  :: XLEG(:), WLEG(:), XLAG(:), WLAG(:)
-  type(gauss_table)  :: gtab
+  integer           :: NG = -1
+  real, allocatable :: XLEG(:), WLEG(:), XLAG(:), WLAG(:)
+  type(gauss_table) :: gtab
 
   integer,      parameter :: CASE1A  = 1
   integer,      parameter :: CASE1B  = 2
@@ -77,28 +70,28 @@ module degen_m
   integer,      parameter :: CASE2A  = 6
   integer,      parameter :: CASE2B  = 7
   character(2), parameter :: CASENAME(7) = ["1a", "1b", "1c", "1d", "1e", "2a", "2b"]
-  real,         parameter :: CASETOL = 1e-3 ! FIXME: optimize
+  real,         parameter :: CASETOL = 1e-3
 
   integer, parameter :: MAX_IT = 50
-  real,    parameter :: RTOL   = 2e-14 ! FIXME: optimize
-  real,    parameter :: ATOL   = 1e-16 ! FIXME: optimize
+  real,    parameter :: RTOL   = 2e-14
+  real,    parameter :: ATOL   = 1e-16
+
+  real,    parameter :: F_GAMMA  = sqrt(0.125)
+  real,    parameter :: DELTA    = 3.0
 
 contains
 
-  subroutine degen_init(ng_, ngexp_)
+  subroutine degen_init(ng_)
     integer, intent(in) :: ng_
       !! number of gauss nodes
-    integer, intent(in) :: ngexp_
-      !! number of gauss nodes
 
-    NG    = ng_
-    NGEXP = ngexp_
+    NG = ng_
 
     allocate (XLEG(NG), WLEG(NG), XLAG(NG), WLAG(NG), source = 0.0)
 
     call gauss_legendre(XLEG, WLEG)
     call gauss_laguerre(XLAG, WLAG)
-    call gtab%init(NGEXP, .false.)
+    call gtab%init(NG, .false.)
   end subroutine
 
   subroutine degen_get(n, dpot, j, djdn, djddpot)
@@ -113,11 +106,7 @@ contains
     real,               intent(out) :: djddpot
       !! output derivatives of j wrt dpot
 
-    real, parameter :: GAMMA = sqrt(0.125)
-
-    real :: nquad
-
-    call get_current(fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg, 0.0, GAMMA, n(1), n(2), dpot, j, djdn(1), djdn(2), djddpot, nquad)
+    call get_current(fd12, ifd12, n(1), n(2), dpot, j, djdn(1), djdn(2), djddpot)
   end subroutine
 
   subroutine fd12(eta, F, dF1, dF2, dF3, dF4, dF5, dF6)
@@ -278,15 +267,11 @@ contains
     end if
   end subroutine
 
-  subroutine get_current(dist, idist, etac, gamma, n1, n2, dpot, j, djdn1, djdn2, djddpot, nquad)
+  subroutine get_current(dist, idist, n1, n2, dpot, j, djdn1, djdn2, djddpot)
     procedure(dist_)  :: dist
       !! distribution function
     procedure(idist_) :: idist
       !! inverse distribution function
-    real, intent(in)  :: etac
-      !! critical eta for Gauss-Laguerre integration (e.g. 0)
-    real, intent(in)  :: gamma
-      !! approximate distribution function by 1/(exp(-x) + gamma)
     real, intent(in)  :: n1
       !! normalized density at the left point
     real, intent(in)  :: n2
@@ -301,15 +286,12 @@ contains
       !! output derivative of j wrt n2
     real, intent(out) :: djddpot
       !! output derivative of j wrt dpot
-    real, intent(out) :: nquad
-      !! number of quadrature points per newton iteration
 
-    integer :: cs, k, it, ncalls
-    real    :: n1_, n2_, dpot_, eta1, deta1dn1, eta2, deta2dn2, deta
-    real    :: jj, jjold, jjmin, jjmax, djj, err, djdeta(2), tmp
-    real    :: eta0, deta0djj, Fc, F0, F1, F2, F3, F4, F5, F6, b, dbdeta0, dbdjj, II, dII(2)
-    real    :: res, dresdjj, dresdeta(2), dresddpot
-    logical :: flip, F456
+    integer :: cs, it
+    logical :: flip
+    real    :: n1_, n2_, dpot_, eta1, eta2, deta1dn1, deta2dn2, deta, djdeta, tmp
+    real    :: jj, jjmin, jjmax, res, dresdjj, djj, err
+    real    :: F0, F1, F2, F3, F4, F5, F6
 
     ! flip edge direction if potential drop is negative
     flip = (dpot < 0)
@@ -359,16 +341,15 @@ contains
     end if
 
     ! calculate current based on case
-    nquad = 0
     select case (cs)
     case (CASE1B)
-      call case_1b(j, djdeta, djddpot)
+      call case_1b()
     case (CASE1D)
-      call case_1d(j, djdeta, djddpot)
+      call case_1d()
     case (CASE2A)
-      call case_2a(j, djdeta, djddpot)
+      call case_2a()
     case (CASE2B)
-      call case_2b(j, djdeta, djddpot)
+      call case_2b()
     case default
       ! range for jj by mean value theorem
       jjmin = abs(1 - deta / dpot_) * min(n1_, n2_)
@@ -414,20 +395,20 @@ contains
         if (it > MAX_IT) call fatal_error("No convergence after " // int2str(MAX_IT) // " iterations")
 
         ! evaluate residual and get Newton update
-        call residual(res, dresdjj, dresdeta, dresddpot)
+        call residual()
 
         ! treat singularity of res at interval end-points
         do while (.not. ieee_is_finite(res))
-          if (jj - jjmin < 2e-15) then
+          if (jj - jjmin < 1e-13 * (jjmax - jjmin)) then
             jj    = ieee_next_after(jj, huge(1.0))
             jjmin = jj
-          elseif (jjmax - jj < 2e-15) then
+          elseif (jjmax - jj < 1e-13 * (jjmax - jjmin)) then
             jj    = ieee_next_after(jj, -huge(1.0))
             jjmax = jj
           else
             call fatal_error("residual not finite")
           end if
-          call residual(res, dresdjj, dresdeta, dresddpot)
+          call residual()
         end do
 
         ! Newton update
@@ -456,10 +437,9 @@ contains
           print "(I6,A,ES25.16E3,A,ES25.16E3,A,ES25.16E3)", it, ": jj = ", jj, "  +/-", err, "  ,", err / jj
         end if
       end do
-      nquad = nquad / it
 
       ! get current and derivatives with implicit differentiation
-      call residual(res, dresdjj, dresdeta, dresddpot)
+      call residual()
       j       = dpot_ * jj
       djdeta  =    - dpot_ * dresdeta  / dresdjj
       djddpot = jj - dpot_ * dresddpot / dresdjj
@@ -480,20 +460,14 @@ contains
 
   contains
 
-    subroutine case_1b(j, djdeta, djddpot)
-      real, intent(out) :: j
-      real, intent(out) :: djdeta(2)
-      real, intent(out) :: djddpot
-
-      integer       :: ncalls
+    subroutine case_1b()
       real          :: I(-5:0), dI(2,-5:0), jc(1:5), djc(2,1:5)
       real(kind=16) :: I16(-5:0), jc16(1:5), djc16(2,1:5), tmp16, dtmp16(2), j16
 
       do k = -5, -1
-        call integrate_dist(dist, etac, eta1, eta2, k, I(k), dI(:,k), ncalls)
-        nquad = nquad + ncalls
+        call integrate_dist(dist, eta1, eta2, k, I(k), dI(:,k))
       end do
-      I(0)    = deta
+      I(0) = deta
 
       I16 = I
 
@@ -548,12 +522,8 @@ contains
       j = real(j16)
     end subroutine
 
-    subroutine case_1d(j, djdeta, djddpot)
+    subroutine case_1d()
       use math_m, only: expm1
-
-      real, intent(out) :: j
-      real, intent(out) :: djdeta(2)
-      real, intent(out) :: djddpot
 
       real :: etam, A, B, C, dAdetam, dBdetam, dCdetam, dCddpot, u, dudetam, duddpot, v, dvdetam, dvddpot, w
       real :: jc(0:3), djcdetam(0:3), djcddpot(0:3)
@@ -635,13 +605,9 @@ contains
       djddpot   = djcddpot(0) + djcddpot(1) * deta + djcddpot(2) * deta**2 + djcddpot(3) * deta**3
     end subroutine
 
-    subroutine case_2a(j, djdeta, djddpot)
-      real, intent(out) :: j
-      real, intent(out) :: djdeta(2)
-      real, intent(out) :: djddpot
-
+    subroutine case_2a()
       integer :: ncalls
-      real    :: I(5), dI(2,5), jc(0:4), djc(2,0:4), tmp, dtmp(2)
+      real    :: I(5), dI(2,5), jc(0:4), djc(2,0:4), dtmp(2)
 
       do k = 1, 5
         call integrate_dist(dist, etac, eta1, eta2, k, I(k), dI(:,k), ncalls)
@@ -680,12 +646,8 @@ contains
       end do
     end subroutine
 
-    subroutine case_2b(j, djdeta, djddpot)
-      real, intent(out) :: j
-      real, intent(out) :: djdeta(2)
-      real, intent(out) :: djddpot
-
-      real :: etam, F0, F1, F2, F3, tmp, dtmpdetam, dtmpddeta, dtmpddpot, djdetam, djddeta
+    subroutine case_2b()
+      real :: etam, dtmpdetam, dtmpddeta, dtmpddpot, djdetam, djddeta
 
       etam = 0.5 * (eta1 + eta2)
       call dist(etam, F = F0, dF1 = F1, dF2 = F2, dF3 = F3)
@@ -703,383 +665,149 @@ contains
       djddpot = tmp + (dpot_ - deta) * dtmpddpot
     end subroutine
 
-    subroutine residual(res, dresdjj, dresdeta, dresddpot)
-      real, intent(out) :: res
-      real, intent(out) :: dresdjj
-      real, intent(out) :: dresdeta(2)
-      real, intent(out) :: dresddpot
-
+    subroutine residual()
+      integer :: k
       real    :: dresdjj1(1)
-      integer :: ncalls
 
       if (DEGEN_TANH_SINH) then
-        call quad(integrand_1a, eta1, eta2, [jj], res, dresdeta(1), dresdeta(2), dresdjj1, max_levels = 8, ncalls = ncalls)
-        nquad     = nquad + ncalls
+        call quad(integrand_u, eta1, eta2, [jj], res, dresdeta(1), dresdeta(2), dresdjj1)
         res       = res - dpot_
         dresdjj   = dresdjj1(1)
         dresddpot = -1
-      elseif (cs == CASE1A) then
-        call residual_1a(res, dresdjj, dresdeta, dresddpot)
       else
-        call residual_1ce(res, dresdjj, dresdeta, dresddpot)
-      end if
-    end subroutine
-
-    subroutine residual_1a(res, dresdjj, dresdeta, dresddpot)
-      real, intent(out) :: res
-      real, intent(out) :: dresdjj
-      real, intent(out) :: dresdeta(2)
-      real, intent(out) :: dresddpot
-
-      real, parameter :: EPS = 1e-3
-
-      logical :: mask1(2), mask2(2)
-      real    :: etac1, etac2, detac1djj, detac2djj, bnd(2), dbnddeta(2), dbnddjj(2)
-      real    :: I, dIdbnd(2), dIdjj(1), t(2), dtdjj(2), dtdeta(2), dum
-
-      ! init output
-      res       = - dpot_
-      dresdjj   = 0
-      dresdeta  = 0
-      dresddpot = -1
-
-      ! critical points
-      call idist(jj * (EPS / (EPS - 1)), eta = etac1, detadF = detac1djj)
-      call idist(jj * ((EPS - 1) / EPS), eta = etac2, detadF = detac2djj)
-      if (etac1 < etac) then
-        detac1djj = detac1djj * (EPS / (EPS - 1))
-      else
-        etac1     = etac
-        detac1djj = 0
-      end if
-      detac2djj = detac2djj * ((EPS - 1) / EPS)
-
-      ! exponential part
-      mask1 = ([eta1, eta2] <= etac1)
-      bnd = merge([eta1, eta2], [etac1, etac1], mask1)
-      if (bnd(1) /= bnd(2)) then
-        dbnddjj  = merge([0.0, 0.0], [detac1djj, detac1djj], mask1)
-        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
-
-        t      = exp(bnd) * (gamma*jj - 1) + jj
-        dtdjj  = exp(bnd) * (dbnddjj * (gamma*jj - 1) + gamma) + 1
-        dtdeta = exp(bnd) * dbnddeta * (gamma*jj - 1)
-
-        res      = res - log(t(2)/t(1)) / (gamma*jj - 1)
-        dresdjj  = dresdjj - (dtdjj(2)/t(2) - dtdjj(1)/t(1) - log(t(2)/t(1))*gamma/(gamma*jj - 1)) / (gamma*jj - 1)
-        dresdeta = dresdeta + dtdeta * [1.0, -1.0] / (t * (gamma*jj - 1))
-
-        ! numerical integration of rest term
-        call integrate_gauss_exp(integrand_1a_r, bnd(1), bnd(2), [jj], 3.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dum)
-        nquad    = nquad + NG
-        res      = res + I
-        dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
-        dresdeta = dresdeta + dIdbnd * dbnddeta
-      end if
-
-      ! transition => Gauss-Legendre
-      mask2 = ([eta1, eta2] <= etac2)
-      bnd = merge([etac1, etac1], merge([eta1, eta2], [etac2, etac2], mask2), mask1)
-      if (bnd(1) /= bnd(2)) then
-        dbnddjj  = merge([detac1djj, detac1djj], merge([0.0, 0.0], [detac2djj, detac2djj], mask2), mask1)
-        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask2 .and. .not. mask1)
-
-        call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-        nquad    = nquad + NG
-        res      = res + I
-        dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
-        dresdeta = dresdeta + dIdbnd * dbnddeta
-      end if
-
-      ! constant region => Gauss-Legendre
-      bnd = merge([etac2, etac2], [eta1, eta2], mask2)
-      if (bnd(1) /= bnd(2)) then
-        dbnddjj  = merge([detac2djj, detac2djj], [0.0, 0.0], mask2)
-        dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask2)
-
-        call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-        nquad    = nquad + NG
-        res      = res + I
-        dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
-        dresdeta = dresdeta + dIdbnd * dbnddeta
-      end if
-    end subroutine
-
-    subroutine integrand_1a(eta, jj, u, dudeta, dudjj)
-      real, intent(in)  :: eta
-      real, intent(in)  :: jj(:)
-      real, intent(out) :: u
-      real, intent(out) :: dudeta
-      real, intent(out) :: dudjj(:)
-
-      real :: t
-
-      call dist(eta, F = u, dF1 = dudeta)
-      t        = u - jj(1)
-      u        = u / t
-      dudeta   = - jj(1) * dudeta / t**2
-      dudjj(1) = u / t
-    end subroutine
-
-    subroutine integrand_1a_r(eta, jj, r, drdeta, drdjj)
-      real, intent(in)  :: eta
-      real, intent(in)  :: jj(:)
-      real, intent(out) :: r
-      real, intent(out) :: drdeta
-      real, intent(out) :: drdjj(:)
-
-      real :: u, dudeta, dudjj(1)
-
-      call integrand_1a(eta, jj, u, dudeta, dudjj)
-
-      r        = u - 1 / (1 - jj(1) * (exp(-eta) + gamma))
-      drdeta   = dudeta + (jj(1) * exp(-eta)) / (1 - jj(1) * (exp(-eta) + gamma))**2
-      drdjj(1) = dudjj(1) - (exp(-eta) + gamma) / (1 - jj(1) * (exp(-eta) + gamma))**2
-    end subroutine
-
-    subroutine residual_1ce(res, dresdjj, dresdeta, dresddpot)
-      real, intent(out) :: res
-      real, intent(out) :: dresdjj
-      real, intent(out) :: dresdeta(2)
-      real, intent(out) :: dresddpot
-
-      real, parameter :: ERR_TOL = 1e-16 ! FIXME: optimize value
-      real, parameter :: EPS = 1e-3      ! FIXME: optimize value
-
-      logical       :: mask(2)
-      real          :: err,bnd(2), dbnddjj(2), dbnddeta(2), I, dIdbnd(2), dIdeta0(1), dIdjj(1), dIdxp, dRdeta(2), dRdjj
-      real          :: t, dtdjj, dtdeta(2), em1, dem1djj, dem1deta1, em2, dem2djj, dem2deta2
-      real          :: etacc, detaccdjj, FF, dFF, rinf, drinfdjj
-      real(kind=16) :: b_16, R_16, t_16, em1_16, em2_16
-
-      ! init output
-      res       = -dpot_
-      dresdjj   = 0
-      dresdeta  = 0
-      dresddpot = -1
-
-      call idist(jj, eta = eta0, detadF = deta0djj)
-      F0 = jj
-      F1 = 1.0 / deta0djj
-
-      ! estimate relevance of pole
-      t   = 2 * abs((eta0 - 0.5 * (eta1 + eta2)) / deta)
-      err = 2 * PI * jj / (F1 * (t + sqrt(t**2 - 1))**(2*NG + 1))
-
-      ! simple integration if pole is irrelevant
-      if (abs(err) <= ERR_TOL * abs(dpot_)) then
-        if (cs == CASE1C) then
-          call integrate_gauss_legendre(integrand_1a, eta1, eta2, [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-          nquad     = nquad + NG
-          res       = res + I
-          dresdjj   = dresdjj + dIdjj(1)
-          dresdeta  = dresdeta + dIdbnd
-        else ! CASE1E
-          mask     = [eta1, eta2] <= etac
-          bnd      = merge([eta1, eta2], [etac, etac], mask)
-          dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
-          if (bnd(1) /= bnd(2)) then
-            call integrate_gauss_exp(integrand_1a, bnd(1), bnd(2), [jj], 1.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dIdxp)
-            nquad    = nquad + NG
-            res      = res + I
-            dresdjj  = dresdjj + dIdjj(1)
-            dresdeta = dresdeta + dIdbnd * dbnddeta
-          end if
-
-          bnd      = merge([etac, etac], [eta1, eta2], mask)
-          dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
-          if (bnd(1) /= bnd(2)) then
-            call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
-            nquad    = nquad + NG
-            res      = res + I
-            dresdjj  = dresdjj + dIdjj(1)
-            dresdeta = dresdeta + dIdbnd * dbnddeta
-          end if
-        end if
-        return
-      end if
-
-      call dist(eta0, dF2 = F2, dF3 = F3)
-      F456 = .false.
-
-      ! pole
-      b_16    = F1 / F0
-      b       = real(b_16, kind=8)
-      dbdeta0 = (F2 - F1**2 / F0) / F0
-      dbdjj   = dbdeta0 * deta0djj
-
-      ! get R
-      R_16   = 0
-      dRdjj  = 0
-      dRdeta = 0
-      if (cs == CASE1C) then
-        rinf     = F2 * F0 / F1**2 - 1
-        drinfdjj = (F3 * F0 / F1 + F2 - 2 * F0 * F2**2 / F1**2) / F1 * deta0djj
-        FF       = (EPS * rinf - 1) / (EPS * rinf) * jj
-        dFF      = (drinfdjj / rinf + EPS * rinf - 1) / (EPS * rinf)
-        call idist(FF, eta = etacc, detadF = detaccdjj)
-        detaccdjj = detaccdjj * dFF
-
-        mask = [eta1, eta2] <= etacc
-        bnd  = merge([eta1, eta2], [etacc, etacc], mask)
-        if (bnd(1) /= bnd(2)) then
-          dbnddjj  = merge([0.0, 0.0], [detaccdjj, detaccdjj], mask)
-          dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
-          call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
-          nquad  = nquad + NG
-          R_16   = R_16 + I
-          dRdjj  = dRdjj + dIdeta0(1) * deta0djj + dot_product(dIdbnd, dbnddjj)
-          dRdeta = dRdeta + dIdbnd * dbnddeta
-        end if
-
-        bnd = merge([etacc, etacc], [eta1, eta2], mask)
-        if (bnd(1) /= bnd(2)) then
-          dbnddjj  = merge([detaccdjj, detaccdjj], [0.0, 0.0], mask)
-          dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
-          call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
-          nquad  = nquad + NG
-          R_16   = R_16 + I
-          dRdjj  = dRdjj + dIdeta0(1) * deta0djj
-          dRdeta = dRdeta + dIdbnd * dbnddeta
-        end if
-      else ! CASE1E
-        mask = [eta1, eta2] <= etac
-        bnd = merge([eta1, eta2], [etac, etac], mask)
-        if (bnd(1) /= bnd(2)) then
-          dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
-          call integrate_gauss_exp(integrand_r, bnd(1), bnd(2), [eta0], 1.0, I, dIdbnd(1), dIdbnd(2), dIdeta0, dIdxp)
-          nquad  = nquad + NG
-          R_16   = R_16 + I
-          dRdjj  = dRdjj + dIdeta0(1) * deta0djj
-          dRdeta = dRdeta + dIdbnd * dbnddeta
-        end if
-
-        bnd = merge([etac, etac], [eta1, eta2], mask)
-        if (bnd(1) /= bnd(2)) then
-          dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
-          call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
-          nquad  = nquad + NG
-          R_16   = R_16 + I
-          dRdjj  = dRdjj + dIdeta0(1) * deta0djj
-          dRdeta = dRdeta + dIdbnd * dbnddeta
-        end if
-      end if
-
-      ! calculate residual
-      em1_16    = expm1_16(real(eta0, kind = 16) - eta1)
-      em1       = real(em1_16, kind = 8)
-      dem1deta1 = - exp(eta0 - eta1)
-      dem1djj   = - dem1deta1 * deta0djj
-      em2_16    = expm1_16(real(eta0, kind = 16) - eta2)
-      em2       = real(em2_16, kind = 8)
-      dem2deta2 = - exp(eta0 - eta2)
-      dem2djj   = - dem2deta2 * deta0djj
-
-      t_16   = log(em2_16 / em1_16)
-      t      = real(t_16, kind = 8)
-      dtdjj  = dem2djj / em2 - dem1djj / em1
-      dtdeta = [- dem1deta1 / em1, dem2deta2 / em2]
-
-      res       = real(res + (t_16 + deta) / b_16 + R_16, kind = 8)
-      dresdjj   = dresdjj - deta / b**2 * dbdjj + (dtdjj - t * dbdjj / b) / b + dRdjj
-      dresdeta  = dresdeta + [-1.0, 1.0] / b + dtdeta / b + dRdeta
-    end subroutine
-
-    subroutine integrand_r(eta, eta0, r, drdeta, drdeta0)
-      real, intent(in)  :: eta
-      real, intent(in)  :: eta0(:)
-      real, intent(out) :: r
-      real, intent(out) :: drdeta
-      real, intent(out) :: drdeta0(:)
-
-      real, parameter :: EPS = 1e-3 ! FIXME: optimize
-
-      integer :: k, fact
-      real    :: rc(0:3), drc(0:3), F, dF
-
-      if (abs(eta - eta0(1)) <= EPS) then
-        if (.not. F456) then
-          call dist(eta0(1), dF4 = F4, dF5 = F5, dF6 = F6)
-          F456 = .true.
-        end if
-
-        ! series expansion coefficients around eta0
-        rc(0)  = (2*F1**2 - F0*F1 - F0*F2)/(2*F1**2)
-        rc(1)  = -(F0*(F1**2 - 3*F2**2 + 2*F1*F3))/(12*F1**3)
-        rc(2)  = -(F0*(F1**2*F4 + 3*F2**3 - 4*F1*F2*F3))/(12*F1**4)
-        rc(3)  = (F0*(F1**4 - 6*F1**3*F5 + 45*F2**4 + 20*F1**2*F3**2 - 90*F1*F2**2*F3 + 30*F1**2*F2*F4))/(120*F1**5)
-        drc(0) = -(F1**2*F2 - 2*F0*F2**2 + F1**3 - F0*F1*F2 + F0*F1*F3)/(2*F1**3)
-        drc(1) = -(9*F0*F2**3 + 2*F1**3*F3 + F1**4 - 3*F1**2*F2**2 - F0*F1**2*F2 + 2*F0*F1**2*F4 - 10*F0*F1*F2*F3)/(12*F1**4)
-        drc(2) = (12*F0*F2**4 - F1**4*F4 - 3*F1**2*F2**3 - F0*F1**3*F5 + 4*F1**3*F2*F3 + 4*F0*F1**2*F3**2 &
-          &       - 21*F0*F1*F2**2*F3 + 6*F0*F1**2*F2*F4)/(12*F1**5)
-        drc(3) = -(225*F0*F2**5 + 6*F1**5*F5 - F1**6 - 45*F1**2*F2**4 - 20*F1**4*F3**2 + F0*F1**4*F2 + 6*F0*F1**4*F6 &
-          &        - 30*F1**4*F2*F4 + 90*F1**3*F2**2*F3 + 240*F0*F1**2*F2*F3**2 + 180*F0*F1**2*F2**2*F4 &
-          &        - 540*F0*F1*F2**3*F3 - 42*F0*F1**3*F2*F5 - 70*F0*F1**3*F3*F4)/(120*F1**6)
-
-        ! assemble r
-        r          = rc(0)
-        drdeta     = 0
-        drdeta0(1) = drc(0)
-        fact = 1
-        do k = 1, 3
-          fact       = fact * k
-          r          = r + rc(k) * (eta - eta0(1))**k / fact
-          drdeta     = drdeta + k * rc(k) * (eta - eta0(1))**(k-1) / fact
-          drdeta0(1) = drdeta0(1) + (drc(k) * (eta - eta0(1))**k - k * rc(k) * (eta - eta0(1))**(k-1)) / fact
-        end do
-      else
-        call dist(eta, F = F, dF1 = dF)
-        r          = F / (F - F0) + F0 / (F1 * expm1(eta0(1) - eta))
-        drdeta     = - dF * F0 / (F - F0)**2 + F0 * exp(eta0(1) - eta) / (F1 * expm1(eta0(1) - eta)**2)
-        drdeta0(1) =    F * F1 / (F - F0)**2 - F0 * exp(eta0(1) - eta) / (F1 * expm1(eta0(1) - eta)**2) &
-          &        + 1 / expm1(eta0(1) - eta) - F0 * F2 / (F1**2 * expm1(eta0(1) - eta))
-      end if
-    end subroutine
-
-    elemental function expm1_16(x) result(e)
-      !! exp(x) - 1; accurate even for x close to 0
-      real(kind=16), intent(in) :: x
-      real(kind=16)             :: e
-
-      if (ieee_class(x) == IEEE_POSITIVE_INF) then
-        e = x
-      else
-        e = exp(x)
-
-        if (e == 1.0) then
-          e = x
-        else if (e - 1.0 == - 1.0) then
-          e = -1
+        if (cs == CASE1A) then
+          kmax = 3
+          eta_min(1) = - huge(1.0)
+          eta_max(1) = 0.0
+          eta_min(2) = 0.0
+          eta_max(2) = 2.0
+          eta_min(3) = 2.0
+          eta_max(3) = huge(1.0)
+          d_eta_min  = 0.0
+          d_eta_max  = 0.0
         else
-          e = (e - 1.0) * x / log(e)
+          ! pole position
+          call idist(jj, eta = eta0, detadF = deta0djj)
+          F0 = jj
+          F1 = 1.0 / deta0djj
+
+          kmax = 7
+          d_eta_min = 0.0
+          d_eta_max = 0.0
+
+          eta_min(1) = - huge(1.0)
+          eta_max(1) = eta0 - DELTA
+          if (eta_max(1) > 0) then
+            eta_max(1) = 0
+          else
+            d_eta_max(1) = 1
+          end if
+
+          eta_min(2) = eta0 + DELTA
+          if (eta_min(2) < 0) then
+            eta_min(2) = 0
+          else
+            d_eta_min(2) = 1
+          end if
+          eta_max(2) = eta0 + DELTA
+          if (eta_max(2) < 2) then
+            eta_max(2) = 2
+          else
+            d_eta_max(2) = 1
+          end if
+
+          eta_min(3) = eta0 + DELTA
+          if (eta_min(3) < 2) then
+            eta_min(3) = 2
+          else
+            d_eta_min(3) = 1
+          end if
+          eta_max(3) = huge(1.0)
+
+          eta_min(4)   = eta0 - DELTA
+          d_eta_min(4) = 1
+          eta_max(4)   = eta0 + DELTA
+          d_eta_max(4) = 1
+
+          eta_min(5)   = eta0 + DELTA
+          d_eta_min(5) = 1
+          eta_max(5) = eta0 + DELTA
+          if (eta_max(5) < 0) then
+            eta_max(5) = 0
+          else
+            d_eta_max(5) = 1
+          end if
+
+          eta_min(6) = eta0 - DELTA
+          if (eta_min(6) > 0) then
+            eta_min(6) = 0
+          else
+            d_eta_min(6) = 1
+          end if
+          eta_max(6) = eta0 - DELTA
+          if (eta_max(6) > 2) then
+            eta_max(6) = 2
+          else
+            d_eta_max(6) = 1
+          end if
+
+          eta_min(7) = eta0 - DELTA
+          if (eta_min(7) > 2) then
+            eta_min(7) = 2
+          else
+            d_eta_min(7) = 1
+          end if
+          eta_max(7) = eta0 - DELTA
+          d_eta_max(7) = 1
         end if
+
+        res = 0
+        do k = 1, kmax
+          if (eta_min(k) == eta_max(k)) cycle
+
+          ! merge bounds with eta1, eta2
+          mask1 = ([eta1, eta2] <= eta_min(k))
+          mask2 = ([eta1, eta2] <= eta_max(k))
+          bnd = merge([eta_min(k), eta_min(k)], merge([eta1, eta2], [eta_max(k), eta_max(k)], mask2), mask1)
+          if (bnd(1) == bnd(2)) cycle
+          dbnddeta = merge([0.0, 0.0], merge([1.0, 1.0], [0.0, 0.0], mask2), mask1)
+
+          ! principal part (analytic integration)
+          select case (k)
+          case (1) ! blake for eta <= 0
+            tmp = jj * F_GAMMA - 1
+            res = res + log((exp(bnd(1)) * tmp + jj) / (exp(bnd(2)) * tmp + jj)) / tmp
+            ....
+          case (2) ! blake for 0 <= eta <= 2
+          case (3) ! blake for eta >= 2
+            ! find roots of polynomial
+            omega = roots([0.125*PI**2, - jj, 0, 0])
+
+
+            ! function roots(p) result(rts)
+            !   !! Find complex roots of polynomial
+            !   real, intent(in) :: p(:)
+            !     !! coefficients of polynomial in reduced form: f(x) = p(1) + p(2) * x + p(3) * x**2 + ... + x**n
+            !   complex          :: rts(size(p))
+            !     !! return roots of polynomial
+          case (4)
+          case (5)
+          case (6)
+          case (7)
+          end select
+
+          ! rest (numerical integration)
+
+        end do
       end if
-    end function
-
-    subroutine fatal_error(msg)
-      character(*), intent(in) :: msg
-
-      print "(A,I0)",        "NG        = ", NG
-      print "(A,I0)",        "NGEXP     = ", NGEXP
-      print "(A,L)",         "TANH_SINH = ", DEGEN_TANH_SINH
-      print "(A,ES25.16E3)", "etac      = ", etac
-      print "(A,ES25.16E3)", "gamma     = ", gamma
-      print "(A,ES25.16E3)", "n1        = ", n1
-      print "(A,ES25.16E3)", "n2        = ", n2
-      print "(A,ES25.16E3)", "dpot      = ", dpot
-      print "(2A)",          "case      = ", CASENAME(cs)
-
-      call program_error(msg)
     end subroutine
 
   end subroutine
 
-  subroutine integrate_dist(dist, etac, eta1, eta2, k, I, dIdeta, ncalls)
+  subroutine integrate_dist(dist, eta1, eta2, k, I, dIdeta)
     !! int_eta1^eta2 dist(eta)^k deta using Gauss-Laguerre, Gauss-Legendre
     procedure(dist_)     :: dist
       !! distribution function (e.g. fermi-dirac integral)
-    real,    intent(in)  :: etac
-      !! critical eta for Gauss-Laguerre integration
     real,    intent(in)  :: eta1
       !! lower integration bound
     real,    intent(in)  :: eta2
@@ -1090,8 +818,6 @@ contains
       !! output integral over dist^k
     real,    intent(out) :: dIdeta(2)
       !! output derivative of I wrt eta1, eta2
-    integer, intent(out) :: ncalls
-      !! output number of integrand calls
 
     logical :: mask(2)
     real    :: bnd(2), dbnd(2), I1, dI1dbnd(2), dum(0), dum2(0), dum3
@@ -1104,7 +830,7 @@ contains
     end if
 
     if (DEGEN_TANH_SINH) then
-      call quad(dist_k, eta1, eta2, dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8, ncalls = ncalls)
+      call quad(dist_k, eta1, eta2, dum, I, dIdeta(1), dIdeta(2), dum2)
       return
     end if
 
@@ -1113,23 +839,21 @@ contains
     dIdeta = 0
     ncalls = 0
 
-    ! eta < etac: Gauss with Exponential weight
-    mask = [eta1, eta2] < etac
-    bnd  = merge([eta1, eta2], [etac, etac], mask)
+    ! eta < 0: Gauss with Exponential weight
+    mask = [eta1, eta2] < 0.0
+    bnd  = merge([eta1, eta2], [0.0, 0.0], mask)
     if (bnd(1) /= bnd(2)) then
       dbnd = merge([1.0, 1.0], [0.0, 0.0], mask)
       call integrate_gauss_exp(dist_k, bnd(1), bnd(2), dum, real(k), I1, dI1dbnd(1), dI1dbnd(2), dum2, dum3)
-      ncalls = ncalls + 2 * NG
       I      = I + I1
       dIdeta = dIdeta + dI1dbnd * dbnd
     end if
 
-    ! eta > etac: Gauss-Legendre
-    bnd = merge([etac, etac], [eta1, eta2], mask)
+    ! eta > 0: Gauss-Legendre
+    bnd = merge([0.0, 0.0], [eta1, eta2], mask)
     if (bnd(1) /= bnd(2)) then
       dbnd = merge([0.0, 0.0], [1.0, 1.0], mask)
       call integrate_gauss_legendre(dist_k, bnd(1), bnd(2), dum, I1, dI1dbnd(1), dI1dbnd(2), dum2)
-      ncalls = ncalls + NG
       I      = I + I1
       dIdeta = dIdeta + dI1dbnd * dbnd
     end if
@@ -1300,230 +1024,6 @@ contains
       dIdp = dIdp + v * dfdp
       dIdk = dIdk + dvdk * f + v * dfdx * dxdk
     end do
-  end subroutine
-
-  subroutine weierstrass(dist, idist, n1, n2, dpot, j, djdn1, djdn2, djddpot, status)
-    procedure(dist_)     :: dist
-      !! distribution function
-    procedure(idist_)    :: idist
-      !! inverse distribution function
-    real,    intent(in)  :: n1
-      !! normalized density at the left point
-    real,    intent(in)  :: n2
-      !! normalized density at the right point
-    real,    intent(in)  :: dpot
-      !! normalized potential drop
-    real,    intent(out) :: j
-      !! output normalized current density
-    real,    intent(out) :: djdn1
-      !! output derivative of j wrt n1
-    real,    intent(out) :: djdn2
-      !! output derivative of j wrt n2
-    real,    intent(out) :: djddpot
-      !! output derivative of j wrt dpot
-    logical, intent(out) :: status
-
-    real, parameter :: eps_eta = 1e-12, eps_psi = 1e-3
-
-    real    :: n1_, n2_, dpot_, eta1, eta2, deta, deta1dn1, deta2dn2, djdeta(2), tmp
-    logical :: flip
-
-    ! flip edge direction if potential drop is negative
-    flip = (dpot < 0)
-    if (flip) then
-      n1_   = n2
-      n2_   = n1
-    else
-      n1_   = n1
-      n2_   = n2
-    end if
-    dpot_ = abs(dpot)
-
-    ! get normalized Fermi levels
-    call idist(n1_, eta = eta1, detadF = deta1dn1)
-    call idist(n2_, eta = eta2, detadF = deta2dn2)
-    deta = eta2 - eta1
-
-    if (abs(deta) < eps_eta) then
-      block
-        real :: etam, F0, F1, F2, F3, dtmpdetam, dtmpddeta, dtmpddpot, djdetam, djddeta
-
-        etam = 0.5 * (eta1 + eta2)
-        call dist(etam, F = F0, dF1 = F1, dF2 = F2, dF3 = F3)
-
-        tmp = F0 - F1**2 / (12 * F0) * deta * dpot_ + F2 / 24 * deta**2
-
-        dtmpdetam = F1 - (2 * F2 - F1**2 / F0) * F1 / (12 * F0) * deta * dpot_ + F3 / 24 * deta**2
-        dtmpddeta = - F1**2 / (12 * F0) * dpot_ + F2 / 12 * deta
-        dtmpddpot = - F1**2 / (12 * F0) * deta
-
-        j       = (dpot_ - deta) * tmp
-        djdetam = (dpot_ - deta) * dtmpdetam
-        djddeta = - tmp + (dpot_ - deta) * dtmpddeta
-        djdeta  = djdetam * [0.5, 0.5] + djddeta * [-1.0, 1.0]
-        djddpot = tmp + (dpot_ - deta) * dtmpddpot
-      end block
-    elseif (abs(dpot_) < eps_psi) then
-      block
-        real :: p(0), I, dIdeta1, dIdeta2, dIdp(0)
-
-        call integrate_gauss_legendre(integrand_dist, eta1, eta2, p, I, dIdeta1, dIdeta2, dIdp)
-
-        j       = - I
-        djdeta  = - [dIdeta1, dIdeta2]
-        djddpot = 0
-      end block
-    else
-      block
-        integer :: it
-        real    :: jmin, jmax, Fc, err, res, dresdj, dresdeta(2), dresddpot, dj, jold
-
-        ! range for j by mean value theorem
-        jmin = abs(1 - deta / dpot_) * min(n1, n2) * dpot_
-        jmax = abs(1 - deta / dpot_) * max(n1, n2) * dpot_
-        if (deta > dpot_) then
-          j    = jmin
-          jmin = - jmax
-          jmax = - j
-        end if
-
-        ! further reduce range if possible
-        if (deta - dpot_ > 0) then
-          call dist(eta2 - 0.5 * dpot_, F = Fc)
-          jmin = max(jmin, (dpot_ - deta) * Fc)
-        elseif (deta > 0) then
-          jmax = min(jmax, n1_ * dpot_)
-        else
-          jmin = max(jmin, n1_ * dpot_)
-        end if
-
-        ! initial value: enhanced diffusion approximation
-        if (n2_ == n1_) then
-          tmp = 1.0 / (n1_ * deta1dn1)
-        else
-          tmp = dpot_ * log(n2_ / n1_) / deta
-        end if
-        j = (- n1_ / expm1(-tmp) - n2_ / expm1(tmp)) * dpot_
-        if ((j < jmin) .or. (j > jmax)) j = 0.5 * (jmin + jmax)
-
-        j = jmin
-        call residual(res, dresdj, dresdeta, dresddpot)
-        j = jmax
-        call residual(tmp, dresdj, dresdeta, dresddpot)
-        if (sign(1.0, res) /= sign(1.0, tmp)) then
-          status = .false.
-          return
-        end if
-
-        ! Newton iteration
-        err = huge(1.0)
-        it  = 0
-        do while ((it < 1) .or. (it < 20) .or. (err > RTOL * abs(j) + ATOL))
-          it = it + 1
-          if (it > MAX_IT) then
-            print "(A,ES25.16E3)", "n1    = ", n1
-            print "(A,ES25.16E3)", "n2    = ", n2
-            print "(A,ES25.16E3)", "dpot  = ", dpot
-            call program_error("No convergence after " // int2str(MAX_IT) // " iterations")
-          end if
-
-          ! evaluate residual and get Newton update
-          call residual(res, dresdj, dresdeta, dresddpot)
-          dj = - res / dresdj
-          err = abs(dj)
-
-          ! update bounds (assume monotonic behaviour)
-          if (dj > 0) then
-            jmin = j
-          else
-            jmax = j
-          end if
-
-          ! update solution
-          jold = j
-          j    = j + dj
-
-          ! bisection
-          if ((j < jmin) .or. (j > jmax) .or. ((jold == jmin) .and. (j == jmax))) then
-            if (DEGEN_DEBUG) print "(A)", "bisection"
-            j = 0.5 * (jmin + jmax)
-            err = min(err, jmax - jmin)
-          end if
-
-          if (DEGEN_DEBUG) then
-            print "(I6,A,ES25.16E3,A,ES25.16E3,A,ES25.16E3)", it, ": j = ", j, "  +/-", err, "  ,", err / j
-          end if
-        end do
-
-        ! get current and derivatives with implicit differentiation
-        call residual(res, dresdj, dresdeta, dresddpot)
-        djdeta  = - dresdeta  / dresdj
-        djddpot = - dresddpot / dresdj
-      end block
-    end if
-
-    ! derivatives wrt densities
-    djdn1 = djdeta(1) * deta1dn1
-    djdn2 = djdeta(2) * deta2dn2
-
-    ! reverse edge direction flip (keep dj/ddpot = d(-j)/d(-dpot) unchanged)
-    if (flip) then
-      j     = - j
-      tmp   = djdn1
-      djdn1 = - djdn2
-      djdn2 = - tmp
-    end if
-
-    status = .true.
-
-  contains
-
-    subroutine integrand_dist(x, p, f, dfdx, dfdp)
-      real, intent(in)  :: x
-      real, intent(in)  :: p(:)
-      real, intent(out) :: f
-      real, intent(out) :: dfdx
-      real, intent(out) :: dfdp(:)
-
-      m4_ignore(p)
-      m4_ignore(dfdp)
-
-      call dist(x, F = f, dF1 = dfdx)
-    end subroutine
-
-    subroutine integrand_newton(x, p, f, dfdx, dfdp)
-      real, intent(in)  :: x
-      real, intent(in)  :: p(:)
-      real, intent(out) :: f
-      real, intent(out) :: dfdx
-      real, intent(out) :: dfdp(:)
-
-      real :: FF, dFF
-
-      call dist(x, F = FF, dF1 = dFF)
-      f = 1.0 / (p(2) - p(1) / FF)
-
-      dfdx    = - p(1) * dFF / (p(1) - p(2) * FF)**2
-      dfdp(1) = FF / (p(1) - p(2) * FF)**2
-      dfdp(2) = - 1.0 / (p(2) - p(1) / FF)**2
-    end subroutine
-
-    subroutine residual(res, dresdj, dresdeta, dresddpot)
-      real, intent(out) :: res
-      real, intent(out) :: dresdj
-      real, intent(out) :: dresdeta(2)
-      real, intent(out) :: dresddpot
-
-      real :: I, dIdeta1, dIdeta2, dIdp(2)
-
-      call integrate_gauss_legendre(integrand_newton, eta1, eta2, [j, dpot_], I, dIdeta1, dIdeta2, dIdp)
-
-      res       = I - 1
-      dresdj    = dIdp(1)
-      dresdeta  = [dIdeta1, dIdeta2]
-      dresddpot = dIdp(2)
-    end subroutine
-
   end subroutine
 
 end module

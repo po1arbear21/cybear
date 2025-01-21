@@ -1,0 +1,1895 @@
+m4_include(util/macro.f90.inc)
+
+module degen_m
+
+  use ieee_arithmetic
+  use fukushima_m,   only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, fdm9h, dfdm9h
+  use gauss_m,       only: gauss_legendre, gauss_laguerre
+  use gauss_table_m, only: gauss_table
+  use error_m,       only: assert_failed, program_error
+  use math_m,        only: ber, dberdx, expm1, PI
+  use mpfr_m,        only: add, cosh, div, mpfr, mul, neg, sinh
+  use quad_m,        only: quad
+  use util_m,        only: int2str
+
+  implicit none
+
+  private
+  public :: DEGEN_DEBUG, DEGEN_TANH_SINH, degen_init, degen_get, fd12, ifd12, get_current, weierstrass
+
+  logical :: DEGEN_DEBUG     = .false.
+  logical :: DEGEN_TANH_SINH = .false.
+
+  interface
+
+    subroutine dist_(eta, F, dF1, dF2, dF3, dF4, dF5, dF6)
+      !! distribution function
+      real,           intent(in)  :: eta
+        !! normalized Fermi level
+      real, optional, intent(out) :: F
+        !! output distribution function
+      real, optional, intent(out) :: dF1
+        !! output first derivative of F wrt eta
+      real, optional, intent(out) :: dF2
+        !! output second derivative of F wrt eta
+      real, optional, intent(out) :: dF3
+        !! output third derivative of F wrt eta
+      real, optional, intent(out) :: dF4
+        !! output fourth derivative of F wrt eta
+      real, optional, intent(out) :: dF5
+        !! output fifth derivative of F wrt eta
+      real, optional, intent(out) :: dF6
+        !! output sixth derivative of F wrt eta
+    end subroutine
+
+    subroutine idist_(F, eta, detadF)
+      !! inverse distribution function
+      real,           intent(in)  :: F
+        !! distribution function
+      real, optional, intent(out) :: eta
+        !! output normalized Fermi level
+      real, optional, intent(out) :: detadF
+        !! output derivative of eta wrt F
+    end subroutine
+
+    subroutine integrand_(x, p, f, dfdx, dfdp)
+      real, intent(in)  :: x
+      real, intent(in)  :: p(:)
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+      real, intent(out) :: dfdp(:)
+    end subroutine
+
+  end interface
+
+  integer            :: NG = -1
+  integer            :: NGEXP = -1
+  real, allocatable  :: XLEG(:), WLEG(:), XLAG(:), WLAG(:)
+  type(gauss_table)  :: gtab
+
+  integer,      parameter :: CASE1A  = 1
+  integer,      parameter :: CASE1B  = 2
+  integer,      parameter :: CASE1C  = 3
+  integer,      parameter :: CASE1D  = 4
+  integer,      parameter :: CASE1E  = 5
+  integer,      parameter :: CASE2A  = 6
+  integer,      parameter :: CASE2B  = 7
+  character(2), parameter :: CASENAME(7) = ["1a", "1b", "1c", "1d", "1e", "2a", "2b"]
+  real,         parameter :: CASETOL = 1e-3 ! FIXME: optimize
+
+  integer, parameter :: MAX_IT = 50
+  real,    parameter :: RTOL   = 2e-14 ! FIXME: optimize
+  real,    parameter :: ATOL   = 1e-16 ! FIXME: optimize
+
+  real, parameter :: ETA_BLAK = 1.3
+  real, parameter :: F_GAMMA  = sqrt(0.125)
+
+contains
+
+  subroutine degen_init(ng_, ngexp_)
+    integer, intent(in) :: ng_
+      !! number of gauss nodes
+    integer, intent(in) :: ngexp_
+      !! number of gauss nodes
+
+    NG    = ng_
+    NGEXP = ngexp_
+
+    allocate (XLEG(NG), WLEG(NG), XLAG(NG), WLAG(NG), source = 0.0)
+
+    call gauss_legendre(XLEG, WLEG)
+    call gauss_laguerre(XLAG, WLAG)
+    call gtab%init(NGEXP, .false.)
+  end subroutine
+
+  subroutine degen_get(n, dpot, j, djdn, djddpot)
+    real,               intent(in)  :: n(2)
+      !! left/right normalized density
+    real,               intent(in)  :: dpot
+      !! normalized potential drop
+    real,               intent(out) :: j
+      !! output normalized edge current
+    real,               intent(out) :: djdn(2)
+      !! output derivatives of j wrt n
+    real,               intent(out) :: djddpot
+      !! output derivatives of j wrt dpot
+
+    real :: nquad
+
+    call get_current(fd12, ifd12, n(1), n(2), dpot, j, djdn(1), djdn(2), djddpot, nquad)
+  end subroutine
+
+  subroutine fd12(eta, F, dF1, dF2, dF3, dF4, dF5, dF6)
+    !! fermi-dirac integral for j = 1/2 and derivatives
+    real,           intent(in)  :: eta
+      !! argument
+    real, optional, intent(out) :: F
+      !! output distribution function
+    real, optional, intent(out) :: dF1
+      !! output first derivative of F wrt eta
+    real, optional, intent(out) :: dF2
+      !! output second derivative of F wrt eta
+    real, optional, intent(out) :: dF3
+      !! output third derivative of F wrt eta
+    real, optional, intent(out) :: dF4
+      !! output fourth derivative of F wrt eta
+    real, optional, intent(out) :: dF5
+      !! output fifth derivative of F wrt eta
+    real, optional, intent(out) :: dF6
+      !! output sixth derivative of F wrt eta
+
+    real, parameter :: G0 = 1.0 / gamma(1.5)
+    real, parameter :: G1 = 1.0 / gamma(0.5)
+    real, parameter :: G2 = 1.0 / gamma(-0.5)
+    real, parameter :: G3 = 1.0 / gamma(-1.5)
+    real, parameter :: G4 = 1.0 / gamma(-2.5)
+    real, parameter :: G5 = 1.0 / gamma(-3.5)
+
+    if (present(f  )) F   = fd1h( eta) * G0
+    if (present(dF1)) dF1 = fdm1h(eta) * G1
+    if (present(dF2)) dF2 = fdm3h(eta) * G2
+    if (present(dF3)) dF3 = fdm5h(eta) * G3
+    if (present(dF4)) dF4 = fdm7h(eta) * G4
+    if (present(dF5)) dF5 = fdm9h(eta) * G5
+    if (present(dF6)) dF6 = dfdm9h(eta) * G5
+  end subroutine
+
+  subroutine ifd12(F, eta, deta)
+    !! inverse of fermi-dirac integral for j = 1/2 and derivative
+    !! Reference: Fukushima, T. (2015, App. Math. Comp., 259, 698-707)
+    real,           intent(in)  :: F
+      !! fermi-dirac integral value (> 0)
+    real, optional, intent(out) :: eta
+      !! output argument of fermi-dirac integral
+    real, optional, intent(out) :: deta
+      !! output derivative of eta wrt F
+
+    real, parameter :: C1(10) = [ &
+      8.4973821066601840E-01, 1.5637783330562941E+05, 4.8177570589828698E+04, 5.8470721838381196E+03, 3.3539780796721942E+02, &
+      7.8441186802991201E+00, 1.1776202905535090E+05,-1.9007269383703679E+04, 1.3762936928453139E+03,-5.4113726984817170E+01 ]
+    real, parameter :: C2(17) = [ &
+      3.7691787449019803E-01,-4.4356940732931460E-01, 4.8914044731041020E+02, 5.3350726931726194E+03, 2.0169073614044250E+04, &
+      3.5247811559551090E+04, 3.0462366861471477E+04, 1.2567903242612896E+04, 2.1318678935739867E+03, 9.3652017208541949E+01, &
+      6.5682620764306057E+02, 4.2748283105194159E+03, 1.0555758131015149E+04, 1.2341874209461188E+04, 6.9491885441319710E+03, &
+      1.6921965063419400E+03, 1.2922177299158975E+02 ]
+    real, parameter :: C3(17) = [ &
+      1.0465156933592495E-01,-4.0080827720541695E-01, 1.0198488640664235E+03, 9.4401825500392206E+03, 3.3947661636376244E+04, &
+      6.0256728098054278E+04, 5.5243004506305580E+04, 2.4769835480221085E+04, 4.5117728861766827E+03, 2.1143280633615015E+02, &
+      3.5050207035358642E+02, 2.5310629620123404E+03, 6.9390985065943923E+03, 9.0054019797239653E+03, 5.6067361299413406E+03, &
+      1.4887663456400508E+03, 1.2153702888941258E+02 ]
+    real, parameter :: C4(17) = [ &
+      2.5090716445082574E-02,-3.3585051328246379E-01, 1.1885877939839949E+04, 1.1322025082517879E+05, 4.0852437388119783E+05, &
+      6.9567435748347593E+05, 5.6938991708850558E+05, 2.0643308201368144E+05, 2.7307253567197411E+04, 8.2443082679473071E+02, &
+      1.6344049122086119E+03, 1.2218115855188402E+04, 3.2911786995779323E+04, 3.8934696303939934E+04, 2.0038835843822581E+04, &
+      3.9494838089779696E+03, 2.1560740489099570E+02 ]
+    real, parameter :: C5(17) = [ &
+      7.3980341563880635E-03,-3.9387746247592931E-01, 1.1730701119043564E+04, 9.9421745579663359E+04, 3.2770696891070693E+05, &
+      5.3042566801656317E+05, 4.3863190051655506E+05, 1.7532285566231585E+05, 2.8701960598881389E+04, 1.2582091446428640E+03, &
+      6.3408047038302618E+02, 4.2956315986026584E+03, 1.0868526066891194E+04, 1.2781687199797707E+04, 7.0938073210076054E+03, &
+      1.6750641705630003E+03, 1.2575090181775967E+02 ]
+    real, parameter :: C6( 7) = [ &
+      1.0801341205098402E+03, 1.1281349514482193E+07, 4.2036891115716088E+05, 1.6896947571453611E+03, 6.0880835083129587E+03, &
+      2.2144523675946675E+02, 7.1821670869539778E-01 ]
+    real, parameter :: FBND( 5) = [ &
+      1.3279138832783541E+00, 4.3216142181900556E+00, 1.5103862150597896E+01, 6.0075840912753129E+01, 2.1260003088573106E+02 ]
+    real, parameter :: G = gamma(1.5)
+
+    real :: b, b1, n, n1, d, d1, s, s1, t
+
+    if (F < FBND(1)) then
+      t = C1(1) * G * F
+      if (present(eta) .or. present(deta)) then
+        n =       t*(C1(2)+t*(C1(3)+t*(C1( 4)+t*(C1(5)+t*C1(6)))))
+        d = C1(7)+t*(C1(8)+t*(C1(9)+t*(C1(10)+t                )))
+        b = n / d
+        if (present(eta)) eta = log(b)
+      end if
+      if (present(deta)) then
+        n1 = (C1(2)+t*(2*C1(3)+t*(3*C1( 4)+t*(4*C1(5)+t*5*C1(6))))) * G * C1(1)
+        d1 = (C1(8)+t*(2*C1(9)+t*(3*C1(10)+t* 4                 ))) * G * C1(1)
+        b1 = (n1 - n * d1 / d) / d
+        deta = b1 / b
+      end if
+    elseif (F < FBND(2)) then
+      t = C2(1) * G * F + C2(2)
+      if (present(eta) .or. present(deta)) then
+        n = (C2( 3)+t*(C2( 4)+t*(C2( 5)+t*(C2( 6)+t*(C2( 7)+t*(C2( 8)+t*(C2( 9)+t*C2(10))))))))
+        d = (C2(11)+t*(C2(12)+t*(C2(13)+t*(C2(14)+t*(C2(15)+t*(C2(16)+t*(C2(17)+t       )))))))
+        if (present(eta)) eta = n / d
+      end if
+      if (present(deta)) then
+        n1 = (C2( 4)+t*(2*C2( 5)+t*(3*C2( 6)+t*(4*C2( 7)+t*(5*C2( 8)+t*(6*C2( 9)+t*7*C2(10))))))) * G * C2(1)
+        d1 = (C2(12)+t*(2*C2(13)+t*(3*C2(14)+t*(4*C2(15)+t*(5*C2(16)+t*(6*C2(17)+t*7       )))))) * G * C2(1)
+        deta = (n1 - n * d1 / d) / d
+      end if
+    elseif (F < FBND(3)) then
+      t = C3(1) * G * F + C3(2)
+      if (present(eta) .or. present(deta)) then
+        n = C3( 3)+t*(C3( 4)+t*(C3( 5)+t*(C3( 6)+t*(C3( 7)+t*(C3( 8)+t*(C3( 9)+t*C3(10)))))))
+        d = C3(11)+t*(C3(12)+t*(C3(13)+t*(C3(14)+t*(C3(15)+t*(C3(16)+t*(C3(17)+t       ))))))
+        if (present(eta)) eta = n / d
+      end if
+      if (present(deta)) then
+        n1 = (C3( 4)+t*(2*C3( 5)+t*(3*C3( 6)+t*(4*C3( 7)+t*(5*C3( 8)+t*(6*C3( 9)+t*7*C3(10))))))) * G * C3(1)
+        d1 = (C3(12)+t*(2*C3(13)+t*(3*C3(14)+t*(4*C3(15)+t*(5*C3(16)+t*(6*C3(17)+t*7       )))))) * G * C3(1)
+        deta = (n1 - n * d1 / d) / d
+      end if
+    elseif (F < FBND(4)) then
+      t = C4(1) * G * F + C4(2)
+      if (present(eta) .or. present(deta)) then
+        n = C4( 3)+t*(C4( 4)+t*(C4( 5)+t*(C4( 6)+t*(C4( 7)+t*(C4( 8)+t*(C4( 9)+t*C4(10)))))))
+        d = C4(11)+t*(C4(12)+t*(C4(13)+t*(C4(14)+t*(C4(15)+t*(C4(16)+t*(C4(17)+t       ))))))
+        if (present(eta)) eta = n / d
+      end if
+      if (present(deta)) then
+        n1 = (C4( 4)+t*(2*C4( 5)+t*(3*C4( 6)+t*(4*C4( 7)+t*(5*C4( 8)+t*(6*C4( 9)+t*7*C4(10))))))) * G * C4(1)
+        d1 = (C4(12)+t*(2*C4(13)+t*(3*C4(14)+t*(4*C4(15)+t*(5*C4(16)+t*(6*C4(17)+t*7       )))))) * G * C4(1)
+        deta = (n1 - n * d1 / d) / d
+      end if
+    elseif (F < FBND(5)) then
+      t = C5(1) * G * F + C5(2)
+      if (present(eta) .or. present(deta)) then
+        n = C5( 3)+t*(C5( 4)+t*(C5( 5)+t*(C5( 6)+t*(C5( 7)+t*(C5( 8)+t*(C5( 9)+t*C5(10)))))))
+        d = C5(11)+t*(C5(12)+t*(C5(13)+t*(C5(14)+t*(C5(15)+t*(C5(16)+t*(C5(17)+t       ))))))
+        if (present(eta)) eta = n / d
+      end if
+      if (present(deta)) then
+        n1 = (C5( 4)+t*(2*C5( 5)+t*(3*C5( 6)+t*(4*C5( 7)+t*(5*C5( 8)+t*(6*C5( 9)+t*7*C5(10))))))) * G * C5(1)
+        d1 = (C5(12)+t*(2*C5(13)+t*(3*C5(14)+t*(4*C5(15)+t*(5*C5(16)+t*(6*C5(17)+t*7       )))))) * G * C5(1)
+        deta = (n1 - n * d1 / d) / d
+      end if
+    else
+      s = C6(1) * (G * F)**(- 4.0/3.0)
+      t = 1 - s
+      if (present(eta) .or. present(deta)) then
+        n = C6(2)+t*(C6(3)+t*(C6(4)+t))
+        d = s*(C6(5)+t*(C6(6)+t*C6(7)))
+        b = n / d
+        if (present(eta)) eta = sqrt(b)
+      end if
+      if (present(deta)) then
+        s1 = C6(1) * (-4.0/3.0) * (G * F)**(-7.0/3.0) * G
+        n1 = - (C6(3)+t*(2*C6(4)+t*3)) * s1
+        d1 = s1*(C6(5)+t*(C6(6)+t*C6(7)) - s*(C6(6)+t*2*C6(7)))
+        b1 = (n1 - n * d1 / d) / d
+        deta = 0.5 / sqrt(b) * b1
+      end if
+    end if
+  end subroutine
+
+  subroutine get_current(dist, idist, n1, n2, dpot, j, djdn1, djdn2, djddpot, nquad)
+    procedure(dist_)  :: dist
+      !! distribution function
+    procedure(idist_) :: idist
+      !! inverse distribution function
+    real, intent(in)  :: n1
+      !! normalized density at the left point
+    real, intent(in)  :: n2
+      !! normalized density at the right point
+    real, intent(in)  :: dpot
+      !! normalized potential drop
+    real, intent(out) :: j
+      !! output normalized current density
+    real, intent(out) :: djdn1
+      !! output derivative of j wrt n1
+    real, intent(out) :: djdn2
+      !! output derivative of j wrt n2
+    real, intent(out) :: djddpot
+      !! output derivative of j wrt dpot
+    real, intent(out) :: nquad
+      !! number of quadrature points per newton iteration
+
+    integer :: cs, k, it
+    real    :: n1_, n2_, dpot_, eta1, deta1dn1, eta2, deta2dn2, deta
+    real    :: jj, jjold, jjmin, jjmax, djj, err, djdeta(2), tmp
+    real    :: eta0, deta0djj, Fc, F0, F1, F2, F3, F4, F5, F6, b, dbdeta0, dbdjj
+    real    :: a, dadjj
+    real    :: res, dresdjj, dresdeta(2), dresddpot
+    logical :: flip, F456
+
+    ! flip edge direction if potential drop is negative
+    flip = (dpot < 0)
+    if (flip) then
+      n1_   = n2
+      n2_   = n1
+    else
+      n1_   = n1
+      n2_   = n2
+    end if
+    dpot_ = abs(dpot)
+
+    ! get normalized Fermi levels
+    call idist(n1_, eta = eta1, detadF = deta1dn1)
+    call idist(n2_, eta = eta2, detadF = deta2dn2)
+    deta = eta2 - eta1
+
+    ! get case
+    if (abs(dpot_) > CASETOL) then
+      if (deta - dpot_ > dpot_ * CASETOL) then
+        cs = CASE1A
+      elseif (deta - dpot_ >= - dpot_ * CASETOL) then
+        cs = CASE1B
+      elseif (deta > CASETOL) then
+        cs = CASE1C
+      elseif (deta >= - CASETOL) then
+        cs = CASE1D
+      else
+        cs = CASE1E
+      end if
+    else
+      if (abs(deta) > CASETOL) then
+        cs = CASE2A
+      else
+        cs = CASE2B
+      end if
+    end if
+
+    ! debug info
+    if (DEGEN_DEBUG) then
+      print *
+      print "(A,ES25.16E3)", "dpot = ", dpot_
+      print "(A,ES25.16E3)", "eta1 = ", eta1
+      print "(A,ES25.16E3)", "eta2 = ", eta2
+      print "(A,ES25.16E3)", "deta = ", deta
+      print "(2A)",          "case ", CASENAME(cs)
+    end if
+
+    ! calculate current based on case
+    nquad = 0
+    select case (cs)
+    case (CASE1B)
+      call case_1b(j, djdeta, djddpot)
+    case (CASE1D)
+      call case_1d(j, djdeta, djddpot)
+    case (CASE2A)
+      call case_2a(j, djdeta, djddpot)
+    case (CASE2B)
+      call case_2b(j, djdeta, djddpot)
+    case default
+      ! range for jj by mean value theorem
+      jjmin = abs(1 - deta / dpot_) * min(n1_, n2_)
+      jjmax = abs(1 - deta / dpot_) * max(n1_, n2_)
+      if (deta > dpot_) then
+        ! flip sign and order
+        jj    = jjmin
+        jjmin = - jjmax
+        jjmax = - jj
+      end if
+
+      ! further reduce range if possible
+      if (cs == CASE1A) then
+        call dist(eta2 - 0.5 * dpot_, F = Fc)
+        jjmin = max(jjmin, (1 - deta / dpot_) * Fc)
+      elseif (cs == CASE1C) then
+        jjmax = min(jjmax, n1_)
+      elseif (cs == CASE1E) then
+        jjmin = max(jjmin, n1_)
+      end if
+
+      ! initial value: enhanced diffusion approximation
+      if (n2_ == n1_) then
+        tmp = 1.0 / (n1_ * deta1dn1)
+      else
+        tmp = dpot_ * log(n2_ / n1_) / deta
+      end if
+      jj = - n1_ / expm1(-tmp) - n2_ / expm1(tmp)
+      if ((jj < jjmin) .or. (jj > jjmax)) jj = 0.5 * (jjmin + jjmax)
+
+      if (DEGEN_DEBUG) then
+        print "(A,ES25.16E3)", "jjmin = ", jjmin
+        print "(A,ES25.16E3)", "jjmax = ", jjmax
+        print "(A,ES25.16E3)", "jj    = ", jj
+      end if
+
+! block
+!   use math_m, only: linspace
+!   integer, parameter :: NN = 5001
+!   integer :: ii, funit
+!   real :: jj0
+!   real, allocatable :: jjj(:)
+
+!   if (.not. DEGEN_TANH_SINH) then
+!     ! jj0 = jj
+!     ! jjj = linspace(-1.0, -1e-8, NN)
+!     ! open (newunit = funit, file = "res.csv", status = "replace", action = "write")
+!     ! do ii = 1, NN
+!     !   jj = jjj(ii)
+!     !   call residual(res, dresdjj, dresdeta, dresddpot)
+!     !   write (funit, "(2ES25.16E3)") jj, res
+
+!     !   if (.not. ieee_is_finite(res)) then
+!     !     print "(2ES25.16E3)", jj, res
+!     !   end if
+!     ! end do
+!     ! jj = jj0
+!     ! close (funit)
+
+!     jj = -1.3443540688664724E-001
+!     call residual(res, dresdjj, dresdeta, dresddpot)
+!     print "(A,ES25.16E3)", "res = ", res
+!     stop
+!   end if
+! end block
+
+      ! Newton iteration
+      err = huge(1.0)
+      it  = 0
+      do while ((it < 6) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
+        it = it + 1
+        if (it > MAX_IT) call fatal_error("No convergence after " // int2str(MAX_IT) // " iterations")
+
+        ! evaluate residual and get Newton update
+        call residual(res, dresdjj, dresdeta, dresddpot)
+
+        ! treat singularity of res at interval end-points
+        do while (.not. ieee_is_finite(res))
+          if (jj - jjmin < 1e-13 * (jjmax - jjmin)) then
+            jj    = ieee_next_after(jj, huge(1.0))
+            jjmin = jj
+          elseif (jjmax - jj < 1e-13 * (jjmax - jjmin)) then
+            jj    = ieee_next_after(jj, -huge(1.0))
+            jjmax = jj
+          else
+            call fatal_error("residual not finite")
+          end if
+          call residual(res, dresdjj, dresdeta, dresddpot)
+        end do
+
+        ! Newton update
+        djj = - res / dresdjj
+        err = abs(djj)
+
+        ! update bounds (assume monotonic behaviour)
+        if (djj > 0) then
+          jjmin = jj
+        else
+          jjmax = jj
+        end if
+
+        ! update solution
+        jjold = jj
+        jj    = jj + djj
+
+        ! bisection
+        if ((jj < jjmin) .or. (jj > jjmax) .or. ((jjold == jjmin) .and. (jj == jjmax))) then
+          if (DEGEN_DEBUG) print "(A)", "bisection"
+          jj = 0.5 * (jjmin + jjmax)
+          err = min(err, jjmax - jjmin)
+        end if
+
+        if (DEGEN_DEBUG) then
+          print "(I6,A,ES25.16E3,A,ES25.16E3,A,ES25.16E3)", it, ": jj = ", jj, "  +/-", err, "  ,", err / jj
+        end if
+      end do
+      nquad = nquad / it
+
+      ! get current and derivatives with implicit differentiation
+      call residual(res, dresdjj, dresdeta, dresddpot)
+      j       = dpot_ * jj
+      djdeta  =    - dpot_ * dresdeta  / dresdjj
+      djddpot = jj - dpot_ * dresddpot / dresdjj
+
+    end select
+
+    ! derivatives wrt densities
+    djdn1 = djdeta(1) * deta1dn1
+    djdn2 = djdeta(2) * deta2dn2
+
+    ! reverse edge direction flip (keep dj/ddpot = d(-j)/d(-dpot) unchanged)
+    if (flip) then
+      j     = - j
+      tmp   = djdn1
+      djdn1 = - djdn2
+      djdn2 = - tmp
+    end if
+
+  contains
+
+    subroutine case_1b(j, djdeta, djddpot)
+      real, intent(out) :: j
+      real, intent(out) :: djdeta(2)
+      real, intent(out) :: djddpot
+
+      integer       :: ncalls
+      real          :: I(-5:0), dI(2,-5:0), jc(1:5), djc(2,1:5)
+      real(kind=16) :: I16(-5:0), jc16(1:5), djc16(2,1:5), tmp16, dtmp16(2), j16
+
+      do k = -5, -1
+        call integrate_dist(dist, etac, eta1, eta2, k, I(k), dI(:,k), ncalls)
+        nquad = nquad + ncalls
+      end do
+      I(0)    = deta
+
+      I16 = I
+
+      dI(:,0) = [-1.0, 1.0]
+
+      jc16(1)  = I16(0) / I16(-1)
+      djc16(:,1) = (dI(:,0) - dI(:,-1) * I16(0) / I16(-1)) / I16(-1)
+
+      tmp16    = I16(-1)**2 - I16(-2)*I16(0)
+      dtmp16   = 2 * I16(-1) * dI(:,-1) - dI(:,-2)*I16(0) - I16(-2)*dI(:,0)
+      jc16(2)  = tmp16 / I16(-1)**3
+      djc16(:,2) = (dtmp16 - 3 * tmp16 * dI(:,-1) / I16(-1)) / I16(-1)**3
+
+      tmp16    = 2*I16(-2)**2*I16(0) - I16(-1)**2*I16(-2) - I16(-1)*I16(-3)*I16(0)
+      dtmp16   = 4*I16(-2)*dI(:,-2)*I16(0) + 2*I16(-2)**2*dI(:,0) - 2*I16(-1)*dI(:,-1)*I16(-2) - I16(-1)**2*dI(:,-2) &
+        &      - dI(:,-1)*I16(-3)*I16(0) - I16(-1)*dI(:,-3)*I16(0) - I16(-1)*I16(-3)*dI(:,0)
+      jc16(3)  = tmp16 / I16(-1)**5
+      djc16(:,3) = (dtmp16 - 5 * tmp16 * dI(:,-1) / I16(-1)) / I16(-1)**5
+
+      tmp16    = 2*I16(-1)**2*I16(-2)**2 - I16(-1)**3*I16(-3) - 5*I16(-2)**3*I16(0) - I16(-1)**2*I16(-4)*I16(0) + 5*I16(-1)*I16(-2)*I16(-3)*I16(0)
+      dtmp16   = 4*I16(-1)*dI(:,-1)*I16(-2)**2 + 4*I16(-1)**2*I16(-2)*dI(:,-2) - 3*I16(-1)**2*dI(:,-1)*I16(-3) - I16(-1)**3*dI(:,-3) &
+        &      - 15*I16(-2)**2*dI(:,-2)*I16(0) - 5*I16(-2)**3*dI(:,0) - 2*I16(-1)*dI(:,-1)*I16(-4)*I16(0) - I16(-1)**2*dI(:,-4)*I16(0) &
+        &      - I16(-1)**2*I16(-4)*dI(:,0) + 5*dI(:,-1)*I16(-2)*I16(-3)*I16(0) + 5*I16(-1)*dI(:,-2)*I16(-3)*I16(0) &
+        &      + 5*I16(-1)*I16(-2)*dI(:,-3)*I16(0) + 5*I16(-1)*I16(-2)*I16(-3)*dI(:,0)
+      jc16(4)  = tmp16 / I16(-1)**7
+      djc16(:,4) = (dtmp16 - 7 * tmp16 * dI(:,-1) / I16(-1)) / I16(-1)**7
+
+      tmp16    = 14*I16(0)*I16(-2)**4 - I16(-1)**4*I16(-4) - 5*I16(-1)**2*I16(-2)**3 - I16(0)*I16(-1)**3*I16(-5) &
+        &      + 5*I16(-1)**3*I16(-2)*I16(-3) + 3*I16(0)*I16(-1)**2*I16(-3)**2 - 21*I16(0)*I16(-1)*I16(-2)**2*I16(-3) &
+        &      + 6*I16(0)*I16(-1)**2*I16(-2)*I16(-4)
+      dtmp16   = 14*dI(:,0)*I16(-2)**4 + 56*I16(0)*I16(-2)**3*dI(:,-2) - 4*I16(-1)**3*dI(:,-1)*I16(-4) - I16(-1)**4*dI(:,-4) &
+        &      - 10*I16(-1)*dI(:,-1)*I16(-2)**3 - 15*I16(-1)**2*I16(-2)**2*dI(:,-2) - dI(:,0)*I16(-1)**3*I16(-5) &
+        &      - 3*I16(0)*I16(-1)**2*dI(:,-1)*I16(-5) - I16(0)*I16(-1)**3*dI(:,-5) + 15*I16(-1)**2*dI(:,-1)*I16(-2)*I16(-3) &
+        &      + 5*I16(-1)**3*dI(:,-2)*I16(-3) + 5*I16(-1)**3*I16(-2)*dI(:,-3) + 3*dI(:,0)*I16(-1)**2*I16(-3)**2 &
+        &      + 6*I16(0)*I16(-1)*dI(:,-1)*I16(-3)**2 + 6*I16(0)*I16(-1)**2*I16(-3)*dI(:,-3) - 21*dI(:,0)*I16(-1)*I16(-2)**2*I16(-3) &
+        &      - 21*I16(0)*dI(:,-1)*I16(-2)**2*I16(-3) - 42*I16(0)*I16(-1)*I16(-2)*dI(:,-2)*I16(-3) - 21*I16(0)*I16(-1)*I16(-2)**2*dI(:,-3) &
+        &      + 6*dI(:,0)*I16(-1)**2*I16(-2)*I16(-4) + 12*I16(0)*I16(-1)*dI(:,-1)*I16(-2)*I16(-4) + 6*I16(0)*I16(-1)**2*dI(:,-2)*I16(-4) &
+        &      + 6*I16(0)*I16(-1)**2*I16(-2)*dI(:,-4)
+      jc16(5)    = tmp16 / I16(-1)**9
+      djc16(:,5) = (dtmp16 - 9 * tmp16 * dI(:,-1) / I16(-1)) / I16(-1)**9
+
+      j16     = 0
+      djdeta  = 0
+      djddpot = 0
+      jc  = real(jc16)
+      djc = real(djc16)
+      do k = 1, 5
+        j16     = j16 + jc16(k) * (dpot_ - I16(0))**k
+        djdeta  = djdeta + (djc(:,k) * (dpot_ - I(0)) - k * jc(k) * dI(:,0)) * (dpot_ - I(0))**(k-1)
+        djddpot = djddpot + jc(k) * k * (dpot_ - I(0))**(k-1)
+      end do
+      j = real(j16)
+    end subroutine
+
+    subroutine case_1d(j, djdeta, djddpot)
+      use math_m, only: expm1
+
+      real, intent(out) :: j
+      real, intent(out) :: djdeta(2)
+      real, intent(out) :: djddpot
+
+      real :: etam, A, B, C, dAdetam, dBdetam, dCdetam, dCddpot, u, dudetam, duddpot, v, dvdetam, dvddpot, w
+      real :: jc(0:3), djcdetam(0:3), djcddpot(0:3)
+
+      etam = 0.5 * (eta1 + eta2)
+      call dist(etam, F = F0, dF1 = F1, dF2 = F2, dF3 = F3, dF4 = F4)
+
+      A       = F1**2 - F0 * F2
+      dAdetam = F1 * F2 - F0 * F3
+      B       = F2**2 - F1 * F3
+      dBdetam = F2 * F3 - F1 * F4
+      C       = dpot_ * F1
+      dCdetam = dpot_ * F2
+      dCddpot = F1
+
+      jc(0)       = dpot_ * F0
+      djcdetam(0) = C
+      djcddpot(0) = F0
+
+      u       = C / F0
+      dudetam = dCdetam / F0 - C * F1 / F0**2
+      duddpot = dCddpot / F0
+      v       = exp(u)
+      dvdetam = v * dudetam
+      dvddpot = v * duddpot
+      w       = expm1(u)
+      jc(1)       = - 0.5 * C * (v + 1) / w
+      djcdetam(1) = - 0.5 * (dCdetam * (v + 1) + C * dvdetam - C * (v + 1) * dvdetam / w) / w
+      djcddpot(1) = - 0.5 * (dCddpot * (v + 1) + C * dvddpot - C * (v + 1) * dvddpot / w) / w
+
+      u       = C**2 * F0 * (A + F1**2) + 2 * A * jc(1) * (C**2 - 4 * jc(1) * (F0 + jc(1)))
+      dudetam = (2 * C * dCdetam * F0 + C**2 * F1) * (A + F1**2) + C**2 * F0 * (dAdetam + 2 * F1 * F2) &
+        &     + 2 * (dAdetam * jc(1) + A * djcdetam(1)) * (C**2 - 4 * jc(1) * (F0 + jc(1))) &
+        &     + 2 * A * jc(1) * (2 * C * dCdetam - 4 * djcdetam(1) * (F0 + jc(1)) - 4 * jc(1) * (F1 + djcdetam(1)))
+      duddpot = 2 * C * dCddpot * F0 * (A + F1**2) + 2 * A * djcddpot(1) * (C**2 - 4 * jc(1) * (F0 + jc(1))) &
+        &     + 2 * A * jc(1) * (2 * C * dCddpot - 4 * djcddpot(1) * F0 - 8 * jc(1) * djcddpot(1))
+      v       = 8 * C * F0**2 * F1
+      dvdetam = 8 * dCdetam * F0**2 * F1 + 16 * C * F0 * F1**2 + 8 * C * F0**2 * F2
+      dvddpot = 8 * dCddpot * F0**2 * F1
+      jc(2)       = u / v
+      djcdetam(2) = (dudetam - u * dvdetam / v) / v
+      djcddpot(2) = (duddpot - u * dvddpot / v) / v
+
+      u       = 192*A**2*jc(1)**5 &
+              + 48*F0*jc(1)**4*(8*A**2 - B*F0**2 + 2*A*F0*F2) &
+              - 24*jc(1)**3*(2*B*F0**4 + A**2*(3*C**2 - 8*F0**2) - 4*A*F0**3*F2) &
+              - 12*C**2*F0*jc(1)**2*(10*A**2 - B*F0**2 + 3*A*F0*F2) &
+              - 4*C**2*F0**2*jc(1)*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
+              + 3*C**4*(A**2*(F0 + 2*jc(1)) + A*F0*F1**2)
+      dudetam = 384*A*dAdetam*jc(1)**5 + 960*A**2*jc(1)**4*djcdetam(1) &
+        &     + 48*(F1*jc(1)**4 + 4*F0*jc(1)**3*djcdetam(1)) * (8*A**2 - B*F0**2 + 2*A*F0*F2) &
+        &     + 48*F0*jc(1)**4*(16*A*dAdetam - dBdetam*F0**2 - 2*B*F0*F1 + 2*dAdetam*F0*F2 + 2*A*F1*F2 + 2*A*F0*F3) &
+        &     - 72*jc(1)**2*djcdetam(1)*(2*B*F0**4 + A**2*(3*C**2 - 8*F0**2) - 4*A*F0**3*F2) &
+        &     - 24*jc(1)**3*(2*dBdetam*F0**4 + 8*B*F0**3*F1 + 2*A*dAdetam*(3*C**2 - 8*F0**2) + A**2*(6*C*dCdetam - 16*F0*F1) - 4*dAdetam*F0**3*F2 - 12*A*F0**2*F1*F2 - 4*A*F0**3*F3) &
+        &     - 12*(2*C*dCdetam*F0*jc(1)**2 + C**2*F1*jc(1)**2 + 2*C**2*F0*jc(1)*djcdetam(1))*(10*A**2 - B*F0**2 + 3*A*F0*F2) &
+        &     - 12*C**2*F0*jc(1)**2*(20*A*dAdetam - dBdetam*F0**2 - 2*B*F0*F1 + 3*(dAdetam*F0*F2 + A*F1*F2 + A*F0*F3)) &
+        &     - 4*C*F0*(2*dCdetam*F0*jc(1) + 2*C*F1*jc(1) + C*F0*djcdetam(1))*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
+        &     - 4*C**2*F0**2*jc(1)*(24*A*dAdetam - 2*F0*F1*(3*B + F1*F3) - F0**2*(3*dBdetam + F2*F3 + F1*F4) + 6*F1*F2*A + 6*F0*F3*A + 6*F0*F2*dAdetam) &
+        &     + 12*C**3*dCdetam*(A**2*(F0 + 2*jc(1)) + A*F0*F1**2) &
+        &     + 3*C**4*(2*A*dAdetam*(F0 + 2*jc(1)) + A**2*(F1 + 2*djcdetam(1)) + dAdetam*F0*F1**2 + A*F1**3 + 2*A*F0*F1*F2)
+      duddpot = 960*A**2*jc(1)**4*djcddpot(1) &
+        &     + 192*F0*jc(1)**3*djcddpot(1)*(8*A**2 - B*F0**2 + 2*A*F0*F2) &
+        &     - 72*jc(1)**2*djcddpot(1)*(2*B*F0**4 + A**2*(3*C**2 - 8*F0**2) - 4*A*F0**3*F2) &
+        &     - 144*jc(1)**3*A**2*C*dCddpot &
+        &     - 24*F0*C*jc(1)*(dCddpot*jc(1) + C*djcddpot(1))*(10*A**2 - B*F0**2 + 3*A*F0*F2) &
+        &     - 4*F0**2*(2*C*dCddpot*jc(1) + C**2*djcddpot(1))*(12*A**2 - F0**2*(3*B + F1*F3) + 6*F0*F2*A) &
+        &     + 12*C**3*dCddpot*(A**2*(F0 + 2*jc(1)) + A*F0*F1**2) &
+        &     + 6*C**4*A**2*djcddpot(1)
+      v       = 96 * C**2 * F0**4 * F1**2
+      dvdetam = 192 * C * dCdetam * F0**4 * F1**2 + 384 * C**2 * F0**3 * F1**3 + 192 * C**2 * F0**4 * F1 * F2
+      dvddpot = 192 * C * dCddpot * F0**4 * F1**2
+      jc(3)       = u / v
+      djcdetam(3) = (dudetam - u * dvdetam / v) / v
+      djcddpot(3) = (duddpot - u * dvddpot / v) / v
+
+      j = jc(0) + jc(1) * deta + jc(2) * deta**2 + jc(3) * deta**3
+      djdeta(1) = 0.5 * (djcdetam(0) + djcdetam(1) * deta + djcdetam(2) * deta**2 + djcdetam(3) * deta**3) - jc(1) - 2 * jc(2) * deta - 3 * jc(3) * deta**2
+      djdeta(2) = 0.5 * (djcdetam(0) + djcdetam(1) * deta + djcdetam(2) * deta**2 + djcdetam(3) * deta**3) + jc(1) + 2 * jc(2) * deta + 3 * jc(3) * deta**2
+      djddpot   = djcddpot(0) + djcddpot(1) * deta + djcddpot(2) * deta**2 + djcddpot(3) * deta**3
+    end subroutine
+
+    subroutine case_2a(j, djdeta, djddpot)
+      real, intent(out) :: j
+      real, intent(out) :: djdeta(2)
+      real, intent(out) :: djddpot
+
+      integer :: ncalls
+      real    :: I(5), dI(2,5), jc(0:4), djc(2,0:4), tmp, dtmp(2)
+
+      do k = 1, 5
+        call integrate_dist(dist, etac, eta1, eta2, k, I(k), dI(:,k), ncalls)
+        nquad = nquad + ncalls
+      end do
+      jc(0)    = - I(1)
+      djc(:,0) = - dI(:,1)
+
+      jc(1) = I(2) / I(1)
+      djc(:,1) = (dI(:,2) - I(2) * dI(:,1) / I(1)) / I(1)
+
+      tmp      = I(2)**2 - I(1)*I(3)
+      dtmp     = 2*I(2)*dI(:,2) - dI(:,1)*I(3) - I(1)*dI(:,3)
+      jc(2)    = tmp / I(1)**3
+      djc(:,2) = (dtmp - 3 * tmp * dI(:,1) / I(1)) / I(1)**3
+
+      tmp      = I(1)**2*I(4) + 2*I(2)**3 - 3*I(1)*I(2)*I(3)
+      dtmp     = 2*I(1)*dI(:,1)*I(4) + I(1)**2*dI(:,4) + 6*I(2)**2*dI(:,2) - 3*dI(:,1)*I(2)*I(3) - 3*I(1)*dI(:,2)*I(3) - 3*I(1)*I(2)*dI(:,3)
+      jc(3)    = tmp / I(1)**5
+      djc(:,3) = (dtmp - 5 * tmp * dI(:,1) / I(1)) / I(1)**5
+
+      tmp      = 5*I(2)**4 - I(1)**3*I(5) + 2*I(1)**2*I(3)**2 - 10*I(1)*I(2)**2*I(3) + 4*I(1)**2*I(2)*I(4)
+      dtmp     = 20*I(2)**3*dI(:,2) - 3*I(1)**2*dI(:,1)*I(5) - I(1)**3*dI(:,5) + 4*I(1)*dI(:,1)*I(3)**2 &
+        &      + 4*I(1)**2*I(3)*dI(:,3) - 10*dI(:,1)*I(2)**2*I(3) - 20*I(1)*I(2)*dI(:,2)*I(3) - 10*I(1)*I(2)**2*dI(:,3) &
+        &      + 8*I(1)*dI(:,1)*I(2)*I(4) + 4*I(1)**2*dI(:,2)*I(4) + 4*I(1)**2*I(2)*dI(:,4)
+      jc(4)    = tmp / I(1)**7
+      djc(:,4) = (dtmp - 7 * tmp * dI(:,1) / I(1)) / I(1)**7
+
+      j       = jc(0)
+      djdeta  = djc(:,0)
+      djddpot = 0
+      do k = 1, 4
+        j       = j + jc(k) * dpot_**k
+        djdeta  = djdeta + djc(:,k) * dpot_**k
+        djddpot = djddpot + jc(k) * k * dpot_**(k-1)
+      end do
+    end subroutine
+
+    subroutine case_2b(j, djdeta, djddpot)
+      real, intent(out) :: j
+      real, intent(out) :: djdeta(2)
+      real, intent(out) :: djddpot
+
+      real :: etam, F0, F1, F2, F3, tmp, dtmpdetam, dtmpddeta, dtmpddpot, djdetam, djddeta
+
+      etam = 0.5 * (eta1 + eta2)
+      call dist(etam, F = F0, dF1 = F1, dF2 = F2, dF3 = F3)
+
+      tmp = F0 - F1**2 / (12 * F0) * deta * dpot_ + F2 / 24 * deta**2
+
+      dtmpdetam = F1 - (2 * F2 - F1**2 / F0) * F1 / (12 * F0) * deta * dpot_ + F3 / 24 * deta**2
+      dtmpddeta = - F1**2 / (12 * F0) * dpot_ + F2 / 12 * deta
+      dtmpddpot = - F1**2 / (12 * F0) * deta
+
+      j       = (dpot_ - deta) * tmp
+      djdetam = (dpot_ - deta) * dtmpdetam
+      djddeta = - tmp + (dpot_ - deta) * dtmpddeta
+      djdeta  = djdetam * [0.5, 0.5] + djddeta * [-1.0, 1.0]
+      djddpot = tmp + (dpot_ - deta) * dtmpddpot
+    end subroutine
+
+    subroutine residual(res, dresdjj, dresdeta, dresddpot)
+      real, intent(out) :: res
+      real, intent(out) :: dresdjj
+      real, intent(out) :: dresdeta(2)
+      real, intent(out) :: dresddpot
+
+      real    :: dresdjj1(1)
+      integer :: ncalls
+
+      if (DEGEN_TANH_SINH) then
+        call quad(integrand_1a, eta1, eta2, [jj], res, dresdeta(1), dresdeta(2), dresdjj1, ncalls = ncalls)
+        nquad     = nquad + ncalls
+        res       = res - dpot_
+        dresdjj   = dresdjj1(1)
+        dresddpot = -1
+      elseif (cs == CASE1A) then
+        call residual_1a(res, dresdjj, dresdeta, dresddpot)
+      else
+        call residual_1ce(res, dresdjj, dresdeta, dresddpot)
+      end if
+    end subroutine
+
+    subroutine residual_1a(res, dresdjj, dresdeta, dresddpot)
+      real, intent(out) :: res
+      real, intent(out) :: dresdjj
+      real, intent(out) :: dresdeta(2)
+      real, intent(out) :: dresddpot
+
+      real, parameter :: etac2 = 11.0
+
+      logical :: mask1(2), mask2(2)
+      real    :: bnd(2), dbnddeta(2), I, dIdbnd(2), dIdjj(1), t(2), dtdjj(2), dtdbnd(2), dtdeta(2), dum
+      real    :: l1, dl1djj, dl1dbnd(2), l2, dl2djj, dl2dbnd(2)
+
+      ! init output
+      res       = - dpot_
+      dresdjj   = 0
+      dresdeta  = 0
+      dresddpot = -1
+
+      ! no pole
+      eta0 = huge(1.0)
+      FIXME: always use integrand_r
+
+      ! exponential part
+      mask1 = ([eta1, eta2] <= etac)
+      bnd   = merge([eta1, eta2], [etac, etac], mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
+
+        t      = exp(bnd) * (gamma*jj - 1) + jj
+        dtdjj  = exp(bnd) * gamma + 1
+        dtdeta = exp(bnd) * dbnddeta * (gamma*jj - 1)
+
+        res      = res - log(t(2)/t(1)) / (gamma*jj - 1)
+        dresdjj  = dresdjj - (dtdjj(2)/t(2) - dtdjj(1)/t(1) - log(t(2)/t(1))*gamma/(gamma*jj - 1)) / (gamma*jj - 1)
+        dresdeta = dresdeta + dtdeta * [1.0, -1.0] / (t * (gamma*jj - 1))
+
+        ! numerical integration of rest term
+        call integrate_gauss_exp(integrand_1a_r, bnd(1), bnd(2), [jj], 3.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dum)
+        nquad    = nquad + NG
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+
+      ! transition region => Gauss-Legendre
+      mask2 = ([eta1, eta2] <= etac2)
+      bnd = merge([etac, etac], merge([eta1, eta2], [etac2, etac2], mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask1 .or. .not. mask2)
+
+        call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+        nquad    = nquad + NG
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+
+      ! large eta region => approximate integrand
+      mask2 = ([eta1, eta2] <= etac2)
+      bnd = merge([etac2, etac2], [eta1, eta2], mask2)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask2)
+
+        a          = (9 * PI / 16 * jj**2)**(1.0 / 3.0)
+        dadjj      = -2 * (-9 * PI / (16 * jj))**(1.0 / 3.0) / 3
+
+        l1         = log((sqrt(a) + sqrt(bnd(2))) / (sqrt(a) + sqrt(bnd(1))))
+        dl1djj     = (0.5 / (a + sqrt(a * bnd(2))) - 0.5 / (a + sqrt(a * bnd(1)))) * dadjj
+        dl1dbnd(1) = - 0.5 / (bnd(1) + sqrt(a * bnd(1)))
+        dl1dbnd(2) =   0.5 / (bnd(2) + sqrt(a * bnd(2)))
+
+        l2 = log((a - sqrt(a * bnd(2)) + bnd(2)) / (a - sqrt(a * bnd(1)) + bnd(1)))
+        dl2djj = ((1 - 0.5 * sqrt(bnd(2) / a)) / (a - sqrt(a * bnd(2)) + bnd(2)) &
+          &     - (1 - 0.5 * sqrt(bnd(1) / a)) / (a - sqrt(a * bnd(1)) + bnd(1))) * dadjj
+        dl2dbnd(1) = - (1 - 0.5 * sqrt(a / bnd(1))) / (a - sqrt(a * bnd(1) + bnd(1)))
+        dl2dbnd(2) =   (1 - 0.5 * sqrt(a / bnd(2))) / (a - sqrt(a * bnd(2) + bnd(2)))
+
+        t      = atan((1 - 2 * sqrt(bnd/a)) / sqrt(3.0))
+        dtdjj  = 0.25 * sqrt(3 * bnd / a) / (a - sqrt(a * bnd) + bnd) * dadjj
+        dtdbnd = - 0.25 * sqrt(3 * a / bnd) / (a - sqrt(a * bnd) + bnd)
+
+        I        = a * (2 * l1 - l2 + 2 * sqrt(3.0) * (t(2) - t(1))) / 3 + bnd(2) - bnd(1)
+        dIdjj(1) = (dadjj * (2 * l1 - l2 + 2 * sqrt(3.0) * (t(2) - t(1))) + a * (2 * dl1djj - dl2djj + 2 * sqrt(3.0) * (dtdjj(2) - dtdjj(1)))) / 3
+        dIdbnd   = a * (2 * dl1dbnd - dl2dbnd + 2 * sqrt(3.0) * ([-dtdbnd(1), dtdbnd(2)])) / 3 + [-1.0, 1.0]
+
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+
+        call integrate_gauss_legendre(integrand_1a_w, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+        res = res + I
+        dresdjj = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+    end subroutine
+
+    subroutine integrand_u(eta, jj, u, dudeta, dudjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: u
+      real, intent(out) :: dudeta
+      real, intent(out) :: dudjj(:)
+
+      real :: t
+
+      call dist(eta, F = u, dF1 = dudeta)
+      t        = u - jj(1)
+      u        = u / t
+      dudeta   = - jj(1) * dudeta / t**2
+      dudjj(1) = u / t
+    end subroutine
+
+    subroutine v_blak(eta, jj, v, dvdeta, dvdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj
+      real, intent(out) :: v
+      real, intent(out) :: dvdeta
+      real, intent(out) :: dvdjj
+
+      if (eta < ETA_BLAK) then
+        v      = 1.0 / (1.0 - jj * (exp(-eta) + GAMMA))
+        dvdeta =   - jj * exp(-eta)  * v**2
+        dvdjj  = (GAMMA + exp(-eta)) * v**2
+      else
+        v      = eta**1.5 / (eta**1.5 - 0.75 * sqrt(PI) * jj)
+        dvdeta = - 1.125 * sqrt(PI * eta) * jj / (eta**1.5 - 0.75 * sqrt(PI) * jj)**2
+        dvdjj  = 0.75 * sqrt(PI) * eta**1.5 / (eta**1.5 - 0.75 * sqrt(PI) * jj)**2
+      end if
+    end subroutine
+
+    subroutine v_pole(eta, jj, v, dvdeta, dvdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj
+      real, intent(out) :: v
+      real, intent(out) :: dvdeta
+      real, intent(out) :: dvdjj
+
+      if (eta0 <= 0) then
+        v      = - jj / (F1 * expm1(eta0 - eta))
+        dvdeta = - jj * exp(eta0 - eta) / (F1 * expm1(eta0 - eta)**2)
+        dvdjj  = (- 1.0  + jj * (F2 / F1 + exp(eta0 - eta) / expm1(eta0 - eta)) / F1) / (F1 * expm1(eta0 - eta))
+      else
+        v      = jj / (F1 * (eta - eta0))
+        dvdeta = - jj / (F1 * (eta - eta0)**2)
+        dvdjj  = (1.0 - jj * (F2 / F1 + 1.0 / (eta0 - eta)) / F1) / (F1 * (eta - eta0))
+      end if
+    end subroutine
+
+    subroutine integrand_r(eta, jj, r, drdeta, drdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: r
+      real, intent(out) :: drdeta
+      real, intent(out) :: drdjj(:)
+
+      real, parameter :: EPS = 1e-2, DELTA = 3.0
+
+      integer :: k, fact
+      real    :: u, dudeta, dudjj(1), v, dvdeta, dvdjj
+      real    :: rc(0:3), drc(0:3), F, dF
+
+      if (abs(eta - eta0) <= EPS) then ! Taylor series expansion of r = u - v_pole
+        ! higher derivatives needed
+        if (.not. F456) then
+          call dist(eta0, dF4 = F4, dF5 = F5, dF6 = F6)
+          F456 = .true.
+        end if
+
+        ! series expansion coefficients around eta0
+        if (eta0 <= 0) then
+          rc(0)  = (2*F1**2 - F0*F1 - F0*F2)/(2*F1**2)
+          rc(1)  = -(F0*(F1**2 - 3*F2**2 + 2*F1*F3))/(12*F1**3)
+          rc(2)  = -(F0*(F1**2*F4 + 3*F2**3 - 4*F1*F2*F3))/(12*F1**4)
+          rc(3)  = (F0*(F1**4 - 6*F1**3*F5 + 45*F2**4 + 20*F1**2*F3**2 - 90*F1*F2**2*F3 + 30*F1**2*F2*F4))/(120*F1**5)
+          drc(0) = -(F1**2*F2 - 2*F0*F2**2 + F1**3 - F0*F1*F2 + F0*F1*F3)/(2*F1**3)
+          drc(1) = -(9*F0*F2**3 + 2*F1**3*F3 + F1**4 - 3*F1**2*F2**2 - F0*F1**2*F2 + 2*F0*F1**2*F4 - 10*F0*F1*F2*F3)/(12*F1**4)
+          drc(2) = (12*F0*F2**4 - F1**4*F4 - 3*F1**2*F2**3 - F0*F1**3*F5 + 4*F1**3*F2*F3 + 4*F0*F1**2*F3**2 &
+            &       - 21*F0*F1*F2**2*F3 + 6*F0*F1**2*F2*F4)/(12*F1**5)
+          drc(3) = -(225*F0*F2**5 + 6*F1**5*F5 - F1**6 - 45*F1**2*F2**4 - 20*F1**4*F3**2 + F0*F1**4*F2 + 6*F0*F1**4*F6 &
+            &        - 30*F1**4*F2*F4 + 90*F1**3*F2**2*F3 + 240*F0*F1**2*F2*F3**2 + 180*F0*F1**2*F2**2*F4 &
+            &        - 540*F0*F1*F2**3*F3 - 42*F0*F1**3*F2*F5 - 70*F0*F1**3*F3*F4)/(120*F1**6)
+        else
+          rc(0)  = 1 - (F0*F2)/(2*F1**2)
+          rc(1)  = (F0*(3*F2**2 - 2*F1*F3))/(12*F1**3)
+          rc(2)  = -(F0*(F1**2*F4 + 3*F2**3 - 4*F1*F2*F3))/(12*F1**4)
+          rc(3)  = (F0*(45*F2**4 - 6*F1**3*F5 + 20*F1**2*F3**2 - 90*F1*F2**2*F3 + 30*F1**2*F2*F4))/(120*F1**5)
+          drc(0) = -(F1**2*F2 - 2*F0*F2**2 + F0*F1*F3)/(2*F1**3)
+          drc(1) = -(9*F0*F2**3 + 2*F1**3*F3 - 3*F1**2*F2**2 + 2*F0*F1**2*F4 - 10*F0*F1*F2*F3)/(12*F1**4)
+          drc(2) = (12*F0*F2**4 - F1**4*F4 - 3*F1**2*F2**3 - F0*F1**3*F5 + 4*F1**3*F2*F3 + 4*F0*F1**2*F3**2 &
+            &       - 21*F0*F1*F2**2*F3 + 6*F0*F1**2*F2*F4)/(12*F1**5)
+          drc(3) = -(225*F0*F2**5 + 6*F1**5*F5 - 45*F1**2*F2**4 - 20*F1**4*F3**2 + 6*F0*F1**4*F6 - 30*F1**4*F2*F4 &
+            &        + 90*F1**3*F2**2*F3 + 240*F0*F1**2*F2*F3**2 + 180*F0*F1**2*F2**2*F4 - 540*F0*F1*F2**3*F3 &
+            &        - 42*F0*F1**3*F2*F5 - 70*F0*F1**3*F3*F4)/(120*F1**6)
+        end if
+
+        ! assemble r
+        r          = rc(0)
+        drdeta     = 0
+        drdeta0(1) = drc(0)
+        fact = 1
+        do k = 1, 3
+          fact       = fact * k
+          r          = r + rc(k) * (eta - eta0(1))**k / fact
+          drdeta     = drdeta + k * rc(k) * (eta - eta0(1))**(k-1) / fact
+          drdeta0(1) = drdeta0(1) + (drc(k) * (eta - eta0(1))**k - k * rc(k) * (eta - eta0(1))**(k-1)) / fact
+        end do
+      else ! direct calculation of u - v
+        call integrand_u(eta, jj, u, dudeta, dudjj)
+
+        if (abs(eta - eta0) <= DELTA) then
+          ! close to pole
+          call v_pole(eta, jj(1), v, dvdeta, dvdjj)
+        else
+          ! far away
+          call v_blak(eta, jj(1), v, dvdeta, dvdjj)
+        end if
+
+        r        = u - v
+        drdeta   = dudeta - dvdeta
+        drdjj(1) = dudjj(1) - dvdjj
+      end if
+    end subroutine
+
+
+
+    subroutine integrand_1a(eta, jj, u, dudeta, dudjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: u
+      real, intent(out) :: dudeta
+      real, intent(out) :: dudjj(:)
+
+      real :: t
+
+      call dist(eta, F = u, dF1 = dudeta)
+      t        = u - jj(1)
+      u        = u / t
+      dudeta   = - jj(1) * dudeta / t**2
+      dudjj(1) = u / t
+    end subroutine
+
+    subroutine integrand_1a_r(eta, jj, r, drdeta, drdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: r
+      real, intent(out) :: drdeta
+      real, intent(out) :: drdjj(:)
+
+      real :: u, dudeta, dudjj(1)
+
+      call integrand_1a(eta, jj, u, dudeta, dudjj)
+
+      r        = u - 1 / (1 - jj(1) * (exp(-eta) + gamma))
+      drdeta   = dudeta + (jj(1) * exp(-eta)) / (1 - jj(1) * (exp(-eta) + gamma))**2
+      drdjj(1) = dudjj(1) - (exp(-eta) + gamma) / (1 - jj(1) * (exp(-eta) + gamma))**2
+    end subroutine
+
+    subroutine integrand_1a_w(eta, jj, w, dwdeta, dwdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: w
+      real, intent(out) :: dwdeta
+      real, intent(out) :: dwdjj(:)
+
+      real :: u, dudeta, dudjj(1)
+
+      call integrand_1a(eta, jj, u, dudeta, dudjj)
+
+      w        = u - sqrt(eta)**3 / (sqrt(eta)**3 + sqrt(a)**3)
+      dwdeta   = dudeta   - 3 * sqrt(a)**3 * sqrt(eta) / (2 * (sqrt(eta)**3 + sqrt(a)**3)**2)
+      dwdjj(1) = dudjj(1) + 3 * sqrt(a) * sqrt(eta)**3 / (2 * (sqrt(eta)**3 + sqrt(a)**3)**2) * dadjj
+    end subroutine
+
+    subroutine residual_1ce(res, dresdjj, dresdeta, dresddpot)
+      real, intent(out) :: res
+      real, intent(out) :: dresdjj
+      real, intent(out) :: dresdeta(2)
+      real, intent(out) :: dresddpot
+
+      real, parameter :: DELTA = 3
+
+      logical :: mask1(2), mask2(2), mask3(2)
+      real    :: eta0, deta0djj, bnd(2), dbnddeta(2), dbnddjj(2), dresdbnd(2)
+      real    :: s, t(2), dtdjj(2), I, dIdbnd(2), dIdjj(1), dIdxp
+
+      ! init output
+      res       = -dpot_
+      dresdjj   = 0
+      dresdeta  = 0
+      dresddpot = -1
+
+      ! pole position
+      call idist(jj, eta = eta0, detadF = deta0djj)
+      F0 = jj
+      F1 = 1.0 / deta0djj
+
+      ! exponential part
+      mask1 = ([eta1, eta2] <= eta0 - DELTA) .and. ([eta1, eta2] <= ETABLAK)
+      mask2 = ([eta0, eta0] - DELTA <= [ETABLAK, ETABLAK])
+      bnd = merge([eta1, eta2], merge([eta0, eta0] - DELTA, [ETABLAK, ETABLAK], mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask1)
+        dbnddjj  = merge([deta0djj, deta0djj], [0.0, 0.0], mask2 .and. .not. mask1)
+
+        ! v = 1 / (1 - jj * (exp(-eta) + GAMMA))
+        ! V = log((jj + exp(bnd(1)) * (jj * GAMMA - 1)) / (jj + exp(bnd(2)) * (jj * GAMMA - 1))) / (jj * GAMMA - 1)
+        s        = jj * GAMMA - 1
+        t        = jj + exp(bnd) * s
+        dtdjj    = 1 + exp(bnd) * GAMMA
+        res      = res + log(t(1) / t(2)) / s
+        dresdbnd = [exp(bnd(1)) / t(1), - exp(bnd(2)) / t(2)]
+        dresdjj  = dresdjj + (dtdjj(1) / t(1) - dtdjj(2) / t(2) - log(t(1) / t(2)) * GAMMA / s) / s + dot_product(dresdbnd, dbnddjj)
+        dresdeta = dresdeta + dresdbnd * dbnddeta
+
+        ! r = F(eta) / (F(eta) - jj) - 1 / (1 - jj * (exp(-eta) + GAMMA))
+        call integrate_gauss_exp(integrand_r_blak, bnd(1), bnd(2), [jj], 3.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dIdxp)
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1) + dot_product(dIdbnd, dbnddjj)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+
+      ! non-exponential part before pole
+      mask1 = ([eta1, eta2] <= eta0 - DELTA) .and. ([eta1, eta2] >= ETABLAK)
+      bnd = merge([eta1, eta2], merge([eta0, eta0] - DELTA, [ETABLAK, ETABLAK], mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = ....
+
+        ! v = eta^1.5 / (eta^1.5 - 0.75 * sqrt(pi) * F0);
+        ! V =
+
+        a          = (9 * PI / 16 * jj**2)**(1.0 / 3.0)
+        dadjj      = -2 * (-9 * PI / (16 * jj))**(1.0 / 3.0) / 3
+
+        l1         = log((sqrt(a) - sqrt(bnd(2))) / (sqrt(a) - sqrt(bnd(1))))
+        dl1djj     = ....!(0.5 / (a + sqrt(a * bnd(2))) - 0.5 / (a + sqrt(a * bnd(1)))) * dadjj
+        dl1dbnd(1) = ....!- 0.5 / (bnd(1) + sqrt(a * bnd(1)))
+        dl1dbnd(2) = ....!  0.5 / (bnd(2) + sqrt(a * bnd(2)))
+
+        l2 = log((a + sqrt(a * bnd(2)) + bnd(2)) / (a + sqrt(a * bnd(1)) + bnd(1)))
+        dl2djj = ....!((1 - 0.5 * sqrt(bnd(2) / a)) / (a - sqrt(a * bnd(2)) + bnd(2)) &
+          !&     - (1 - 0.5 * sqrt(bnd(1) / a)) / (a - sqrt(a * bnd(1)) + bnd(1))) * dadjj
+        dl2dbnd(1) = ....!- (1 - 0.5 * sqrt(a / bnd(1))) / (a - sqrt(a * bnd(1) + bnd(1)))
+        dl2dbnd(2) = ....!  (1 - 0.5 * sqrt(a / bnd(2))) / (a - sqrt(a * bnd(2) + bnd(2)))
+
+        t      = atan((1 + 2 * sqrt(bnd/a)) / sqrt(3.0))
+        dtdjj  = ....!0.25 * sqrt(3 * bnd / a) / (a - sqrt(a * bnd) + bnd) * dadjj
+        dtdbnd = ....!- 0.25 * sqrt(3 * a / bnd) / (a - sqrt(a * bnd) + bnd)
+
+        I        = a * (2 * l1 - l2 + 2 * sqrt(3.0) * (t(2) - t(1))) / 3 + bnd(2) - bnd(1)
+        dIdjj(1) = (dadjj * (2 * l1 - l2 + 2 * sqrt(3.0) * (t(2) - t(1))) + a * (2 * dl1djj - dl2djj + 2 * sqrt(3.0) * (dtdjj(2) - dtdjj(1)))) / 3
+        dIdbnd   = a * (2 * dl1dbnd - dl2dbnd + 2 * sqrt(3.0) * ([-dtdbnd(1), dtdbnd(2)])) / 3 + [-1.0, 1.0]
+
+        res      = res + I
+        dresdjj  = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+
+        call integrate_gauss_legendre(integrand_r_blak, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+        res = res + I
+        dresdjj = dresdjj + dIdjj(1)
+        dresdeta = dresdeta + dIdbnd * dbnddeta
+      end if
+
+      ! pole
+      mask1 = ([eta1, eta2] <= eta0 - DELTA)
+      mask2 = ([eta1, eta2] <= eta0 + DELTA)
+      bnd = merge([eta0, eta0] - DELTA, merge([eta1, eta2], [eta0, eta0] + DELTA, mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = ....
+
+        if (eta0 < etac) then
+          ! v = F0 / (dF01 * (-expm1(eta0 - eta)))
+        else
+          ! v = 1 / (b * (eta - eta0))
+        end if
+      end if
+
+      ! exponential part after pole
+      mask1 = ([eta1, eta2] >= eta0 + DELTA) .and. ([eta1, eta2] <= ETABLAK)
+      mask2 = ([eta0, eta0] + DELTA <= [ETABLAK, ETABLAK])
+      bnd = merge([eta1, eta2], merge([eta0, eta0] + DELTA, [ETABLAK, ETABLAK], mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = ....
+
+        ! v = 1 / (1 - F0 * (exp(-eta) + sqrt(0.125)));
+      end if
+
+      ! non-exponential part after pole
+      mask1 = ([eta1, eta2] >= eta0 + DELTA) .and. ([eta1, eta2] >= ETABLAK)
+      bnd = merge([eta1, eta2], merge([ETABLAK, ETABLAK], [eta0, eta0] + DELTA, mask2), mask1)
+      if (bnd(1) /= bnd(2)) then
+        dbnddeta = ....
+
+        ! v = eta^1.5 / (eta^1.5 - 0.75 * sqrt(pi) * F0);
+      end if
+
+      ! real, parameter :: ERR_TOL = 1e-16 ! FIXME: optimize value
+      ! real, parameter :: EPS = 1e-3      ! FIXME: optimize value
+
+      ! logical       :: mask(2)
+      ! real          :: err,bnd(2), dbnddjj(2), dbnddeta(2), I, dIdbnd(2), dIdeta0(1), dIdjj(1), dIdxp, dRdeta(2), dRdjj
+      ! real          :: t, dtdjj, dtdeta(2), em1, dem1djj, dem1deta1, em2, dem2djj, dem2deta2
+      ! real          :: etacc, detaccdjj, FF, dFF, rinf, drinfdjj
+      ! real(kind=16) :: b_16, R_16, t_16, em1_16, em2_16
+
+      ! ! init output
+      ! res       = -dpot_
+      ! dresdjj   = 0
+      ! dresdeta  = 0
+      ! dresddpot = -1
+
+      ! call idist(jj, eta = eta0, detadF = deta0djj)
+      ! F0 = jj
+      ! F1 = 1.0 / deta0djj
+
+      ! ! estimate relevance of pole
+      ! t   = 2 * abs((eta0 - 0.5 * (eta1 + eta2)) / deta)
+      ! err = 2 * PI * jj / (F1 * (t + sqrt(t**2 - 1))**(2*NG + 1))
+
+      ! ! simple integration if pole is irrelevant
+      ! if (abs(err) <= ERR_TOL * abs(dpot_)) then
+      !   if (cs == CASE1C) then
+      !     call integrate_gauss_legendre(integrand_1a, eta1, eta2, [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+      !     nquad     = nquad + NG
+      !     res       = res + I
+      !     dresdjj   = dresdjj + dIdjj(1)
+      !     dresdeta  = dresdeta + dIdbnd
+      !   else ! CASE1E
+      !     mask     = [eta1, eta2] <= etac
+      !     bnd      = merge([eta1, eta2], [etac, etac], mask)
+      !     dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
+      !     if (bnd(1) /= bnd(2)) then
+      !       call integrate_gauss_exp(integrand_1a, bnd(1), bnd(2), [jj], 1.0, I, dIdbnd(1), dIdbnd(2), dIdjj, dIdxp)
+      !       nquad    = nquad + NG
+      !       res      = res + I
+      !       dresdjj  = dresdjj + dIdjj(1)
+      !       dresdeta = dresdeta + dIdbnd * dbnddeta
+      !     end if
+
+      !     bnd      = merge([etac, etac], [eta1, eta2], mask)
+      !     dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
+      !     if (bnd(1) /= bnd(2)) then
+      !       call integrate_gauss_legendre(integrand_1a, bnd(1), bnd(2), [jj], I, dIdbnd(1), dIdbnd(2), dIdjj)
+      !       nquad    = nquad + NG
+      !       res      = res + I
+      !       dresdjj  = dresdjj + dIdjj(1)
+      !       dresdeta = dresdeta + dIdbnd * dbnddeta
+      !     end if
+      !   end if
+      !   return
+      ! end if
+
+      ! call dist(eta0, dF2 = F2, dF3 = F3)
+      ! F456 = .false.
+
+      ! ! pole
+      ! b_16    = F1 / F0
+      ! b       = real(b_16, kind=8)
+      ! dbdeta0 = (F2 - F1**2 / F0) / F0
+      ! dbdjj   = dbdeta0 * deta0djj
+
+      ! ! get R
+      ! R_16   = 0
+      ! dRdjj  = 0
+      ! dRdeta = 0
+      ! if (cs == CASE1C) then
+      !   t         = 0.75 * sqrt(PI) * jj * (1 - 1 / (EPS * (1 - jj / F1)))
+      !   if (ieee_is_finite(t) .and. (t > 0)) then
+      !     dtdjj     = 0.75 * sqrt(PI) * ((1 - 1 / (EPS * (1 - jj / F1))) + jj * (EPS * (jj / F1**2 * F2 * deta0djj - 1 / F1)) / (EPS * (1 - jj / F1))**2)
+      !     etacc     = t**(2.0 / 3.0)
+      !     detaccdjj = 2.0 / 3.0 * t**(- 1.0 / 3.0) * dtdjj
+      !   else
+      !     etacc = huge(1.0)
+      !     detaccdjj = 0
+      !   end if
+
+      !   mask = [eta1, eta2] <= etacc
+      !   bnd  = merge([eta1, eta2], [etacc, etacc], mask)
+      !   if (bnd(1) /= bnd(2)) then
+      !     dbnddjj  = merge([0.0, 0.0], [detaccdjj, detaccdjj], mask)
+      !     dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
+      !     call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
+      !     nquad  = nquad + NG
+      !     R_16   = R_16 + I
+      !     dRdjj  = dRdjj + dIdeta0(1) * deta0djj + dot_product(dIdbnd, dbnddjj)
+      !     dRdeta = dRdeta + dIdbnd * dbnddeta
+      !   end if
+
+      !   bnd = merge([etacc, etacc], [eta1, eta2], mask)
+      !   if (bnd(1) /= bnd(2)) then
+      !     dbnddjj  = merge([detaccdjj, detaccdjj], [0.0, 0.0], mask)
+      !     dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
+      !     call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
+      !     nquad  = nquad + NG
+      !     R_16   = R_16 + I
+      !     dRdjj  = dRdjj + dIdeta0(1) * deta0djj
+      !     dRdeta = dRdeta + dIdbnd * dbnddeta
+      !   end if
+      ! else ! CASE1E
+      !   mask = [eta1, eta2] <= etac
+      !   bnd = merge([eta1, eta2], [etac, etac], mask)
+      !   if (bnd(1) /= bnd(2)) then
+      !     dbnddeta = merge([1.0, 1.0], [0.0, 0.0], mask)
+      !     call integrate_gauss_exp(integrand_r, bnd(1), bnd(2), [eta0], 1.0, I, dIdbnd(1), dIdbnd(2), dIdeta0, dIdxp)
+      !     nquad  = nquad + NG
+      !     R_16   = R_16 + I
+      !     dRdjj  = dRdjj + dIdeta0(1) * deta0djj
+      !     dRdeta = dRdeta + dIdbnd * dbnddeta
+      !   end if
+
+      !   bnd = merge([etac, etac], [eta1, eta2], mask)
+      !   if (bnd(1) /= bnd(2)) then
+      !     dbnddeta = merge([0.0, 0.0], [1.0, 1.0], mask)
+      !     call integrate_gauss_legendre(integrand_r, bnd(1), bnd(2), [eta0], I, dIdbnd(1), dIdbnd(2), dIdeta0)
+      !     nquad  = nquad + NG
+      !     R_16   = R_16 + I
+      !     dRdjj  = dRdjj + dIdeta0(1) * deta0djj
+      !     dRdeta = dRdeta + dIdbnd * dbnddeta
+      !   end if
+      ! end if
+
+      ! ! modify eta0 if too close to interval
+      ! if (eta0 == eta1) then
+      !   eta0 = ieee_next_after(eta0, eta1 - deta)
+      ! elseif (eta0 == eta2) then
+      !   eta0 = ieee_next_after(eta0, eta2 + deta)
+      ! end if
+
+      ! ! calculate residual
+      ! em1_16    = expm1_16(real(eta0, kind = 16) - eta1)
+      ! em1       = real(em1_16, kind = 8)
+      ! dem1deta1 = - exp(eta0 - eta1)
+      ! dem1djj   = - dem1deta1 * deta0djj
+      ! em2_16    = expm1_16(real(eta0, kind = 16) - eta2)
+      ! em2       = real(em2_16, kind = 8)
+      ! dem2deta2 = - exp(eta0 - eta2)
+      ! dem2djj   = - dem2deta2 * deta0djj
+
+      ! t_16   = log(em2_16 / em1_16)
+      ! t      = real(t_16, kind = 8)
+      ! dtdjj  = dem2djj / em2 - dem1djj / em1
+      ! dtdeta = [- dem1deta1 / em1, dem2deta2 / em2]
+
+      ! res       = real(res + (t_16 + deta) / b_16 + R_16, kind = 8)
+      ! dresdjj   = dresdjj - deta / b**2 * dbdjj + (dtdjj - t * dbdjj / b) / b + dRdjj
+      ! dresdeta  = dresdeta + [-1.0, 1.0] / b + dtdeta / b + dRdeta
+    end subroutine
+
+    subroutine integrand_r_blak(eta, jj, r, drdeta, drdjj)
+      real, intent(in)  :: eta
+      real, intent(in)  :: jj(:)
+      real, intent(out) :: r
+      real, intent(out) :: drdeta
+      real, intent(out) :: drdjj(:)
+
+      real :: F, dF, u, dudeta, dudjj, v, dvdeta, dvdjj
+
+      call dist(eta, F = F, dF1 = dF)
+
+      u      = F / (F - jj(1))
+      dudeta = - jj(1) * dF / (F - jj(1))**2
+      dudjj  = F / (F - jj(1))**2
+
+      if (eta <= 1.3) then
+        v      = 1.0 / (1.0 - jj(1) * (exp(-eta) + GAMMA))
+        dvdeta = - jj(1) * exp(-eta) * v**2
+        dvdjj  = (GAMMA + exp(-eta)) * v**2
+      else
+        v      = eta**1.5 / (eta**1.5 - 0.75 * sqrt(PI) * jj(1))
+        dvdeta = - 1.125 * sqrt(PI * eta) * jj(1) / (eta**1.5 - 0.75 * sqrt(PI) * jj(1))**2
+        dvdjj  = 0.75 * sqrt(PI) * eta**1.5 / (eta**1.5 - 0.75 * sqrt(PI) * jj(1))**2
+      end if
+
+      r        = u - v
+      drdeta   = dudeta - dvdeta
+      drdjj(1) = dudjj - dvdjj
+    end subroutine
+
+    subroutine integrand_r_pole(eta, eta0, r, drdeta, drdeta0)
+      real, intent(in)  :: eta
+      real, intent(in)  :: eta0(:)
+      real, intent(out) :: r
+      real, intent(out) :: drdeta
+      real, intent(out) :: drdeta0(:)
+
+      call dist(eta, F = F, dF1 = dF)
+
+      u = F / (F - F0)
+      dudeta = - F0 * dF / (F - F0)**2
+      dudeta0 = F / (F - F0)**2 * F1
+
+      if (eta0 < etac) then
+        v = - F0 / (F1 * expm1(eta0(1) - eta))
+        dvdeta = - F0 / (F1 * ....)
+      else
+      end if
+    end subroutine
+
+
+    ! subroutine integrand_r(eta, eta0, r, drdeta, drdeta0)
+    !   real, intent(in)  :: eta
+    !   real, intent(in)  :: eta0(:)
+    !   real, intent(out) :: r
+    !   real, intent(out) :: drdeta
+    !   real, intent(out) :: drdeta0(:)
+
+    !   real, parameter :: EPS = 1e-2 ! FIXME: optimize
+
+    !   integer :: k, fact
+    !   real    :: rc(0:3), drc(0:3), F, dF
+
+    !   if (abs(eta - eta0(1)) <= EPS) then
+    !     if (.not. F456) then
+    !       call dist(eta0(1), dF4 = F4, dF5 = F5, dF6 = F6)
+    !       F456 = .true.
+    !     end if
+
+    !     ! series expansion coefficients around eta0
+    !     rc(0)  = (2*F1**2 - F0*F1 - F0*F2)/(2*F1**2)
+    !     rc(1)  = -(F0*(F1**2 - 3*F2**2 + 2*F1*F3))/(12*F1**3)
+    !     rc(2)  = -(F0*(F1**2*F4 + 3*F2**3 - 4*F1*F2*F3))/(12*F1**4)
+    !     rc(3)  = (F0*(F1**4 - 6*F1**3*F5 + 45*F2**4 + 20*F1**2*F3**2 - 90*F1*F2**2*F3 + 30*F1**2*F2*F4))/(120*F1**5)
+    !     drc(0) = -(F1**2*F2 - 2*F0*F2**2 + F1**3 - F0*F1*F2 + F0*F1*F3)/(2*F1**3)
+    !     drc(1) = -(9*F0*F2**3 + 2*F1**3*F3 + F1**4 - 3*F1**2*F2**2 - F0*F1**2*F2 + 2*F0*F1**2*F4 - 10*F0*F1*F2*F3)/(12*F1**4)
+    !     drc(2) = (12*F0*F2**4 - F1**4*F4 - 3*F1**2*F2**3 - F0*F1**3*F5 + 4*F1**3*F2*F3 + 4*F0*F1**2*F3**2 &
+    !       &       - 21*F0*F1*F2**2*F3 + 6*F0*F1**2*F2*F4)/(12*F1**5)
+    !     drc(3) = -(225*F0*F2**5 + 6*F1**5*F5 - F1**6 - 45*F1**2*F2**4 - 20*F1**4*F3**2 + F0*F1**4*F2 + 6*F0*F1**4*F6 &
+    !       &        - 30*F1**4*F2*F4 + 90*F1**3*F2**2*F3 + 240*F0*F1**2*F2*F3**2 + 180*F0*F1**2*F2**2*F4 &
+    !       &        - 540*F0*F1*F2**3*F3 - 42*F0*F1**3*F2*F5 - 70*F0*F1**3*F3*F4)/(120*F1**6)
+
+    !     ! assemble r
+    !     r          = rc(0)
+    !     drdeta     = 0
+    !     drdeta0(1) = drc(0)
+    !     fact = 1
+    !     do k = 1, 3
+    !       fact       = fact * k
+    !       r          = r + rc(k) * (eta - eta0(1))**k / fact
+    !       drdeta     = drdeta + k * rc(k) * (eta - eta0(1))**(k-1) / fact
+    !       drdeta0(1) = drdeta0(1) + (drc(k) * (eta - eta0(1))**k - k * rc(k) * (eta - eta0(1))**(k-1)) / fact
+    !     end do
+    !   else
+    !     call dist(eta, F = F, dF1 = dF)
+    !     r          = F / (F - F0) + F0 / (F1 * expm1(eta0(1) - eta))
+    !     drdeta     = - dF * F0 / (F - F0)**2 + F0 * exp(eta0(1) - eta) / (F1 * expm1(eta0(1) - eta)**2)
+    !     drdeta0(1) =    F * F1 / (F - F0)**2 - F0 * exp(eta0(1) - eta) / (F1 * expm1(eta0(1) - eta)**2) &
+    !       &        + 1 / expm1(eta0(1) - eta) - F0 * F2 / (F1**2 * expm1(eta0(1) - eta))
+    !   end if
+    ! end subroutine
+
+    elemental function expm1_16(x) result(e)
+      !! exp(x) - 1; accurate even for x close to 0
+      real(kind=16), intent(in) :: x
+      real(kind=16)             :: e
+
+      if (ieee_class(x) == IEEE_POSITIVE_INF) then
+        e = x
+      else
+        e = exp(x)
+
+        if (e == 1.0) then
+          e = x
+        else if (e - 1.0 == - 1.0) then
+          e = -1
+        else
+          e = (e - 1.0) * x / log(e)
+        end if
+      end if
+    end function
+
+    subroutine fatal_error(msg)
+      character(*), intent(in) :: msg
+
+      print "(A,I0)",        "NG        = ", NG
+      print "(A,I0)",        "NGEXP     = ", NGEXP
+      print "(A,L)",         "TANH_SINH = ", DEGEN_TANH_SINH
+      print "(A,ES25.16E3)", "etac      = ", etac
+      print "(A,ES25.16E3)", "gamma     = ", gamma
+      print "(A,ES25.16E3)", "n1        = ", n1
+      print "(A,ES25.16E3)", "n2        = ", n2
+      print "(A,ES25.16E3)", "dpot      = ", dpot
+      print "(A,ES25.16E3)", "jj        = ", jj
+      print "(2A)",          "case      = ", CASENAME(cs)
+
+      call program_error(msg)
+    end subroutine
+
+  end subroutine
+
+  subroutine integrate_dist(dist, etac, eta1, eta2, k, I, dIdeta, ncalls)
+    !! int_eta1^eta2 dist(eta)^k deta using Gauss-Laguerre, Gauss-Legendre
+    procedure(dist_)     :: dist
+      !! distribution function (e.g. fermi-dirac integral)
+    real,    intent(in)  :: etac
+      !! critical eta for Gauss-Laguerre integration
+    real,    intent(in)  :: eta1
+      !! lower integration bound
+    real,    intent(in)  :: eta2
+      !! upper integration bound
+    integer, intent(in)  :: k
+      !! exponent
+    real,    intent(out) :: I
+      !! output integral over dist^k
+    real,    intent(out) :: dIdeta(2)
+      !! output derivative of I wrt eta1, eta2
+    integer, intent(out) :: ncalls
+      !! output number of integrand calls
+
+    logical :: mask(2)
+    real    :: bnd(2), dbnd(2), I1, dI1dbnd(2), dum(0), dum2(0), dum3
+
+    ! special case: k = 0
+    if (k == 0) then
+      I      = eta2 - eta1
+      dIdeta = [-1.0, 1.0]
+      return
+    end if
+
+    if (DEGEN_TANH_SINH) then
+      call quad(dist_k, eta1, eta2, dum, I, dIdeta(1), dIdeta(2), dum2, ncalls = ncalls)
+      return
+    end if
+
+    ! reset output
+    I      = 0
+    dIdeta = 0
+    ncalls = 0
+
+    ! eta < etac: Gauss with Exponential weight
+    mask = [eta1, eta2] < etac
+    bnd  = merge([eta1, eta2], [etac, etac], mask)
+    if (bnd(1) /= bnd(2)) then
+      dbnd = merge([1.0, 1.0], [0.0, 0.0], mask)
+      call integrate_gauss_exp(dist_k, bnd(1), bnd(2), dum, real(k), I1, dI1dbnd(1), dI1dbnd(2), dum2, dum3)
+      ncalls = ncalls + 2 * NG
+      I      = I + I1
+      dIdeta = dIdeta + dI1dbnd * dbnd
+    end if
+
+    ! eta > etac: Gauss-Legendre
+    bnd = merge([etac, etac], [eta1, eta2], mask)
+    if (bnd(1) /= bnd(2)) then
+      dbnd = merge([0.0, 0.0], [1.0, 1.0], mask)
+      call integrate_gauss_legendre(dist_k, bnd(1), bnd(2), dum, I1, dI1dbnd(1), dI1dbnd(2), dum2)
+      ncalls = ncalls + NG
+      I      = I + I1
+      dIdeta = dIdeta + dI1dbnd * dbnd
+    end if
+
+  contains
+
+    subroutine dist_k(x, p, f, dfdx, dfdp)
+      real, intent(in)  :: x
+      real, intent(in)  :: p(:)
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+      real, intent(out) :: dfdp(:)
+
+      real :: FF, dFF1
+
+      m4_ignore(p)
+      m4_ignore(dfdp)
+
+      call dist(x, F = FF, dF1 = dFF1)
+      f    = FF**k
+      dfdx = k * FF**(k-1) * dFF1
+    end subroutine
+
+  end subroutine
+
+  subroutine integrate_gauss_legendre(integrand, a, b, p, I, dIda, dIdb, dIdp)
+    !! integrate function using Gauss-Legendre quadrature
+    procedure(integrand_) :: integrand
+      !! integrand
+    real,    intent(in)   :: a
+      !! lower bound
+    real,    intent(in)   :: b
+      !! upper bound
+    real,    intent(in)   :: p(:)
+      !! parameters
+    real,    intent(out)  :: I
+      !! output value of integral
+    real,    intent(out)  :: dIda
+      !! output derivative of I wrt lower bound
+    real,    intent(out)  :: dIdb
+      !! output derivative of I wrt upper bound
+    real,    intent(out)  :: dIdp(:)
+      !! output derivative of I wrt parameters
+
+    integer :: l
+    real    :: x, w, f, dfdx, dfdp(size(p))
+
+    ! reset output
+    I    = 0
+    dIda = 0
+    dIdb = 0
+    dIdp = 0
+
+    ! quadrature
+    do l = 1, NG
+      x = 0.5 * (a + b) + 0.5 * (b - a) * XLEG(l)
+      w = 0.5 * (b - a) * WLEG(l)
+
+      call integrand(x, p, f, dfdx, dfdp)
+      I = I + w * f
+      dIda = dIda + 0.5 * (w * dfdx * (1 - XLEG(l)) - WLEG(l) * f)
+      dIdb = dIdb + 0.5 * (w * dfdx * (1 + XLEG(l)) + WLEG(l) * f)
+      dIdp = dIdp + w * dfdp
+    end do
+  end subroutine
+
+  subroutine integrate_gauss_laguerre(integrand, a, b, p, k, I, dIda, dIdb, dIdp)
+    !! integrate function using two Gauss-Laguerre quadratures
+    procedure(integrand_) :: integrand
+      !! integrand
+    real,    intent(in)   :: a
+      !! lower bound
+    real,    intent(in)   :: b
+      !! upper bound
+    real,    intent(in)   :: p(:)
+      !! parameter
+    real,    intent(in)   :: k
+      !! exponent (can be positive or negative)
+    real,    intent(out)  :: I
+      !! output value of integral
+    real,    intent(out)  :: dIda
+      !! output derivative of I wrt lower bound
+    real,    intent(out)  :: dIdb
+      !! output derivative of I wrt upper bound
+    real,    intent(out)  :: dIdp(:)
+      !! output derivative of I wrt parameter
+
+    integer :: l
+    real    :: x, w, f, dfdx, dfdp(size(p))
+
+    m4_assert(k /= 0.0)
+
+    ! reset output
+    I    = 0
+    dIda = 0
+    dIdb = 0
+    dIdp = 0
+
+    ! quadrature
+    do l = 1, NG
+      w = WLAG(l) * exp(XLAG(l)) / k
+
+      x    = a - XLAG(l) / k
+      call integrand(x, p, f, dfdx, dfdp)
+      I    = I    - w * f
+      dIda = dIda - w * dfdx
+      dIdp = dIdp - w * dfdp
+
+      x = b - XLAG(l) / k
+      call integrand(x, p, f, dfdx, dfdp)
+      I    = I    + w * f
+      dIdb = dIdb + w * dfdx
+      dIdp = dIdp + w * dfdp
+    end do
+  end subroutine
+
+  subroutine integrate_gauss_exp(integrand, a, b, p, k, I, dIda, dIdb, dIdp, dIdk)
+    !! integrate function using custom exponentially weighted quadrature rule
+    procedure(integrand_) :: integrand
+      !! integrand
+    real,    intent(in)   :: a
+      !! lower bound
+    real,    intent(in)   :: b
+      !! upper bound
+    real,    intent(in)   :: p(:)
+      !! parameters
+    real,    intent(in)   :: k
+      !! exponent (can be positive or negative)
+    real,    intent(out)  :: I
+      !! output value of integral
+    real,    intent(out)  :: dIda
+      !! output derivative of I wrt lower bound
+    real,    intent(out)  :: dIdb
+      !! output derivative of I wrt upper bound
+    real,    intent(out)  :: dIdp(:)
+      !! output derivative of I wrt parameter
+    real,    intent(out)  :: dIdk
+      !! output derivative of I wrt exponent
+
+    integer :: l
+    real :: alpha, t(NGEXP), dtdalpha(NGEXP), w(NGEXP), dwdalpha(NGEXP)
+    real :: x, dxda, dxdb, dxdk, v, dvda, dvdb, dvdk, f, dfdx, dfdp(size(p))
+
+    ! reset output
+    I    = 0
+    dIda = 0
+    dIdb = 0
+    dIdp = 0
+    dIdk = 0
+
+    alpha = k * (b - a)
+    call gtab%get(alpha, t, dtdalpha, w, dwdalpha)
+
+    do l = 1, NGEXP
+      x    = a + (b - a) * t(l)
+      dxda = 1 - t(l) - alpha * dtdalpha(l)
+      dxdb =     t(l) + alpha * dtdalpha(l)
+      dxdk = dtdalpha(l) * (b - a)**2
+      v    =   w(l) * (b - a)
+      dvda = - w(l) - alpha * dwdalpha(l)
+      dvdb =   w(l) + alpha * dwdalpha(l)
+      dvdk = dwdalpha(l) * (b - a)**2
+      call integrand(x, p, f, dfdx, dfdp)
+
+      I = I + v * f
+      dIda = dIda + dvda * f + v * dfdx * dxda
+      dIdb = dIdb + dvdb * f + v * dfdx * dxdb
+      dIdp = dIdp + v * dfdp
+      dIdk = dIdk + dvdk * f + v * dfdx * dxdk
+    end do
+  end subroutine
+
+  subroutine weierstrass(dist, idist, n1, n2, dpot, j, djdn1, djdn2, djddpot, status)
+    procedure(dist_)     :: dist
+      !! distribution function
+    procedure(idist_)    :: idist
+      !! inverse distribution function
+    real,    intent(in)  :: n1
+      !! normalized density at the left point
+    real,    intent(in)  :: n2
+      !! normalized density at the right point
+    real,    intent(in)  :: dpot
+      !! normalized potential drop
+    real,    intent(out) :: j
+      !! output normalized current density
+    real,    intent(out) :: djdn1
+      !! output derivative of j wrt n1
+    real,    intent(out) :: djdn2
+      !! output derivative of j wrt n2
+    real,    intent(out) :: djddpot
+      !! output derivative of j wrt dpot
+    logical, intent(out) :: status
+
+    real, parameter :: eps_eta = 1e-12, eps_psi = 1e-3
+
+    real    :: n1_, n2_, dpot_, eta1, eta2, deta, deta1dn1, deta2dn2, djdeta(2), tmp
+    logical :: flip
+
+    ! flip edge direction if potential drop is negative
+    flip = (dpot < 0)
+    if (flip) then
+      n1_   = n2
+      n2_   = n1
+    else
+      n1_   = n1
+      n2_   = n2
+    end if
+    dpot_ = abs(dpot)
+
+    ! get normalized Fermi levels
+    call idist(n1_, eta = eta1, detadF = deta1dn1)
+    call idist(n2_, eta = eta2, detadF = deta2dn2)
+    deta = eta2 - eta1
+
+    if (abs(deta) < eps_eta) then
+      block
+        real :: etam, F0, F1, F2, F3, dtmpdetam, dtmpddeta, dtmpddpot, djdetam, djddeta
+
+        etam = 0.5 * (eta1 + eta2)
+        call dist(etam, F = F0, dF1 = F1, dF2 = F2, dF3 = F3)
+
+        tmp = F0 - F1**2 / (12 * F0) * deta * dpot_ + F2 / 24 * deta**2
+
+        dtmpdetam = F1 - (2 * F2 - F1**2 / F0) * F1 / (12 * F0) * deta * dpot_ + F3 / 24 * deta**2
+        dtmpddeta = - F1**2 / (12 * F0) * dpot_ + F2 / 12 * deta
+        dtmpddpot = - F1**2 / (12 * F0) * deta
+
+        j       = (dpot_ - deta) * tmp
+        djdetam = (dpot_ - deta) * dtmpdetam
+        djddeta = - tmp + (dpot_ - deta) * dtmpddeta
+        djdeta  = djdetam * [0.5, 0.5] + djddeta * [-1.0, 1.0]
+        djddpot = tmp + (dpot_ - deta) * dtmpddpot
+      end block
+    elseif (abs(dpot_) < eps_psi) then
+      block
+        real :: p(0), I, dIdeta1, dIdeta2, dIdp(0)
+
+        call integrate_gauss_legendre(integrand_dist, eta1, eta2, p, I, dIdeta1, dIdeta2, dIdp)
+
+        j       = - I
+        djdeta  = - [dIdeta1, dIdeta2]
+        djddpot = 0
+      end block
+    else
+      block
+        integer :: it
+        real    :: jmin, jmax, Fc, err, res, dresdj, dresdeta(2), dresddpot, dj, jold
+
+        ! range for j by mean value theorem
+        jmin = abs(1 - deta / dpot_) * min(n1, n2) * dpot_
+        jmax = abs(1 - deta / dpot_) * max(n1, n2) * dpot_
+        if (deta > dpot_) then
+          j    = jmin
+          jmin = - jmax
+          jmax = - j
+        end if
+
+        ! further reduce range if possible
+        if (deta - dpot_ > 0) then
+          call dist(eta2 - 0.5 * dpot_, F = Fc)
+          jmin = max(jmin, (dpot_ - deta) * Fc)
+        elseif (deta > 0) then
+          jmax = min(jmax, n1_ * dpot_)
+        else
+          jmin = max(jmin, n1_ * dpot_)
+        end if
+
+        ! initial value: enhanced diffusion approximation
+        if (n2_ == n1_) then
+          tmp = 1.0 / (n1_ * deta1dn1)
+        else
+          tmp = dpot_ * log(n2_ / n1_) / deta
+        end if
+        j = (- n1_ / expm1(-tmp) - n2_ / expm1(tmp)) * dpot_
+        if ((j < jmin) .or. (j > jmax)) j = 0.5 * (jmin + jmax)
+
+        j = jmin
+        call residual(res, dresdj, dresdeta, dresddpot)
+        j = jmax
+        call residual(tmp, dresdj, dresdeta, dresddpot)
+        if (sign(1.0, res) /= sign(1.0, tmp)) then
+          status = .false.
+          return
+        end if
+
+        ! Newton iteration
+        err = huge(1.0)
+        it  = 0
+        do while ((it < 1) .or. (it < 20) .or. (err > RTOL * abs(j) + ATOL))
+          it = it + 1
+          if (it > MAX_IT) then
+            print "(A,ES25.16E3)", "n1    = ", n1
+            print "(A,ES25.16E3)", "n2    = ", n2
+            print "(A,ES25.16E3)", "dpot  = ", dpot
+            print "(A)", "No convergence after " // int2str(MAX_IT) // " iterations"
+            status = .false.
+            return
+          end if
+
+          ! evaluate residual and get Newton update
+          call residual(res, dresdj, dresdeta, dresddpot)
+          dj = - res / dresdj
+          err = abs(dj)
+
+          ! update bounds (assume monotonic behaviour)
+          if (dj > 0) then
+            jmin = j
+          else
+            jmax = j
+          end if
+
+          ! update solution
+          jold = j
+          j    = j + dj
+
+          ! bisection
+          if ((j < jmin) .or. (j > jmax) .or. ((jold == jmin) .and. (j == jmax))) then
+            if (DEGEN_DEBUG) print "(A)", "bisection"
+            j = 0.5 * (jmin + jmax)
+            err = min(err, jmax - jmin)
+          end if
+
+          if (DEGEN_DEBUG) then
+            print "(I6,A,ES25.16E3,A,ES25.16E3,A,ES25.16E3)", it, ": j = ", j, "  +/-", err, "  ,", err / j
+          end if
+        end do
+
+        ! get current and derivatives with implicit differentiation
+        call residual(res, dresdj, dresdeta, dresddpot)
+        djdeta  = - dresdeta  / dresdj
+        djddpot = - dresddpot / dresdj
+      end block
+    end if
+
+    ! derivatives wrt densities
+    djdn1 = djdeta(1) * deta1dn1
+    djdn2 = djdeta(2) * deta2dn2
+
+    ! reverse edge direction flip (keep dj/ddpot = d(-j)/d(-dpot) unchanged)
+    if (flip) then
+      j     = - j
+      tmp   = djdn1
+      djdn1 = - djdn2
+      djdn2 = - tmp
+    end if
+
+    status = .true.
+
+  contains
+
+    subroutine integrand_dist(x, p, f, dfdx, dfdp)
+      real, intent(in)  :: x
+      real, intent(in)  :: p(:)
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+      real, intent(out) :: dfdp(:)
+
+      m4_ignore(p)
+      m4_ignore(dfdp)
+
+      call dist(x, F = f, dF1 = dfdx)
+    end subroutine
+
+    subroutine integrand_newton(x, p, f, dfdx, dfdp)
+      real, intent(in)  :: x
+      real, intent(in)  :: p(:)
+      real, intent(out) :: f
+      real, intent(out) :: dfdx
+      real, intent(out) :: dfdp(:)
+
+      real :: FF, dFF
+
+      call dist(x, F = FF, dF1 = dFF)
+      f = 1.0 / (p(2) - p(1) / FF)
+
+      dfdx    = - p(1) * dFF / (p(1) - p(2) * FF)**2
+      dfdp(1) = FF / (p(1) - p(2) * FF)**2
+      dfdp(2) = - 1.0 / (p(2) - p(1) / FF)**2
+    end subroutine
+
+    subroutine residual(res, dresdj, dresdeta, dresddpot)
+      real, intent(out) :: res
+      real, intent(out) :: dresdj
+      real, intent(out) :: dresdeta(2)
+      real, intent(out) :: dresddpot
+
+      real :: I, dIdeta1, dIdeta2, dIdp(2)
+
+      call integrate_gauss_legendre(integrand_newton, eta1, eta2, [j, dpot_], I, dIdeta1, dIdeta2, dIdp)
+
+      res       = I - 1
+      dresdj    = dIdp(1)
+      dresdeta  = [dIdeta1, dIdeta2]
+      dresddpot = dIdp(2)
+    end subroutine
+
+  end subroutine
+
+end module
