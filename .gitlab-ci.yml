@@ -22,7 +22,7 @@ workflow:
       echo '[debug]
       target = "test"
       single = true
-      libraries = ["ARPACK", "BLAS95", "GMP", "LAPACK95", "MPFR", "MUMPS", "TRIANGLE"]
+      libraries = ["ARPACK", "BLAS95", "GMP", "LAPACK95", "MPFR", "MUMPS"]
       templates = [
         { files = [
           "src/test/example.inp",
@@ -47,9 +47,6 @@ test-flang:
   extends: .base_test
   image: registry.git.rwth-aachen.de/ithe/fargo:flang
   allow_failure: true
-  variables:
-    FC: flang-new-20
-    CC: clang-20
   script:
     - |-
       echo 'compiler = "flang"
