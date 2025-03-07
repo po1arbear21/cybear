@@ -11,6 +11,7 @@ module triang_grid_m
   use output_file_m,   only: output_file
   use plotmtv_m,       only: plotmtv, plotset_options
   use qsort_m,         only: qsort
+  use string_m,        only: string, new_string
   use vector_m,        only: vector_int, vector_real
 
   implicit none
@@ -184,15 +185,17 @@ contains
   m4_define({T},{node})
   m4_include(../util/vector_imp.f90.inc)
 
-  subroutine triang_grid_init(this, name, vert, cells)
+  subroutine triang_grid_init(this, name, vert, cells, unit)
     !! initialize triangle grid
-    class(triang_grid), intent(out) :: this
-    character(*),       intent(in)  :: name
+    class(triang_grid),     intent(out) :: this
+    character(*),           intent(in)  :: name
       !! grid name
-    real,               intent(in)  :: vert(:,:)
+    real,                   intent(in)  :: vert(:,:)
       !! x,y vertex coordinates; size = (2, nvert)
-    integer,            intent(in)  :: cells(:,:)
+    integer,                intent(in)  :: cells(:,:)
       !! 3 vertex indices per cell; size = (3, ncell)
+    type(string), optional, intent(in)  :: unit(2)
+      !! physical unit tokens (default: nm)
 
     integer                       :: j, k, icell, iedge1, iedge2, ivert1, ivert2, nmax
     logical                       :: edge_exists
@@ -202,6 +205,10 @@ contains
 
     ! init base
     call this%grid_init(name, 2, 1, [2], 3, [3])
+
+    ! unit
+    allocate (this%unit(2), source = new_string("nm"))
+    if (present(unit)) this%unit = unit
 
     ! save vertices and cell-vertex table
     m4_assert(size(vert,  dim = 1) == 2)

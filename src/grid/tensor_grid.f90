@@ -111,6 +111,10 @@ contains
     ! init base
     call this%grid_init(name, dim, idx_dim, face_nvert, cell_nvert, cell_nedge)
 
+    ! unit
+    allocate (this%unit(dim))
+    this%unit = [(g(i)%p%unit, i = 1, size(g))]
+
     ! save sub-grid pointers
     this%g = g
 
