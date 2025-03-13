@@ -29,10 +29,10 @@ module math_m
   real, parameter :: PI = 3.141592653589793238462643
 
   interface expm1
-    module procedure :: m_expm1
+    module procedure :: m_expm1, m_expm1_16
   end interface
   interface log1p
-    module procedure :: m_log1p
+    module procedure :: m_log1p, m_log1p_16
   end interface
 
 contains
@@ -258,12 +258,53 @@ contains
     end if
   end function
 
+  elemental function m_expm1_16(x) result(e)
+    !! quadprecision exp(x) - 1; accurate even for x close to 0
+    real(kind=16), intent(in) :: x
+    real(kind=16)             :: e
+
+    if (ieee_class(x) == IEEE_POSITIVE_INF) then
+      e = x
+    else
+      e = exp(x)
+
+      if (e == 1.0) then
+        e = x
+      else if (e - 1.0 == - 1.0) then
+        e = -1
+      else if (ieee_is_finite(e)) then
+        e = (e - 1.0) * x / log(e)
+      end if
+    end if
+  end function
+
   elemental function m_log1p(x) result(l)
     !! log(1 + x); accurate even for x close to 0
     real, intent(in) :: x
     real             :: l
 
     real :: u, d
+
+    if (ieee_class(x) == IEEE_POSITIVE_INF) then
+      l = x
+    else
+      u = 1.0 + x
+      d = u - 1.0
+
+      if (d == 0) then
+        l = x
+      else
+        l = log(u) * x / d
+      end if
+    end if
+  end function
+
+  elemental function m_log1p_16(x) result(l)
+    !! quadprecision log(1 + x); accurate even for x close to 0
+    real(kind=16), intent(in) :: x
+    real(kind=16)             :: l
+
+    real(kind=16) :: u, d
 
     if (ieee_class(x) == IEEE_POSITIVE_INF) then
       l = x

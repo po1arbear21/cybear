@@ -199,7 +199,6 @@ contains
     end block
 
     ! expm1 -> exp(x) - 1
-    ! testing single values from x
     block
       real :: x(6), y(6), y_exp(6)
 
@@ -211,8 +210,19 @@ contains
       call tc%assert_eq(y_exp, y, 1e-14, 1e-16, "expm1 (exp(x) - 1)")
     end block
 
+    ! quadprecision expm1 -> exp(x) - 1
+    block
+      real(kind=16) :: x(6), y(6), y_exp(6)
+
+      x     = [epsilon(1.0_16), -epsilon(1.0_16), 0.1_16,                -1.0_16,                1e-5_16,                   -0.2143_16]
+      y_exp = [epsilon(1.0_16), -epsilon(1.0_16), 0.10517091807564762481170782649025_16, -0.63212055882855767840447622983854_16, 1.00000500001666670833341666680556e-5_16, -0.19289378316578079819086613378169_16]
+
+      y     = expm1(x)
+
+      call tc%assert_eq(y_exp, y, 1e-30_16, 1e-32_16, "expm1_16 (exp(x) - 1)")
+    end block
+
     ! log1p(x) -> log(1+x)
-    ! testing single values from x
     block
       real :: x(5), y(5), y_exp(5)
 
@@ -223,6 +233,19 @@ contains
 
       call tc%assert_eq(y_exp, y, 1e-13, 1e-15,                           "log1p (log(1+x)")
       call tc%assert((ieee_value(1.0, ieee_negative_inf) == log1p(-1.0)), "log1p x=-1 y=-inf")
+    end block
+
+    ! quadprecision log1p(x) -> log(1+x)
+    block
+      real(kind=16) :: x(5), y(5), y_exp(5)
+
+      x     = [epsilon(1.0_16), -epsilon(1.0_16), 0.1_16,                 1e-5_16,             -0.2143_16]
+      y_exp = [epsilon(1.0_16), -epsilon(1.0_16), 0.095310179804324860043952123280765_16, 9.999950000333330833353333166668095e-6_16, -0.241180238800361148374263249343392_16]
+
+      y     = log1p(x)
+
+      call tc%assert_eq(y_exp, y, 1e-30_16, 1e-32_16,                           "log1p_16 (log(1+x)")
+      call tc%assert((ieee_value(1.0_16, ieee_negative_inf) == log1p(-1.0_16)), "log1p_16 x=-1 y=-inf")
     end block
 
     ! linspace
