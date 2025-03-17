@@ -8,3 +8,4 @@
 doc
 jobs
 !.gitignore
+!.gitlab-ci.yml

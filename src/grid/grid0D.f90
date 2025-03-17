@@ -54,6 +54,9 @@ contains
 
     ! init base
     call this%grid_init(name, 0, 0, face_nvert, 0, cell_nedge)
+
+    ! unit
+    allocate (this%unit(0))
   end subroutine
 
   subroutine grid0D_get_idx_bnd_n(this, idx_type, idx_dir, idx_bnd)

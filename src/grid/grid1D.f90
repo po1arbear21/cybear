@@ -7,6 +7,7 @@ module grid1D_m
   use grid_m,          only: grid, IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL
   use normalization_m, only: denorm
   use output_file_m,   only: output_file
+  use string_m,        only: new_string
 
   implicit none
 
@@ -41,18 +42,24 @@ module grid1D_m
 
 contains
 
-  subroutine grid1D_init(this, name, x, i0)
+  subroutine grid1D_init(this, name, x, i0, unit)
     !! initialize 1D grid
-    class(grid1D),     intent(out) :: this
-    character(*),      intent(in)  :: name
+    class(grid1D),          intent(out) :: this
+    character(*),           intent(in)  :: name
       !! grid name
-    real,              intent(in)  :: x(:)
+    real,                   intent(in)  :: x(:)
       !! grid points
-    integer, optional, intent(in)  :: i0
+    integer,      optional, intent(in)  :: i0
       !! lower bound of x
+    character(*), optional, intent(in)  :: unit
+      !! physical unit token (default: nm)
 
     ! init base
     call this%grid_init(name, 1, 1, [1], 2, [1])
+
+    ! unit
+    allocate (this%unit(1), source = new_string("nm"))
+    if (present(unit)) this%unit(1) = new_string(unit)
 
     ! grid points
     this%i0 = 1

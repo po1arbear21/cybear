@@ -4,6 +4,7 @@ module grid_m
 
   use error_m,       only: assert_failed, program_error
   use output_file_m, only: output_file
+  use string_m,      only: string
 
   implicit none
 
@@ -37,6 +38,8 @@ module grid_m
       !! number of edges per cell depending on edge direction (1:idx_dim)
     integer                   :: max_cell_nedge
       !! maxval(cell_nedge)
+    type(string), allocatable :: unit(:)
+      !! physical unit tokens (1:dim, default: nm)
   contains
     procedure :: grid_init
     procedure :: get_ptr     => grid_get_ptr
@@ -54,7 +57,7 @@ module grid_m
     procedure(grid_get_max_neighb), deferred :: get_max_neighb
     procedure(grid_get_neighb),     deferred :: get_neighb
     procedure(grid_get_adjoint),    deferred :: get_adjoint
-    procedure(grid_output),         deferred :: output
+    procedure(grid_output),         deferred :: output ! TODO: remove grid_output (also in subclasses) once container grid output is tested
   end type
 
   type grid_ptr

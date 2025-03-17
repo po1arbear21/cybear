@@ -1,0 +1,56 @@
+---
+default:
+  interruptible: true
+
+workflow:
+  auto_cancel:
+    on_job_failure: all
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+.base_test:
+  stage: test
+  variables:
+    BLAS95ROOT: /usr/share/mkl/blas95
+    LAPACK95ROOT: /usr/share/mkl/lapack95
+    MKLROOT: /opt/intel/oneapi/mkl/latest
+  before_script:
+    - |-
+      echo '[debug]
+      target = "test"
+      single = true
+      libraries = ["ARPACK", "BLAS95", "GMP", "LAPACK95", "MPFR", "MUMPS"]
+      templates = [
+        { files = [
+          "src/test/example.inp",
+          "src/test/example_matrix4.dat",
+          "src/test/S1.test",
+          "src/test/S2.test",
+          "src/test/S3.test",
+          "src/test/table.csv",
+          "src/test/test1.json",
+          "src/test/test2.json",
+        ] },
+      ]
+      ' | tee fargo.toml
+
+test-gfortran:
+  extends: .base_test
+  image: registry.git.rwth-aachen.de/ithe/fargo
+  script:
+    - fargo run
+
+test-flang:
+  extends: .base_test
+  image: registry.git.rwth-aachen.de/ithe/fargo:flang
+  allow_failure: true
+  script:
+    - |-
+      echo 'compiler = "flang"
+      intsize = 64
+      idxsize = 64
+      ' | tee -a fargo.toml
+    - fargo run
