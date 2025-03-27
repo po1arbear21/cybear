@@ -285,9 +285,9 @@ contains
 
   ! int deflateInit(z_streamp strm, int level)
   function deflate_init(strm, level) result(rc)
-      type(z_stream), intent(inout) :: strm
-      integer,        intent(in)    :: level
-      integer                       :: rc
+      type(z_stream),      intent(inout) :: strm
+      integer(kind=c_int), intent(in)    :: level
+      integer(kind=c_int)                :: rc
 
 
       rc = deflate_init_(strm, level, zlib_version_(), int(c_sizeof(strm), kind=c_int))
@@ -295,13 +295,13 @@ contains
 
   ! int deflateInit2(z_streamp strm, int level, int method, int windowBits, int memLevel, int strategy)
   function deflate_init2(strm, level, method, window_bits, mem_level, strategy) result(rc)
-      type(z_stream), intent(inout) :: strm
-      integer,        intent(in)    :: level
-      integer,        intent(in)    :: method
-      integer,        intent(in)    :: window_bits
-      integer,        intent(in)    :: mem_level
-      integer,        intent(in)    :: strategy
-      integer                       :: rc
+      type(z_stream),      intent(inout) :: strm
+      integer(kind=c_int), intent(in)    :: level
+      integer(kind=c_int), intent(in)    :: method
+      integer(kind=c_int), intent(in)    :: window_bits
+      integer(kind=c_int), intent(in)    :: mem_level
+      integer(kind=c_int), intent(in)    :: strategy
+      integer(kind=c_int)                :: rc
 
       rc = deflate_init2_(strm, level, method, window_bits, mem_level, &
                           strategy, zlib_version_(), int(c_sizeof(strm), kind=c_int))
@@ -310,16 +310,16 @@ contains
   ! int inflateInit(z_streamp strm)
   function inflate_init(strm) result(rc)
       type(z_stream), intent(inout) :: strm
-      integer                       :: rc
+      integer(kind=c_int)           :: rc
 
       rc = inflate_init_(strm, zlib_version_(), int(c_sizeof(strm), kind=c_int))
   end function
 
   ! int inflateInit2(z_streamp strm, int  windowBits)
   function inflate_init2(strm, window_bits) result(rc)
-      type(z_stream), intent(inout) :: strm
-      integer,        intent(in)    :: window_bits
-      integer                       :: rc
+      type(z_stream),      intent(inout) :: strm
+      integer(kind=c_int), intent(in)    :: window_bits
+      integer(kind=c_int)                :: rc
 
       rc = inflate_init2_(strm, window_bits, zlib_version_(), int(c_sizeof(strm), kind=c_int))
   end function
