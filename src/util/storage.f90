@@ -14,7 +14,7 @@ module storage_m
   m4_ifdef({m4_blosc},use blosc_m)
 
   implicit none
-  
+
   private
   public storage, variable
 
@@ -62,21 +62,23 @@ module storage_m
   integer, parameter :: DT_BIN      = 1
   integer, parameter :: DT_INT32    = 2
   integer, parameter :: DT_INT64    = 3
-  integer, parameter :: DT_LOG      = 4
-  integer, parameter :: DT_REAL64   = 5
-  integer, parameter :: DT_CMPLX128 = 6
-  integer, parameter :: DT_CHAR     = 7
-  integer, parameter :: DT_STRING   = 8
+  integer, parameter :: DT_LOG32    = 4
+  integer, parameter :: DT_LOG64    = 5
+  integer, parameter :: DT_REAL64   = 6
+  integer, parameter :: DT_CMPLX128 = 7
+  integer, parameter :: DT_CHAR     = 8
+  integer, parameter :: DT_STRING   = 9
 
-  character, parameter :: DT_NAMES(8) = ["b", "i", "j", "l", "r", "c", "a", "s"]
-  integer,   parameter :: DT_SIZES(7) = [ 1,   4,   8,   4,   8,   16,  1]
+  character, parameter :: DT_NAMES(9) = ["b", "i", "j", "l", "m", "r", "c", "a", "s"]
+  integer,   parameter :: DT_SIZES(8) = [ 1,   4,   8,   4,   8,   8,   16,  1]
 
   ! All available output types
   m4_define({m4_typelist},{
     m4_X(BIN)
     m4_X(INT32)
     m4_X(INT64)
-    m4_X(LOG)
+    m4_X(LOG32)
+    m4_X(LOG64)
     m4_X(REAL64)
     m4_X(CMPLX128)
     m4_X(STRING)
@@ -87,12 +89,13 @@ module storage_m
   m4_ifelse($1,BIN,integer(kind=int8),{m4_dnl
   m4_ifelse($1,INT32,integer(kind=int32),{m4_dnl
   m4_ifelse($1,INT64,integer(kind=int64),{m4_dnl
-  m4_ifelse($1,LOG,logical,{m4_dnl
+  m4_ifelse($1,LOG32,logical(kind=4),{m4_dnl
+  m4_ifelse($1,LOG64,logical(kind=8),{m4_dnl
   m4_ifelse($1,REAL64,real(kind=real64),{m4_dnl
   m4_ifelse($1,CMPLX128,complex(kind=real64),{m4_dnl
   m4_ifelse($1,CHAR,character,{m4_dnl
   type($1)m4_dnl
-  })})})})})})})})
+  })})})})})})})})})
 
   m4_define({m4_denormable},{m4_dnl
     m4_ifelse($1,REAL64,$2,{m4_ifelse($1,CMPLX128,$2)})m4_dnl
@@ -166,7 +169,7 @@ module storage_m
     m4_list
   end type
 
-  integer, parameter :: SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2
+  integer, parameter :: SEEK_SET = int(0, kind=4), SEEK_CUR = int(1, kind=4), SEEK_END = int(2, kind=4)
 
   interface
     function fsync (fd) bind(c,name="fsync")
@@ -425,7 +428,8 @@ contains
     integer,      optional, intent(out)   :: stat
     type(string), optional, intent(out)   :: err_msg
     
-    integer             :: flag_, stat_
+    integer             :: flag_
+    integer(kind=4)     :: stat_
     integer(kind=int64) :: i, addr, n
     character(64)       :: msg
     logical             :: exists
@@ -484,8 +488,9 @@ contains
     contains
 
     subroutine read_journal(jstat)
-      integer,      intent(out)   :: jstat
-      character(7)                :: journal_start
+      integer(kind=4), intent(out)   :: jstat
+      
+      character(7) :: journal_start
 
       call fseek(this%funit, -8, SEEK_END, jstat)
       read(this%funit) addr
@@ -506,9 +511,9 @@ contains
 
   subroutine storage_goto(this, name, stat)
     !! Find a variable in the storage and leaves the file position AFTER THE LENGTH OF THE BLOB
-    class(storage), intent(inout) :: this
-    type(string),   intent(in)    :: name
-    integer,        intent(out)   :: stat
+    class(storage),  intent(inout) :: this
+    type(string),    intent(in)    :: name
+    integer(kind=4), intent(out)   :: stat
 
     integer(kind=int64) :: pos
     type(variable) :: var
@@ -541,11 +546,11 @@ contains
   end function
 
   subroutine storage_close(this, stat, err_msg)
-    class(storage), intent(inout) :: this
-    integer,             optional, intent(out) :: stat
-    type(string),        optional, intent(out) :: err_msg
+    class(storage),            intent(inout) :: this
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
     
-    integer                     :: stat_
+    integer(kind=c_int)         :: stat_
     integer(kind=int64)         :: i, start, n
     type(variable), allocatable :: variables(:)        
 
@@ -567,7 +572,7 @@ contains
       write(this%funit) start
 
       flush(this%funit)
-      stat_ = fsync(fnum(this%funit))
+      stat_ = fsync(int(fnum(this%funit), kind=c_int))
       if (stat_ /= 0) then
         m4_error(ERR_FILE_OP, "Error calling fsync")
       end if
@@ -598,7 +603,8 @@ contains
 
     integer(kind=int64)              :: offset, data_l, header_l
     integer(kind=int64), allocatable :: sizes(:), lbounds(:), tmp(:)
-    integer                          :: stat_, dflag, ddim = -1
+    integer(kind=4)                  :: stat_
+    integer                          :: dflag, ddim = -1
     character                        :: compr_
 
     type(variable) :: new_var
@@ -718,7 +724,7 @@ contains
     call write_blob()
 
     flush(this%funit)
-    stat_ = fsync(fnum(this%funit))
+    stat_ = fsync(int(fnum(this%funit), kind=c_int))
     if (stat_ /= 0) then
       m4_error(ERR_FILE_OP, "Error calling fsync")
     end if
@@ -819,7 +825,7 @@ contains
     integer,             optional, intent(out) :: stat
     type(string),        optional, intent(out) :: err_msg
 
-    integer             :: stat_
+    integer(kind=4)                  :: stat_
     m4_type($2), contiguous, pointer :: pvar({}m4_pdimm1($1):)
     m4_ifelse($1,0,,{
     integer(kind=int64) :: i, idx
@@ -946,9 +952,9 @@ contains
     type(string),      optional, intent(out) :: err_msg
     integer(kind=int64)                      :: data_length
 
-    character, target, allocatable   :: out(:)
-    type(z_stream)                   :: zstr
-    integer                          :: ret
+    character, target, allocatable :: out(:)
+    type(z_stream)                 :: zstr
+    integer(kind=c_int)            :: ret
 
     zstr%avail_in = int(sizeof(data), kind=z_uint)
     zstr%next_in = c_loc(data)
@@ -958,7 +964,7 @@ contains
     data_length = deflate_bound(zstr, sizeof(data))
     
     allocate(out(data_length))
-    zstr%avail_out = int(data_length)
+    zstr%avail_out = int(data_length, kind=z_uint)
     zstr%next_out  = c_loc(out)
 
     ret = deflate(zstr, Z_FINISH)
@@ -971,22 +977,22 @@ contains
   end function
   
   function decompress_zlib(funit, length, var_length, stat, err_msg) result(out)
-    integer, intent(in) :: funit
-    integer(kind=int64), intent(in) :: length
-    integer(kind=int64), intent(in) :: var_length
-    integer,             optional, intent(out) :: stat
-    type(string),        optional, intent(out) :: err_msg
-    character, target               :: out(var_length)
+    integer,                intent(in)  :: funit
+    integer(kind=int64),    intent(in)  :: length
+    integer(kind=int64),    intent(in)  :: var_length
+    integer,      optional, intent(out) :: stat
+    type(string), optional, intent(out) :: err_msg
 
-    character, target               :: in(length)
-    type(z_stream)                  :: zstr
-    integer                         :: ret
+    character, target :: out(var_length)
+    character, target :: in(length)
+    type(z_stream)    :: zstr
+    integer           :: ret
 
     read (funit) in
 
-    zstr%avail_in  = int(length)
+    zstr%avail_in  = int(length, kind=z_uint)
     zstr%next_in   = c_loc(in)
-    zstr%avail_out = int(var_length)
+    zstr%avail_out = int(var_length, kind=z_uint)
     zstr%next_out  = c_loc(out)
 
     ret = inflate_init(zstr)
