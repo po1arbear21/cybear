@@ -1187,7 +1187,7 @@ contains
             if (.not. this%reg_ct(ri)%point_test(new_string("tr_xy"), p)) cycle
 
             ! loop over z direction
-            do k = i0(1), i1(1)
+            do k = i0(3), i1(3)
               ijk(1:2) = [i, k]
               idx      = ijk(1:idx_dim)
               ict0     = this%ict%get(idx)
