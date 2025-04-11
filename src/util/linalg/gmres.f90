@@ -6,6 +6,7 @@ module gmres_m
   use iso_c_binding,   only: c_loc, c_f_pointer
   use iso_fortran_env, only: real64
   use matop_m,         only: matop_real, matop_cmplx, matop_c2r
+  use matrix_m,        only: SPSOLVER_PARDISO
   use mkl_ilu_m,       only: mkl_ilu
   use util_m,          only: int2str
   use vector_m,        only: vector_real
@@ -30,6 +31,9 @@ module gmres_m
 
     logical :: print_msg = .false.
       !! print messages?
+
+    integer :: solver    = SPSOLVER_PARDISO
+      !! solver used for preconditioner
   contains
     procedure :: apply => gmres_options_apply
   end type

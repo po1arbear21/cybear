@@ -19,6 +19,7 @@ module matrix_m
   use mumps_m,          only: create_mumps_handle_c, create_mumps_handle_r, destruct_mumps_handle_c, &
     &                         destruct_mumps_handle_r, mumps_factorize, mumps_solve
   })
+  use lsqr_m,           only: lsqr_solver_ez
   use omp_lib,          only: omp_get_thread_num, omp_get_num_threads
   use pardiso_m,        only: create_pardiso_handle, destruct_pardiso_handle, pardiso_factorize, pardiso_solve
   use qsort_m,          only: qsort
@@ -42,12 +43,12 @@ module matrix_m
   m4_ifdef({m4_ilupack},{
   public SPSOLVER_ILUPACK
   })
-  public default_spsolver
   public BSOLVER_LAPACK
   m4_ifdef({m4_spike},{
   public BSOLVER_SPIKE
   })
-  public default_bsolver
+  public DSOLVER_LAPACK
+  public SOLVER_GMRES
   public matrix_real
   public matrix_cmplx
   public matrix_ptr_real
@@ -96,14 +97,18 @@ module matrix_m
   m4_ifdef({m4_ilupack},{
   integer, parameter :: SPSOLVER_ILUPACK = 4
   })
-  integer            :: default_spsolver = SPSOLVER_PARDISO
 
   ! band solvers
-  integer, parameter :: BSOLVER_LAPACK = 1
+  integer, parameter :: BSOLVER_LAPACK = 5
   m4_ifdef({m4_spike},{
-  integer, parameter :: BSOLVER_SPIKE = 2
+  integer, parameter :: BSOLVER_SPIKE = 6
   })
-  integer            :: default_bsolver = BSOLVER_LAPACK
+
+  ! dense solvers
+  integer, parameter :: DSOLVER_LAPACK = 7
+
+  ! iterative general solvers
+  integer, parameter :: SOLVER_GMRES = 8
 
   ! type list
   m4_define({m4_list},{

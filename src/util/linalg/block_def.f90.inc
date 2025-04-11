@@ -30,6 +30,10 @@ type, extends(matrix_{}T) :: block_{}T
   ! flags
   logical :: diag
   logical :: tridiag
+
+  ! factorization data
+  type(sparse_{}T{}) :: sparse_conversion
+  type(dense_{}T{})  :: dense_conversion
 contains
   procedure :: block_{}T{}_init
   generic   :: init           => block_{}T{}_init
@@ -42,6 +46,7 @@ contains
   procedure :: factorize      => block_{}T{}_factorize
   procedure :: solve_vec      => block_{}T{}_solve_vec
   procedure :: solve_mat      => block_{}T{}_solve_mat
+  procedure :: solve_lsqr     => block_{}T{}_solve_lsqr
   procedure :: get_global_idx => block_{}T{}_get_global_idx
   procedure :: get_local_idx  => block_{}T{}_get_local_idx
   procedure :: block_{}T{}_get_dense
@@ -55,6 +60,7 @@ contains
   procedure :: set            => block_{}T{}_set
   procedure :: set_ptr        => block_{}T{}_set_ptr
   procedure :: copy           => block_{}T{}_copy
+  procedure :: copy_deep      => block_{}T{}_copy_deep
 
   procedure, private :: block_allowed => block_{}T{}_block_allowed
   procedure, private :: check_sizes   => block_{}T{}_check_sizes
@@ -108,8 +114,9 @@ interface
     character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine block_{}T{}_factorize(this)
-    class(block_{}T), intent(inout) :: this
+  module subroutine block_{}T{}_factorize(this, solver)
+    class(block_{}T),  intent(inout) :: this
+    integer, optional, intent(in)    :: solver
   end subroutine
 
   module subroutine block_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
@@ -126,6 +133,16 @@ interface
     m4_type(T),          intent(out) :: x(:,:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
+  end subroutine
+
+  module subroutine block_{}T{}_solve_lsqr(this, rhs, damp, x, istop, atol, btol)
+    class(block_{}T), intent(in)  :: this
+    m4_type(T),       intent(in)  :: rhs(:)
+    real,             intent(in)  :: damp
+    m4_type(T),       intent(out) :: x(:)
+    integer,          intent(out) :: istop
+    real, optional,   intent(in)  :: atol
+    real, optional,   intent(in)  :: btol
   end subroutine
 
   module subroutine block_{}T{}_get_global_idx(this, ib, jb, il, jl, ig, jg)
@@ -192,6 +209,11 @@ interface
   end subroutine
 
   module subroutine block_{}T{}_copy(this, copy)
+    class(block_{}T), intent(in)  :: this
+    type(block_{}T),  intent(out) :: copy
+  end subroutine
+
+  module subroutine block_{}T{}_copy_deep(this, copy)
     class(block_{}T), intent(in)  :: this
     type(block_{}T),  intent(out) :: copy
   end subroutine

@@ -7,7 +7,6 @@ module test_circuit_m
   use ground_m,       only: ground
   use inductor_m,     only: inductor
   use input_src_m,    only: const_src
-  use newton_m,       only: newton_opt
   use resistor_m,     only: resistor
   use steady_state_m, only: steady_state
   use vsource_m,      only: vsource
@@ -32,7 +31,6 @@ contains
 
     type(const_src)    :: input
     type(steady_state) :: ss
-    type(newton_opt)   :: nopt
 
     call tc%init("circuit")
 
@@ -51,8 +49,9 @@ contains
 
     ! solve steady state; linear => maximal 2 iterations
     call input%init([2.0]) ! V1
-    call nopt%init(crt%sys%n, atol = 1e-15, rtol = 1e-12, log = .false., max_it = 2)
-    call ss%run(crt%sys, nopt = nopt, input = input)
+    call ss%init(crt%sys)
+    call ss%set_newton_params(atol = 1e-15, rtol = 1e-12, max_it = 2)
+    call ss%run(input = input)
 
     ! I2 = V1 / (R1 + R2 + R1 * R2 / R3)
     I2 = V1%V%x / (0.2 + 0.5 + 0.2 * 0.5 / 1.2)

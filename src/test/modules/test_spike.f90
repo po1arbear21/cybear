@@ -51,12 +51,10 @@ contains
         call rnd%next_reals(b(:,k))
       end do
 
-      A%solver = BSOLVER_LAPACK
-      call A%factorize()
+      call A%factorize(solver = BSOLVER_LAPACK)
       call A%solve_mat(b, x_lapack)
 
-      A%solver = BSOLVER_SPIKE
-      call A%factorize()
+      call A%factorize(solver = BSOLVER_SPIKE)
       call A%solve_mat(b, x_spike)
 
       call tc%assert_eq(x_lapack, x_spike, 1e-10, 1e-16, "real")
@@ -83,12 +81,10 @@ contains
         b(:,k) = cmplx(tmp(1:n), tmp((n+1):2*n))
       end do
 
-      A%solver = BSOLVER_LAPACK
-      call A%factorize()
+      call A%factorize(solver = BSOLVER_LAPACK)
       call A%solve_mat(b, x_lapack)
 
-      A%solver = BSOLVER_SPIKE
-      call A%factorize()
+      call A%factorize(solver = BSOLVER_SPIKE)
       call A%solve_mat(b, x_spike)
 
       call tc%assert_eq(x_lapack, x_spike, 1e-10, 1e-16, "cmplx")

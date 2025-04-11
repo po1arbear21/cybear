@@ -258,7 +258,7 @@ contains
     integer :: i
     real    :: f(1)
 
-    f = sum(this%cpl) * this%om0%x
+    f = (sum(this%cpl) + this%cpl_torque) * this%om0%x
     do i = 1, size(this%om)
       f = f - this%cpl(i) * this%om(i)%x
     end do
@@ -321,7 +321,8 @@ contains
       f = logspace(norm(1e12, "Hz"), norm(1e16, "Hz"), Ns)
       s = (0.0, 1.0) * 2 * PI * f
 
-      call ac%run_analysis(sys, s)
+      call ac%init(sys)
+      call ac%run(s)
 
       ! open (newunit = funit, file = "test_analysis_ac.csv", status = "replace", action = "write")
       ! do i = 1, Ns
