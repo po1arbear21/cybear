@@ -122,24 +122,35 @@ module subroutine dense_{}T{}_mul_mat(this, x, y, fact_y, trans)
   call gemm(this%d, x, y, transa = trans, beta = fact_y)
 end subroutine
 
-module subroutine dense_{}T{}_factorize(this)
+module subroutine dense_{}T{}_factorize(this, solver)
   !! Calculate LU decomposition.
   !! Call this subroutine before solving!
 
-  class(dense_{}T), intent(inout) :: this
-    !! Dense matrix
+  class(dense_{}T),  intent(inout) :: this
+  integer, optional, intent(in)    :: solver
 
-  integer :: info
+  integer :: info, solver_
 
-  ! allocate memory for factorization
-  if (.not. allocated(this%lu  )) allocate (this%lu(  this%nrows,this%ncols))
-  if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%nrows))
+  call this%reset(only_factorization = .true.)
 
-  ! factorization with lapack
-  this%lu = this%d
-  call getrf(this%lu, ipiv = this%ipiv, info = info)
-  if (info /= 0) call program_error("Dense Factorization error in LAPACK", code = info)
+  solver_ = DSOLVER_LAPACK
+  if(present(solver)) solver_ = solver
 
+  select case(solver_)
+  case(DSOLVER_LAPACK)
+    ! allocate memory for factorization
+    if (.not. allocated(this%lu  )) allocate (this%lu(  this%nrows,this%ncols))
+    if (.not. allocated(this%ipiv)) allocate (this%ipiv(this%nrows))
+
+    ! factorization with lapack
+    this%lu = this%d
+    call getrf(this%lu, ipiv = this%ipiv, info = info)
+    if (info /= 0) call program_error("Dense Factorization error in LAPACK", code = info)
+  case default
+    call program_error("Trying to solve dense matrix with non-dense solver!")
+  end select
+
+  this%solver = solver_
   this%factorized = .true.
 end subroutine
 

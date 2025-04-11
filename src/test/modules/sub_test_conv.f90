@@ -1,5 +1,3 @@
-m4_include(../../util/macro.f90.inc)
-
 submodule (test_matrix_m) test_conv_m
 
   implicit none
@@ -344,17 +342,71 @@ contains
   end subroutine
 
   subroutine test_to_real(tc)
+    !! test conversion complex to real
+    !! use a block matrix which has all other matrix types as block, including another block matrix
     type(test_case), intent(inout) :: tc
 
-    ! fixme
-    m4_ignore(tc)
+    complex                    :: d1_exp(2,4)
+    real                       :: d_exp(6,6)
+    type(block_cmplx)          :: bl1
+    type(dense_cmplx), pointer :: d1p
+    type(dense_real)           :: d_conv
+    type(block_real)           :: blr
+
+    ! get complex block matrix
+    call example_matrix9(bl1)
+    ! set dense pointer to non-owned dense block of example matrix
+    select type (p => bl1%b(1,2)%p)
+    type is (dense_cmplx)
+      d1p => p
+    end select
+    d1_exp = reshape([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0), &
+                     &(0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (0.0, 0.0)], shape(d1_exp), order = [2,1])
+
+    call matrix_convert(bl1, blr)
+    call matrix_convert(blr, d_conv)
+    d_exp = reshape([1.0, 0.0, 0.0, 1.0, 0.0, 0.0, &
+                    &0.0, 1.0, 0.0, 1.0, 3.0, 0.0, &
+                    &2.0, 2.0, 1.0, 0.0, 1.0, 0.0, &
+                    &0.0, 0.0, 0.0, 1.0, 1.0, 3.0, &
+                    &0.0, 0.0, 0.0, 0.0, 1.0, 0.0, &
+                    &0.0, 6.0, 0.0, 0.0, 0.0, 1.0], shape(d_exp), order = [2,1])
+    call tc%assert_eq(d_conv%d, d_exp,  rtol, atol, "add block: empty matrix")
+    call tc%assert_eq(d1p%d,    d1_exp, rtol, atol, "block: non-owned pointer") ! non-owned pointer should not change
   end subroutine
 
   subroutine test_to_cmplx(tc)
+    !! test conversion real to complex
+    !! use a block matrix which has all other matrix types as block, including another block matrix
     type(test_case), intent(inout) :: tc
 
-    ! fixme
-    m4_ignore(tc)
+    real                      :: d1_exp(2,4)
+    complex                   :: d_exp(6,6)
+    type(block_real)          :: bl1
+    type(dense_real), pointer :: d1p
+    type(dense_cmplx)         :: d_conv
+    type(block_cmplx)         :: blc
+
+    ! get real block matrix
+    call example_matrix9(bl1)
+    ! set dense pointer to non-owned dense block of example matrix
+    select type (p => bl1%b(1,2)%p)
+    type is (dense_real)
+      d1p => p
+    end select
+    d1_exp = reshape([0.0, 1.0, 0.0, 0.0, &
+                     &0.0, 1.0, 3.0, 0.0], shape(d1_exp), order = [2,1])
+
+    call matrix_convert(bl1, blc)
+    call matrix_convert(blc, d_conv)
+    d_exp = reshape([(1.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0), &
+                    &(0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (0.0, 0.0), &
+                    &(2.0, 0.0), (2.0, 0.0), (1.0, 0.0), (0.0, 0.0), (1.0, 0.0), (0.0, 0.0), &
+                    &(0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0), (1.0, 0.0), (3.0, 0.0), &
+                    &(0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0), (0.0, 0.0), &
+                    &(0.0, 0.0), (6.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0)], shape(d_exp), order = [2,1])
+    call tc%assert_eq(d_conv%d, d_exp,  rtol, atol, "add block: empty matrix")
+    call tc%assert_eq(d1p%d,    d1_exp, rtol, atol, "block: non-owned pointer") ! non-owned pointer should not change
   end subroutine
 
 end submodule

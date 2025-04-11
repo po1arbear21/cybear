@@ -59,9 +59,6 @@ module subroutine block_{}T{}_init(this, row_dim, col_dim, diag, tridiag)
   if (this%diag .or.  this%tridiag) then
     if (this%nbrows /= this%nbcols) call program_error("(Tri)Diagonal Block matrix must have same number of blocks per row and column!")
   end if
-
-  ! not factorized
-  this%factorized = .false.
 end subroutine
 
 module subroutine block_{}T{}_destruct(this)
@@ -88,6 +85,9 @@ module subroutine block_{}T{}_destruct(this)
     end do; end do
     deallocate (this%b)
   end if
+
+  call this%sparse_conversion%destruct()
+  call this%dense_conversion%destruct()
 
   this%factorized = .false.
 end subroutine
@@ -130,6 +130,9 @@ module subroutine block_{}T{}_reset(this, only_factorization)
     call this%b(ib,jb)%p%reset(only_factorization = only_factorization)
   end do; end do
 
+  call this%sparse_conversion%destruct()
+  call this%dense_conversion%destruct()
+
   this%factorized = .false.
 end subroutine
 
@@ -148,6 +151,7 @@ module subroutine block_{}T{}_scale(this, fact)
 
   do ib = 1, this%nbrows; do jb = 1, this%nbcols
     if (.not. associated(this%b(ib,jb)%p)) cycle
+    if (.not. this%alc(ib,jb)) call program_error("Trying to scale block matrix with non-owned blocks")
     call this%b(ib,jb)%p%scale(fact)
   end do; end do
 end subroutine
@@ -298,15 +302,18 @@ module subroutine block_{}T{}_mul_mat(this, x, y, fact_y, trans)
   end associate
 end subroutine
 
-module subroutine block_{}T{}_factorize(this)
+module subroutine block_{}T{}_factorize(this, solver)
   !! Factorize diagonal Block Matrix.
 
-  class(block_{}T), intent(inout) :: this
-    !! Block matrix
+  class(block_{}T),  intent(inout) :: this
+  integer, optional, intent(in)    :: solver
 
-  integer :: ib
+  integer :: ib, solver_
 
-  m4_assert(.not. this%factorized)
+  call this%reset(only_factorization = .true.)
+
+  solver_ = SPSOLVER_PARDISO
+  if(present(solver)) solver_ = solver
 
   if (this%diag) then
     do ib = 1, this%nbrows
@@ -314,9 +321,38 @@ module subroutine block_{}T{}_factorize(this)
       call this%b(ib,ib)%p%factorize()
     end do
   else
-    call program_error("Factorization for non-diagonal block matrix not implemented! Convert to dense or sparse instead!")
+    select case(solver_)
+    case(SPSOLVER_PARDISO)
+      call matrix_convert(this, this%sparse_conversion)
+      call this%sparse_conversion%factorize(SPSOLVER_PARDISO)
+    m4_divert(m4_ifdef({m4_klu2},0,-1))
+    case (SPSOLVER_KLU2)
+      call matrix_convert(this, this%sparse_conversion)
+      call this%sparse_conversion%factorize(SPSOLVER_KLU2)
+    m4_divert(m4_ifdef({m4_mumps},0,-1))
+    case (SPSOLVER_MUMPS)
+      call matrix_convert(this, this%sparse_conversion)
+      call this%sparse_conversion%factorize(SPSOLVER_MUMPS)
+    m4_divert(m4_ifdef({m4_ilupack},0,-1))
+    case (SPSOLVER_ILUPACK)
+      call matrix_convert(this, this%sparse_conversion)
+      call this%sparse_conversion%factorize(SPSOLVER_ILUPACK)
+    m4_divert(0)
+    case (BSOLVER_LAPACK)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(m4_ifdef({m4_spike},0,-1))
+    case (BSOLVER_SPIKE)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(0)
+    case (DSOLVER_LAPACK)
+      call matrix_convert(this, this%dense_conversion)
+      call this%dense_conversion%factorize(DSOLVER_LAPACK)
+    case default
+      call program_error("Invalid solver for block matrix selected")
+    end select
   end if
 
+  this%solver = solver_
   this%factorized = .true.
 end subroutine
 
@@ -343,7 +379,28 @@ module subroutine block_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
       call this%b(ib,ib)%p%solve_vec(rhs(this%i0(ib):this%i1(ib)), x(this%j0(ib):this%j1(ib)), trans = trans, iter_refine = iter_refine)
     end do
   else
-    call program_error("Solving for non-diagonal block matrix not implemented! Convert to dense or sparse instead!")
+    select case(this%solver)
+    case(SPSOLVER_PARDISO)
+      call this%sparse_conversion%solve_vec(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_klu2},0,-1))
+    case (SPSOLVER_KLU2)
+      call this%sparse_conversion%solve_vec(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_mumps},0,-1))
+    case (SPSOLVER_MUMPS)
+      call this%sparse_conversion%solve_vec(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_ilupack},0,-1))
+    case (SPSOLVER_ILUPACK)
+      call this%sparse_conversion%solve_vec(rhs, x, trans, iter_refine)
+    m4_divert(0)
+    case (BSOLVER_LAPACK)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(m4_ifdef({m4_spike},0,-1))
+    case (BSOLVER_SPIKE)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(0)
+    case (DSOLVER_LAPACK)
+      call this%dense_conversion%solve_vec(rhs, x, trans, iter_refine)
+    end select
   end if
 end subroutine
 
@@ -371,8 +428,72 @@ module subroutine block_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
       call this%b(ib,ib)%p%solve_mat(rhs(this%i0(ib):this%i1(ib),:), x(this%j0(ib):this%j1(ib),:), trans = trans, iter_refine = iter_refine)
     end do
   else
-    call program_error("Solving for non-diagonal block matrix not implemented! Convert to dense or sparse instead!")
+    select case(this%solver)
+    case(SPSOLVER_PARDISO)
+      call this%sparse_conversion%solve_mat(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_klu2},0,-1))
+    case (SPSOLVER_KLU2)
+      call this%sparse_conversion%solve_mat(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_mumps},0,-1))
+    case (SPSOLVER_MUMPS)
+      call this%sparse_conversion%solve_mat(rhs, x, trans, iter_refine)
+    m4_divert(m4_ifdef({m4_ilupack},0,-1))
+    case (SPSOLVER_ILUPACK)
+      call this%sparse_conversion%solve_mat(rhs, x, trans, iter_refine)
+    m4_divert(0)
+    case (BSOLVER_LAPACK)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(m4_ifdef({m4_spike},0,-1))
+    case (BSOLVER_SPIKE)
+      call program_error("Solving block matrices with band solver not supported yet because there is no conversion routine from block to band")
+    m4_divert(0)
+    case (DSOLVER_LAPACK)
+      call this%dense_conversion%solve_mat(rhs, x, trans, iter_refine)
+    end select
   end if
+end subroutine
+
+module subroutine block_{}T{}_solve_lsqr(this, rhs, damp, x, istop, atol, btol)
+  !! Convert block matrix to sparse and solve Linear equation system this * x = rhs in the least squares sense.
+  !! Works also for singular, over- and underdetermined systems. Only implemented for real matrices!
+  !! Iterative solver algorithm, implementation taken from Github.
+  class(block_{}T), intent(in)  :: this
+    !! Block matrix
+  m4_type(T),       intent(in)  :: rhs(:)
+    !! Right hand side
+  real,             intent(in)  :: damp
+    !! Damping factor, (0.0 for simply solving this * x = rhs)
+  m4_type(T),       intent(out) :: x(:)
+    !! Solution vector
+  integer,          intent(out) :: istop
+    !! Exit code (see comments in lsqr.f90)
+  real, optional,   intent(in)  :: atol
+    !! Relative tolerance of the matrix elements
+  real, optional,   intent(in)  :: btol
+    !! Relative tolerance of the right hand side elements
+
+  type(sparse_{}T) :: sparse
+
+  ! check sizes
+  m4_assert(size(x)   == this%ncols)
+  m4_assert(size(rhs) == this%nrows)
+  m4_assert(this%check_sizes())
+
+  m4_ifelse(T, cmplx, {
+    m4_ignore(rhs)
+    m4_ignore(damp)
+    m4_ignore(x)
+    m4_ignore(istop)
+    m4_ignore(atol)
+    m4_ignore(btol)
+    m4_ignore(sparse)
+    call program_error("lsqr solver only supported for real matrices")}, {
+
+    call matrix_convert(this, sparse)
+    call sparse%solve_lsqr(rhs, damp, x, istop, atol, btol)
+    call sparse%destruct()
+
+    })
 end subroutine
 
 module subroutine block_{}T{}_get_global_idx(this, ib, jb, il, jl, ig, jg)
@@ -545,7 +666,7 @@ module subroutine block_{}T{}_get_block(this, ib, jb, p)
 end subroutine
 
 module subroutine block_{}T{}_set(this, ib, jb, b, fact)
-  !! Set one specific block (deep copy)
+  !! Set one specific block (deep copy, shallow copy for non-owned subpointers)
   class(block_{}T),     intent(inout) :: this
     !! Block matrix
   integer,              intent(in)    :: ib
@@ -641,6 +762,34 @@ module subroutine block_{}T{}_copy(this, copy)
       ! shallow copy (pointer only)
       copy%b(ib,jb)%p => this%b(ib,jb)%p
     end if
+  end do; end do
+end subroutine
+
+module subroutine block_{}T{}_copy_deep(this, copy)
+  !! create deep copy of this block matrix (deep copy also for non-owned pointers)
+  class(block_{}T), intent(in)  :: this
+  type(block_{}T),  intent(out) :: copy
+    !! output deep copy
+
+  integer :: ib, jb
+
+  ! initialize copy
+  call copy%init(this%i1-this%i0+1, this%j1-this%j0+1, diag = this%diag, tridiag = this%tridiag)
+
+  do ib = 1, this%nbrows; do jb = 1, this%nbcols
+    if (.not. associated(this%b(ib,jb)%p)) cycle
+    copy%alc(ib,jb) = .true.
+
+    select type (p => this%b(ib,jb)%p)
+    class is (block_{}T)
+      allocate (block_{}T :: copy%b(ib,jb)%p)
+      select type (copy_b => copy%b(ib,jb)%p)
+      type is (block_{}T)
+        call p%copy_deep(copy_b)
+      end select
+    class default
+      allocate (copy%b(ib,jb)%p, source = p)
+    end select
   end do; end do
 end subroutine
 

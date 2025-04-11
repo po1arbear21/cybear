@@ -82,7 +82,7 @@ module subroutine band_to_dense_{}T{}(b, d, i0, j0)
   end do
 end subroutine
 
-module recursive subroutine block_to_dense_{}T{}(b, d, i0, j0)
+module subroutine block_to_dense_{}T{}(b, d, i0, j0)
   !! Insert block matrix into a dense matrix.
 
   class(block_{}T),  intent(in)    :: b
@@ -501,6 +501,44 @@ m4_divert(m4_ifelse(T,cmplx,0,-1))
     end if
   end subroutine
 
+  module subroutine to_real_block(blc_in, blr_out)
+    !! Convert block real matrix to complex
+    type(block_cmplx), intent(in)  :: blc_in
+      !! Block complex matrix
+    type(block_real),  intent(out) :: blr_out
+      !! Output real(blc_in)
+
+    integer              :: ib, jb
+    integer, allocatable :: row_dim(:), col_dim(:)
+    type(band_real)      :: b
+    type(dense_real)     :: d
+    type(sparse_real)    :: s
+    type(block_real)     :: bl
+
+    row_dim = blc_in%i1 - blc_in%i0 + 1
+    col_dim = blc_in%j1 - blc_in%j0 + 1
+    call blr_out%init(row_dim, col_dim = col_dim, diag = blc_in%diag, tridiag = blc_in%tridiag)
+
+    ! copy dependent on block type
+    do ib = 1, blc_in%nbrows; do jb = 1, blc_in%nbcols
+      if (.not. associated(blc_in%b(ib,jb)%p)) cycle
+      select type (pp => blc_in%b(ib,jb)%p)
+      type is (band_cmplx)
+        call matrix_convert(pp, b)
+        call blr_out%set(ib, jb, b)
+      type is (dense_cmplx)
+        call matrix_convert(pp, d)
+        call blr_out%set(ib, jb, d)
+      type is (sparse_cmplx)
+        call matrix_convert(pp, s)
+        call blr_out%set(ib, jb, s)
+      type is (block_cmplx)
+        call matrix_convert(pp, bl)
+        call blr_out%set(ib, jb, bl)
+      end select
+    end do; end do
+  end subroutine
+
 m4_divert(m4_ifelse(T,real,0,-1))
 
   module subroutine to_cmplx_band(br_in, bc_out)
@@ -539,6 +577,44 @@ m4_divert(m4_ifelse(T,real,0,-1))
       allocate (sc_out%ja(size(sr_in%ja,kind=SPARSE_IDX)), source = sr_in%ja      )
       allocate (sc_out%a( size(sr_in%a ,kind=SPARSE_IDX)), source = cmplx(sr_in%a))
     end if
+  end subroutine
+
+  module subroutine to_cmplx_block(blr_in, blc_out)
+    !! Convert block real matrix to complex
+    type(block_real),  intent(in)  :: blr_in
+      !! Block real matrix
+    type(block_cmplx), intent(out) :: blc_out
+      !! Output cmplx(blr_in)
+
+    integer              :: ib, jb
+    integer, allocatable :: row_dim(:), col_dim(:)
+    type(band_cmplx)     :: b
+    type(dense_cmplx)    :: d
+    type(sparse_cmplx)   :: s
+    type(block_cmplx)    :: bl
+
+    row_dim = blr_in%i1 - blr_in%i0 + 1
+    col_dim = blr_in%j1 - blr_in%j0 + 1
+    call blc_out%init(row_dim, col_dim = col_dim, diag = blr_in%diag, tridiag = blr_in%tridiag)
+
+    ! copy dependent on block type
+    do ib = 1, blr_in%nbrows; do jb = 1, blr_in%nbcols
+      if (.not. associated(blr_in%b(ib,jb)%p)) cycle
+      select type (pp => blr_in%b(ib,jb)%p)
+      type is (band_real)
+        call matrix_convert(pp, b)
+        call blc_out%set(ib, jb, b)
+      type is (dense_real)
+        call matrix_convert(pp, d)
+        call blc_out%set(ib, jb, d)
+      type is (sparse_real)
+        call matrix_convert(pp, s)
+        call blc_out%set(ib, jb, s)
+      type is (block_real)
+        call matrix_convert(pp, bl)
+        call blc_out%set(ib, jb, bl)
+      end select
+    end do; end do
   end subroutine
 
 m4_divert(0)

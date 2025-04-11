@@ -10,7 +10,6 @@ module subroutine sparse_{}T{}_init(this, nrows, ncols)
 
   ! init base
   call this%init("", nrows, ncols = ncols)
-  this%solver = default_spsolver
 end subroutine
 
 module subroutine sparse_{}T{}_destruct(this)
@@ -302,18 +301,20 @@ module subroutine sparse_{}T{}_mul_mat(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-module subroutine sparse_{}T{}_init_solver(this)
+module subroutine sparse_{}T{}_init_solver(this, solver)
   !! creates solver handle
   !!
   !! this routine exists s.t. one can init ilupack, then get its handler and change parameters.
 
   class(sparse_{}T), intent(inout) :: this
+  integer,           intent(in)    :: solver
+    !! solver used for factorization
 
   ! make sure matrix is unfactorized and not empty
   m4_assert(this%solver_handle == 0)
   m4_assert(.not. this%is_empty())
 
-  select case (this%solver)
+  select case (solver)
   case (SPSOLVER_PARDISO)
     this%solver_handle = create_pardiso_handle(this%nrows, m4_ifelse(T,cmplx,{.true.},{.false.}))
   m4_divert(m4_ifdef({m4_klu2},0,-1))
@@ -329,15 +330,23 @@ module subroutine sparse_{}T{}_init_solver(this)
   end select
 end subroutine
 
-module subroutine sparse_{}T{}_factorize(this)
+module subroutine sparse_{}T{}_factorize(this, solver)
   !! Factorize Matrix using PARDISO, KLU2, MUMPS or ILUPACK.
 
   class(sparse_{}T), intent(inout) :: this
-    !! Sparse matrix
+  integer, optional, intent(in)    :: solver
+    !! solver used for factorization (default: SPSOLVER_PARDISO)
 
-  if (this%solver_handle == 0) call this%init_solver
+  integer :: solver_
 
-  select case (this%solver)
+  call this%reset(only_factorization = .true.)
+
+  solver_ = SPSOLVER_PARDISO
+  if(present(solver)) solver_ = solver
+
+  call this%init_solver(solver_)
+
+  select case (solver_)
   case (SPSOLVER_PARDISO)
     call pardiso_factorize(this%solver_handle, this%ia, this%ja, this%a)
   m4_divert(m4_ifdef({m4_klu2},0,-1))
@@ -350,8 +359,11 @@ module subroutine sparse_{}T{}_factorize(this)
   case (SPSOLVER_ILUPACK)
     call ilupack_factorize(this%solver_handle)
   m4_divert(0)
+  case default
+    call program_error("Trying to solve sparse matrix with non-sparse solver!")
   end select
 
+  this%solver = solver_
   this%factorized = .true.
 end subroutine
 
@@ -458,6 +470,53 @@ module subroutine sparse_{}T{}_solve_mat(this, rhs, x, trans, iter_refine)
   m4_divert(0)
   end select
   x = reshape(x_, [size(x,1), size(x,2)])
+end subroutine
+
+module subroutine sparse_{}T{}_solve_lsqr(this, rhs, damp, x, istop, atol, btol)
+  !! Solve Linear equation system this * x = rhs in the least squares sense.
+  !! Works also for singular, over- and underdetermined systems. Only implemented for real matrices!
+  !! Iterative solver algorithm, implementation taken from Github.
+  class(sparse_{}T), intent(in)  :: this
+    !! Sparse matrix
+  m4_type(T),        intent(in)  :: rhs(:)
+    !! Right hand side
+  real,              intent(in)  :: damp
+    !! Damping factor, (0.0 for simply solving this * x = rhs)
+  m4_type(T),        intent(out) :: x(:)
+    !! Solution vector
+  integer,           intent(out) :: istop
+    !! Exit code (see comments in lsqr.f90)
+  real, optional,    intent(in)  :: atol
+    !! Relative tolerance of the matrix elements
+  real, optional,    intent(in)  :: btol
+    !! Relative tolerance of the right hand side elements
+
+  integer, allocatable :: irow(:)
+  type(lsqr_solver_ez) :: lsqr
+
+  ! check sizes
+  m4_assert(size(x)   == this%ncols)
+  m4_assert(size(rhs) == this%nrows)
+
+  m4_ifelse(T, cmplx, {
+    m4_ignore(rhs)
+    m4_ignore(damp)
+    m4_ignore(x)
+    m4_ignore(istop)
+    m4_ignore(atol)
+    m4_ignore(btol)
+    m4_ignore(irow)
+    m4_ignore(lsqr)
+    call program_error("lsqr solver only supported for real matrices")}, {
+
+    allocate (irow(this%nnz(only_nonzeros = .true.)))
+    do i = 1, this%nrows
+      irow(this%ia(i):this%ia(i+1)-1) = i
+    end do
+    call lsqr%initialize(this%nrows, this%ncols, this%a, irow, this%ja, atol = atol, btol = btol)
+    call lsqr%solve(rhs, damp, x, istop)
+
+    })
 end subroutine
 
 module subroutine sparse_{}T{}_transpose(this)

@@ -71,8 +71,9 @@ interface
     character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine dense_{}T{}_factorize(this)
-    class(dense_{}T), intent(inout) :: this
+  module subroutine dense_{}T{}_factorize(this, solver)
+    class(dense_{}T),  intent(inout) :: this
+    integer, optional, intent(in)    :: solver
   end subroutine
 
   module subroutine dense_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)

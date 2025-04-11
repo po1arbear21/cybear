@@ -5,8 +5,6 @@ type, extends(matrix_{}T) :: sparse_{}T
   integer,             allocatable :: ja(:)
   m4_type(T),          allocatable :: a(:)
 
-  integer :: solver = 0
-    !! SPSOLVER_PARDISO, SPSOLVER_KLU2, SPSOLVER_MUMPS or SPSOLVER_ILUPACK
   integer :: solver_handle = 0
     !! pardiso, klu2, mumps or ilupack solver handle
 contains
@@ -22,6 +20,7 @@ contains
   procedure :: factorize     => sparse_{}T{}_factorize
   procedure :: solve_vec     => sparse_{}T{}_solve_vec
   procedure :: solve_mat     => sparse_{}T{}_solve_mat
+  procedure :: solve_lsqr    => sparse_{}T{}_solve_lsqr
   procedure :: sparse_{}T{}_transpose
   procedure :: sparse_{}T{}_transpose2
   generic   :: transpose     => sparse_{}T{}_transpose, &
@@ -112,12 +111,14 @@ interface
     character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine sparse_{}T{}_init_solver(this)
+  module subroutine sparse_{}T{}_init_solver(this, solver)
     class(sparse_{}T), intent(inout) :: this
+    integer,           intent(in)    :: solver
   end subroutine
 
-  module subroutine sparse_{}T{}_factorize(this)
+  module subroutine sparse_{}T{}_factorize(this, solver)
     class(sparse_{}T), intent(inout) :: this
+    integer, optional, intent(in)    :: solver
   end subroutine
 
   module subroutine sparse_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
@@ -134,6 +135,16 @@ interface
     m4_type(T),          intent(out) :: x(:,:)
     character, optional, intent(in)  :: trans
     logical,   optional, intent(in)  :: iter_refine
+  end subroutine
+
+  module subroutine sparse_{}T{}_solve_lsqr(this, rhs, damp, x, istop, atol, btol)
+    class(sparse_{}T), intent(in)  :: this
+    m4_type(T),        intent(in)  :: rhs(:)
+    real,              intent(in)  :: damp
+    m4_type(T),        intent(out) :: x(:)
+    integer,           intent(out) :: istop
+    real, optional,    intent(in)  :: atol
+    real, optional,    intent(in)  :: btol
   end subroutine
 
   module subroutine sparse_{}T{}_transpose(this)
