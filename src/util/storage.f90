@@ -20,7 +20,9 @@ module storage_m
 
   ! Storage general argument flags
   integer, parameter, public :: STORAGE_READ  = 1
+    !! Read-only flag for storage usage
   integer, parameter, public :: STORAGE_WRITE = 2
+    !! Use the storage object for write operations.
 
   ! Dynamic variable flags
   integer, parameter, public :: DYNAMIC_NO  = 0 ! No dynamic variable 
@@ -180,6 +182,17 @@ module storage_m
   end interface
 
 contains
+
+  subroutine init_error(stat, err_msg)
+    integer(kind=4), optional, intent(inout) :: stat
+    type(string),    optional, intent(inout) :: err_msg
+
+    if (present(stat)) then
+      stat = 0
+      if (present(err_msg)) err_msg = new_string("")
+    end if
+
+  end subroutine
 
   function get_dtype(c) result(i)
     character, intent(in) :: c
@@ -422,11 +435,11 @@ contains
 
   subroutine storage_open(this, file, flag, stat, err_msg)
     !! Initialize the main storgae object which can be used to 
-    class(storage),         intent(inout) :: this
-    character(*),           intent(in)    :: file
-    integer,      optional, intent(in)    :: flag
-    integer,      optional, intent(out)   :: stat
-    type(string), optional, intent(out)   :: err_msg
+    class(storage),            intent(inout) :: this
+    character(*),              intent(in)    :: file
+    integer,         optional, intent(in)    :: flag
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
     
     integer             :: flag_
     integer(kind=4)     :: stat_
@@ -438,6 +451,8 @@ contains
 
     flag_ = STORAGE_READ
     if (present(flag)) flag_ = flag
+
+    call init_error(stat, err_msg)
 
     select case (flag_)
     case (STORAGE_READ)
@@ -484,6 +499,19 @@ contains
     end select
 
     this%mode = flag_
+
+    ! block
+    !   integer :: m
+    !   type(variable), allocatable :: vars(:)
+    !   allocate(vars(this%variables%n))
+    !   call this%variables%to_array(values=vars)
+    !   write(*,*)
+    !   write(*,*) "Current state when opening"
+    !   do m = 1, this%variables%n
+    !     write(*,*) "    ", vars(m)%name%s, "(", vars(m)%type, "): ", vars(m)%sizes, " | ", vars(m)%lbounds, " at: ", vars(m)%addr, " | ", vars(m)%span
+    !   end do
+    !   write(*,*)
+    ! end block
 
     contains
 
@@ -552,7 +580,22 @@ contains
     
     integer(kind=c_int)         :: stat_
     integer(kind=int64)         :: i, start, n
-    type(variable), allocatable :: variables(:)        
+    type(variable), allocatable :: variables(:)
+
+    call init_error(stat, err_msg)
+
+    ! block
+    !   integer :: m
+    !   type(variable), allocatable :: vars(:)
+    !   allocate(vars(this%variables%n))
+    !   call this%variables%to_array(values=vars)
+    !   write(*,*)
+    !   write(*,*) "Current state when closing"
+    !   do m = 1, this%variables%n
+    !     write(*,*) "    ", vars(m)%name%s, "(", vars(m)%type, "): ", vars(m)%sizes, " | ", vars(m)%lbounds, " at: ", vars(m)%addr, " | ", vars(m)%span
+    !   end do
+    !   write(*,*)
+    ! end block
 
     if (this%mode > STORAGE_READ) then
       ! Write the journal to the end of the file
@@ -592,14 +635,14 @@ contains
 
   m4_define({m4_Y},{subroutine storage_write_$2_$1(this, name, var, unit, dynamic, compression, stat, err_msg)
     !! 
-    class(storage),         intent(inout) :: this
-    type(string),           intent(in)    :: name
-    m4_type($2), target,    intent(in)    :: var{}m4_pshape($1)
-    character(*), optional, intent(in)    :: unit
-    integer,      optional, intent(in)    :: dynamic
-    character,    optional, intent(in)    :: compression
-    integer,      optional, intent(out)   :: stat
-    type(string), optional, intent(out)   :: err_msg
+    class(storage),            intent(inout) :: this
+    type(string),              intent(in)    :: name
+    m4_type($2), target,       intent(in)    :: var{}m4_pshape($1)
+    character(*),    optional, intent(in)    :: unit
+    integer,         optional, intent(in)    :: dynamic
+    character,       optional, intent(in)    :: compression
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     integer(kind=int64)              :: offset, data_l, header_l
     integer(kind=int64), allocatable :: sizes(:), lbounds(:), tmp(:)
@@ -613,6 +656,8 @@ contains
     m4_ifelse($2,STRING,{
     type(string), allocatable :: bvar(:)
     },)
+
+    call init_error(stat, err_msg)
 
     dflag = DYNAMIC_NO
     if (present(dynamic)) dflag = dynamic
@@ -805,25 +850,26 @@ contains
   end subroutine
 
   subroutine storage_writec_$2_$1(this, name, var, unit, dynamic, compression, stat, err_msg)
-    class(storage),         intent(inout) :: this
-    character(*),           intent(in)    :: name
-    m4_type($2),            intent(in)    :: var{}m4_pshape($1)
-    character(*), optional, intent(in)    :: unit
-    integer,      optional, intent(in)    :: dynamic
-    character,    optional, intent(in)    :: compression
-    integer,      optional, intent(out)   :: stat
-    type(string), optional, intent(out)   :: err_msg
+    class(storage),            intent(inout) :: this
+    character(*),              intent(in)    :: name
+    m4_type($2),               intent(in)    :: var{}m4_pshape($1)
+    character(*),    optional, intent(in)    :: unit
+    integer,         optional, intent(in)    :: dynamic
+    character,       optional, intent(in)    :: compression
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     call this%write(new_string(name), var, unit, dynamic, compression, stat, err_msg)
   end subroutine})
   m4_list
 
-  m4_define({m4_Y},{subroutine storage_read_$2_$1(this, name, var, stat, err_msg)
-    class(storage), intent(inout) :: this
-    type(string),   intent(in)    :: name
+  m4_define({m4_Y},{subroutine storage_read_$2_$1(this, name, var, index, stat, err_msg)
+    class(storage),            intent(inout) :: this
+    type(string),              intent(in)    :: name
     m4_type($2) m4_ifelse($1,0,,{, allocatable}), target, intent(out) :: var{}m4_pshape($1)
-    integer,             optional, intent(out) :: stat
-    type(string),        optional, intent(out) :: err_msg
+    integer,         optional, intent(in)    :: index
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     integer(kind=4)                  :: stat_
     m4_type($2), contiguous, pointer :: pvar({}m4_pdimm1($1):)
@@ -832,6 +878,8 @@ contains
     integer(kind=int64), allocatable :: sizes(:), lbounds(:), ubounds(:)
     })
     type(mapnode_string_variable), pointer :: p => null()
+
+    call init_error(stat, err_msg)
     
     ! Implies that the variable is registered
     call this%goto(name, stat_)
@@ -844,12 +892,32 @@ contains
     allocate(pvar(1:1))
     call read_blob_$2_$1(pvar)
     var = pvar(1)
+    
     },{
     ! Allocate the array with the complete shape
     sizes   = p%value%sizes
     lbounds = p%value%lbounds
     sizes(size(sizes)) = abs(sizes(size(sizes)))
     ubounds = lbounds + sizes - 1
+
+    if (present(index)) then
+      ! Search for index in blobs
+      idx = lbounds(size(lbounds))
+      do i = 1, p%value%count
+        if (idx <= index .and. idx + p%value%span(i) - 1 >= index) exit
+        idx = idx + p%value%span(i)
+      end do
+      lbounds(size(lbounds)) = idx
+      ubounds(size(ubounds)) = idx + p%value%span(i) - 1
+      sizes(size(sizes))     = p%value%span(i)
+      allocate(var({}m4_pallocate($1)))
+
+      call fseek(this%funit, p%value%addr(i), SEEK_SET)
+      pvar => var
+      call read_blob_$2_$1(pvar)
+      return
+    end if
+
     allocate(var({}m4_pallocate($1)))
 
     if (all(p%value%sizes > 0)) then ! Static array
@@ -873,11 +941,11 @@ contains
       integer                          :: dtype
       integer(kind=int64)              :: data_length, pos
       m4_ifelse($2,STRING,,{integer(kind=int64) :: var_length})
-      character(len=:),    allocatable :: unit
+      character(len=:),    allocatable :: bunit
       character                        :: compr
       integer(kind=int64), allocatable :: form(:), lower_bounds(:)
 
-      call read_header(this%funit, type=dtype, unit=unit, lbounds=lower_bounds, sizes=form, compression=compr, data_length=data_length)
+      call read_header(this%funit, type=dtype, unit=bunit, lbounds=lower_bounds, sizes=form, compression=compr, data_length=data_length)
       call ftell(this%funit, pos)
       
       if (dtype /= DT_$2) then
@@ -892,15 +960,16 @@ contains
           type(string), contiguous, pointer :: pstr(:)
           pstr(1:product(form)) => data
           call read_string(this%funit, pstr)
-        end block  
+        end block
+        m4_ignore(index)
       },{
         m4_ifelse($1,0,,{
         if (.not. all(lbound(data, kind=int64) == lower_bounds)) then
-          m4_error(ERR_INVALID_ARGUMENTS, "Allocated lower bounds do not match")
+          m4_error(ERR_INVALID_ARGUMENTS, "Allocated lower bounds for " // name%s // " do not match")
         end if
 
         if (.not. all(shape(data, kind=int64) == form)) then
-          m4_error(ERR_INVALID_ARGUMENTS, "Allocated shape does not match")
+          m4_error(ERR_INVALID_ARGUMENTS, "Allocated shape for " // name%s // " does not match")
         end if
         })
       
@@ -916,14 +985,15 @@ contains
         if (compr == COMPR_NONE) then
           read(this%funit) data
         end if
+        m4_ignore(index)
       })
 
       m4_ifelse($2,REAL64,{
-      if (len(unit) > 0) then
-        data = norm(data, unit)
+      if (len(bunit) > 0) then
+        data = norm(data, bunit)
       end if},{m4_ifelse($2,CMPLX128,{
-      if (len(unit) > 0) then
-        data = norm(data, unit)
+      if (len(bunit) > 0) then
+        data = norm(data, bunit)
       end if})})
 
       data_length = data_length + pos
@@ -934,14 +1004,15 @@ contains
       end if 
     end subroutine
   end subroutine
-  subroutine storage_readc_$2_$1(this, name, var, stat, err_msg)
-    class(storage), intent(inout) :: this
-    character(*),   intent(in)    :: name
+  subroutine storage_readc_$2_$1(this, name, var, index, stat, err_msg)
+    class(storage),            intent(inout) :: this
+    character(*),              intent(in)    :: name
     m4_type($2) m4_ifelse($1,0,,{, allocatable}), intent(out) :: var{}m4_pshape($1)
-    integer,             optional, intent(out) :: stat
-    type(string),        optional, intent(out) :: err_msg
+    integer,         optional, intent(in)    :: index
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
-    call this%read(new_string(name), var, stat, err_msg)
+    call this%read(new_string(name), var, index, stat, err_msg)
   end subroutine})
   m4_list
 

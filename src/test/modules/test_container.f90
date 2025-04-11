@@ -7,7 +7,7 @@ module test_container_m
   use grid_m,          only: grid, IDX_VERTEX, IDX_CELL, IDX_EDGE, IDX_FACE
   use grid0D_m,        only: grid0D
   use grid1D_m,        only: grid1D
-  use grid_data_m,     only: grid_data0_real, grid_data2_real, grid_data_real, allocate_grid_data2_real
+  use grid_data_m,     only: grid_data0_real, grid_data2_real, grid_data_real, allocate_grid_data0_real, allocate_grid_data2_real
   use grid_table_m,    only: grid_table
   use normalization_m, only: norm, denorm
   use tensor_grid_m,   only: tensor_grid
@@ -57,6 +57,9 @@ contains
     type(tensor_grid) :: gt, gt_read
     type(grid_table) :: tab, tab_read, tab_edge1, tab_edge2
     class(grid_data_real), allocatable :: eps(:,:)
+    class(grid_data_real), allocatable :: dynamic_data
+    real, allocatable :: gdata_data(:)
+
 
     call tc%init("container")
 
@@ -75,6 +78,10 @@ contains
       call eps(IDX_EDGE,idx_dir)%init(gt, IDX_EDGE, idx_dir)
     end do
 
+    call allocate_grid_data0_real(dynamic_data, idx_dim)
+    call dynamic_data%init(gt, IDX_VERTEX, 0, 0.0)
+    allocate(gdata_data(dynamic_data%n))
+
     call tab%init("tab", gt, IDX_CELL, 0, initial_flags = .true.)
     call tab%init_final()
 
@@ -82,6 +89,12 @@ contains
     call depot%save(gx)
     call depot%save(gy)
     call depot%save(gt)
+
+    call dynamic_data%set(gdata_data)
+    call depot%save("dynamic_grid_data", dynamic_data, dynamic=.true.)
+    gdata_data = 1.0
+    call dynamic_data%set(gdata_data)
+    call depot%save("dynamic_grid_data", dynamic_data, dynamic=.true.)
 
     call depot%save("eps_edge", eps(IDX_EDGE,1))
 
@@ -191,12 +204,13 @@ contains
 
       integer :: idx_bnd(2,expected%idx_dim), idx_bnd_(2,value%idx_dim)
       integer :: idx(expected%idx_dim), i, j
-      real :: evertex(expected%dim), vvertex(expected%dim)
+      real    :: evertex(expected%dim), vvertex(expected%dim)
 
       call tc%assert_eq(new_string(expected%name), new_string(value%name), "The grid names do not match")
       call tc%assert_eq(expected%idx_dim, value%idx_dim, "The grid index dimensions do not match")
       call tc%assert_eq(expected%dim,     value%dim, "The grid dimensions do not match")
-      
+      call tc%assert_eq(expected%unit, value%unit, "The grid units do not match")
+
       call expected%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
       call value%get_idx_bnd(   IDX_VERTEX, 0, idx_bnd_)
       call tc%assert_eq(idx_bnd, idx_bnd_, "The index bounds do not match")
@@ -209,7 +223,7 @@ contains
           
           call expected%get_vertex(idx, evertex) 
           call value%get_vertex(   idx, vvertex) 
-          call tc%assert_eq(evertex, vvertex, 1e-16, 1e-16, "Grid vertices do not match")
+          call tc%assert_eq(evertex, vvertex, 1e-16, 1e-16, "Grid vertices of " // expected%name // " do not match")
 
           ! go to next index
           idx(1) = idx(1) + 1

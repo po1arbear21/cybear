@@ -127,6 +127,12 @@ contains
     call shop%read(new_string("abccccccc"), str_arr)
     call tc%assert_eq([new_string("a"), new_string("bb"), new_string("ccc"), new_string("dddd"), new_string("eeeee"), new_string("ffffff")], str_arr, "String arrays do not match")
 
+    ! Test read only part of dynamic array
+    deallocate(dyneee)
+    call shop%read(new_string("dynr"), dyneee, index=2)
+    call tc%assert(allocated(dyneee), "Did not allocate array")
+    call tc%assert_eq(dynrr(:,2), dyneee(:,2), 1e-16, 1e-16, "Retrieved array does not match")
+
     call shop%close()
   
     call tc%finish()
