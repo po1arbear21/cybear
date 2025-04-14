@@ -707,7 +707,7 @@ contains
               p_cntr = p_cntr + 1
             end if
             ! adjust step size
-            fact = min(2.0, THETA_1 / (r ** POW))
+            fact = min(1.2, THETA_1 / (r ** POW))
             ! further adjustment if next point can be hit with a max 10% increase of delta_t
             if (this%t(i) + 1.1 * delta_t * fact > times(p_cntr)) fact = (times(p_cntr) - this%t(i)) / delta_t
             ! advance to next step
