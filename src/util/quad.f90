@@ -21,6 +21,23 @@ module quad_m
       real, intent(out) :: dfdp(:)
         !! output derivatives of f wrt p
     end subroutine
+
+    subroutine integrand_16(x, p, f, dfdx, dfdp)
+      real(kind=16), intent(in)  :: x
+        !! argument
+      real(kind=16), intent(in)  :: p(:)
+        !! parameters
+      real(kind=16), intent(out) :: f
+        !! output integrand
+      real(kind=16), intent(out) :: dfdx
+        !! output derivative of f wrt x
+      real(kind=16), intent(out) :: dfdp(:)
+        !! output derivatives of f wrt p
+    end subroutine
+  end interface
+
+  interface quad
+    module procedure :: quad_8, quad_16
   end interface
 
   integer, parameter :: MODE_TANH_SINH = 0
@@ -29,7 +46,7 @@ module quad_m
 
 contains
 
-  subroutine quad(func, a, b, p, I, dIda, dIdb, dIdp, rtol, err, min_levels, max_levels, ncalls)
+  subroutine quad_8(func, a, b, p, I, dIda, dIdb, dIdp, rtol, err, min_levels, max_levels, ncalls)
     !! general purpose integration routine using tanh-sinh (finite interval), exp-sinh (one integration bound is infinite)
     !! or sinh-sinh (both integration bounds are infinite) quadrature (uses quad-precision internally)
     procedure(integrand)           :: func
@@ -59,16 +76,20 @@ contains
     integer, optional, intent(out) :: ncalls
       !! output number of function calls
 
-    integer       :: min_levels_, max_levels_, ncalls_, sgn, level, const_counter, mode
-    real          :: bnd(2), rtol_, dIdbnd(2), scale, h, dpartdbnd(2), dpartdp(size(p))
-    real          :: dsumdbnd(2), dsumdp(size(p)), sum, sum_err, x1, x1_old, x2, x2_old, dx1dbnd(2), dx2dbnd(2), xref
-    real          :: f, dfdx, dfdp(size(p)), df1dbnd(2), df2dbnd(2), df1dp(size(p)), df2dp(size(p))
-    real(kind=16) :: sum_16, part_16, part_16_old, exp_h_16, exp_nh_16, w1_16, w2_16, f1_16, f2_16, r_16, s_16
+    integer, parameter :: N_INIT = 5
+      !! 2 * N_INIT + 1 is the minimum number of points for level 0
+
+    integer       :: min_levels_, max_levels_, ncalls_, sgn, mode, level, dir, n0, n, nstep, nmax, const_counter
+    real          :: bnd(2), rtol_, dIdbnd(2), scale, h, g, gmax
+    real          :: dsumdbnd(2), dsumdp(size(p)), sum, sum_err, x, x_old, xref
+    real          :: f, f_tmp, dfdx, dfdp(size(p)), dfdp_tmp(size(p))
+    real(kind=16) :: dxdbnd_16(2), dfdbnd_16(2), sum_16, dsumdbnd_16(2), dsumdp_16(size(p))
+    real(kind=16) :: part_16, part_16_old, dpartdbnd_16(2), dpartdp_16(size(p))
+    real(kind=16) :: eh_16, enh_16, enh_step_16, w_16, r_16, s_16, g_16
 
     ! optional arguments
     min_levels_ = 2
     max_levels_ = 16
-    ncalls_     = 0
     rtol_       = 1e-15
     if (present(min_levels)) min_levels_ = min_levels
     if (present(max_levels)) max_levels_ = max_levels
@@ -83,142 +104,151 @@ contains
       sgn = -1
     end if
 
-    ! determine integration mode and first node
+    ! determine integration mode and first node x = x(t = 0)
     if (ieee_is_finite(bnd(1)) .and. ieee_is_finite(bnd(2))) then
-      mode    = MODE_TANH_SINH
-      scale   = 0.5 * (bnd(2) - bnd(1))
-      x1      = 0.5 * (bnd(1) + bnd(2)) ! x1 = (a + b) / 2 + (b - a) / 2 * tanh(sinh(0))
-      dx1dbnd = [0.5, 0.5]
+      mode      = MODE_TANH_SINH
+      scale     = 0.5 * (bnd(2) - bnd(1))
+      x         = 0.5 * (bnd(1) + bnd(2)) ! x = (a + b) / 2 + (b - a) / 2 * tanh(sinh(0)) = (a + b) / 2
+      dxdbnd_16 = [0.5, 0.5]
     elseif (ieee_is_finite(bnd(1))) then
-      mode    = MODE_EXP_SINH
-      scale   = 1
-      xref    = bnd(1)
-      x1      = xref + scale ! x1 = a + exp(sinh(0))
-      dx1dbnd = [1.0, 0.0]
+      mode      = MODE_EXP_SINH
+      scale     = 1
+      xref      = bnd(1)
+      x         = xref + scale ! x = a + exp(sinh(0)) = a + 1
+      dxdbnd_16 = [1.0, 0.0]
     elseif (ieee_is_finite(bnd(2))) then
-      mode    = MODE_EXP_SINH
-      scale   = -1
-      xref    = bnd(2)
-      x1      = xref + scale ! x1 = b - exp(sinh(0))
-      dx1dbnd = [0.0, 1.0]
+      mode      = MODE_EXP_SINH
+      scale     = -1
+      xref      = bnd(2)
+      x         = xref + scale ! x = b - exp(sinh(0)) = b - 1
+      dxdbnd_16 = [0.0, 1.0]
     else
-      mode    = MODE_SINH_SINH
-      scale   = 1
-      x1      = 0 ! x1 = sinh(sinh(0))
-      dx1dbnd = 0
+      mode      = MODE_SINH_SINH
+      scale     = 1
+      x         = 0 ! x = sinh(sinh(0)) = 0
+      dxdbnd_16 = 0
     end if
-    dx2dbnd = dx1dbnd
 
-    ! start sum with first point, w(t=0) = 1 regardless of integration mode
-    call func(x1, p, f, dfdx, dfdp)
-    ncalls_  = ncalls_ + 1
-    sum_16   = f
-    dsumdbnd = dfdx * dx1dbnd
-    dsumdp   = dfdp
-    sum_err  = huge(1.0)
+    ! start sum with first point, w(t = 0) = 1 regardless of integration mode
+    call func(x, p, f, dfdx, dfdp)
+    ncalls_     = 1
+    sum_16      = f
+    dsumdbnd_16 = dfdx * dxdbnd_16
+    dsumdp_16   = dfdp
+    sum_err     = huge(1.0)
 
     ! loop over levels
     level   = 0
-    h       = 2 ! twice initial step size
-    do while ((level < min_levels_) .or. ((sum_err > rtol_ * abs(sum_16)) .and. (level < max_levels_)))
-      h         = 0.5 * h
-      exp_h_16  = exp(real(h, kind = 16)) ! exp(h)
-      exp_nh_16 = exp_h_16                ! exp(n*h)
+    h       = 2      ! twice initial step size
+    nstep   = 1      ! n stepsize (1 for level == 0, 2 for level > 0)
+    gmax    = abs(f) ! initial maximum
+    nmax    = 0      ! initial maximum position
+    do while ((level < min_levels_) .or. ((sum_err > rtol_ * abs(sum_16)) .and. (level <= max_levels_)))
+      h     = 0.5 * h
+      eh_16 = exp(real(h, kind = 16)) ! exp(h)
 
-      ! jump over every second point for higher levels (these are already included in the previous level)
-      if (level > 0) exp_h_16 = exp_h_16 * exp_h_16 ! exp(2*h)
+      ! start n at maximum of previous level
+      n0 = 2 * nmax
 
       ! reset temporary values
       part_16       = 0
-      dpartdbnd     = 0
-      dpartdp       = 0
-      const_counter = 0
-      x1            = 0
-      x2            = 0
-      f1_16         = 0
-      f2_16         = 0
-      df1dbnd       = 0
-      df2dbnd       = 0
-      df1dp         = 0
-      df2dp         = 0
+      dpartdbnd_16  = 0
+      dpartdp_16    = 0
 
-      ! loop over n, until part_16 does not change anymore (check twice for safety)
-      do while (const_counter < 2)
-        x1_old = x1
-        x2_old = x2
+      ! loop over two directions
+      do dir = -1, 1, 2
+        n      = n0 + dir ! n +/- 1
+        enh_16 = eh_16**n ! exp(n * h)
 
-        ! get nodes and weights depending on integration mode
-        select case (mode)
-        case (MODE_TANH_SINH)
-          r_16    = exp(1 / exp_nh_16 - exp_nh_16)                  ! r  = exp(-2 * sinh(n * h))
-          s_16    = 2 * r_16 / (1 + r_16)                           ! s  = 1 - tanh(sinh(n * h))
-          w1_16   = (exp_nh_16 + 1 / exp_nh_16) * s_16 / (1 + r_16) ! w1 = cosh(n * h) / cosh(sinh(n * h))**2
-          w2_16   = w1_16                                           ! w2 = cosh(n * h) / cosh(sinh(n * h))**2
-          x1      = real(bnd(1) + scale * s_16)                     ! x1 = (a+b)/2 + (b-a)/2 * tanh(sinh(-n*h))
-          dx1dbnd = [1.0, 0.0] + [-0.5, 0.5] * real(s_16)
-          x2      = real(bnd(2) - scale * s_16)                     ! x2 = (a+b)/2 + (b-a)/2 * tanh(sinh( n*h))
-          dx2dbnd = [0.0, 1.0] + [0.5, -0.5] * real(s_16)
-        case (MODE_EXP_SINH)
-          r_16    = exp(0.5*(exp_nh_16 - 1 / exp_nh_16))     ! r  = exp(sinh(n * h))
-          w1_16   = 0.5 * (exp_nh_16 + 1 / exp_nh_16) / r_16 ! w1 = cosh(n * h) * exp(-sinh(n * h))
-          w2_16   = 0.5 * (exp_nh_16 + 1 / exp_nh_16) * r_16 ! w2 = cosh(n * h) * exp( sinh(n * h))
-          x1      = real(xref + scale / r_16)                ! x1 = a[b] +[-] exp(-sinh(n * h))
-          x2      = real(xref + scale * r_16)                ! x2 = a[b] +[-] exp( sinh(n * h))
-        case (MODE_SINH_SINH)
-          r_16    = exp(0.5*(exp_nh_16 - 1 / exp_nh_16))     ! r  = exp(sinh(n * h))
-          s_16    = 0.5 * (r_16 - 1 / r_16)                  ! s  = sinh(sinh(n * h))
-          r_16    = 0.5 * (r_16 + 1 / r_16)                  ! r  = cosh(sinh(n * h))
-          w1_16   = 0.5 * (exp_nh_16 + 1 / exp_nh_16) * r_16 ! w1 = cosh(n * h) * cosh(sinh(n * h))
-          w2_16   = w1_16                                    ! w2 = cosh(n * h) * cosh(sinh(n * h))
-          x1      = - real(s_16)                             ! x1 = - sinh(sinh(n * h))
-          x2      = - x1                                     ! x2 =   sinh(sinh(n * h))
-        end select
-
-        ! evaluate function at first point (reuse value if too close to prev. x)
-        if (x1 /= x1_old) then
-          call func(x1, p, f, dfdx, dfdp)
-          ncalls_ = ncalls_ + 1
-          if (ieee_is_finite(f)) then
-            f1_16   = f
-            df1dbnd = dfdx * dx1dbnd
-            df1dp   = dfdp
-          end if
+        ! step size (positive or negative depending on direction)
+        if (level == 0) then
+          nstep = dir
+        else
+          ! jump over every second point for higher levels (these are already included in the previous level)
+          nstep = 2 * dir
         end if
 
-        ! evaluate function at second point (reuse value if too close to prev. x)
-        if (x2 /= x2_old) then
-          call func(x2, p, f, dfdx, dfdp)
-          ncalls_ = ncalls_ + 1
-          if (ieee_is_finite(f)) then
-            f2_16   = f
-            df2dbnd = dfdx * dx2dbnd
-            df2dp   = dfdp
+        ! exp(n*h) update factor
+        enh_step_16 = eh_16**nstep
+
+        ! reset temporary values
+        x         = 0
+        f         = 0
+        dfdbnd_16 = 0
+        dfdp      = 0
+
+        ! evaluate partial sum
+        const_counter = 0
+        do while (((level == 0) .and. (abs(n - n0) < N_INIT)) .or. (const_counter < 2))
+          x_old = x
+
+          ! get nodes and weights depending on integration mode
+          select case (mode)
+          case (MODE_TANH_SINH)
+            r_16      = exp(1 / enh_16 - enh_16)                  ! r = exp(-2 * sinh(n * h))
+            s_16      = 2 * r_16 / (1 + r_16)                     ! s = 1 - tanh(sinh(n * h))
+            w_16      = (enh_16 + 1 / enh_16) * s_16 / (1 + r_16) ! w = cosh(n * h) / cosh(sinh(n * h))**2
+            x         = real(bnd(2) - scale * s_16)               ! x = (a+b)/2 + (b-a)/2 * tanh(sinh(n * h))
+            dxdbnd_16 = [0.0, 1.0] + [0.5, -0.5] * s_16
+          case (MODE_EXP_SINH)
+            r_16   = exp(0.5 * (enh_16 - 1 / enh_16))          ! r = exp(sinh(n * h))
+            w_16   = 0.5 * (enh_16 + 1 / enh_16) * r_16        ! w = cosh(n * h) * exp(sinh(n * h))
+            x      = real(xref + scale * r_16)                 ! x = a[b] +[-] exp(sinh(n * h))
+          case (MODE_SINH_SINH)
+            r_16   = exp(0.5 * (enh_16 - 1 / enh_16))          ! r = exp(sinh(n * h))
+            x      = real(0.5 * (r_16 - 1 / r_16))             ! x = sinh(sinh(n * h))
+            r_16   = 0.5 * (r_16 + 1 / r_16)                   ! r = cosh(sinh(n * h))
+            w_16   = 0.5 * (enh_16 + 1 / enh_16) * r_16        ! w = cosh(n * h) * cosh(sinh(n * h))
+          end select
+
+          ! evaluate function (reuse value if too close to prev. x)
+          if (x /= x_old) then
+            call func(x, p, f_tmp, dfdx, dfdp_tmp)
+            ncalls_ = ncalls_ + 1
+            if (ieee_is_finite(f)) then
+              f         = f_tmp
+              dfdbnd_16 = dfdx * dxdbnd_16
+              dfdp      = dfdp_tmp
+            end if
           end if
-        end if
 
-        ! update partial sum
-        part_16_old = part_16
-        part_16     = part_16 + w1_16 * f1_16 + w2_16 * f2_16
-        if (part_16 == part_16_old) const_counter = const_counter + 1
-        dpartdbnd = dpartdbnd + real(w1_16) * df1dbnd + real(w2_16) * df2dbnd
-        dpartdp   = dpartdp   + real(w1_16) * df1dp   + real(w2_16) * df2dp
+          ! actual integrand including weight from transformation
+          g_16 = w_16 * f
 
-        ! exp(n * h), n = 1, 2, 3, ... for level = 0 and n = 1, 3, 5, ... for level > 0
-        exp_nh_16 = exp_nh_16 * exp_h_16
+          ! update maximum integrand
+          g = abs(real(g_16))
+          if (g > gmax) then
+            gmax = g
+            nmax = n
+          end if
+
+          ! update partial sum
+          part_16_old = part_16
+          part_16     = part_16 + g_16
+          if (part_16 == part_16_old) const_counter = const_counter + 1
+          dpartdbnd_16 = dpartdbnd_16 + w_16 * dfdbnd_16
+          dpartdp_16   = dpartdp_16   + w_16 * dfdp
+
+          ! update n and exp(n*h)
+          n      = n + nstep
+          enh_16 = enh_16 * enh_step_16
+        end do
       end do
 
       ! update sum and estimate error (error is based on difference to prev. level => overestimate)
-      sum_err  = abs(real(sum_16 - part_16)) ! corresponds to |I_{level} - I_{level-1}| >= rtol_ |I_{level}|
-      sum_16   = sum_16   + part_16
-      dsumdbnd = dsumdbnd + dpartdbnd
-      dsumdp   = dsumdp   + dpartdp
+      sum_err     = abs(real(sum_16 - part_16)) ! corresponds to |I_{level} - I_{level-1}| >= rtol_ |I_{level}|
+      sum_16      = sum_16      + part_16
+      dsumdbnd_16 = dsumdbnd_16 + dpartdbnd_16
+      dsumdp_16   = dsumdp_16   + dpartdp_16
 
       ! go to next level
       level = level + 1
     end do
 
     ! calculate integral from raw sum
-    sum    = real(sum_16)
+    sum      = real(sum_16)
+    dsumdbnd = real(dsumdbnd_16)
+    dsumdp   = real(dsumdp_16)
     I      = sgn * scale * sum * h
     dIdbnd = sgn * scale * dsumdbnd * h
     if (mode == MODE_TANH_SINH) then
@@ -235,6 +265,222 @@ contains
 
     ! optional output
     if (present(err)) err = sum_err / (abs(sum) + 1e-16)
+    if (present(ncalls)) ncalls = ncalls_
+  end subroutine
+
+  subroutine quad_16(func, a, b, p, I, dIda, dIdb, dIdp, rtol, err, min_levels, max_levels, ncalls)
+    !! general purpose integration routine using tanh-sinh (finite interval), exp-sinh (one integration bound is infinite)
+    !! or sinh-sinh (both integration bounds are infinite) quadrature using quad precision
+    procedure(integrand_16)              :: func
+      !! function to integrate
+    real(kind=16),           intent(in)  :: a
+      !! lower integration bound
+    real(kind=16),           intent(in)  :: b
+      !! upper integration bound
+    real(kind=16),           intent(in)  :: p(:)
+      !! additional parameters passed to the integrand
+    real(kind=16),           intent(out) :: I
+      !! output value of integral
+    real(kind=16),           intent(out) :: dIda
+      !! output derivative of I wrt lower bound
+    real(kind=16),           intent(out) :: dIdb
+      !! output derivative of I wrt upper bound
+    real(kind=16),           intent(out) :: dIdp(:)
+      !! output derivatives of I wrt parameters
+    real(kind=16), optional, intent(in)  :: rtol
+      !! error tolerance, overestimate (default: 1e-15)
+    real(kind=16), optional, intent(out) :: err
+      !! output error estimate
+    integer,       optional, intent(in)  :: min_levels
+      !! minimum number of levels (default: 2)
+    integer,       optional, intent(in)  :: max_levels
+      !! maximal number of levels (default: 16)
+    integer,       optional, intent(out) :: ncalls
+      !! output number of function calls
+
+    integer, parameter :: N_INIT = 5
+      !! 2 * N_INIT + 1 is the minimum number of points for level 0
+
+    integer       :: min_levels_, max_levels_, ncalls_, sgn, mode, level, dir, n0, n, nstep, nmax, const_counter
+    real(kind=16) :: bnd(2), rtol_, dIdbnd(2), scale, h, dpartdbnd(2), dpartdp(size(p)), g, gmax
+    real(kind=16) :: dsumdbnd(2), dsumdp(size(p)), sum, sum_err, x, x_old, dxdbnd(2), xref
+    real(kind=16) :: f, f_tmp, dfdx, dfdbnd(2), dfdp(size(p)), dfdp_tmp(size(p))
+    real(kind=16) :: part, part_old, eh, enh, enh_step, w, r, s
+
+    ! optional arguments
+    min_levels_ = 2
+    max_levels_ = 16
+    rtol_       = 1e-15
+    if (present(min_levels)) min_levels_ = min_levels
+    if (present(max_levels)) max_levels_ = max_levels
+    if (present(rtol)) rtol_ = rtol
+
+    ! sort integration bounds
+    if (a < b) then
+      bnd = [a, b]
+      sgn = 1
+    else
+      bnd = [b, a]
+      sgn = -1
+    end if
+
+    ! determine integration mode and first node
+    if (ieee_is_finite(bnd(1)) .and. ieee_is_finite(bnd(2))) then
+      mode   = MODE_TANH_SINH
+      scale  = 0.5 * (bnd(2) - bnd(1))
+      x      = 0.5 * (bnd(1) + bnd(2)) ! x = (a + b) / 2 + (b - a) / 2 * tanh(sinh(0)) = (a + b) / 2
+      dxdbnd = [0.5, 0.5]
+    elseif (ieee_is_finite(bnd(1))) then
+      mode   = MODE_EXP_SINH
+      scale  = 1
+      xref   = bnd(1)
+      x      = xref + scale ! x = a + exp(sinh(0)) = a + 1
+      dxdbnd = [1.0, 0.0]
+    elseif (ieee_is_finite(bnd(2))) then
+      mode   = MODE_EXP_SINH
+      scale  = -1
+      xref   = bnd(2)
+      x      = xref + scale ! x = b - exp(sinh(0)) = b - 1
+      dxdbnd = [0.0, 1.0]
+    else
+      mode   = MODE_SINH_SINH
+      scale  = 1
+      x      = 0 ! x = sinh(sinh(0)) = 0
+      dxdbnd = 0
+    end if
+
+    ! start sum with first point, w(t=0) = 1 regardless of integration mode
+    call func(x, p, f, dfdx, dfdp)
+    ncalls_  = 1
+    sum      = f
+    dsumdbnd = dfdx * dxdbnd
+    dsumdp   = dfdp
+    sum_err  = huge(1.0_16)
+
+    ! loop over levels
+    level   = 0
+    h       = 2      ! twice initial step size
+    nstep   = 1      ! n stepsize (1 for level == 0, 2 for level > 0)
+    gmax    = abs(f) ! initial maximum
+    nmax    = 0      ! initial maximum position
+    do while ((level < min_levels_) .or. ((sum_err > rtol_ * abs(sum)) .and. (level <= max_levels_)))
+      h  = 0.5 * h
+      eh = exp(h)
+
+      ! start n at maximum of previous level
+      n0 = 2 * nmax
+
+      ! reset temporary values
+      part      = 0
+      dpartdbnd = 0
+      dpartdp   = 0
+
+      ! loop over two directions
+      do dir = -1, 1, 2
+        n   = n0 + dir ! n +/- 1
+        enh = eh**n    ! exp(n * h)
+
+        ! step size (positive or negative depending on direction)
+        if (level == 0) then
+          nstep = dir
+        else
+          ! jump over every second point for higher levels (these are already included in the previous level)
+          nstep = 2 * dir
+        end if
+
+        ! exp(n*h) update factor
+        enh_step = eh**nstep
+
+        ! reset temporary values
+        x      = 0
+        f      = 0
+        dfdbnd = 0
+        dfdp   = 0
+
+        ! evaluate partial sum
+        const_counter = 0
+        do while (((level == 0) .and. (abs(n - n0) < N_INIT)) .or. (const_counter < 2))
+          x_old = x
+
+          ! get nodes and weights depending on integration mode
+          select case (mode)
+          case (MODE_TANH_SINH)
+            r      = exp(1 / enh - enh)            ! r = exp(-2 * sinh(n * h))
+            s      = 2 * r / (1 + r)               ! s = 1 - tanh(sinh(n * h))
+            w      = (enh + 1 / enh) * s / (1 + r) ! w = cosh(n * h) / cosh(sinh(n * h))**2
+            x      = bnd(2) - scale * s            ! x = (a+b)/2 + (b-a)/2 * tanh(sinh(n * h))
+            dxdbnd = [0.0, 1.0] + [0.5, -0.5] * s
+          case (MODE_EXP_SINH)
+            r = exp(0.5 * (enh - 1 / enh))         ! r = exp(sinh(n * h))
+            w = 0.5 * (enh + 1 / enh) * r          ! w = cosh(n * h) * exp(sinh(n * h))
+            x = xref + scale * r                   ! x = a[b] +[-] exp(sinh(n * h))
+          case (MODE_SINH_SINH)
+            r = exp(0.5 * (enh - 1 / enh))         ! r = exp(sinh(n * h))
+            x = 0.5 * (r - 1 / r)                  ! x = sinh(sinh(n * h))
+            r = 0.5 * (r + 1 / r)                  ! r = cosh(sinh(n * h))
+            w = 0.5 * (enh + 1 / enh) * r          ! w = cosh(n * h) * cosh(sinh(n * h))
+          end select
+
+          ! evaluate function (reuse value if too close to prev. x)
+          if (x /= x_old) then
+            call func(x, p, f_tmp, dfdx, dfdp_tmp)
+            ncalls_ = ncalls_ + 1
+            if (ieee_is_finite(f_tmp)) then
+              f      = f_tmp
+              dfdbnd = dfdx * dxdbnd
+              dfdp   = dfdp_tmp
+            end if
+          end if
+
+          ! actual integrand including weight from transformation
+          g = w * f
+
+          ! update maximum integrand
+          if (abs(g) > gmax) then
+            gmax = abs(g)
+            nmax = n
+          end if
+
+          ! update partial sum
+          part_old  = part
+          part      = part + g
+          if (part == part_old) const_counter = const_counter + 1
+          dpartdbnd = dpartdbnd + w * dfdbnd
+          dpartdp   = dpartdp   + w * dfdp
+
+          ! update n and exp(n*h)
+          n   = n + nstep
+          enh = enh * enh_step
+        end do
+      end do
+
+      ! update sum and estimate error (error is based on difference to prev. level => overestimate)
+      sum_err  = abs(sum - part) ! corresponds to |I_{level} - I_{level-1}| >= rtol_ |I_{level}|
+      sum      = sum   + part
+      dsumdbnd = dsumdbnd + dpartdbnd
+      dsumdp   = dsumdp   + dpartdp
+
+      ! go to next level
+      level = level + 1
+    end do
+
+    ! calculate integral from raw sum
+    I      = sgn * scale * sum * h
+    dIdbnd = sgn * scale * dsumdbnd * h
+    if (mode == MODE_TANH_SINH) then
+      dIdbnd = dIdbnd + sgn * [-0.5, 0.5] * sum * h
+    end if
+    dIdp   = sgn * scale * dsumdp * h
+    if (sgn == 1) then
+      dIda = dIdbnd(1)
+      dIdb = dIdbnd(2)
+    else
+      dIda = dIdbnd(2)
+      dIdb = dIdbnd(1)
+    end if
+
+    ! optional output
+    if (present(err)) err = sum_err / (abs(sum) + 1e-32)
     if (present(ncalls)) ncalls = ncalls_
   end subroutine
 
