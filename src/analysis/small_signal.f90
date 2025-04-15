@@ -342,7 +342,7 @@ contains
 
     if (allocated(this%varfile)) then
       call c_vars%open(this%varfile, flag = STORAGE_WRITE)
-      call c_vars%write("small-signal/s", [this%s(i)], dynamic = DYNAMIC_APP)
+      call c_vars%write("small-signal/s", [this%s(i)], unit = "Hz", dynamic = DYNAMIC_APP)
       ! iout: loop over output variables
       do iout = 1, size(this%output_vars)
         ptr = this%sys%search_var(this%output_vars(iout)%s)
@@ -386,7 +386,7 @@ contains
     end if
     if (allocated(this%cachefile)) then
       call c_cache%open(this%cachefile, flag = STORAGE_WRITE)
-      call c_cache%write("small-signal/s", [this%s(i)], dynamic = DYNAMIC_APP)
+      call c_cache%write("small-signal/s", [this%s(i)], unit = "Hz", dynamic = DYNAMIC_APP)
       call c_cache%write("small-signal/x", x, dynamic = DYNAMIC_EXT)
       if (present(dxds)) call c_cache%write("small-signal/dxds", dxds, dynamic = DYNAMIC_EXT)
       call c_cache%close()
