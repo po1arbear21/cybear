@@ -3,19 +3,20 @@ m4_include(../util/macro.f90.inc)
 module esystem_m
 
   use array_m,            only: array1_int
-  use color_m,            only: COL_DEFAULT, COL_MAGENTA
   use error_m,            only: assert_failed, program_error
   use equation_m,         only: equation, equation_ptr, vector_equation_ptr
   use esystem_depgraph_m, only: depgraph, depgraph_equ, STATUS_DEP
-  use gmres_m,            only: gmres_options
+  use grid_m,             only: grid
   use grid_table_m,       only: grid_table, grid_table_ptr
   use hashmap_m,          only: hashmap_int
   use json_m,             only: json_object
   use matrix_m,           only: block_real, dense_real, dense_cmplx, matrix_real, matrix_cmplx, sparse_real, sparse_cmplx, matrix_convert
-  use newton_m,           only: newton_opt, newton
+  use map_m,              only: map_string_int, mapnode_string_int, map_string_int64, mapnode_string_int64
   use output_file_m,      only: output_file
   use res_equation_m,     only: res_equation
   use simple_equations_m, only: dummy_equation, selector_equation, input_equation
+  use string_m,           only: string, new_string
+  use tensor_grid_m,      only: tensor_grid
   use variable_m,         only: variable, variable_ptr, vector_variable_ptr
   use vector_m,           only: vector_int
   use vselector_m,        only: vselector, vselector_ptr, vector_vselector_ptr
@@ -35,6 +36,10 @@ module esystem_m
       !! list of all variables
     type(hashmap_int)         :: hvars
       !! hashmap for variable => vars index
+    type(map_string_int)      :: vars_by_name
+      !! map for var name => var index
+    type(map_string_int64)    :: grids_by_name
+      !! map for grid name => int64(grid pointer)
 
     type(depgraph) :: g
       !! dependency graph
@@ -94,8 +99,8 @@ module esystem_m
     procedure :: eval            => esystem_eval
     procedure :: get_main_var    => esystem_get_main_var
     procedure :: get_res_equ     => esystem_get_res_equ
+    procedure :: search_var      => esystem_search_var
     procedure :: search_main_var => esystem_search_main_var
-    procedure :: solve           => esystem_solve
     generic   :: get_x           => esystem_get_x,    esystem_get_x_block
     generic   :: set_x           => esystem_set_x,    esystem_set_x_block
     generic   :: update_x        => esystem_update_x, esystem_update_x_block
@@ -153,6 +158,8 @@ contains
     ! init variable list
     call this%vars%init(0, c = 8)
     call this%hvars%init()
+    call this%vars_by_name%init()
+    call this%grids_by_name%init()
 
     ! init dependency graph
     call this%g%init(precon_)
@@ -428,7 +435,32 @@ contains
       if (.not. status) then
         call this%vars%push(v%get_ptr())
         call this%hvars%set(hkey, this%vars%n)
+        call this%vars_by_name%insert(new_string(v%name), this%vars%n, status = status)
+        if (.not. status) call program_error("two variables named '" // v%name // "' in esystem")
+        call add_grid(v%g)
       end if
+    end subroutine
+
+    subroutine add_grid(g)
+      !! add grid to this%grids_by_name to make sure no two grids in esystem have the same name
+      class(grid), pointer :: g
+        !! grid pointer
+
+      integer                             :: j
+      logical                             :: stat
+      type(mapnode_string_int64), pointer :: node
+
+      select type(g)
+      type is (tensor_grid)
+      ! tensor grid: save all subgrids as well
+        do j = 1, size(g%g)
+          call add_grid(g%g(j)%p)
+        end do
+      end select
+      ! insert into this%grids_by_name
+      call this%grids_by_name%insert(new_string(g%name), loc(g), node = node, status = stat)
+      ! two different grid pointers with same name: error
+      if (.not. stat .and. loc(g) /= node%value) call program_error("two grids named '" // g%name // "' in esystem")
     end subroutine
 
   end subroutine
@@ -691,12 +723,12 @@ contains
 
   subroutine esystem_eval(this, f, df, dfp)
     !! evaluate equations, get residuals, jacobians, and preconditioner
-    class(esystem),     target,   intent(inout) :: this ! equation system
-    real,               optional, intent(out)   :: f(:)
+    class(esystem),             target,  intent(inout) :: this
+    real,             optional,          intent(out)   :: f(:)
       !! output residuals
-    class(matrix_real), optional, intent(out)   :: df
+    type(block_real), optional, pointer, intent(out)   :: df
       !! output jacobian
-    type(sparse_real),  optional, intent(out)   :: dfp
+    type(block_real), optional, pointer, intent(out)   :: dfp
       !! output preconditioner jacobian
 
     integer :: i, j, k, k0, k1, ibl1, ibl2
@@ -773,10 +805,10 @@ contains
     end if
 
     ! output jacobian
-    if (present(df)) call this%get_df(df)
+    if (present(df)) df => this%df
 
     ! output preconditioner jacobian
-    if (present(dfp)) call this%get_dfp(dfp)
+    if (present(dfp)) dfp => this%dfp
   end subroutine
 
   function esystem_get_main_var(this, iimvar) result(mv)
@@ -806,6 +838,21 @@ contains
     end select
   end function
 
+  function esystem_search_var(this, name) result(var)
+    !! search for pointer to variable by its name
+    class(esystem), intent(in) :: this
+    character(*),   intent(in) :: name
+      !! var name
+    type(variable_ptr)         :: var
+      !! return pointer to var
+
+    type(mapnode_string_int), pointer :: node
+
+    node => this%vars_by_name%find(new_string(name))
+    if (.not. associated(node)) call program_error("variable " // name // " not found in esystem")
+    var = this%vars%d(node%value)
+  end function
+
   function esystem_search_main_var(this, name) result(iimvar)
     !! search for main var selector by name
     class(esystem), intent(in) :: this
@@ -830,85 +877,6 @@ contains
 
     if (.not. found) call program_error("main variable with name "//name//" not found")
   end function
-
-  subroutine esystem_solve(this, nopt, gopt)
-    !! solves steady-state by newton-raphson method (deprecated, use analysis/steady_state instead)
-    class(esystem),                intent(inout) :: this
-    type(newton_opt),    optional, intent(in)    :: nopt
-      !! options for the newton solver
-    type(gmres_options), optional, intent(in)    :: gopt
-      !! options for the iterative solver in each newton iteration (only used when nopt%it_solver == true)
-
-    real                      :: p(0)
-    real, allocatable         :: x(:)
-    type(newton_opt)          :: nopt_
-    type(sparse_real), target :: df, dfp
-
-    print "(A)", COL_MAGENTA//"esystem_solve is deprecated, use analysis/steady_state instead"//COL_DEFAULT
-
-    m4_assert(.not. this%dense)
-
-    ! parse optional newton options
-    if (present(nopt)) then
-      m4_assert(size(nopt%atol) == this%n)
-      nopt_ = nopt
-    else
-      call nopt_%init(this%n)
-    end if
-
-    allocate (x(this%n))
-
-    call newton(fun, p, nopt_, this%get_x(), x, gmres_opt = gopt)
-
-    ! save newton's result in esystem's variables
-    call this%set_x(x)
-
-    ! release factorizations
-    if (nopt_%it_solver) then
-      call dfp%destruct()
-    else
-      call df%destruct()
-    end if
-
-  contains
-
-    subroutine fun(x, p, f, dfdx, dfdx_prec, dfdp)
-      real,                                  intent(in)  :: x(:)
-        !! arguments
-      real,                                  intent(in)  :: p(:)
-        !! parameters
-      real,               optional,          intent(out) :: f(:)
-        !! output function values
-      class(matrix_real), optional, pointer, intent(out) :: dfdx
-        !! output pointer to jacobian of f wrt x
-      class(matrix_real), optional, pointer, intent(out) :: dfdx_prec
-        !! optional output pointer to preconditioner jacobian of f wrt x
-      real,               optional,          intent(out) :: dfdp(:,:)
-        !! optional output jacobian of f wrt p
-
-      ! params not needed
-      m4_assert(size(p) == 0)
-      m4_ignore(p)
-      m4_assert(present(dfdx))
-      m4_assert(.not. present(dfdp))
-      m4_ignore(dfdp)
-
-      ! save input variable
-      call this%set_x(x)
-
-      ! compute residue, jacobian, and possible preconditioner
-      if (nopt_%it_solver) then
-        m4_assert(present(dfdx_prec))
-        call this%eval(f = f, df = df, dfp = dfp)
-        dfdx_prec => dfp
-      else
-        m4_assert(.not. present(dfdx_prec))
-        call this%eval(f = f, df = df)
-      end if
-      dfdx => df
-    end subroutine
-
-  end subroutine
 
   function esystem_get_x(this) result(x)
     !! get main variables in flat array

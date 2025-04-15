@@ -10,7 +10,7 @@ module container_m
   use grid_table_m,    only: grid_table
   use grid_data_m
   use normalization_m, only: norm, denorm
-  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE, COMPR_DEFAULT, DYNAMIC_NO, DYNAMIC_EXT
+  use storage_m,       only: storage, variable, STORAGE_READ, STORAGE_WRITE, COMPR_DEFAULT, DYNAMIC_NO, DYNAMIC_EXT, DYNAMIC_APP, ERR_ALREADY_EXISTS, ERR_FILE_OP, ERR_INTERNAL, ERR_INVALID_ARGUMENTS, ERR_NOT_FOUND
   use string_m
   use variable_m,      only: variable_real
   use vector_m,        only: vector_string
@@ -75,11 +75,11 @@ module container_m
 contains
 
   subroutine container_open(this, file, flag, stat, err_msg)
-    class(container),       intent(inout) :: this
-    character(*),           intent(in)    :: file
-    integer,      optional, intent(in)    :: flag
-    integer,      optional, intent(out)   :: stat
-    type(string), optional, intent(out)   :: err_msg
+    class(container),          intent(inout) :: this
+    character(*),              intent(in)    :: file
+    integer,         optional, intent(in)    :: flag
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     integer :: i, flag_
     type(variable), allocatable :: vars(:)
@@ -120,31 +120,43 @@ contains
 
   end function
 
-  recursive subroutine container_save_grid(this, g, unit)
-    class(container),       intent(inout) :: this
-    class(grid), target,    intent(in)    :: g
-    character(*), optional, intent(in)    :: unit 
+  recursive subroutine container_save_grid(this, g, stat, err_msg)
+    class(container),          intent(inout) :: this
+    class(grid), target,       intent(in)    :: g
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
  
     select type (g)
       class is (grid0D)
-        call this%write("sys/grids/" // g%name, new_string("grid0D"))
+        call this%write("sys/grids/" // g%name, new_string("grid0D"), stat=stat, err_msg=err_msg)
+        if (present(stat)) then
+          if (stat /= 0) return
+        end if
 
       class is (grid1D)
-        call this%write("sys/grids/" // g%name, new_string("grid1D"))
+        call this%write("sys/grids/" // g%name, new_string("grid1D"), stat=stat, err_msg=err_msg)
+        if (present(stat)) then
+          if (stat /= 0) return
+        end if
+
         call this%write("sys/grids/" // g%name // "/i0",       g%i0)
-        call this%write("sys/grids/" // g%name // "/vertices", g%x, unit=unit, compression=COMPR_DEFAULT)
+        call this%write("sys/grids/" // g%name // "/unit",     g%unit(1))
+        call this%write("sys/grids/" // g%name // "/vertices", denorm(g%x, g%unit(1)%s), compression=COMPR_DEFAULT)
 
       class is (tensor_grid)
       block
         integer      :: i
         type(string) :: grids(size(g%g))
 
-        call this%write("sys/grids/" // g%name, new_string("tensor_grid"))
+        call this%write("sys/grids/" // g%name, new_string("tensor_grid"), stat=stat, err_msg=err_msg)
+        if (present(stat)) then
+          if (stat /= 0) return
+        end if
         
         do i = 1, size(g%g)
           grids(i)%s = g%g(i)%p%name
           if (.not. this%contains(new_string("sys/grids/") // grids(i))) then
-            call this%container_save_grid(g%g(i)%p, unit=unit)
+            call this%container_save_grid(g%g(i)%p)
           end if
         end do
         
@@ -152,9 +164,24 @@ contains
       end block
 
       class is (triang_grid)
-        call this%write("sys/grids/" // g%name, new_string("triang_grid"))
-        call this%write("sys/grids/" // g%name // "/vertices", g%vert, unit=unit)
-        call this%write("sys/grids/" // g%name // "/cells",    g%cell2vert)
+        call this%write("sys/grids/" // g%name, new_string("triang_grid"), stat=stat, err_msg=err_msg)
+        if (present(stat)) then
+          if (stat /= 0) return
+        end if
+
+        call this%write("sys/grids/" // g%name // "/units", g%unit)
+
+        block
+          real, allocatable :: vertices(:,:)
+          allocate(vertices(2, g%nvert))
+          vertices = g%vert
+          vertices(1,:) = denorm(vertices(1,:), g%unit(1)%s)
+          vertices(2,:) = denorm(vertices(2,:), g%unit(2)%s)
+
+          call this%write("sys/grids/" // g%name // "/vertices", vertices)
+          call this%write("sys/grids/" // g%name // "/cells",    g%cell2vert)
+        end block
+
 
       class default
         ! Generic writing of all the data of the grid, disable for now
@@ -164,41 +191,67 @@ contains
 
   m4_define({m4_Y},{
   type is (grid_data$1_$2)
-    call this%write("sys/data/" // name // "/data",   data%data, unit=unit, compression=COMPR_DEFAULT)
+    call this%write("sys/data/" // name // "/data",   data%data, unit=unit, compression=COMPR_DEFAULT, dynamic=dflag)
 })
-m4_define({m4_X},{subroutine container_save_grid_data_$1(this, name, data, unit)
-  class(container),       intent(inout) :: this
-  class(grid_data_$1),    intent(in)    :: data
-  character(*),           intent(in)    :: name
-  character(*), optional, intent(in)    :: unit
+m4_define({m4_X},{subroutine container_save_grid_data_$1(this, name, data, unit, dynamic, stat, err_msg)
+  class(container),          intent(inout) :: this
+  class(grid_data_$1),       intent(in)    :: data
+  character(*),              intent(in)    :: name
+  character(*),    optional, intent(in)    :: unit
+  logical,         optional, intent(in)    :: dynamic
+  integer(kind=4), optional, intent(out)   :: stat
+  type(string),    optional, intent(out)   :: err_msg
 
-  call this%write("sys/data/" // name, new_string("$2_$1"))
-  call this%write("sys/data/" // name // "/bounds", data%idx_bnd)
+  integer :: dflag
+
+  dflag = DYNAMIC_NO
+  if (present(dynamic)) then
+    if (dynamic) dflag = DYNAMIC_EXT
+  end if
+
+  if (.not. this%contains(new_string("sys/data/" // name))) then
+    call this%write("sys/data/" // name, new_string("$2_$1"), stat=stat, err_msg=err_msg)
+    if (present(stat)) then
+      if (stat /= 0) return
+    end if
+
+    call this%write("sys/data/" // name // "/bounds", data%idx_bnd)
+  end if
   select type (data)
     m4_dimlist(m4_max_dim,$1)
   end select
 end subroutine})
 m4_typelist
 
-  subroutine container_save_grid_table(this, tab)
-    class(container),         intent(inout) :: this
-    type(grid_table), target, intent(in)    :: tab
+  subroutine container_save_grid_table(this, tab, stat, err_msg)
+    class(container),          intent(inout) :: this
+    type(grid_table), target,  intent(in)    :: tab
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     ! Write all data in a tree under grid_tables/<name>
-    call this%write("sys/tables/" // tab%name, new_string("grid_table"))
+    call this%write("sys/tables/" // tab%name, new_string("grid_table"), stat=stat, err_msg=err_msg)
+    if (present(stat)) then
+          if (stat /= 0) return
+        end if
+
     call this%write("sys/tables/" // tab%name // "/grid",     new_string(tab%g%name))
     call this%write("sys/tables/" // tab%name // "/type",     tab%idx_type)
     call this%write("sys/tables/" // tab%name // "/dir",      tab%idx_dir)
     call this%write("sys/tables/" // tab%name // "/flat2idx", tab%flat2idx, compression=COMPR_DEFAULT)
   end subroutine
 
-  subroutine container_save_variable(this, var, parent, dynamic)
+  subroutine container_save_variable(this, var, parent, dynamic, stat, err_msg)
     class(container),             intent(inout) :: this
     class(variable_real), target, intent(in)    :: var
     character(*),                 intent(in)    :: parent
     logical,            optional, intent(in)    :: dynamic
+    integer(kind=4),     optional, intent(out)   :: stat
+    type(string),       optional, intent(out)   :: err_msg
 
-    integer :: dflag = DYNAMIC_NO
+    integer :: dflag
+    
+    dflag = DYNAMIC_NO
     if (present(dynamic)) then
       if (dynamic) dflag = DYNAMIC_EXT
     end if
@@ -213,7 +266,7 @@ m4_typelist
       call this%structs%push(new_string("sys/variables/" // var%name))
     end if
 
-    call this%write(parent // "/" // var%name, var%get(), unit=var%unit, compression=COMPR_DEFAULT, dynamic=dflag)
+    call this%write(parent // "/" // var%name, var%get(), unit=var%unit, compression=COMPR_DEFAULT, dynamic=dflag, stat=stat, err_msg=err_msg)
 
     ! Maybe we can shove in the array data%data directly without calling %get().
     ! However, the array bounds are not read correctly
@@ -223,11 +276,13 @@ m4_typelist
     !   type is (grid_data1_real) ...
   end subroutine
 
-  subroutine container_save_vselector(this, vsel, parent, dynamic)
-    class(container),        intent(inout) :: this
-    type(vselector), target, intent(in)    :: vsel
-    character(*),            intent(in)    :: parent
-    logical,       optional, intent(in)    :: dynamic
+  subroutine container_save_vselector(this, vsel, parent, dynamic, stat, err_msg)
+    class(container),          intent(inout) :: this
+    type(vselector), target,   intent(in)    :: vsel
+    character(*),              intent(in)    :: parent
+    logical,         optional, intent(in)    :: dynamic
+    integer(kind=4), optional, intent(out)   :: stat
+    type(string),    optional, intent(out)   :: err_msg
 
     integer      :: i, j, k, lbnd, ubnd
     real         :: values(vsel%n)
@@ -264,7 +319,7 @@ m4_typelist
       end do
       k = k + vsel%nvals(i)
     end do
-    call this%write(new_string(parent // "/" // vsel%name), values, compression=COMPR_DEFAULT, dynamic=dflag)
+    call this%write(new_string(parent // "/" // vsel%name), values, compression=COMPR_DEFAULT, dynamic=dflag, stat=stat, err_msg=err_msg)
   end subroutine
 
   subroutine container_load_grid0D(this, name, g)
@@ -293,7 +348,7 @@ m4_typelist
 
     integer           :: i
     real, allocatable :: x(:)
-    type(string)      :: var_name, gtype
+    type(string)      :: var_name, gtype, unit
     
     ! Do we need to check the allocation status of the grid?
     
@@ -304,9 +359,12 @@ m4_typelist
     call this%read(var_name, gtype)
     if (gtype%s /= "grid1D") call program_error("Grid variable does not match the stored grid class")
     call this%read(var_name%s // "/i0",       i)
+    call this%read(var_name%s // "/unit",     unit)
     call this%read(var_name%s // "/vertices", x)
 
-    call g%init(name, x, i)
+    x = norm(x, unit%s)
+
+    call g%init(name, x, i, unit=unit%s)
   end subroutine
 
   subroutine container_load_grid(this, name, g)
@@ -326,7 +384,7 @@ m4_typelist
     end select
   end subroutine
 
-  recursive subroutine container_load_tensor_grid(this, name, g, map)
+  subroutine container_load_tensor_grid(this, name, g, map)
     class(container),          intent(inout) :: this
     character(*),              intent(in)    :: name
     type(tensor_grid),         intent(inout) :: g
@@ -379,6 +437,7 @@ m4_typelist
       if (associated(map_)) call map_%set(grids(i), gptr)
       gs(i) = gptr
     end do
+
     call g%init(name, gs)
   end subroutine
 
@@ -387,10 +446,11 @@ m4_typelist
     character(*),      intent(in)    :: name
     type(triang_grid), intent(inout) :: g
     
-    integer              :: i
-    real, allocatable    :: vert(:,:)
-    integer, allocatable :: cells(:,:)
-    type(string)         :: var_name, gtype
+    integer                   :: i
+    real,         allocatable :: vert(:,:)
+    integer,      allocatable :: cells(:,:)
+    type(string)              :: var_name, gtype
+    type(string), allocatable :: units(:)
     
     i = index(name, "/")
     if (i /= 0) call program_error("Grid name with '/' is not allowed")
@@ -400,9 +460,18 @@ m4_typelist
 
     call this%read(var_name, gtype)
     if (gtype%s /= "triang_grid") call program_error("Grid variable does not match the stored grid class")
+    call this%read(var_name%s // "/units", units)
     call this%read(var_name%s // "/vertices", vert)
     call this%read(var_name%s // "/cells", cells)
-    call g%init(name, vert, cells)
+
+    if (size(units, dim=1) /= 2) then
+      call program_error("Got invalid amount of units back")
+    end if
+
+    vert(1,:) = norm(vert(1,:), units(1)%s)
+    vert(2,:) = norm(vert(2,:), units(2)%s)
+
+    call g%init(name, vert, cells, unit=units)
   end subroutine
 
   subroutine container_load_grid_table(this, name, tab)

@@ -521,85 +521,6 @@ contains
       end block
     end block
 
-    ! mul_sparse
-    block
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-      real,    allocatable :: a_exp(:)
-      type(sparse_real)    :: sA, sB, sC, sE
-      type(spbuild_real)   :: sbuild
-
-      call get_empty_matrix(sE)
-      call example_matrix3(sA)
-
-      ! test 1: small matrices. check each entry
-      ! B =
-      !  0     0     5     1
-      !  0     2     0     0
-      !  0     0     0    -3
-      ! -1     0     0     0
-
-      call sB%init(4)
-      call sbuild%init(sB)
-
-      call sbuild%add(1, 3,  5.0)
-      call sbuild%add(1, 4,  1.0)
-      call sbuild%add(2, 2,  2.0)
-      call sbuild%add(3, 4, -3.0)
-      call sbuild%add(4, 1, -1.0)
-
-      call sbuild%save()
-
-      ! C = A*E
-      call matrix_mul(sA, sE, sC)
-      call tc%assert(sC%is_empty(), "mul sparse empty 1")
-
-      ! C = E*A
-      call matrix_mul(sE, sA, sC)
-      call tc%assert(sC%is_empty(), "mul sparse empty 2")
-
-      ! C = A*B =
-      !  0     4     5     1
-      !  0     8     0     0
-      !  0     0     0    -3
-      ! -5     2     0     0
-      !
-      ! a  = [4 5 1 8 -3 -5 2]
-      ! ia = [1 4 5 6 8]
-      ! ja = [2 3 4 2 4 1 2]
-      !
-      a_exp  = [4, 5, 1, 8, -3, -5, 2]
-      ia_exp = [1, 4, 5, 6, 8]
-      ja_exp = [2, 3, 4, 2, 4, 1, 2]
-
-      call matrix_mul(sA, sB, sC)
-
-      call tc%assert_eq(a_exp,  sC%a, 0.0, 0.0, "mul sparse 1: a")
-      call tc%assert_eq(ia_exp, int(sC%ia),     "mul sparse 1: ia")
-      call tc%assert_eq(ja_exp, sC%ja,          "mul sparse 1: ja")
-
-      ! test 2: large matrices. check sum of entries
-      ! C <- A*A
-      block
-        integer, parameter :: n=500
-
-        call get_test_matrix3(n, sA)
-        call get_test_matrix3(n, sB)
-        call matrix_mul(sA, sB, sC)
-
-        call tc%assert_eq(8.913712864525120e+14, sum(sC%a), rtol, atol, "mul sparse 2")
-      end block
-
-      ! test 3: large matrices in extern files
-      ! C <- A*B
-      call sA%input(file = "S1.test")
-      call sB%input(file = "S2.test")
-      call sE%input(file = "S3.test") ! expected S1 * S2
-      call matrix_mul(sA, sB, sC)
-      call tc%assert_eq(int(sE%ia), int(sC%ia),  "mul sparse 3: ia")
-      call tc%assert_eq(sE%ja, sC%ja,            "mul sparse 3: ja")
-      call tc%assert_eq(sE%a,  sC%a, rtol, atol, "mul sparse 3: a")
-    end block
-
     ! solve_vec real
     block
       real              :: b(4), x(4), x_exp(4)
@@ -617,8 +538,7 @@ contains
 
       ! test 2: using pardiso solver
       call example_matrix3(sA)
-      sA%solver=SPSOLVER_PARDISO
-      call sA%factorize()
+      call sA%factorize(solver = SPSOLVER_PARDISO)
       call sA%solve_vec(b, x)
       call sA%destruct()
       call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: pardiso solver")
@@ -626,8 +546,7 @@ contains
       m4_divert(m4_ifdef({m4_klu2},0,-1))
         ! test 3: using klu2 solver
         call example_matrix3(sA)
-        sA%solver=SPSOLVER_KLU2
-        call sA%factorize()
+        call sA%factorize(solver = SPSOLVER_KLU2)
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: klu2 solver")
@@ -635,8 +554,7 @@ contains
       m4_divert(m4_ifdef({m4_mumps},0,-1))
         ! test 4: using mumps solver
         call example_matrix3(sA)
-        sA%solver=SPSOLVER_MUMPS
-        call sA%factorize()
+        call sA%factorize(solver = SPSOLVER_MUMPS)
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: mumps solver")
@@ -644,8 +562,7 @@ contains
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
         ! test 5: using ilupack solver
         call example_matrix3(sA)
-        sA%solver=SPSOLVER_ILUPACK
-        call sA%factorize()
+        call sA%factorize(solver = SPSOLVER_ILUPACK)
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: ilupack solver")
@@ -657,8 +574,7 @@ contains
           type(ilupack_handle), pointer :: ilu
 
           call example_matrix3(sA)
-          sA%solver=SPSOLVER_ILUPACK
-          call sA%init_solver()
+          call sA%init_solver(solver = SPSOLVER_ILUPACK)
 
           call get_ilupack_handle_ptr(sA%solver_handle, ilu)
           ilu%elbow    = 10
@@ -667,7 +583,7 @@ contains
           ilu%matching = 0
           ilu%restol   = 1e-14
 
-          call sA%factorize()
+          call sA%factorize(solver = SPSOLVER_ILUPACK)
           call sA%solve_vec(b, x)
           call sA%destruct()
           call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec real: ilupack solver")
@@ -692,8 +608,7 @@ contains
 
       ! test 2: using pardiso solver
       call example_matrix5(sA)
-      sA%solver=SPSOLVER_PARDISO
-      call sA%factorize()
+      call sA%factorize(solver = SPSOLVER_PARDISO)
       call sA%solve_vec(b, x)
       call sA%destruct()
       call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: pardiso solver")
@@ -701,8 +616,7 @@ contains
       m4_divert(m4_ifdef({m4_mumps},0,-1))
         ! test 3: using mumps solver
         call example_matrix5(sA)
-        sA%solver=SPSOLVER_MUMPS
-        call sA%factorize()
+        call sA%factorize(solver = SPSOLVER_MUMPS)
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: mumps solver")
@@ -710,8 +624,7 @@ contains
       m4_divert(m4_ifdef({m4_ilupack},0,-1))
         ! test 4: using ilupack solver
         call example_matrix5(sA)
-        sA%solver=SPSOLVER_ILUPACK
-        call sA%factorize()
+        call sA%factorize(solver = SPSOLVER_ILUPACK)
         call sA%solve_vec(b, x)
         call sA%destruct()
         call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: ilupack solver")
@@ -723,8 +636,7 @@ contains
           type(ilupack_handle), pointer :: ilu
 
           call example_matrix5(sA)
-          sA%solver=SPSOLVER_ILUPACK
-          call sA%init_solver()
+          call sA%init_solver(solver = SPSOLVER_ILUPACK)
 
           call get_ilupack_handle_ptr(sA%solver_handle, ilu)
           ilu%elbow    = 10
@@ -733,7 +645,7 @@ contains
           ilu%matching = 0
           ilu%restol   = 1e-14
 
-          call sA%factorize()
+          call sA%factorize(solver = SPSOLVER_ILUPACK)
           call sA%solve_vec(b, x)
           call sA%destruct()
           call tc%assert_eq(x_exp, x, rtol, atol, "solve_vec cmplx: ilupack solver")
@@ -768,192 +680,6 @@ contains
       call sA%destruct()
 
       call tc%assert_eq(x_exp, x, rtol, atol, "solve_mat")
-    end block
-
-    ! add_sparse: A <- A + fact * B
-    block
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-      real,    allocatable :: a_exp(:)
-      type(sparse_real)    :: sA, sB, sE, sE2
-
-      call get_test_matrix2(sA)
-      call example_matrix3(sB)
-      call get_empty_matrix(sE)
-
-      a_exp  = sA%a
-      ia_exp = int(sA%ia)
-      ja_exp = sA%ja
-      call matrix_add(sE, sA, fact=-1.5)
-      call tc%assert_eq(a_exp,  sA%a,  0.0, 0.0, "add_sparse empty 1: a")
-      call tc%assert_eq(ia_exp, int(sA%ia),      "add_sparse empty 1: ia")
-      call tc%assert_eq(ja_exp, sA%ja,           "add_sparse empty 1: ja")
-
-      call get_test_matrix2(sA)
-      a_exp = 3 * sA%a
-      call matrix_add(sA, sE, fact=3.0)
-      call tc%assert_eq(a_exp,  sE%a,  0.0, 0.0, "add_sparse empty 2: a")
-      call tc%assert_eq(ia_exp, int(sE%ia),      "add_sparse empty 2: ia")
-      call tc%assert_eq(ja_exp, sE%ja,           "add_sparse empty 2: ja")
-
-      call get_empty_matrix(sE)
-      call get_empty_matrix(sE2)
-      call matrix_add(sE2, sE, fact = 9.5)
-      call tc%assert(sE%is_empty(), "add_sparse empty 3")
-
-      ! A - 2 * B =
-      !  -2    -4     5     1
-      !   0    -6     0     0
-      !   0     0    -2    -3
-      !  -1    -2     0   -10
-      !
-      ! a  = [-2 -4 5 1 -6 -2 -3 -1 -2 -10]
-      ! ia = [1 5 6 8 11]
-      ! ja = [1 2 3 4 2 3 4 1 2 4]
-
-      a_exp  = [-2,-4,5,1,-6,-2,-3,-1,-2,-10]
-      ia_exp = [1,5,6,8,11]
-      ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call matrix_add(sB, sA, fact = -2.0)
-
-      call tc%assert_eq(a_exp,  sA%a, 0.0, 0.0, "add_sparse: a")
-      call tc%assert_eq(ia_exp, int(sA%ia),     "add_sparse: ia")
-      call tc%assert_eq(ja_exp, sA%ja,          "add_sparse: ja")
-    end block
-
-    ! add_sparse3: C <- fact1 * A + fact2 * B
-    block
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-      real,    allocatable :: a_exp(:)
-      type(sparse_real)    :: sA, sB, sC, sE
-
-      call example_matrix3(sA)
-      call get_test_matrix2(sB)
-      call get_empty_matrix(sE)
-
-      call matrix_add(sA, sE, sC, fact1 = 3.0, fact2 = -5.0)
-      call tc%assert_eq(3.0*sA%a  ,     sC%a  , rtol, atol, "add_sparse3 empty 1: a")
-      call tc%assert_eq(3.0*sA%a  ,     sC%a  , rtol, atol, "add_sparse3 empty 1: a")
-      call tc%assert_eq(int(sA%ia), int(sC%ia),             "add_sparse3 empty 1: ia")
-      call tc%assert_eq(    sA%ja ,     sC%ja ,             "add_sparse3 empty 1: ja")
-
-      call matrix_add(sE, sA, sC, fact1=-5.0, fact2=3.0)
-      call tc%assert_eq(3.0*sA%a  ,     sC%a  , rtol, atol, "add_sparse3 empty 2: a")
-      call tc%assert_eq(3.0*sA%a  ,     sC%a  , rtol, atol, "add_sparse3 empty 2: a")
-      call tc%assert_eq(int(sA%ia), int(sC%ia),             "add_sparse3 empty 2: ia")
-      call tc%assert_eq(    sA%ja ,     sC%ja ,             "add_sparse3 empty 2: ja")
-
-      ! 3*B-2*A=
-      !  -2    -4    15     3
-      !   0    -2     0     0
-      !   0     0    -2    -9
-      !  -3    -2     0   -10
-      !
-      ! a  = [-2 -4 15 3 -2 -2 -9 -3 -2 -10]
-      ! ia = [1 5 6 8 11]
-      ! ja = [1 2 3 4 2 3 4 1 2 4]
-      a_exp  = [-2,-4,15,3,-2,-2,-9,-3,-2,-10]
-      ia_exp = [1,5,6,8,11]
-      ja_exp = [1,2,3,4,2,3,4,1,2,4]
-      call matrix_add(sB, sA, sC, fact1 = 3.0, fact2 = -2.0)
-
-      call tc%assert_eq(a_exp,  sC%a, 0.0, 0.0, "add_sparse3: a")
-      call tc%assert_eq(ia_exp, int(sC%ia),     "add_sparse3: ia")
-      call tc%assert_eq(ja_exp, sC%ja,          "add_sparse3: ja")
-    end block
-
-    ! add_band: S <- S + fact * B
-    block
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-      real,    allocatable :: a_exp(:)
-      type(band_real)      :: B
-      type(sparse_real)    :: S
-
-      ! B =
-      !  3    -2     0     0
-      ! -1     3    -2     0
-      !  0    -1     3    -2
-      !  0     0    -1     3
-      call B%init(4, 1, 1)
-      B%d(-1,2:4) = -2.0
-      B%d( 0, : ) = 3.0
-      B%d(+1,1:3) = -1.0
-
-      ! 2*B =
-      !  6    -4     0     0
-      ! -2     6    -4     0
-      !  0    -2     6    -4
-      !  0     0    -2     6
-      a_exp = [6, -4, -2, 6, -4, -2, 6, -4, -2, 6]
-      ia_exp = [1, 3, 6, 9, 11]
-      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
-      call get_empty_matrix(S)
-      call matrix_add(B, S, fact = 2.0)
-      call tc%assert_eq(a_exp,  S%a, rtol, atol, "add_band empty: a")
-      call tc%assert_eq(ia_exp, int(S%ia),       "add_band empty: ia")
-      call tc%assert_eq(ja_exp, S%ja,            "add_band empty: ja")
-
-      call example_matrix3(S)
-
-      ! S+2*B=
-      !  7    -2     0     0
-      ! -2    10    -4     0
-      !  0    -2     7    -4
-      !  0     1    -2    11
-      a_exp  = [7, -2, -2, 10, -4, -2, 7, -4, 1, -2, 11]
-      ia_exp = [1, 3,  6,  9, 12]
-      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call matrix_add(B, S, fact=2.0)
-      call tc%assert_eq(a_exp,  S%a, 0.0, 0.0, "add_band: a")
-      call tc%assert_eq(ia_exp, int(S%ia),     "add_band: ia")
-      call tc%assert_eq(ja_exp, S%ja,          "add_band: ja")
-    end block
-
-    ! add_band3: S2 <- fact1 * S + fact2 * B
-    block
-      integer, allocatable :: ia_exp(:), ja_exp(:)
-      real,    allocatable :: a_exp(:)
-      type(band_real)      :: B
-      type(sparse_real)    :: S, S2
-
-      ! B =
-      !  3    -2     0     0
-      ! -1     3    -2     0
-      !  0    -1     3    -2
-      !  0     0    -1     3
-      call B%init(4, 1, 1)
-      B%d(-1,2:4) = -2.0
-      B%d( 0, : ) = 3.0
-      B%d(+1,1:3) = -1.0
-
-      ! 2*B =
-      !  6    -4     0     0
-      ! -2     6    -4     0
-      !  0    -2     6    -4
-      !  0     0    -2     6
-      a_exp = [6, -4, -2, 6, -4, -2, 6, -4, -2, 6]
-      ia_exp = [1, 3, 6, 9, 11]
-      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 3, 4]
-      call get_empty_matrix(S)
-      call matrix_add(B, S, S2, fact1 = 2.0, fact2 = 1e99)
-      call tc%assert_eq(a_exp,  S2%a, rtol, atol, "add_band3 empty: a")
-      call tc%assert_eq(ia_exp, int(S2%ia),       "add_band3 empty: ia")
-      call tc%assert_eq(ja_exp, S2%ja,            "add_band3 empty: ja")
-
-      call example_matrix3(S)
-
-      ! -1*S + 2*B=
-      !  5    -6     0     0
-      ! -2     2    -4     0
-      !  0    -2     5    -4
-      !  0    -1    -2     1
-      a_exp  = [5, -6, -2, 2, -4, -2, 5, -4, -1, -2, 1]
-      ia_exp = [1, 3,  6,  9, 12]
-      ja_exp = [1, 2, 1, 2, 3, 2, 3, 4, 2, 3, 4]
-      call matrix_add(B, S, S2, fact1 = 2.0, fact2 = -1.0)
-
-      call tc%assert_eq(a_exp,  S2%a, rtol, atol, "add_band3: a")
-      call tc%assert_eq(ia_exp, int(S2%ia),       "add_band3: ia")
-      call tc%assert_eq(ja_exp, S2%ja,            "add_band3: ja")
     end block
 
     ! zero
@@ -1066,60 +792,6 @@ contains
     end block
 
     call tc%finish()
-  end subroutine
-
-  subroutine get_empty_matrix(S)
-    type(sparse_real), intent(out) :: S
-
-    call S%init(4)
-  end subroutine
-
-  subroutine get_test_matrix2(S)
-    type(sparse_real), intent(out) :: S
-
-    type(spbuild_real) :: sbuild
-
-    ! S =
-    !  0     0     5     1
-    !  0     2     0     0
-    !  0     0     0    -3
-    ! -1     0     0     0
-
-    call S%init(4)
-    call sbuild%init(S)
-
-    call sbuild%add(1, 3,  5.0)
-    call sbuild%add(1, 4,  1.0)
-    call sbuild%add(2, 2,  2.0)
-    call sbuild%add(3, 4, -3.0)
-    call sbuild%add(4, 1, -1.0)
-
-    call sbuild%save()
-  end subroutine
-
-  subroutine get_test_matrix3(n, S)
-    !! some large sparse matrix
-
-    integer,           intent(in)          :: n
-      !! matrix dimension
-    type(sparse_real), intent(out) :: S
-
-    integer            :: i, j
-    type(spbuild_real) :: sbuild
-
-    ! S_ij = /i+2*j-i**2    if    (i+j)%31 == 0
-    !        \0             else
-
-    call S%init(n)
-    call sbuild%init(S)
-
-    do i = 1, n
-      do j = 1, n
-        if (mod(i+j, 31) == 0) call sbuild%add(i, j, real(i+2*j-i**2))
-      end do
-    end do
-
-    call sbuild%save()
   end subroutine
 
 end submodule

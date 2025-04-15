@@ -1,6 +1,7 @@
 module subroutine add_band2_{}T{}(b1, b2, fact)
-  !! Add two band matrices.
-  !! Operation: b2 <- fact * b1 + b2
+  !! Add two band matrices, store the result in second matrix.
+  !!
+  !! operation: b2 <- fact * b1 + b2
 
   type(band_{}T),       intent(in)    :: b1
     !! First band matrix (unchanged)
@@ -273,7 +274,7 @@ module subroutine add_dense2_{}T{}(d1, d2, fact)
   type(dense_{}T),      intent(inout) :: d2
     !! Second dense matrix d2 (updated)
   m4_type(T), optional, intent(in)    :: fact
-    !! Second dense matrix scaling factor (default: 1)
+    !! First dense matrix scaling factor (default: 1)
 
   m4_assert(.not. allocated(d2%lu))
   m4_assert(.not. allocated(d2%ipiv))
@@ -382,7 +383,7 @@ module subroutine add_sparse_dense2_{}T{}(s1, d2, d3, fact1, fact2)
 end subroutine
 
 module subroutine add_sparse2_{}T{}(s1, s2, fact)
-  !! Add two sparse matrices, store result in first matrix.
+  !! Add two sparse matrices, store the result in second matrix.
   !!
   !! operation: s2 <- fact * s1 + s2
 
@@ -391,7 +392,7 @@ module subroutine add_sparse2_{}T{}(s1, s2, fact)
   type(sparse_{}T),     intent(inout) :: s2
     !! Second sparse matrix (updated)
   m4_type(T), optional, intent(in)    :: fact
-    !! Second sparse matrix scaling factor (default: 1)
+    !! First sparse matrix scaling factor (default: 1)
 
   integer                          :: i
   integer,             allocatable :: ja(:)
@@ -509,6 +510,94 @@ module subroutine add_sparse3_{}T{}(s1, s2, s3, fact1, fact2)
 
   ! s3 += fact2 * s2
   call matrix_add(s2, s3, fact = fact2)
+end subroutine
+
+module subroutine add_block2_{}T{}(bl1, bl2, fact)
+  !! Add two block matrices of same block structure, store the result in second matrix.
+  !!
+  !! operation: bl2 <- fact * bl1 + bl2
+
+  type(block_{}T),      intent(in)    :: bl1
+    !! Block first matrix (unchanged)
+  type(block_{}T),      intent(inout) :: bl2
+    !! Block second matrix
+  m4_type(T), optional, intent(in)    :: fact
+    !! First matrix scaling factor (default: 1)
+
+  integer                   :: ib, jb
+  type(band_{}T),   pointer :: band_ptr
+  type(dense_{}T),  pointer :: dense_ptr
+  type(sparse_{}T), pointer :: sparse_ptr
+  type(block_{}T),  pointer :: block_ptr
+
+  ! make sure both block matrices have the same block structure
+  m4_assert(bl1%nbrows == bl2%nbrows)
+  m4_assert(bl1%nbcols == bl2%nbcols)
+  m4_assert(all(bl1%i0 == bl2%i0))
+  m4_assert(all(bl1%i1 == bl2%i1))
+  m4_assert(all(bl1%j0 == bl2%j0))
+  m4_assert(all(bl1%j1 == bl2%j1))
+
+  bl2%diag = bl1%diag .and. bl2%diag
+  bl2%tridiag = (bl1%tridiag .and. bl2%tridiag) .or. (bl1%diag .and. bl2%tridiag) .or. (bl1%tridiag .and. bl2%diag)
+
+  ! bl2 <- fact * bl1 + bl2
+  do ib = 1, bl1%nbrows; do jb = 1, bl1%nbcols
+    if (.not. associated(bl1%b(ib,jb)%p)) cycle
+    select type(p1 => bl1%b(ib,jb)%p)
+    type is (band_{}T)
+      call bl2%get(ib, jb, band_ptr)
+      if (.not. bl2%alc(ib,jb)) call program_error("Adding on block matrix with non-owned blocks")
+      if (.not. allocated(band_ptr%d)) call band_ptr%init(p1%nrows, 0)
+      call matrix_add(p1, band_ptr, fact = fact)
+    type is (dense_{}T)
+      call bl2%get(ib, jb, dense_ptr)
+      if (.not. bl2%alc(ib,jb)) call program_error("Adding on block matrix with non-owned blocks")
+      if (.not. allocated(dense_ptr%d)) call dense_ptr%init(p1%nrows, p1%ncols)
+      call matrix_add(p1, dense_ptr, fact = fact)
+    type is (sparse_{}T)
+      call bl2%get(ib, jb, sparse_ptr)
+      if (.not. bl2%alc(ib,jb)) call program_error("Adding on block matrix with non-owned blocks")
+      if (.not. allocated(sparse_ptr%ia)) call sparse_ptr%init(p1%nrows, p1%ncols)
+      call matrix_add(p1, sparse_ptr, fact = fact)
+    type is (block_{}T)
+      call bl2%get(ib, jb, block_ptr)
+      if (.not. bl2%alc(ib,jb)) call program_error("Adding on block matrix with non-owned blocks")
+      if (.not. allocated(block_ptr%b)) call block_ptr%init(p1%i1-p1%i0+1, col_dim = p1%j1-p1%j0+1, diag = bl1%diag, tridiag = bl1%tridiag)
+      call matrix_add(p1, block_ptr, fact = fact)
+    end select
+  end do; end do
+end subroutine
+
+module subroutine add_block3_{}T{}(bl1, bl2, bl3, fact1, fact2)
+  !! Add two block matrices of same block structure, store result in third block matrix.
+  !!
+  !! operation: bl3 <- fact1 * bl1 + fact2 * bl2
+
+  type(block_{}T),      intent(in)  :: bl1
+    !! Block first matrix (unchanged)
+  type(block_{}T),      intent(in)  :: bl2
+    !! Block second matrix (unchanged)
+  type(block_{}T),      intent(out) :: bl3
+    !! Output block third matrix
+  m4_type(T), optional, intent(in)  :: fact1
+    !! First matrix scaling factor (default: 1)
+  m4_type(T), optional, intent(in)  :: fact2
+    !! Second matrix scaling factor (default: 1)
+
+  ! make sure both block matrices have the same block structure
+  m4_assert(bl1%nbrows == bl2%nbrows)
+  m4_assert(bl1%nbcols == bl2%nbcols)
+  m4_assert(all(bl1%i0 == bl2%i0))
+  m4_assert(all(bl1%i1 == bl2%i1))
+  m4_assert(all(bl1%j0 == bl2%j0))
+  m4_assert(all(bl1%j1 == bl2%j1))
+
+  ! bl3 <- bl1 * fact
+  call bl1%copy_deep(bl3)
+  if (present(fact1)) call bl3%scale(fact1)
+  ! bl3 += bl2 * fact2
+  call matrix_add(bl2, bl3, fact2)
 end subroutine
 
 module subroutine mul_dense_dense_{}T{}(d1, d2, result)

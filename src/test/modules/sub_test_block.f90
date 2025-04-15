@@ -224,6 +224,7 @@ contains
       call tc%assert_eq(2*A%d, A_p%d, 0.0, 0.0, "set fact")
     end block
 
+    ! copy
     block
       type(block_real)          :: A
       type(dense_real), pointer :: A_p, M1_p
