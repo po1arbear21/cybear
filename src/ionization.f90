@@ -210,7 +210,7 @@ contains
         ion  = 0
         dion = 0
       end if
-      call this%ion%set(idx, ion)
+      call this%ion%set(idx, ion - this%par%dop(IDX_VERTEX, 0, ci)%get(idx))
       call this%jaco_pot%set( idx, idx, - ch * dion)
       call this%jaco_iref%set(idx, idx,   ch * dion)
     end do
@@ -376,8 +376,8 @@ contains
       drec = ii_g * df
 
       ! combined rate
-      genrec      = hp_to_real((gen * dop - TwoSum(gen, rec) * ion) / this%tau)
-      dgenrecdeta = (dgen * dop - (dgen + drec) * ion) / this%tau
+      genrec      = hp_to_real((-rec * dop - TwoSum(gen, rec) * ion) / this%tau)
+      dgenrecdeta = (-drec * dop - (dgen + drec) * ion) / this%tau
       dgenrecdion = - (gen + rec) / this%tau
 
       ! save

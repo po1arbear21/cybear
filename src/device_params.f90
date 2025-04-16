@@ -891,7 +891,7 @@ contains
       end do
     end do
 
-    ! Altermatt-Schenk ionization model init
+    ! Pearson-Bardeen ionization model init
     do ci = DOP_DCON, DOP_ACON
       call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
       cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
@@ -899,7 +899,7 @@ contains
         idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-        ii_E_dop = max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
+        ii_E_dop = this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0) !max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
         call this%ii_E_dop(ci)%set(idx, ii_E_dop)
       end do
     end do
