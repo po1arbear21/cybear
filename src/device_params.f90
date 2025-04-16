@@ -4,7 +4,7 @@ module device_params_m
 
   use bin_search_m,     only: bin_search
   use contact_m,        only: CT_OHMIC, CT_GATE, contact
-  use degen_table_m,    only: degen_table
+  use degen_m,          only: degen_init
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
@@ -128,9 +128,6 @@ module device_params_m
       !! GALENE III permittivities
     real                 :: gal_phims
       !! GALENE III phims for gate contacts
-
-    type(degen_table) :: degen_tab
-      !! current table for degenerate case
   contains
     procedure :: init     => device_params_init
     procedure :: destruct => device_params_destruct
@@ -214,7 +211,7 @@ contains
     call this%init_doping(file)
     call this%init_mobility()
     call this%init_contacts()
-    if (this%smc%degen) call this%degen_tab%init(100, 100, 5.0, 1e4, 1e-3, 2e2, 500, 1e3, "/tmp")
+    if (this%smc%degen) call degen_init(16,16)
 
   end subroutine
 

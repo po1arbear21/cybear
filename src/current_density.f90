@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module current_density_m
 
   use density_m,        only: density
-  use degen_table_m,    only: degen_table
+  use degen_m,          only: degen_get
   use device_params_m,  only: device_params
   use dual_m
   use equation_m,       only: equation
@@ -238,10 +238,7 @@ contains
 
     if (degen) then
       ! generalized Scharfetter-Gummel
-      call inv_fermi_dirac_integral_1h_reg(n(1), eta(1), detadn(1))
-      call inv_fermi_dirac_integral_1h_reg(n(2), eta(2), detadn(2))
-      call this%par%degen_tab%get(eta, dpot, j, djdeta, djddpot)
-      djdn = djdeta * detadn
+      call degen_get(n, dpot, j, djdn, djddpot)
     else
       ! Scharfetter-Gummel
       call this%get_curr_sg(n, dpot, j, djdn, djddpot)

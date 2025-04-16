@@ -12,13 +12,15 @@ module degen_m
   use quad_m,        only: quad
   use util_m,        only: int2str
 
+  use fermi_m, only: fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg
+
   implicit none
 
   private
   public :: DEGEN_DEBUG, DEGEN_TANH_SINH, degen_init, degen_get, fd12, ifd12, get_current, weierstrass
 
   logical :: DEGEN_DEBUG     = .false.
-  logical :: DEGEN_TANH_SINH = .false.
+  logical :: DEGEN_TANH_SINH = .true.
 
   interface
 
@@ -115,7 +117,7 @@ contains
 
     real :: nquad
 
-    call get_current(fd12, ifd12, 0.0, GAMMA, n(1), n(2), dpot, j, djdn(1), djdn(2), djddpot, nquad)
+    call get_current(fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg, 0.0, GAMMA, n(1), n(2), dpot, j, djdn(1), djdn(2), djddpot, nquad)
   end subroutine
 
   subroutine fd12(eta, F, dF1, dF2, dF3, dF4, dF5, dF6)
@@ -302,10 +304,10 @@ contains
     real, intent(out) :: nquad
       !! number of quadrature points per newton iteration
 
-    integer :: cs, k, it
+    integer :: cs, k, it, ncalls
     real    :: n1_, n2_, dpot_, eta1, deta1dn1, eta2, deta2dn2, deta
     real    :: jj, jjold, jjmin, jjmax, djj, err, djdeta(2), tmp
-    real    :: eta0, deta0djj, Fc, F0, F1, F2, F3, F4, F5, F6, b, dbdeta0, dbdjj
+    real    :: eta0, deta0djj, Fc, F0, F1, F2, F3, F4, F5, F6, b, dbdeta0, dbdjj, II, dII(2)
     real    :: res, dresdjj, dresdeta(2), dresddpot
     logical :: flip, F456
 
@@ -380,8 +382,9 @@ contains
 
       ! further reduce range if possible
       if (cs == CASE1A) then
-        call dist(eta2 - 0.5 * dpot_, F = Fc)
-        jjmin = max(jjmin, (1 - deta / dpot_) * Fc)
+        call integrate_dist(dist, etac, eta2 - dpot_, eta2, -1, II, dII, ncalls)
+        nquad = nquad + ncalls
+        jjmin = max(jjmin, (dpot_ - deta) / II)
       elseif (cs == CASE1C) then
         jjmax = min(jjmax, n1_)
       elseif (cs == CASE1E) then
@@ -406,7 +409,7 @@ contains
       ! Newton iteration
       err = huge(1.0)
       it  = 0
-      do while ((it < 2) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
+      do while ((it < 6) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot_)))
         it = it + 1
         if (it > MAX_IT) call fatal_error("No convergence after " // int2str(MAX_IT) // " iterations")
 
@@ -710,7 +713,7 @@ contains
       integer :: ncalls
 
       if (DEGEN_TANH_SINH) then
-        call quad(integrand_1a, eta1, eta2, [jj], res, dresdeta(1), dresdeta(2), dresdjj1, ncalls = ncalls)
+        call quad(integrand_1a, eta1, eta2, [jj], res, dresdeta(1), dresdeta(2), dresdjj1, max_levels = 8, ncalls = ncalls)
         nquad     = nquad + ncalls
         res       = res - dpot_
         dresdjj   = dresdjj1(1)
@@ -1101,7 +1104,7 @@ contains
     end if
 
     if (DEGEN_TANH_SINH) then
-      call quad(dist_k, eta1, eta2, dum, I, dIdeta(1), dIdeta(2), dum2, ncalls = ncalls)
+      call quad(dist_k, eta1, eta2, dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8, ncalls = ncalls)
       return
     end if
 
