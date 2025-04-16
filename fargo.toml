@@ -30,11 +30,10 @@
   args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
-  runner_args = {}
 
   templates = [
     { files = [ "run.ini" ] },
-    { files = [ "ED2023_tiny.ini" ], action="expand" }
+    { files = [ "pmosfet2D.ini" ], action="expand" }
   ]
 
 [release]
@@ -45,11 +44,10 @@
   args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 
   runner      = "local"
-  runner_args = {}
 
   templates = [
     { files = [ "run.ini" ] },
-    { files = [ "ED2023_tiny.ini" ], action="expand" }
+    { files = [ "pmosfet2D.ini" ], action="expand" }
   ]
 
 [degen_table_test]
@@ -60,4 +58,3 @@
   args      = ""
 
   runner      = "local"
-  runner_args = {}
