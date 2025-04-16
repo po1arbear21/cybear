@@ -26,7 +26,7 @@ module current_density_m
   implicit none
 
   private
-  public current_density, calc_current_density
+  public current_density, calc_current_density, time
 
   type, extends(variable_real) :: current_density
     !! electron/hole current density
@@ -68,6 +68,8 @@ module current_density_m
     procedure, private :: get_curr    => calc_current_density_get_curr
     procedure, private :: get_curr_sg => calc_current_density_get_curr_sg
   end type
+
+  real :: time = 0.0
 
 contains
 
@@ -158,7 +160,7 @@ contains
     !! evaluate drift-diffusion equation
     class(calc_current_density), intent(inout) :: this
 
-    integer               :: i, idx_dir, idx_dim
+    integer               :: i, idx_dir, idx_dim, start, end, rate
     real                  :: pot(2), dens(2), j, djdpot(2), djddens(2), djdmob, len, mob
     integer, allocatable  :: idx(:), idx1(:), idx2(:)
     logical               :: status
@@ -166,6 +168,7 @@ contains
     idx_dim = this%par%g%idx_dim
     idx_dir = this%cdens%idx_dir
     allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim))
+    call system_clock(start, rate)
 
     ! loop over transport edges in parallel
     !$omp parallel do default(none) schedule(dynamic) &
@@ -200,6 +203,8 @@ contains
       if (this%par%smc%mob) call this%jaco_mob%set(idx, idx, djdmob)
     end do
     !$omp end parallel do
+    call system_clock(end)
+    time = time + real(end-start)/real(rate)
   end subroutine
 
   subroutine calc_current_density_get_curr(this, degen, len, pot, dens, mob, j, djdpot, djddens, djdmob)
