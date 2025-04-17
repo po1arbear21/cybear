@@ -332,8 +332,6 @@ contains
     real,    optional,   intent(in)    :: t(:)
       !! write cache at these specific time points
 
-    integer :: unit, stat
-
     ! delete old output settings
     if (allocated(this%cachefile)) deallocate(this%cachefile)
 
@@ -345,9 +343,6 @@ contains
     if (allocated(this%cache_t)) deallocate(this%cache_t)
     allocate (this%cache_t(0))
     if (present(t)) this%cache_t = t
-    ! if cachefile already exists, delete it
-    open(newunit = unit, file = this%cachefile, iostat = stat, status = "replace")
-    close(unit, status="delete")
   end subroutine
 
   subroutine transient_run(this, times, n_steps, dt0, input, eval_before_output, start_steady_state, start_file, start_i)

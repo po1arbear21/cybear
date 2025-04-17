@@ -248,8 +248,6 @@ contains
     integer, optional,   intent(in)    :: delta_it
       !! write cache at every delta_it-th step. 1: all steps (default), 0: all steps including start values, -1: last step
 
-    integer :: unit, stat
-
     ! delete old output settings
     if (allocated(this%cachefile)) deallocate (this%cachefile)
 
@@ -258,9 +256,6 @@ contains
     this%cache_delta_it = 1
     if (present(delta_it)) this%cache_delta_it = delta_it
     m4_assert(this%cache_delta_it >= -1)
-    ! if cachefile already exists, delete it
-    open(newunit = unit, file = this%cachefile, iostat = stat, status = "replace")
-    close(unit, status="delete")
   end subroutine
 
   subroutine steady_state_run(this, input, t_input, gummel, eval_before_output)
