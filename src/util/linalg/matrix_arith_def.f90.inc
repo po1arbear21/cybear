@@ -82,6 +82,20 @@ interface matrix_add
     m4_type(T), optional, intent(in)  :: fact1
     m4_type(T), optional, intent(in)  :: fact2
   end subroutine
+
+  module subroutine add_block2_{}T{}(bl1, bl2, fact)
+    type(block_{}T),      intent(in)    :: bl1
+    type(block_{}T),      intent(inout) :: bl2
+    m4_type(T), optional, intent(in)    :: fact
+  end subroutine
+
+  module subroutine add_block3_{}T{}(bl1, bl2, bl3, fact1, fact2)
+    type(block_{}T),      intent(in)  :: bl1
+    type(block_{}T),      intent(in)  :: bl2
+    type(block_{}T),      intent(out) :: bl3
+    m4_type(T), optional, intent(in)  :: fact1
+    m4_type(T), optional, intent(in)  :: fact2
+  end subroutine
 end interface
 
 interface matrix_mul

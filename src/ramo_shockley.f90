@@ -11,6 +11,7 @@ module ramo_shockley_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use math_m,            only: eye_real
   use matrix_m,          only: sparse_real
+  use normalization_m,   only: denorm
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
@@ -158,6 +159,13 @@ contains
             this%cap(i,j) = this%cap(i,j) + dxi * dxj * cap
           end do
         end do
+      end do
+    end do
+
+    ! print capacitances
+    do i = 1, nct
+      do j = i, nct
+        print "(A,ES25.16E3,A)", "C_" // par%contacts(i)%name // "_" // par%contacts(j)%name // " = ", denorm(this%cap(i,j), "F"), "F"
       end do
     end do
   end subroutine

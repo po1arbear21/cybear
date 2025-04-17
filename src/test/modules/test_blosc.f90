@@ -40,10 +40,10 @@ contains
     csize = blosc_compress(int(9, kind=c_int), BLOSC_BITSHUFFLE, int(8, kind=c_size_t), isize, c_loc(data), c_loc(data_out), osize)
 
     call tc%assert(csize /= 0, "Buffer is incompressible")
-    call tc%assert(csize > 0, "Compression error: " // int2str(int(csize, kind=4)))
+    call tc%assert(csize > 0, "Compression error: " // int2str(int(csize)))
 
     dsize = blosc_decompress(c_loc(data_out), c_loc(data_dest), isize)
-    call tc%assert(dsize > 0 , "Decompression error: " // int2str(int(dsize, kind=4)))
+    call tc%assert(dsize > 0 , "Decompression error: " // int2str(int(dsize)))
 
     call blosc_destroy()
 

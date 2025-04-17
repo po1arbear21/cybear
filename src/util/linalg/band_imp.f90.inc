@@ -37,8 +37,6 @@ module subroutine band_{}T{}_init(this, nrows, nlower, nupper, d0)
     allocate (this%d(-nupper_:nlower,nrows))
     this%d = 0
   end if
-
-  this%solver = default_bsolver
 end subroutine
 
 module subroutine band_{}T{}_destruct(this)
@@ -179,13 +177,19 @@ module subroutine band_{}T{}_mul_mat(this, x, y, fact_y, trans)
   end if
 end subroutine
 
-module subroutine band_{}T{}_factorize(this)
+module subroutine band_{}T{}_factorize(this, solver)
   !! Factorize band matrix. Call this before solving!
 
-  class(band_{}T), intent(inout) :: this
-    !! Band matrix
+  class(band_{}T),   intent(inout) :: this
+  integer, optional, intent(in)    :: solver
+    !! solver used for factorization (default: BSOLVER_LAPACK)
 
-  integer :: info, kl, ku, n
+  integer :: info, kl, ku, n, solver_
+
+  call this%reset(only_factorization = .true.)
+
+  solver_ = BSOLVER_LAPACK
+  if(present(solver)) solver_ = solver
 
   kl = this%nlower
   ku = this%nupper
@@ -213,7 +217,7 @@ module subroutine band_{}T{}_factorize(this)
       if (info /= 0) call program_error("Tridiagonal Factorization error in LAPACK", code = info)
     end associate
   else ! general band matrix
-    select case (this%solver)
+    select case (solver_)
     case (BSOLVER_LAPACK)
       allocate (this%f(-(kl+ku):kl,n), this%ipiv(n))
       this%f(-ku:kl,:) = this%d
@@ -228,10 +232,12 @@ module subroutine band_{}T{}_factorize(this)
       call spike_factorize(this%sp, n, kl, ku, this%f, this%work, info = info)
       if (info > 1) call program_error("Bandmatrix Factorization error in SPIKE", code = info)
     m4_divert(0)
-
+    case default
+      call program_error("Trying to solve band matrix with non-band solver!")
     end select
   end if
 
+  this%solver = solver_
   this%factorized = .true.
 end subroutine
 

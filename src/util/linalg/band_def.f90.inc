@@ -36,8 +36,6 @@ type, extends(matrix_{}T) :: band_{}T
   m4_type(T), allocatable :: f(:,:)
   integer,    allocatable :: ipiv(:)
 
-  integer :: solver = 0
-    !! BSOLVER_LAPACK or BSOLVER_SPIKE
   m4_ifdef({m4_spike},{
   type(spike_params) :: sp
     !! spike solver params
@@ -113,8 +111,9 @@ interface
     character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine band_{}T{}_factorize(this)
-    class(band_{}T), intent(inout) :: this
+  module subroutine band_{}T{}_factorize(this, solver)
+    class(band_{}T),   intent(inout) :: this
+    integer, optional, intent(in)    :: solver
   end subroutine
 
   module subroutine band_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)

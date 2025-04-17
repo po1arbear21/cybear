@@ -11,7 +11,7 @@ module math_m
   implicit none
 
   private
-  public PI
+  public PI, PI_16
   public check_lin_dep
   public cross_product, cross_product_2d
   public heaviside
@@ -26,7 +26,8 @@ module math_m
   public roots
   public polyg_area_2d
 
-  real, parameter :: PI = 3.141592653589793238462643
+  real,          parameter :: PI    = 4 * atan(1.0)
+  real(kind=16), parameter :: PI_16 = 4 * atan(1.0_16)
 
   interface expm1
     module procedure :: m_expm1, m_expm1_16

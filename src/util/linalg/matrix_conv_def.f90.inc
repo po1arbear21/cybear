@@ -17,7 +17,7 @@ interface matrix_convert
     integer, optional, intent(in)    :: j0
   end subroutine
 
-  module recursive subroutine block_to_dense_{}T{}(b, d, i0, j0)
+  module subroutine block_to_dense_{}T{}(b, d, i0, j0)
     class(block_{}T),  intent(in)    :: b
     type(dense_{}T),   intent(inout) :: d
     integer, optional, intent(in)    :: i0
@@ -105,6 +105,11 @@ m4_ifelse(T,cmplx,{
     type(sparse_cmplx), intent(in)  :: sc_in
     type(sparse_real),  intent(out) :: sr_out
   end subroutine
+
+  module subroutine to_real_block(blc_in, blr_out)
+    type(block_cmplx), intent(in)  :: blc_in
+    type(block_real),  intent(out) :: blr_out
+  end subroutine
   },{
   module subroutine to_cmplx_band(br_in, bc_out)
     type(band_real),  intent(in)  :: br_in
@@ -119,6 +124,11 @@ m4_ifelse(T,cmplx,{
   module subroutine to_cmplx_sparse(sr_in, sc_out)
     type(sparse_real),  intent(in)  :: sr_in
     type(sparse_cmplx), intent(out) :: sc_out
+  end subroutine
+
+  module subroutine to_cmplx_block(blr_in, blc_out)
+    type(block_real),  intent(in)  :: blr_in
+    type(block_cmplx), intent(out) :: blc_out
   end subroutine
 })
 end interface

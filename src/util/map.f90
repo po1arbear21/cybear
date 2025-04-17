@@ -2,7 +2,8 @@ m4_include(macro.f90.inc)
 
 module map_m
 
-  use error_m, only: assert_failed
+  use error_m,         only: assert_failed
+  use iso_fortran_env, only: int64
   use string_m
 
   implicit none
@@ -18,6 +19,7 @@ module map_m
   ! list of built-in value types
   m4_define({m4_valuelist},{
     m4_Y($1,int)
+    m4_Y($1,int64)
     m4_Y($1,log)
     m4_Y($1,real)
     m4_Y($1,cmplx)

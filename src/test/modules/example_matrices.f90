@@ -1,6 +1,6 @@
 module example_matrices_m
 
-  use matrix_m, only: band_real, band_eye_real, block_real, dense_real, dense_cmplx, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx
+  use matrix_m, only: band_real, band_eye_real, band_cmplx, block_real, block_cmplx, dense_real, dense_cmplx, sparse_real, sparse_cmplx, spbuild_real, spbuild_cmplx
 
   implicit none
 
@@ -13,6 +13,10 @@ module example_matrices_m
   public example_matrix6
   public example_matrix7
   public example_matrix8
+  public example_matrix9
+  public get_empty_matrix
+  public get_test_matrix2
+  public get_test_matrix3
 
   interface matrix1
     !! full 9x9 matrix.
@@ -78,6 +82,12 @@ module example_matrices_m
   interface example_matrix8
     !! 3x3 Matrix
     module procedure :: example_matrix8_block_real
+  end interface
+
+  interface example_matrix9
+    !! 6x6 block matrix with all matrix types as block, including block matrix block which has another sub-block
+    module procedure :: example_matrix9_block_real
+    module procedure :: example_matrix9_block_cmplx
   end interface
 
 contains
@@ -452,6 +462,180 @@ contains
                       & -1,  3, &
                       &  3, -1  ], [2, 2])))
     end block
+  end subroutine
+
+  subroutine example_matrix9_block_real(M)
+    !! create real block matrix M for tests
+    !! M has all other matrix types as block, including another block matrix bl2
+    !! bl2 also has a block matrix as block
+    !!
+    !!                  / 1 0 0 1 0 0 \
+    !!                  | 0 1 0 1 3 0 |
+    !! M = / b1 d1  \ = | 2 2 1 0 1 0 |
+    !!     \ s1 bl2 /   | 0 0 0 1 1 3 |
+    !!                  | 0 0 0 0 1 0 |
+    !!                  \ 0 6 0 0 0 1 /
+    type(block_real), intent(out) :: M
+
+    real                   :: d1_data(2,4), d2_data(2,2)
+    type(band_real)        :: b1
+    type(dense_real), save :: d1, d2
+    type(spbuild_real)     :: spb
+    type(sparse_real)      :: s1
+    type(block_real)       :: bl2, bl3
+
+    call b1%init(2, 0)
+    call b1%set_diag(1.0)
+
+    d1_data = reshape([0.0, 1.0, 0.0, 0.0, &
+                      &0.0, 1.0, 3.0, 0.0], shape(d1_data), order = [2,1])
+    call d1%init(d1_data)
+
+    d2_data = reshape([1.0, 0.0, &
+                      &1.0, 3.0], shape(d2_data), order = [2,1])
+    call d2%init(d2_data)
+
+    call s1%init(4, 2)
+    call spb%init(s1)
+    call spb%set(1,1,2.0)
+    call spb%set(1,2,2.0)
+    call spb%set(4,2,6.0)
+    call spb%save()
+
+    !! bl3 = (d2) = / 1 0 \
+    !!              \ 1 3 /
+    call bl3%init([2])
+    call bl3%set_ptr(1,1,d2)
+
+    !!                    / 1 0 1 0 \
+    !! bl2 = / b1 bl3 \ = | 0 1 1 3 |
+    !!       \ 0  b1  /   | 0 0 1 0 |
+    !!                    \ 0 0 0 1 /
+    call bl2%init([2,2])
+    call bl2%set(1,1,b1)
+    call bl2%set(1,2,bl3)
+    call bl2%set(2,2,b1)
+
+    !! create M
+    call M%init([2,4])
+    call M%set(1,1,b1)
+    call M%set_ptr(1,2,d1)
+    call M%set(2,1,s1)
+    call M%set(2,2,bl2)
+  end subroutine
+
+  subroutine example_matrix9_block_cmplx(M)
+    !! create complex block matrix M for tests
+    !! M has all other matrix types as block, including another block matrix bl2
+    !! bl2 also has a block matrix as block
+    !!
+    !!                  / 1 0 0 1 0 0 \     / 0 0 0 0 0 0 \
+    !!                  | 0 1 0 1 3 0 |     | 0 0 0 0 0 0 |
+    !! M = / b1 d1  \ = | 2 2 1 0 1 0 | + i*| 1 1 0 0 0 0 |
+    !!     \ s1 bl2 /   | 0 0 0 1 1 3 |     | 0 0 0 0 0 0 |
+    !!                  | 0 0 0 0 1 0 |     | 0 0 0 0 0 0 |
+    !!                  \ 0 6 0 0 0 1 /     \ 0 1 0 0 0 0 /
+    type(block_cmplx), intent(out) :: M
+
+    complex                 :: d1_data(2,4), d2_data(2,2)
+    type(band_cmplx)        :: b1
+    type(dense_cmplx), save :: d1, d2
+    type(spbuild_cmplx)     :: spb
+    type(sparse_cmplx)      :: s1
+    type(block_cmplx)       :: bl2, bl3
+
+    call b1%init(2, 0)
+    call b1%set_diag((1.0, 0.0))
+
+    d1_data = reshape([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0), &
+                      &(0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (0.0, 0.0)], shape(d1_data), order = [2,1])
+    call d1%init(d1_data)
+
+    d2_data = reshape([(1.0, 0.0), (0.0, 0.0), &
+                      &(1.0, 0.0), (3.0, 0.0)], shape(d2_data), order = [2,1])
+    call d2%init(d2_data)
+
+    call s1%init(4, 2)
+    call spb%init(s1)
+    call spb%set(1,1,(2.0, 1.0))
+    call spb%set(1,2,(2.0, 1.0))
+    call spb%set(4,2,(6.0, 1.0))
+    call spb%save()
+
+    !! bl3 = (d2) = / 1 0 \ + i*0
+    !!              \ 1 3 /
+    call bl3%init([2])
+    call bl3%set_ptr(1,1,d2)
+
+    !!                    / 1 0 1 0 \
+    !! bl2 = / b1 bl3 \ = | 0 1 1 3 | + i*0
+    !!       \ 0  b1  /   | 0 0 1 0 |
+    !!                    \ 0 0 0 1 /
+    call bl2%init([2,2])
+    call bl2%set(1,1,b1)
+    call bl2%set(1,2,bl3)
+    call bl2%set(2,2,b1)
+
+    !! create M
+    call M%init([2,4])
+    call M%set(1,1,b1)
+    call M%set_ptr(1,2,d1)
+    call M%set(2,1,s1)
+    call M%set(2,2,bl2)
+  end subroutine
+
+  subroutine get_empty_matrix(S)
+    type(sparse_real), intent(out) :: S
+
+    call S%init(4)
+  end subroutine
+
+  subroutine get_test_matrix2(S)
+    type(sparse_real), intent(out) :: S
+
+    type(spbuild_real) :: sbuild
+
+    ! S =
+    !  0     0     5     1
+    !  0     2     0     0
+    !  0     0     0    -3
+    ! -1     0     0     0
+
+    call S%init(4)
+    call sbuild%init(S)
+
+    call sbuild%add(1, 3,  5.0)
+    call sbuild%add(1, 4,  1.0)
+    call sbuild%add(2, 2,  2.0)
+    call sbuild%add(3, 4, -3.0)
+    call sbuild%add(4, 1, -1.0)
+
+    call sbuild%save()
+  end subroutine
+
+  subroutine get_test_matrix3(n, S)
+    !! some large sparse matrix
+
+    integer,           intent(in)          :: n
+      !! matrix dimension
+    type(sparse_real), intent(out) :: S
+
+    integer            :: i, j
+    type(spbuild_real) :: sbuild
+
+    ! S_ij = /i+2*j-i**2    if    (i+j)%31 == 0
+    !        \0             else
+
+    call S%init(n)
+    call sbuild%init(S)
+
+    do i = 1, n
+      do j = 1, n
+        if (mod(i+j, 31) == 0) call sbuild%add(i, j, real(i+2*j-i**2))
+      end do
+    end do
+
+    call sbuild%save()
   end subroutine
 
 end module

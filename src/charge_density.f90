@@ -157,7 +157,7 @@ contains
           ! incomplete ionization
           if (this%par%smc%incomp_ion .and. (ci >= this%par%ci0) .and. (ci <= this%par%ci1)) then
             if (this%par%ionvert(ci)%flags%get(idx)) then
-              ion = this%ion(ci)%get(idx)
+              ion = this%ion(ci)%get(idx) + this%par%dop(IDX_VERTEX, 0, ci)%get(idx)
             end if
           end if
 

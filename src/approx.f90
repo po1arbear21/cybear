@@ -13,7 +13,7 @@ module approx_m
   use imref_m,          only: imref
   use jacobian_m,       only: jacobian
   use math_m,           only: eye_real
-  use matrix_m,         only: sparse_real
+  use matrix_m,         only: block_real
   use normalization_m,  only: norm
   use poisson_m,        only: poisson
   use potential_m,      only: potential
@@ -63,11 +63,11 @@ contains
     type(voltage),       intent(in)    :: volt(:)
       !! voltages for all contacts
 
-    integer               :: ict
-    real, allocatable     :: dx(:), f(:)
-    type(imref_approx_eq) :: eq
-    type(esystem)         :: sys
-    type(sparse_real)     :: df
+    integer                   :: ict
+    real, allocatable         :: dx(:), f(:)
+    type(imref_approx_eq)     :: eq
+    type(esystem)             :: sys
+    type(block_real), pointer :: df
 
     ! initialize approximation equation
     call eq%init(par, iref, volt)
@@ -89,7 +89,6 @@ contains
 
     ! free memory
     call eq%destruct()
-    call df%destruct()
     call sys%destruct()
   end subroutine
 

@@ -1,4 +1,4 @@
-module test_esystem_prec_m
+module test_steady_state_m
 
   use equation_m,     only: equation
   use error_m,        only: program_error
@@ -8,9 +8,9 @@ module test_esystem_prec_m
   use grid_data_m,    only: grid_data1_real
   use grid_table_m,   only: grid_table
   use grid1D_m,       only: grid1D
-  use newton_m,       only: newton_opt
+  use matrix_m,       only: SPSOLVER_PARDISO, SOLVER_GMRES
   use res_equation_m, only: res_equation
-  use stencil_m,      only: dirichlet_stencil
+  use steady_state_m, only: steady_state
   use test_case_m,    only: test_case
   use util_m,         only: int2str
   use variable_m,     only: variable_real
@@ -19,7 +19,7 @@ module test_esystem_prec_m
   implicit none
 
   private
-  public test_esystem_prec
+  public test_steady_state
 
   type, extends(variable_real) :: var
     type(grid_data1_real), pointer :: d => null()
@@ -64,8 +64,8 @@ module test_esystem_prec_m
   end type
 
   type, extends(res_equation) :: res_equation2
-    !! residuum: f = [      15 y_1 -   y_2 -z_1 -4 z_3 -1/20 x_1 y_2 -4]
-    !!               [-2x_1        +20 y_2 -z_2        -1/30 y_2 z_3 +5]
+    !! residuum: f = [        15 y_1  -   y_2  -z_1        -4 z_3  -1/20   x_1  z_2  -4]
+    !!               [-2 x_1          +20 y_2        -z_2          -1/30   y_2  z_3  +5]
 
     type(vselector), pointer :: y => null()
       !! main variable
@@ -86,19 +86,18 @@ module test_esystem_prec_m
 
 contains
 
-  subroutine test_esystem_prec()
-    integer         :: i
-    type(test_case) :: tc
-
+  subroutine test_steady_state()
+    integer             :: i
+    type(test_case)     :: tc
     type(var)           :: xvar, yvar(2), zvar(3)
     type(vselector)     :: xvsel, yvsel, zvsel
     type(equation1)     :: eq1
     type(esystem)       :: es
     type(res_equation1) :: req1
     type(res_equation2) :: req2
-    type(newton_opt) :: nopt
+    type(steady_state)  :: ss
 
-    call tc%init("esystem: it solver")
+    call tc%init("steady-state")
 
     ! init grid
     call g%init("g", real([0, 1, 2, 4]))
@@ -137,16 +136,38 @@ contains
     ! finish equation system
     call es%init_final()
 
-    ! solve esystem
-    call nopt%init(es%n, it_solver = .true.)
-    call es%solve(nopt = nopt)
+    ! solve esystem with pardiso
+    call ss%init(es)
+    call ss%set_newton_params(solver = SPSOLVER_PARDISO)
+    call ss%run()
 
     ! check results (computed by matlab)
-    call tc%assert_eq([( 1.917598528792069, i=1, 4)], xvar%d%data,    1e-12, 1e-16, "es: solve: result x" )
-    call tc%assert_eq([(-2.278730533004949, i=1, 4)], yvar(1)%d%data, 1e-12, 1e-16, "es: solve: result y1")
-    call tc%assert_eq([( 0.276521052725538, i=1, 4)], yvar(2)%d%data, 1e-12, 1e-16, "es: solve: result y2")
+    call tc%assert_eq([( 1.917598528792069, i=1, 4)], xvar%get(),    1e-12, 1e-16, "steady-state: result x" )
+    call tc%assert_eq([(-2.278730533004949, i=1, 4)], yvar(1)%get(), 1e-12, 1e-16, "steady-state: result y1")
+    call tc%assert_eq([( 0.276521052725538, i=1, 4)], yvar(2)%get(), 1e-12, 1e-16, "steady-state: result y2")
+
+    ! reset variables to some random values
+    call xvar%set([1.0, 2.0, 7.0, -1.0])
+    do i = 1, 3
+      if (i < 3) call yvar(i)%set([1.0, 2.0, 7.0, -1.0])
+      call zvar(i)%set([1.0, 2.0, 7.0, -1.0])
+    end do
+
+    ! solve esystem with gmres
+    call ss%init(es)
+    call ss%set_newton_params(solver = SOLVER_GMRES)
+    call ss%run()
+
+    ! check results (computed by matlab)
+    call tc%assert_eq([( 1.917598528792069, i=1, 4)], xvar%get(),    1e-12, 1e-16, "steady-state: result x" )
+    call tc%assert_eq([(-2.278730533004949, i=1, 4)], yvar(1)%get(), 1e-12, 1e-16, "steady-state: result y1")
+    call tc%assert_eq([( 0.276521052725538, i=1, 4)], yvar(2)%get(), 1e-12, 1e-16, "steady-state: result y2")
 
     call tc%finish()
+
+    ! destruct esystem
+    call es%destruct()
+
   end subroutine
 
   subroutine var_init(this, name, idx_type)
@@ -350,7 +371,7 @@ contains
       call this%dfdy%set(     idx, idx, reshape([15.0, 0.0, -1.0, 20-z(3)/30], [2, 2]))
       call this%dfdy_prec%set(idx, idx, reshape([15.0, 0.0, -1.0, 15-z(3)   ], [2, 2]))
 
-      call this%dfdz%set(idx, idx, reshape([-1.0, 0.0, -0.5*x(1), -1.0, -4.0, -y(2)/30], [2, 3]))
+      call this%dfdz%set(idx, idx, reshape([-1.0, 0.0, -0.05*x(1), -1.0, -4.0, -y(2)/30], [2, 3]))
     end do
   end subroutine
 

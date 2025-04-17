@@ -63,6 +63,7 @@ contains
     type(sparse_real), target, allocatable :: dff(:)
     type(sparse_real), pointer             :: ptr, df0, dfc(:), dfs(:)
     type(block_real)                       :: dg_block
+    type(block_real),  pointer             :: df_tmp    
 
     ! check for errors
     m4_assert(nH > 0)
@@ -281,7 +282,8 @@ contains
           ! evaluate equation system
           call sys%set_x(xi)
           call sys%set_input(input_%get(t(it)), only_appl = .true.)
-          call sys%eval(f = fi, df = dfi)
+          call sys%eval(f = fi, df = df_tmp)
+          call matrix_convert(df_tmp, dfi)
 
           ! update residual fourier coefficients
           call ger(ff, fi, w(0:2*nH,it), alpha = 1.0 / it1)

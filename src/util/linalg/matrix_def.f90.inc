@@ -7,6 +7,8 @@ type, abstract :: matrix_{}T
     !! Number of columns
   logical :: factorized
     !! Is matrix factorized and ready to solve?
+  integer, private :: solver = 0
+    !! Solver used when computing the stored factorization
 contains
   procedure :: matrix_{}T{}_init
   generic   :: init => matrix_{}T{}_init
@@ -56,8 +58,9 @@ interface
     character,  optional, intent(in)    :: trans
   end subroutine
 
-  module subroutine matrix_{}T{}_factorize(this)
+  module subroutine matrix_{}T{}_factorize(this, solver)
     class(matrix_{}T), intent(inout) :: this
+    integer, optional, intent(in)    :: solver
   end subroutine
 
   module subroutine matrix_{}T{}_solve_vec(this, rhs, x, trans, iter_refine)
