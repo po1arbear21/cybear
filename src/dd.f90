@@ -564,10 +564,8 @@ contains
       call ss%set_var_params("currents", dx_lim=1e300)
       call ss%run(input = input, gummel = gummel)
 
-      ! 4K
-      call trans%init(dev%sys_full, method=TRANS_TRBDF2, adaptive=.true., eabs=0.01, log=opt_tr%log, msg=opt_tr%msg)
-      ! 77K
-      ! call trans%init(dev%sys_full, method=TRANS_TRBDF2, adaptive=.true., erel = 1e-13, eabs=0.00001, log=opt_tr%log, msg=opt_tr%msg)
+      call trans%init(dev%sys_full, log=opt_tr%log, msg=opt_tr%msg)
+      call trans%set_ode_params(method=TRANS_TRBDF2, adaptive=.true., eabs=0.01)
       call trans%set_newton_params(rtol = opt_tr%rtol(1), atol=opt_tr%atol(1), dx_lim=opt_tr%dx_lim(1), min_it = opt_tr%min_it, max_it = opt_tr%max_it)
       call trans%set_var_params("ndens", atol=norm(1e11,"cm^-3"), eabs=norm(1e5,"cm^-3"), xmin=norm(1e-10,"cm^-3"), dx_lim_rel=0.2) ! Test: add dens atol
       call trans%set_var_params("pdens", atol=norm(1e11,"cm^-3"), eabs=norm(1e5,"cm^-3"), xmin=norm(1e-10,"cm^-3"), dx_lim_rel=0.2)
