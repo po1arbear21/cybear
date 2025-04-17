@@ -133,16 +133,11 @@ contains
     character(*),        intent(in)    :: cachefile
       !! file to which the variables are written
 
-    integer :: unit, stat
-
     ! delete old output settings
     if (allocated(this%cachefile)) deallocate(this%cachefile)
 
     ! new output settings
     this%cachefile = cachefile
-    ! if cachefile already exists, delete it
-    open(newunit = unit, file = this%cachefile, iostat = stat, status = "replace")
-    close(unit, status="delete")
   end subroutine
 
   subroutine small_signal_run(this, s, calc_dxds)

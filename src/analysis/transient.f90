@@ -62,7 +62,7 @@ module transient_m
 
     ! ODE solver parameters
     integer           :: method
-      !! ODE solver
+      !! ODE solver (default TRANS_TRBDF2)
     logical           :: adaptive
       !! use adaptive time steps (true) or not (false, default)
     real              :: reduction_factor
@@ -113,6 +113,7 @@ module transient_m
       !! output file for cache
   contains
     procedure :: init              => transient_init
+    procedure :: set_ode_params    => transient_set_ode_params
     procedure :: set_newton_params => transient_set_newton_params
     procedure :: set_var_params    => transient_set_var_params
     procedure :: init_output       => transient_init_output
@@ -145,21 +146,11 @@ module transient_m
 
 contains
 
-  subroutine transient_init(this, sys, method, adaptive, reduction_factor, eabs, erel, use_ram, log, msg)
+  subroutine transient_init(this, sys, use_ram, log, msg)
     !! initialize transient simulation
     class(transient),       intent(out) :: this
     type(esystem), target,  intent(in)  :: sys
       !! equation system
-    integer,      optional, intent(in)  :: method
-      !! ODE solver used for simulation (TRANS_BE, TRANS_TRAPZ, TRANS_BDF2, TRANS_MBDF2, TRANS_TRBDF2)
-    logical,      optional, intent(in)  :: adaptive
-      !! adaptive time step size (default false)
-    real,         optional, intent(in)  :: reduction_factor
-      !! adaptive: time step reduction factor if Newton does not converge (default 0.5)
-    real,         optional, intent(in)  :: eabs
-      !! adaptive: absolute error tolerance for error estimate (default 1e-16)
-    real,         optional, intent(in)  :: erel
-      !! adaptive: relative error tolerance for error estimate (default 1e-6)
     logical,      optional, intent(in)  :: use_ram
       !! save data also in RAM memory (true, default) or only on disk (false)
     logical,      optional, intent(in)  :: log
@@ -168,22 +159,6 @@ contains
       !! message to print each Newton iteration if logging is enabled (default "Transient: ")
 
     this%sys => sys
-    this%method = method
-    this%adaptive = .false.
-    if (present(adaptive)) this%adaptive = adaptive
-    if (this%adaptive) then
-      this%reduction_factor = 0.5
-      if (present(reduction_factor)) this%reduction_factor = reduction_factor
-      m4_assert(this%reduction_factor > 0.0 .and. this%reduction_factor < 1.0)
-      allocate(this%eabs(sys%n), source = 1e-16)
-      if (present(eabs)) this%eabs = eabs
-      allocate(this%erel(sys%n), source = 1e-6)
-      if (present(erel)) this%erel = erel
-    else
-      m4_assert(.not. present(reduction_factor))
-      m4_assert(.not. present(eabs))
-      m4_assert(.not. present(erel))
-    end if
     this%use_ram = .true.
     if (present(use_ram)) this%use_ram = use_ram
     this%log = .false.
@@ -191,6 +166,9 @@ contains
     this%msg = "Transient: "
     if (present(msg)) deallocate(this%msg)
     if (present(msg)) this%msg = msg
+
+    this%method = TRANS_TRBDF2
+    this%adaptive = .false.
 
     this%solver = SPSOLVER_PARDISO
     allocate(this%atol(sys%n), source = 1e-16)
@@ -202,6 +180,38 @@ contains
     allocate(this%xmax(sys%n), source = ieee_value(1.0, ieee_positive_inf))
     this%min_it = 0
     this%max_it = huge(this%max_it)
+  end subroutine
+
+  subroutine transient_set_ode_params(this, method, adaptive, reduction_factor, eabs, erel)
+    !! set parameters for ODE solver
+    class(transient),  intent(inout) :: this
+    integer,           intent(in)    :: method
+      !! ODE solver used for simulation (TRANS_BE, TRANS_TRAPZ, TRANS_BDF2, TRANS_MBDF2, TRANS_TRBDF2)
+    logical, optional, intent(in)    :: adaptive
+      !! adaptive time step size (default false)
+    real,    optional, intent(in)    :: reduction_factor
+      !! adaptive: time step reduction factor if Newton does not converge (default 0.5)
+    real,    optional, intent(in)    :: eabs
+      !! adaptive: absolute error tolerance for error estimate (default 1e-16)
+    real,    optional, intent(in)    :: erel
+      !! adaptive: relative error tolerance for error estimate (default 1e-6)
+
+    this%method = method
+    this%adaptive = .false.
+    if (present(adaptive)) this%adaptive = adaptive
+    if (this%adaptive) then
+      this%reduction_factor = 0.5
+      if (present(reduction_factor)) this%reduction_factor = reduction_factor
+      m4_assert(this%reduction_factor > 0.0 .and. this%reduction_factor < 1.0)
+      allocate(this%eabs(this%sys%n), source = 1e-16)
+      if (present(eabs)) this%eabs = eabs
+      allocate(this%erel(this%sys%n), source = 1e-6)
+      if (present(erel)) this%erel = erel
+    else
+      m4_assert(.not. present(reduction_factor))
+      m4_assert(.not. present(eabs))
+      m4_assert(.not. present(erel))
+    end if
   end subroutine
 
   subroutine transient_set_newton_params(this, solver, gopt, atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax, min_it, max_it)
@@ -332,8 +342,6 @@ contains
     real,    optional,   intent(in)    :: t(:)
       !! write cache at these specific time points
 
-    integer :: unit, stat
-
     ! delete old output settings
     if (allocated(this%cachefile)) deallocate(this%cachefile)
 
@@ -345,9 +353,6 @@ contains
     if (allocated(this%cache_t)) deallocate(this%cache_t)
     allocate (this%cache_t(0))
     if (present(t)) this%cache_t = t
-    ! if cachefile already exists, delete it
-    open(newunit = unit, file = this%cachefile, iostat = stat, status = "replace")
-    close(unit, status="delete")
   end subroutine
 
   subroutine transient_run(this, times, n_steps, dt0, input, eval_before_output, start_steady_state, start_file, start_i)

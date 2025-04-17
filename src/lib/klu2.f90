@@ -111,6 +111,8 @@ contains
     integer :: h
       !! return complex klu2 handle index
 
+    m4_ignore(h)
+
     call program_error("KLU2 solver only supported for real matrices yet")
   end function
 
@@ -132,6 +134,8 @@ contains
     !! destruct complex klu2 handle (free internal memory)
     integer, intent(inout) :: h
       !! complex klu2 handle index
+
+    m4_ignore(h)
 
     call program_error("KLU2 solver only supported for real matrices yet")
   end subroutine
@@ -204,6 +208,11 @@ contains
     complex,             intent(in) :: a(:)
       !! values in double precision
 
+    m4_ignore(h)
+    m4_ignore(ia)
+    m4_ignore(ja)
+    m4_ignore(a)
+
     call program_error("KLU2 solver only supported for real matrices yet")
   end subroutine
 
@@ -217,6 +226,11 @@ contains
       !! columns
     complex(kind=16),    intent(in) :: a(:)
       !! values in quad precision
+
+    m4_ignore(h)
+    m4_ignore(ia)
+    m4_ignore(ja)
+    m4_ignore(a)
 
     call program_error("KLU2 solver only supported for real matrices yet")
   end subroutine
@@ -241,7 +255,7 @@ contains
 
     call klu2_solve_lib(klu2_handles(h), nrhs, b_, x_)
 
-    x = real(x_, 16)
+    x = real(x_)
   end subroutine
 
   subroutine klu2_solve_r128(h, b, x)
@@ -270,6 +284,10 @@ contains
     complex, intent(out) :: x(:)
       !! solution(s) in double precision
 
+    m4_ignore(h)
+    m4_ignore(b)
+    m4_ignore(x)
+
     call program_error("KLU2 solver only supported for real matrices yet")
   end subroutine
 
@@ -281,6 +299,10 @@ contains
       !! right-hand side(s) in quad precision
     complex(kind=16), intent(out) :: x(:)
       !! solution(s) in quad precision
+
+    m4_ignore(h)
+    m4_ignore(b)
+    m4_ignore(x)
 
     call program_error("KLU2 solver only supported for real matrices yet")
   end subroutine
