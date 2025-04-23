@@ -11,7 +11,7 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
 
-.base_test:
+.test:
   stage: test
   variables:
     BLAS95ROOT: /usr/share/mkl/blas95
@@ -37,20 +37,7 @@ workflow:
       ]
       ' | tee fargo.toml
 
-test-gfortran:
-  extends: .base_test
-  image: registry.git.rwth-aachen.de/ithe/fargo
-  script:
-    - fargo run
-
-test-flang:
-  extends: .base_test
-  image: registry.git.rwth-aachen.de/ithe/fargo:flang
-  allow_failure: true
-  script:
-    - |-
-      echo 'compiler = "flang"
-      intsize = 64
-      idxsize = 64
-      ' | tee -a fargo.toml
-    - fargo run
+test:
+  extends: .test
+  image: registry.git.rwth-aachen.de/ithe/fargo:latest
+  script: fargo run
