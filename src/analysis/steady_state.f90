@@ -272,7 +272,7 @@ contains
 
     character(:), allocatable :: msg_lim
     integer                   :: i, j, it, nt, stat
-    logical                   :: eval_before_output_, limmin, limmax
+    logical                   :: eval_before_output_, limmin, limmax, out
     real                      :: abs_err, dx0
     real,         allocatable :: t_input_(:), x(:), dx(:), xold(:), f(:), err(:)
     type(block_real), pointer :: dfdx, dfdx_prec
