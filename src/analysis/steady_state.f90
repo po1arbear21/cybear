@@ -443,7 +443,10 @@ contains
 
       ! output variables
       if (allocated(this%varfile)) then
-        if ((this%vars_delta_it > 0 .and. mod(i, this%vars_delta_it)==0) .or. i==nt) then
+        out = .false.
+        if (this%vars_delta_it > 0) out = mod(i, this%vars_delta_it)==0
+        if (this%vars_delta_it == 0 .or. i == nt) out = .true.
+        if (out) then
           call c_vars%open(this%varfile, flag = STORAGE_WRITE)
           if (eval_before_output_) call this%sys%eval()
           do j = 1, size(this%output_vars)
@@ -458,7 +461,10 @@ contains
       end if
       ! output solution vector
       if (allocated(this%cachefile)) then
-        if ((this%cache_delta_it > 0 .and. mod(i, this%cache_delta_it)==0) .or. i==nt) then
+        out = .false.
+        if (this%vars_delta_it > 0) out = mod(i, this%vars_delta_it)==0
+        if (this%vars_delta_it == 0 .or. i == nt) out = .true.
+        if (out) then
           call c_cache%open(this%cachefile, flag = STORAGE_WRITE)
           call c_cache%write("steady-state/cache/"//int2str(i), this%sys%get_x())
           call c_cache%close()
