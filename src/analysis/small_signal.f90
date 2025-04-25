@@ -273,7 +273,7 @@ contains
 
 
       ! call consistency check
-      if(present(consistency_check)) call consistency_check(i, x)
+      if(present(consistency_check)) call consistency_check(s(i), x)
 
       ! output
       call this%output(i, x, dxds)
