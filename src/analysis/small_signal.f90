@@ -60,6 +60,15 @@ module small_signal_m
     procedure, private :: output   => small_signal_output
   end type
 
+  abstract interface
+    subroutine consistency(s, x)
+      complex, intent(in) :: s
+      !! complex frequency
+      complex, allocatable, intent(in) :: x(:,:)
+      !! solution vector
+    end subroutine
+  end interface
+
 contains
 
   subroutine small_signal_init(this, sys, use_ram, log)
@@ -140,13 +149,15 @@ contains
     this%cachefile = cachefile
   end subroutine
 
-  subroutine small_signal_run(this, s, calc_dxds)
+  subroutine small_signal_run(this, s, calc_dxds, consistency_check)
     !! perform small-signal analysis
     class(small_signal), intent(inout) :: this
     complex,             intent(in)    :: s(:)
       !! assume: x = x_0 + Re{x_1 * exp(s*t)}
     logical, optional,   intent(in)    :: calc_dxds
       !! calculate dxds in addition to x (default: false)
+    procedure(consistency), optional   :: consistency_check
+      !! optional procedure to run after each small_signal step
 
     complex, allocatable     :: rhs(:,:), x(:,:), tmp(:,:), dxds(:,:)
     integer                  :: nsrc, ns, i, j, k, stat
@@ -259,6 +270,10 @@ contains
 
       ! release memory
       call mat%destruct()
+
+
+      ! call consistency check
+      if(present(consistency_check)) call consistency_check(i, x)
 
       ! output
       call this%output(i, x, dxds)
