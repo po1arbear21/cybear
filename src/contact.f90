@@ -10,7 +10,7 @@ module contact_m
   use high_precision_m
   use newton_m,        only: newton1D, newton1D_opt
   use normalization_m, only: norm, denorm
-  use semiconductor_m, only: CR_ELEC, CR_HOLE, CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE, semiconductor
+  use semiconductor_m, only: CR_ELEC, CR_HOLE, CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE, DOS_PARABOLIC, DIST_MAXWELL, semiconductor
 
   implicit none
 
@@ -83,111 +83,40 @@ contains
 
   contains
 
-    subroutine phims_newton(x, p, f, dfdx, dfdp)
-    !   !! residual for newton iteration: f = rho = p - n + ND^{+} - NA^{-}
-    !   real,              intent(in)  :: x
-    !     !! argument (phims)
-    !   real,              intent(in)  :: p(:)
-    !     !! parameters (empty)
-    !   real,              intent(out) :: f
-    !     !! output function value
-    !   real,    optional, intent(out) :: dfdx
-    !     !! optional output derivative of f wrt x
-    !   real,    optional, intent(out) :: dfdp(:)
-    !     !! optional output derivatives of f wrt p
-
-    !   integer       :: ci
-    !   real          :: ch, eta(2), dens(2), ddens(2), dff, g, dg, fac, dfac, ion, dion
-    !   type(hp_real) :: ff
-
-    !   m4_ignore(p)
-
-    !   ! work with high precision residual, double precision derivative
-    !   ff  = real_to_hp(0.0)
-    !   dff = 0.0
-
-    !   ! densities
-    !   do ci = ci0, ci1
-    !     ch = CR_CHARGE(ci)
-
-    !     eta(ci) = ch * (smc%band_edge(ci) - x)
-
-    !     if (smc%degen) then
-    !       call fermi_dirac_integral_1h_reg(eta(ci), dens(ci), ddens(ci))
-    !       ddens(ci) = - ch * ddens(ci)
-    !     else
-    !       dens( ci) = exp(eta(ci))
-    !       ddens(ci) = - ch * dens(ci)
-    !     end if
-
-    !     ff  =  ff + ch * smc%edos(ci) *  dens(ci)
-    !     dff = dff + ch * smc%edos(ci) * ddens(ci)
-    !   end do
-
-    !   ! doping
-    !   do ci = DOP_DCON, DOP_ACON
-    !     ch = CR_CHARGE(ci)
-    !     if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
-    !       if (smc%degen) then
-    !         ....wrong
-    !         call fermi_dirac_generation_reg(eta(ci), g, dg)
-    !         dg = - ch * dg
-    !         fac  = smc%ii_g(ci) * exp(ii_E_dop(ci)) * dens(ci) / g
-    !         dfac = smc%ii_g(ci) * exp(ii_E_dop(ci)) * (ddens(ci) - dens(ci) / g * dg) / g
-    !       else
-    !         fac  = smc%ii_g(ci) * exp(ii_E_dop(ci)) * dens(ci)
-    !         dfac = smc%ii_g(ci) * exp(ii_E_dop(cI)) * ddens(ci)
-    !       end if
-    !       ion  =   dop(ci) / (1.0 + fac)
-    !       dion = - dop(ci) * dfac / (1.0 + fac)**2
-
-    !       ff  =  ff - ch *  ion
-    !       dff = dff - ch * dion
-    !     else
-    !       ! fully ionized
-    !       ff = ff - ch * dop(ci)
-    !     end if
-    !   end do
-
-    !   f = hp_to_real(ff)
-    !   if (present(dfdx)) dfdx = dff
-    !   if (present(dfdp)) then
-    !     m4_ignore(dfdp)
-    !   end if
-    ! end subroutine
-      !! residual for newton iteration: f = rho = p - n + ND^{+} - NA^{-}
-      real,              intent(in)  :: x
+    subroutine phims_newton(phims, p, rho, drhodphims, drhodp)
+      !! residual for newton iteration: rho = rho = p - n + ND^{+} - NA^{-}
+      real,              intent(in)  :: phims
         !! argument (phims)
       real,              intent(in)  :: p(:)
         !! parameters (empty)
-      real,              intent(out) :: f
+      real,              intent(out) :: rho
         !! output function value
-      real,    optional, intent(out) :: dfdx
-        !! optional output derivative of f wrt x
-      real,    optional, intent(out) :: dfdp(:)
-        !! optional output derivatives of f wrt p
+      real,    optional, intent(out) :: drhodphims
+        !! optional output derivative of rho wrt phims
+      real,    optional, intent(out) :: drhodp(:)
+        !! optional output derivatives of rho wrt p
 
       integer       :: ci
-      real          :: ch, dion, F1h, dF1h, dff, t
-      type(hp_real) :: ff, e, fac, ion
+      real          :: ch, dion, F, dF, drho, t
+      type(hp_real) :: hrho, e, fac, ion
 
       m4_ignore(p)
 
       ! work with high precision residual, double precision derivative
-      ff  = real_to_hp(0.0)
-      dff = 0.0
+      hrho  = real_to_hp(0.0)
+      drho = 0.0
 
       ! densities
       do ci = ci0, ci1
         ch = CR_CHARGE(ci)
 
-        if (smc%degen) then
-          call fermi_dirac_integral_1h_reg(ch * (smc%band_edge(ci) - x), F1h, dF1h)
-          ff  =  ff + ch * smc%edos(ci) * F1h
-          dff = dff -      smc%edos(ci) * dF1h
+        if ((smc%dos == DOS_PARABOLIC) .and. (smc%dist == DIST_MAXWELL)) then
+          hrho = hrho + ch * sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * phims - 0.5 * smc%band_gap)
+          drho = drho -      sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * phims - 0.5 * smc%band_gap)
         else
-          ff  =  ff + ch * sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * x - 0.5 * smc%band_gap)
-          dff = dff -      sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * x - 0.5 * smc%band_gap)
+          call smc%get_dist(ch * (smc%band_edge(ci) - phims), 0, F, dF)
+          hrho = hrho + ch * smc%edos(ci) *  F
+          drho = drho -      smc%edos(ci) * dF
         end if
       end do
 
@@ -195,7 +124,7 @@ contains
       do ci = DOP_DCON, DOP_ACON
         ch = CR_CHARGE(ci)
         if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
-          e = TwoSum(ii_E_dop(ci) + ch*smc%band_edge(ci), -ch*x)
+          e = TwoSum(ii_E_dop(ci) + ch*smc%band_edge(ci), -ch*phims)
           t = hp_to_real(e)
           if (t > 300) then
             fac = real_to_hp(0.0)
@@ -206,18 +135,18 @@ contains
           ion  = fac
           dion = hp_to_real(fac * (1.0 - fac))
 
-          ff  = ff  - ch * dop(ci) * ion
-          dff = dff -      dop(ci) * dion
+          hrho = hrho - ch * dop(ci) * ion
+          drho = drho -      dop(ci) * dion
         else
           ! fully ionized
-          ff = ff - ch * dop(ci)
+          hrho = hrho - ch * dop(ci)
         end if
       end do
 
-      f = hp_to_real(ff)
-      if (present(dfdx)) dfdx = dff
-      if (present(dfdp)) then
-        m4_ignore(dfdp)
+      rho = hp_to_real(hrho)
+      if (present(drhodphims)) drhodphims = drho
+      if (present(drhodp)) then
+        m4_ignore(drhodp)
       end if
     end subroutine
   end subroutine

@@ -8,7 +8,7 @@ module imref_m
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
-  use semiconductor_m, only: CR_NAME, CR_CHARGE
+  use semiconductor_m, only: CR_NAME, CR_CHARGE, DOS_PARABOLIC, DIST_MAXWELL
   use variable_m,      only: variable_real
   use error_m,         only: assert_failed, program_error
 
@@ -146,7 +146,7 @@ contains
     class(calc_imref), intent(inout) :: this
 
     integer              :: i, ci
-    real                 :: ch, pot, dens, iref, IF12, dIF12
+    real                 :: ch, pot, dens, iref, eta, detadF
     integer, allocatable :: idx(:)
 
     ci = this%iref%ci
@@ -159,15 +159,15 @@ contains
       ! calculate imref
       pot  = this%pot%get(idx)
       dens = this%dens%get(idx)
-      if (this%par%smc%degen) then
-        call inv_fermi_dirac_integral_1h_reg(dens / this%par%smc%edos(ci), IF12, dIF12)
-        iref = pot - this%par%smc%band_edge(ci) + ch * IF12
-        call this%iref%set(idx, iref)
-        call this%jaco_dens%set(idx, idx, ch * dIF12 / this%par%smc%edos(ci))
-      else
+      if ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_MAXWELL)) then
         iref = pot + ch * (0.5 * this%par%smc%band_gap + log(dens / sqrt(this%par%smc%edos(1) * this%par%smc%edos(2))))
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch / dens)
+      else
+        call this%par%smc%get_idist(dens / this%par%smc%edos(ci), eta, detadF)
+        iref = pot - this%par%smc%band_edge(ci) + ch * eta
+        call this%iref%set(idx, iref)
+        call this%jaco_dens%set(idx, idx, ch * detadF / this%par%smc%edos(ci))
       end if
     end do
   end subroutine
@@ -213,7 +213,7 @@ contains
     class(calc_density), intent(inout) :: this
 
     integer               :: i, ci
-    real                  :: ch, pot, dens, iref, F12, dF12
+    real                  :: ch, pot, dens, iref, F, dFdeta
     integer, allocatable  :: idx(:)
 
     ci = this%iref%ci
@@ -226,19 +226,19 @@ contains
       ! calculate density
       pot  = this%pot%get(idx)
       iref = this%iref%get(idx)
-      if (this%par%smc%degen) then
-        call fermi_dirac_integral_1h_reg(ch * (iref - pot + this%par%smc%band_edge(ci)), F12, dF12)
-        dens = this%par%smc%edos(ci) * F12
-
-        call this%dens%set(idx, dens)
-        call this%jaco_pot%set( idx, idx, - ch * this%par%smc%edos(ci) * dF12)
-        call this%jaco_iref%set(idx, idx,   ch * this%par%smc%edos(ci) * dF12)
-      else
+      if ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_MAXWELL)) then
         dens = sqrt(this%par%smc%edos(1) * this%par%smc%edos(2)) * exp(ch * (iref - pot) - 0.5 * this%par%smc%band_gap)
 
         call this%dens%set(idx, dens)
         call this%jaco_pot%set( idx, idx, - ch*dens)
         call this%jaco_iref%set(idx, idx,   ch*dens)
+      else
+        call this%par%smc%get_dist(ch * (iref - pot + this%par%smc%band_edge(ci)), 0, F, dFdeta)
+        dens = this%par%smc%edos(ci) * F
+
+        call this%dens%set(idx, dens)
+        call this%jaco_pot%set( idx, idx, - ch * this%par%smc%edos(ci) * dFdeta)
+        call this%jaco_iref%set(idx, idx,   ch * this%par%smc%edos(ci) * dFdeta)
       end if
     end do
   end subroutine

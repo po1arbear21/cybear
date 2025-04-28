@@ -2,26 +2,26 @@ m4_include(util/macro.f90.inc)
 
 module current_density_m
 
-  use density_m,        only: density
-  use degen_m,          only: degen_get
-  use device_params_m,  only: device_params
+  use current_integral_m, only: current_integral_get, CURRENT_INTEGRAL_DEBUG
+  use density_m,          only: density
+  use device_params_m,    only: device_params
   use dual_m
-  use equation_m,       only: equation
-  use error_m,          only: assert_failed, program_error
-  use fermi_m,          only: inv_fermi_dirac_integral_1h_reg
-  use grid_m,           only: IDX_VERTEX, IDX_EDGE
-  use grid_data_m,      only: grid_data1_real, grid_data2_real, grid_data3_real
-  use grid_generator_m, only: DIR_NAME
+  use equation_m,         only: equation
+  use error_m,            only: assert_failed, program_error
+  use fermi_m,            only: inv_fermi_dirac_integral_1h_reg
+  use grid_m,             only: IDX_VERTEX, IDX_EDGE
+  use grid_data_m,        only: grid_data1_real, grid_data2_real, grid_data3_real
+  use grid_generator_m,   only: DIR_NAME
   use high_precision_m
-  use ieee_arithmetic,  only: ieee_is_finite, ieee_negative_inf, ieee_positive_inf, ieee_value
-  use jacobian_m,       only: jacobian
-  use math_m,           only: ber, dberdx, log1p
-  use mobility_m,       only: mobility
-  use potential_m,      only: potential
-  use radau5_m,         only: ode_options, ode_result, radau5
-  use semiconductor_m,  only: CR_NAME, CR_CHARGE
-  use stencil_m,        only: dirichlet_stencil, near_neighb_stencil
-  use variable_m,       only: variable_real
+  use ieee_arithmetic,    only: ieee_is_finite, ieee_negative_inf, ieee_positive_inf, ieee_value
+  use jacobian_m,         only: jacobian
+  use math_m,             only: ber, dberdx, log1p
+  use mobility_m,         only: mobility
+  use potential_m,        only: potential
+  use radau5_m,           only: ode_options, ode_result, radau5
+  use semiconductor_m,    only: CR_NAME, CR_CHARGE, DOS_PARABOLIC, DIST_MAXWELL, semiconductor
+  use stencil_m,          only: dirichlet_stencil, near_neighb_stencil
+  use variable_m,         only: variable_real
 
   implicit none
 
@@ -171,9 +171,9 @@ contains
     call system_clock(start, rate)
 
     ! loop over transport edges in parallel
-    !$omp parallel do default(none) schedule(dynamic) &
-    !$omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
-    !$omp shared(this,idx_dir,idx_dim)
+    ! $omp parallel do default(none) schedule(dynamic) &
+    ! $omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
+    ! $omp shared(this,idx_dir,idx_dim)
     do i = 1, this%par%transport(IDX_EDGE, idx_dir)%n
       idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
@@ -192,7 +192,7 @@ contains
       end if
 
       ! get current along edge
-      call this%get_curr(this%par%smc%degen, len, pot, dens, mob, j, djdpot, djddens, djdmob)
+      call this%get_curr(this%par%smc, len, pot, dens, mob, j, djdpot, djddens, djdmob)
 
       ! set current density + derivatives
       call this%cdens%set(idx, j)
@@ -202,16 +202,16 @@ contains
       call this%jaco_dens%set(idx, idx2, djddens(2))
       if (this%par%smc%mob) call this%jaco_mob%set(idx, idx, djdmob)
     end do
-    !$omp end parallel do
+    ! $omp end parallel do
     call system_clock(end)
     time = time + real(end-start)/real(rate)
   end subroutine
 
-  subroutine calc_current_density_get_curr(this, degen, len, pot, dens, mob, j, djdpot, djddens, djdmob)
+  subroutine calc_current_density_get_curr(this, smc, len, pot, dens, mob, j, djdpot, djddens, djdmob)
     !! get current along edge
     class(calc_current_density), intent(in)  :: this
-    logical,                     intent(in)  :: degen
-      !! degeneracy flag (true: FD statistics, false: MB statistics)
+    type(semiconductor),         intent(in)  :: smc
+      !! semiconductor material
     real,                        intent(in)  :: len
       !! edge length
     real,                        intent(in)  :: pot(2)
@@ -230,7 +230,7 @@ contains
       !! output derivatives of j wrt mob
 
     integer :: ci
-    real    :: ch, dpot, edos, n(2), eta(2), detadn(2), djdeta(2), djdn(2), djddpot
+    real    :: ch, dpot, edos, n(2), djdn(2), djddpot
 
     ! abbreviations
     ci   = this%cdens%ci
@@ -241,12 +241,19 @@ contains
     dpot = - ch * (pot(2) - pot(1))
     n    = dens / edos
 
-    if (degen) then
-      ! generalized Scharfetter-Gummel
-      call degen_get(n, dpot, j, djdn, djddpot)
-    else
+    if ((smc%dos == DOS_PARABOLIC) .and. (smc%dist == DIST_MAXWELL)) then
       ! Scharfetter-Gummel
       call this%get_curr_sg(n, dpot, j, djdn, djddpot)
+    else
+      ! Use current integral equation solver
+      call current_integral_get(dist, idist, n, dpot, j, djdn, djddpot)
+
+      if (.not. ieee_is_finite(j)) then
+        CURRENT_INTEGRAL_DEBUG = .true.
+        call current_integral_get(dist, idist, n, dpot, j, djdn, djddpot)
+
+        error stop "not finite"
+      end if
     end if
 
     ! denormalize
@@ -254,6 +261,26 @@ contains
     djdpot  = ch * [1.0, -1.0] * djddpot * mob * edos / len
     djddens = djdn * mob / len
     djdmob  = j / mob
+
+  contains
+
+    subroutine dist(eta, k, F, dFdeta)
+      real,    intent(in)  :: eta
+      integer, intent(in)  :: k
+      real,    intent(out) :: F
+      real,    intent(out) :: dFdeta
+
+      call smc%get_dist(eta, k, F, dFdeta)
+    end subroutine
+
+    subroutine idist(F, eta, detadF)
+      real, intent(in)  :: F
+      real, intent(out) :: eta
+      real, intent(out) :: detadF
+
+      call smc%get_idist(F, eta, detadF)
+    end subroutine
+
   end subroutine
 
   subroutine calc_current_density_get_curr_sg(this, n, dpot, j, djdn, djddpot)

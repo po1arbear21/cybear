@@ -44,72 +44,37 @@
     { files = [ "pmosfet2D.ini" ], action="expand" }
   ]
 
-[degen_table_test]
-  mode      = "release"
-  single    = true
-  target    = "degen_table_test"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-
-[degen_test]
-  mode      = "debug"
-  single    = true
-  target    = "degen_test_prog"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-  args      = "--NG {NG} --_NGEXP {NG} --output true --eta1 {eta1} --rad {rad} --weierstrass false"
-  # variables = [{NG = [8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]}]
-  # variables = [{NG = [8]}, {NGEXP = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]}]
-  variables = [{NG = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] },
-               {eta1 = ["!-20","!-19","!-18","!-17","!-16","!-15","!-14","!-13","!-12","!-11","!-10","!-9","!-8","!-7","!-6","!-5","!-4","!-3","!-2","!-1",0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]}, {rad = [25.0]}]
-  # variables = [{NG = [8, 9, 10, 11, 12, 13, 14, 15, 16], NGEXP = [8, 9, 10, 11, 12, 13, 14, 15, 16]},
-  #              {eta1 = ["!-20","!-19","!-18","!-17","!-16","!-15"]}, {rad = [25.0]}]
-  # variables = [{NG = [24], NGEXP = [24], eta1 = [25], rad = [25]}]
-  task_name = "{NG}_{eta1}"
-  [[degen_test.postprocess]]
-    input  = "stdout.txt"
-    output = "../err.csv"
-    err    = '\s*err\s*=\s*\K.+'
-    format = "{NG} {err}\n"
-
-[degen_test_weierstrass]
-  mode      = "debug"
-  single    = true
-  target    = "degen_test_prog"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-  args      = "--NG {NG} --_NGEXP {NG} --output true --eta1 {eta1} --rad {rad} --weierstrass true"
-  # variables = [{NG = [8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]}]
-  # variables = [{NG = [8]}, {NGEXP = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]}]
-  variables = [{NG = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]},
-               {eta1 = ["!-20","!-19","!-18","!-17","!-16","!-15","!-14","!-13","!-12","!-11","!-10","!-9","!-8","!-7","!-6","!-5","!-4","!-3","!-2","!-1",0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]}, {rad = [25.0]}]
-  # variables = [{NG = [8, 9]},
-  #              {eta1 = ["0"]}, {rad = [25.0]}]
-  # variables = [{NG = [24], NGEXP = [24], eta1 = [25], rad = [25]}]
-  task_name = "{NG}_{eta1}"
-  [[degen_test_weierstrass.postprocess]]
-    input  = "stdout.txt"
-    output = "../err.csv"
-    err    = '\s*err\s*=\s*\K.+'
-    format = "{NG} {err}\n"
-
-[degen_test2]
-  mode      = "debug"
-  single    = true
-  target    = "degen_test_prog"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-  args      = "--NG {NG} --_NGEXP {NG} --output true --eta1 0 --rad 25 --weierstrass false"
-  variables = [{NG = [16]}]
-
-[paper2024]
+[test]
   single      = true
-  target      = "paper2024"
-  libraries   = ["MPFR", "TRIANGLE", "ZLIB"]
-  args        = "--NG {NG} --dpot0 M110 --dpot1 110 --deta0 M100 --deta1 100 --eta1 {eta1}"
-  variables = [
-    {NG = [20]},#,9,10,11,12,13,14,15,16,17,18,19,20]},
-    {eta1 = ["0"]}#,"M19","M18","M17","M16","M15","M14","M13","M12","M11","M10","M9","M8","M7","M6","M5","M4","M3","M2","M1",0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]},
+  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "KLU2", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE", "ZLIB"]
+  target      = "test"
+
+  templates = [
+    { files = [
+        "src/test/example.inp",
+        "src/test/example_matrix4.dat",
+        "src/test/S1.test",
+        "src/test/S2.test",
+        "src/test/S3.test",
+        "src/test/table.csv",
+        "src/test/test1.json",
+        "src/test/test2.json",
+    ] }
   ]
-  task_name = "{NG}_{eta1}"
-  [[paper2024.postprocess]]
-    input  = "stdout.txt"
-    output = "../err.csv"
-    err    = '\s*err\s*=\s*\K.+'
-    format = "{NG} {err}\n"
+
+[max_test]
+  single = true
+  target = "max_test"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+
+[distribution_table_test]
+  mode = "release"
+  single = true
+  target = "distribution_table_test"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+
+[current_integral_test]
+  mode      = "debug"
+  single    = true
+  target    = "current_integral_test"
+  libraries = ["MPFR", "TRIANGLE", "ZLIB"]

@@ -4,7 +4,6 @@ module device_params_m
 
   use bin_search_m,     only: bin_search
   use contact_m,        only: CT_OHMIC, CT_GATE, contact
-  use degen_m,          only: degen_init
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
@@ -18,7 +17,7 @@ module device_params_m
   use map_m,            only: map_string_int, mapnode_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, region_contact
-  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_NAME, semiconductor
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_NAME, DOS_PARABOLIC, DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor
   use string_m,         only: string, new_string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
@@ -211,8 +210,6 @@ contains
     call this%init_doping(file)
     call this%init_mobility()
     call this%init_contacts()
-    if (this%smc%degen) call degen_init(16,16)
-
   end subroutine
 
   subroutine device_params_destruct(this)
@@ -226,8 +223,9 @@ contains
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer :: sid
-    logical :: elec, hole
+    integer      :: sid
+    logical      :: elec, hole, status
+    type(string) :: dos, dist
 
     ! find transport parameters section id
     call file%get_section("transport parameters", sid)
@@ -245,7 +243,49 @@ contains
     call file%get(sid, "E_gap",      this%smc%band_gap)
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
-    call file%get(sid, "degen",      this%smc%degen)
+
+    ! density of states
+    call file%get(sid, "dos", dos, status)
+    if (.not. status) then
+      dos%s = "parabolic"
+      print "(A)", "Assume parabolic density of states"
+    end if
+    select case (dos%s)
+    case ("parabolic")
+      this%smc%dos = DOS_PARABOLIC
+    case ("parabolic_tail")
+      this%smc%dos = DOS_PARABOLIC_TAIL
+    case ("gauss")
+      this%smc%dos = DOS_GAUSS
+    case default
+      call program_error("unknown dos '" // dos%s // "'")
+    end select
+    if (this%smc%dos == DOS_PARABOLIC_TAIL) then
+      call file%get(sid, "dos_t0", this%smc%dos_params(1))
+    elseif (this%smc%dos == DOS_GAUSS) then
+      call file%get(sid, "dos_sigma", this%smc%dos_params(1))
+    end if
+
+    ! distribution
+    call file%get(sid, "dist", dist, status)
+    if (.not. status) then
+      dist%s = "maxwell"
+      print "(A)", "Assume Maxwell-Boltzmann distribution density"
+    end if
+    select case (dist%s)
+    case ("maxwell")
+      this%smc%dist = DIST_MAXWELL
+    case ("fermi")
+      this%smc%dist = DIST_FERMI
+    case ("fermi_reg")
+      this%smc%dist = DIST_FERMI_REG
+    case default
+      call program_error("unknown distribution density '" // dist%s // "'")
+    end select
+    if (this%smc%dist == DIST_FERMI_REG) then
+      call file%get(sid, "reg_A", this%smc%dist_params(1))
+      call file%get(sid, "reg_B", this%smc%dist_params(2))
+    end if
 
     ! mobility
     call file%get(sid, "mob",        this%smc%mob)

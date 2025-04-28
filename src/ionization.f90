@@ -2,7 +2,7 @@ module ionization_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
-  use fermi_m,         only: fermi_dirac_integral_1h, fermi_dirac_generation_reg
+  use fukushima_m,     only: fd1h, fdm1h
   use equation_m,      only: equation
   use error_m,         only: program_error
   use grid_m,          only: IDX_VERTEX
@@ -13,7 +13,7 @@ module ionization_m
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
   use res_equation_m,  only: res_equation
-  use semiconductor_m, only: DOP_NAME, CR_CHARGE, CR_ELEC, CR_HOLE
+  use semiconductor_m, only: DOP_NAME, CR_CHARGE, CR_ELEC, CR_HOLE, DOS_PARABOLIC, DIST_MAXWELL, DIST_FERMI_REG
   use stencil_m,       only: dirichlet_stencil, empty_stencil
   use variable_m,      only: variable_real
   use vselector_m,     only: vselector
@@ -359,16 +359,24 @@ contains
       eta  = - ch * (pot - iref - this%par%smc%band_edge(ci))
 
       ! generation
-      if (this%par%smc%degen) then
-        call fermi_dirac_integral_1h(eta, f, df) ! use non-regularized value in rec for correct stationary ionization rate
-        call fermi_dirac_generation_reg(eta, g, dg)
-        gen  = exp(- Edop) * g
-        dgen = exp(- Edop) * dg
-      else
+      if ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_MAXWELL)) then
         f    = exp(eta)
         df   = f
         gen  = exp(- Edop)
         dgen = 0
+      else
+        call this%par%smc%get_dist(eta, 0, g, dg)
+        gen  = exp(- Edop) * g
+        dgen = exp(- Edop) * dg
+        if (this%par%smc%dist == DIST_FERMI_REG) then
+          ! use non-regularized value in rec for correct stationary ionization rate (FIXME: why?)
+          f  =  fd1h(eta) / gamma(1.5)
+          df = fdm1h(eta) / gamma(0.5)
+        else
+          ! FIXME: check if correct in other cases
+          f  = g
+          df = dg
+        end if
       end if
 
       ! recombination

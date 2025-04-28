@@ -10,7 +10,7 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
-  use semiconductor_m,   only: CR_CHARGE, CR_NAME
+  use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
   use vselector_m,       only: vselector
 
@@ -73,7 +73,7 @@ contains
     integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
-    real                 :: surf, F1h, dF1h
+    real                 :: surf, F, dF
 
     print "(A)", "continuity_init"
 
@@ -182,11 +182,11 @@ contains
         j = j + 1
         idx1 = par%transport_vct(ict)%get_idx(i)
         call this%jaco_dens%set(idx1, idx1, 1.0)
-        if (par%smc%degen) then
-          call fermi_dirac_integral_1h_reg(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), F1h, dF1h)
-          this%b(j) = par%smc%edos(ci) * F1h
-        else
+        if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
           this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
+        else
+          call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
+          this%b(j) = par%smc%edos(ci) * F
         end if
       end do
     end do
