@@ -9,4 +9,3 @@ doc
 jobs
 !.gitignore
 !.gitlab-ci.yml
-fargo.toml
