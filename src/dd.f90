@@ -697,7 +697,7 @@ contains
 
     do ci = dev%par%ci0, dev%par%ci1
       call ss_dd(ci)%init(dev%sys_dd(ci), log = opt_dd(ci)%log, msg = opt_dd(ci)%msg)
-      call ss_dd(ci)%set_newton_params(rtol = opt_dd(ci)%rtol(1), atol=opt_dd(ci)%atol(1), dx_lim=opt_dd(ci)%dx_lim(1), min_it = opt_dd(ci)%min_it, max_it = opt_dd(ci)%max_it) 
+      call ss_dd(ci)%set_newton_params(rtol = opt_dd(ci)%rtol(1), atol=opt_dd(ci)%atol(1), dx_lim=opt_dd(ci)%dx_lim(1), min_it = opt_dd(ci)%min_it, max_it = opt_dd(ci)%max_it)
     end do
 
     ! gummel iteration

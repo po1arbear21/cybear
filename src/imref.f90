@@ -2,7 +2,6 @@ module imref_m
 
   use density_m,       only: density
   use device_params_m, only: device_params
-  use fermi_m,         only: fermi_dirac_integral_1h_reg, inv_fermi_dirac_integral_1h_reg
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real

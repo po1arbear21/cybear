@@ -3,7 +3,6 @@ module continuity_m
   use current_density_m, only: current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
-  use fermi_m,           only: fermi_dirac_integral_1h_reg
   use error_m,           only: assert_failed, program_error
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use imref_m,           only: imref

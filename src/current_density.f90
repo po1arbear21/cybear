@@ -8,7 +8,6 @@ module current_density_m
   use dual_m
   use equation_m,         only: equation
   use error_m,            only: assert_failed, program_error
-  use fermi_m,            only: inv_fermi_dirac_integral_1h_reg
   use grid_m,             only: IDX_VERTEX, IDX_EDGE
   use grid_data_m,        only: grid_data1_real, grid_data2_real, grid_data3_real
   use grid_generator_m,   only: DIR_NAME
@@ -171,9 +170,9 @@ contains
     call system_clock(start, rate)
 
     ! loop over transport edges in parallel
-    ! $omp parallel do default(none) schedule(dynamic) &
-    ! $omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
-    ! $omp shared(this,idx_dir,idx_dim)
+    !$omp parallel do default(none) schedule(dynamic) &
+    !$omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
+    !$omp shared(this,idx_dir,idx_dim)
     do i = 1, this%par%transport(IDX_EDGE, idx_dir)%n
       idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
@@ -202,7 +201,7 @@ contains
       call this%jaco_dens%set(idx, idx2, djddens(2))
       if (this%par%smc%mob) call this%jaco_mob%set(idx, idx, djdmob)
     end do
-    ! $omp end parallel do
+    !$omp end parallel do
     call system_clock(end)
     time = time + real(end-start)/real(rate)
   end subroutine
