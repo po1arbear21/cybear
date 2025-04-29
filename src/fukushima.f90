@@ -1,4 +1,5 @@
 module fukushima_m
+  !! Fermi-Dirac integral for different orders (without Gamma-Function prefactor!!)
 
   implicit none
 
