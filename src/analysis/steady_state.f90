@@ -35,7 +35,7 @@ module steady_state_m
       !! enable/disable logging (default false)
     character(:), allocatable :: msg
       !! message to print each Newton iteration if logging is enabled (default "Steady-State: ")
-    
+
     ! data for Newton
     integer             :: solver
       !! matrix solver (default SPSOLVER_PARDISO)
@@ -342,8 +342,8 @@ contains
 
     ! solve steady-state for each input time
     do i = 1, nt
-      if (this%log) print *, "steady-state step " // int2str(i) // " of " // int2str(nt)
-      
+      if (this%log) m4_info("steady-state step " // int2str(i) // " of " // int2str(nt))
+
       if (present(input))  call this%sys%set_input(input%get(t_input_(i)))
       if (present(gummel)) call gummel()
 
