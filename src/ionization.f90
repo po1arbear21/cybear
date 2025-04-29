@@ -340,7 +340,7 @@ contains
 
     integer              :: i, ci
     integer, allocatable :: idx(:)
-    real                 :: ch, dop, Edop, ii_g, iref, pot, ion, eta, f, df, g, dg
+    real                 :: ch, dop, Edop, ii_g, iref, pot, ion, eta, e, f, df, g, dg
     real                 :: gen, dgen, rec, drec, genrec, dgenrecdeta, dgenrecdion
 
     ci    = this%genrec%ci
@@ -364,19 +364,30 @@ contains
         df   = f
         gen  = exp(- Edop)
         dgen = 0
-      else
-        call this%par%smc%get_dist(eta, 0, g, dg)
+      elseif (this%par%smc%dist == DIST_FERMI_REG) then
+        ! g ~ F * exp(-eta) with regularization (~1 for small eta instead of large values)
+        if (eta > -16) then
+          call this%par%smc%get_dist(eta, 0, f, df)
+          e  = exp(-eta)
+          g  = f * e
+          dg = df * e - g
+        elseif (eta > -36) then
+          e  = sqrt(0.125) * exp(eta)
+          g  = 1.0 / (1.0 + e)
+          dg = - e * g**2
+        else
+          g  = 1.0
+          dg = 0.0
+        end if
         gen  = exp(- Edop) * g
         dgen = exp(- Edop) * dg
-        if (this%par%smc%dist == DIST_FERMI_REG) then
-          ! use non-regularized value in rec for correct stationary ionization rate (FIXME: why?)
-          f  =  fd1h(eta) / gamma(1.5)
-          df = fdm1h(eta) / gamma(0.5)
-        else
-          ! FIXME: check if correct in other cases
-          f  = g
-          df = dg
-        end if
+
+        ! use non-regularized value in rec for correct stationary ionization rate
+        f  =  fd1h(eta) / gamma(1.5)
+        df = fdm1h(eta) / gamma(0.5)
+      else
+        ! FIXME: find and implement more general formula
+        call program_error("Not implemented for general case")
       end if
 
       ! recombination
