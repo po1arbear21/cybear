@@ -142,6 +142,9 @@ module transient_m
       real, intent(in)  :: var1(:)
       real, allocatable :: var2(:)
     end function
+
+    subroutine output_proc()
+    end subroutine
   end interface
 
 contains
@@ -355,24 +358,24 @@ contains
     if (present(t)) this%cache_t = t
   end subroutine
 
-  subroutine transient_run(this, times, n_steps, dt0, input, eval_before_output, start_steady_state, start_file, start_i)
+  subroutine transient_run(this, times, n_steps, dt0, input, output_hook, start_steady_state, start_file, start_i)
     !! perform transient analysis
-    class(transient),           intent(inout) :: this
-    real,                       intent(in)    :: times(:)
+    class(transient),                 intent(inout) :: this
+    real,                             intent(in)    :: times(:)
       !! sorted array of time points to be hit exactly, including start and end time
-    integer,          optional, intent(in)    :: n_steps(:)
+    integer,                optional, intent(in)    :: n_steps(:)
       !! number of time steps for each section of transient simulation, not including the start point (only pass for fixed time steps)
-    real,             optional, intent(in)    :: dt0
+    real,                   optional, intent(in)    :: dt0
       !! adaptive: initial time step (default 1fs)
-    class(input_src), optional, intent(in)    :: input
+    class(input_src),       optional, intent(in)    :: input
       !! optional input source
-    logical,          optional, intent(in)    :: eval_before_output
-      !! call sys%eval before output to make all variables consistent with the last Newton update (default true)
-    logical,          optional, intent(in)    :: start_steady_state
+    procedure(output_proc), optional                :: output_hook
+      !! optional procedure to perform before writing output
+    logical,                optional, intent(in)    :: start_steady_state
       !! assume that the start values are a steady-state solution (default false)
-    character(*),     optional, intent(in)    :: start_file
+    character(*),           optional, intent(in)    :: start_file
       !! path to cachefile of old simulation which shall be used as start value. Otherwise this%sys%get_x() is used
-    integer,          optional, intent(in)    :: start_i
+    integer,                optional, intent(in)    :: start_i
       !! time step number of desired start solution in start_file
 
     if (allocated(this%t))       deallocate(this%t)
@@ -408,36 +411,36 @@ contains
     case (TRANS_BE)
       call program_error("not implemented yet")
     case (TRANS_TRAPZ)
-      call this%solve_trapz(times, dt0 = dt0, input = input, eval_before_output = eval_before_output, &
+      call this%solve_trapz(times, dt0 = dt0, input = input, output_hook = output_hook, &
                            &start_steady_state = start_steady_state, start_file = start_file, start_i = start_i)
     case (TRANS_BDF2)
       call program_error("not implemented yet")
     case (TRANS_MBDF2)
       call program_error("not implemented yet")
     case (TRANS_TRBDF2)
-      call this%solve_trbdf2(times, dt0 = dt0, input = input, eval_before_output = eval_before_output, &
+      call this%solve_trbdf2(times, dt0 = dt0, input = input, output_hook = output_hook, &
                             &start_steady_state = start_steady_state, start_file = start_file, start_i = start_i)
     case default
       call program_error("invalid transient method")
     end select
   end subroutine
 
-  subroutine transient_solve_trapz(this, times, dt0, input, eval_before_output, start_steady_state, start_file, start_i)
+  subroutine transient_solve_trapz(this, times, dt0, input, output_hook, start_steady_state, start_file, start_i)
     !! trapezoidal method
-    class(transient),           intent(inout) :: this
-    real,                       intent(in)    :: times(:)
+    class(transient),                 intent(inout) :: this
+    real,                             intent(in)    :: times(:)
       !! time points which shall be hit exactly, including start and end point
-    real,             optional, intent(in)    :: dt0
+    real,                   optional, intent(in)    :: dt0
       !! adaptive: initial time step (default 1fs)
-    class(input_src), optional, intent(in)    :: input
+    class(input_src),       optional, intent(in)    :: input
       !! optional input source
-    logical,          optional, intent(in)    :: eval_before_output
-      !! call sys%eval before output to make all variables consistent with the last Newton update (default true)
-    logical,          optional, intent(in)    :: start_steady_state
+    procedure(output_proc), optional                :: output_hook
+      !! optional procedure to perform before writing output
+    logical,                optional, intent(in)    :: start_steady_state
       !! assume that the start values are a steady-state solution (default false)
-    character(*),     optional, intent(in)    :: start_file
+    character(*),           optional, intent(in)    :: start_file
       !! path to cachefile of old simulation which shall be used as start value. Otherwise this%sys%get_x() is used
-    integer,          optional, intent(in)    :: start_i
+    integer,                optional, intent(in)    :: start_i
       !! time step number of desired start solution in start_file
 
     integer           :: i, p_cntr
@@ -491,7 +494,7 @@ contains
 
     ! output start values
     call this%output_grids()
-    call this%output(0, eval_before_output)
+    call this%output(0, output_hook = output_hook)
 
     ! time loop
     i = 1
@@ -515,7 +518,7 @@ contains
         else
           ! accept time step
           if (this%use_ram) this%x(:, i) = x_new
-          call this%output(i, eval_before_output)
+          call this%output(i, output_hook = output_hook)
           ! check if this was one of the given time points
           if (abs(this%t(i)-times(p_cntr))/this%t(i) < 1e-10) then
             ! check if end time is reached
@@ -581,22 +584,22 @@ contains
     end subroutine
   end subroutine
 
-  subroutine transient_solve_trbdf2(this, times, dt0, input, eval_before_output, start_steady_state, start_file, start_i)
+  subroutine transient_solve_trbdf2(this, times, dt0, input, output_hook, start_steady_state, start_file, start_i)
     !! tr-bdf2
-    class(transient),           intent(inout) :: this
-    real,                       intent(in)    :: times(:)
+    class(transient),                 intent(inout) :: this
+    real,                             intent(in)    :: times(:)
       !! time points which shall be hit exactly, including start and end point
-    real,             optional, intent(in)    :: dt0
+    real,                   optional, intent(in)    :: dt0
       !! adaptive: initial time step (default 1fs)
-    class(input_src), optional, intent(in)    :: input
+    class(input_src),       optional, intent(in)    :: input
       !! optional input source
-    logical,          optional, intent(in)    :: eval_before_output
-      !! call sys%eval before output to make all variables consistent with the last Newton update (default true)
-    logical,          optional, intent(in)    :: start_steady_state
+    procedure(output_proc), optional                :: output_hook
+    !! optional procedure to perform before writing output
+    logical,                optional, intent(in)    :: start_steady_state
       !! assume that the start values are a steady-state solution (default false)
-    character(*),     optional, intent(in)    :: start_file
+    character(*),           optional, intent(in)    :: start_file
       !! path to cachefile of old simulation which shall be used as start value. Otherwise this%sys%get_x() is used
-    integer,          optional, intent(in)    :: start_i
+    integer,                optional, intent(in)    :: start_i
       !! time step number of desired start solution in start_file
 
     integer           :: istop, i, p_cntr
@@ -658,7 +661,7 @@ contains
 
     ! output start values
     call this%output_grids()
-    call this%output(0, eval_before_output)
+    call this%output(0, output_hook = output_hook)
 
     ! time loop
     i = 1
@@ -701,7 +704,7 @@ contains
           else
             ! accept time step
             if (this%use_ram) this%x(:, i) = x_new
-            call this%output(i, eval_before_output)
+            call this%output(i, output_hook = output_hook)
             ! check if this was one of the given time points
             if (abs(this%t(i)-times(p_cntr))/this%t(i) < 1e-10) then
               this%n_steps(p_cntr-1) = i - sum(this%n_steps(1:p_cntr-2))
@@ -727,7 +730,7 @@ contains
         else
           ! accept time step
           if (this%use_ram) this%x(:, i) = x_new
-          call this%output(i, eval_before_output)
+          call this%output(i, output_hook = output_hook)
           ! check if this was one of the given time points
           if (abs(this%t(i)-times(p_cntr))/this%t(i) < 1e-10) then
             ! check if end time is reached
@@ -1126,27 +1129,23 @@ contains
     end if
   end subroutine
 
-  subroutine transient_output(this, i, eval_before_output)
+  subroutine transient_output(this, i, output_hook)
     !! output values at every delta_it-th iteration or if the current time matches any of the output times exactly
     class(transient),  intent(inout) :: this
     integer,           intent(in)    :: i
       !! time point index
-    logical, optional, intent(in)    :: eval_before_output
-      !! call sys%eval before output to make all variables consistent with the last Newton update (default true)
+    procedure(output_proc), optional :: output_hook
+      !! optional procedure to perform before writing output
 
     integer            :: j
-    logical            :: eval_before_output_
     type(container)    :: c_vars, c_cache
     type(variable_ptr) :: ptr
-
-    eval_before_output_ = .true.
-    if (present(eval_before_output)) eval_before_output_ = eval_before_output
 
     if (allocated(this%varfile)) then
       if (mod(i, this%vars_delta_it)==0 .or. any((this%vars_t-this%t(i))/this%t(i) < 1e-10)) then
         call c_vars%open(this%varfile, flag = STORAGE_WRITE)
         call c_vars%write("transient/t", [this%t(i)], unit = "s", dynamic = DYNAMIC_APP)
-        if (eval_before_output_) call this%sys%eval()
+        if (present(output_hook)) call output_hook()
         do j = 1, size(this%output_vars)
           ptr = this%sys%search_var(this%output_vars(j)%s)
           select type(pp => ptr%p)

@@ -88,6 +88,9 @@ module steady_state_m
   abstract interface
     subroutine gummel_proc()
     end subroutine
+
+    subroutine output_proc()
+    end subroutine
   end interface
 
 contains
@@ -258,7 +261,7 @@ contains
     m4_assert(this%cache_delta_it >= -1)
   end subroutine
 
-  subroutine steady_state_run(this, input, t_input, gummel, eval_before_output)
+  subroutine steady_state_run(this, input, t_input, gummel, output_hook)
     !! perform steady-state analysis for one or multiple sets of input parameters
     class(steady_state),              intent(inout) :: this
     class(input_src),       optional, intent(in)    :: input
@@ -267,21 +270,18 @@ contains
       !! perform quasi-stationary simulations for these time-points (default: [0.0])
     procedure(gummel_proc), optional                :: gummel
       !! optional procedure to run before each newton iteration
-    logical,                optional, intent(in)    :: eval_before_output
-      !! call sys%eval before output to make all variables consistent with the last Newton update (default true)
+    procedure(output_proc), optional                :: output_hook
+      !! optional procedure to perform before writing output
 
     character(:), allocatable :: msg_lim
     integer                   :: i, j, it, nt, stat
-    logical                   :: eval_before_output_, limmin, limmax, out
+    logical                   :: limmin, limmax, out
     real                      :: abs_err, dx0
     real,         allocatable :: t_input_(:), x(:), dx(:), xold(:), f(:), err(:)
     type(block_real), pointer :: dfdx, dfdx_prec
     type(container)           :: c_vars, c_cache
     type(single_matop_real)   :: mulvec, precon
     type(variable_ptr)        :: ptr
-
-    eval_before_output_ = .true.
-    if (present(eval_before_output)) eval_before_output_ = eval_before_output
 
     if (allocated(this%x)) deallocate (this%x)
 
@@ -312,7 +312,7 @@ contains
       end do
       ! output variables
       if (this%vars_delta_it == 0) then
-        if (eval_before_output_) call this%sys%eval()
+        if (present(output_hook)) call output_hook()
         do j = 1, size(this%output_vars)
           ptr = this%sys%search_var(this%output_vars(j)%s)
           select type(pp => ptr%p)
@@ -448,7 +448,7 @@ contains
         if (this%vars_delta_it == 0 .or. i == nt) out = .true.
         if (out) then
           call c_vars%open(this%varfile, flag = STORAGE_WRITE)
-          if (eval_before_output_) call this%sys%eval()
+          if (present(output_hook)) call output_hook()
           do j = 1, size(this%output_vars)
             ptr = this%sys%search_var(this%output_vars(j)%s)
             select type(pp => ptr%p)
