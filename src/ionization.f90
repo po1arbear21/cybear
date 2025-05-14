@@ -365,9 +365,11 @@ contains
         gen  = exp(- Edop)
         dgen = 0
       elseif (this%par%smc%dist == DIST_FERMI_REG) then
+        ! use non-regularized value in rec for correct stationary ionization rate
+        f  =  fd1h(eta) / gamma(1.5)
+        df = fdm1h(eta) / gamma(0.5)
         ! g ~ F * exp(-eta) with regularization (~1 for small eta instead of large values)
         if (eta > -16) then
-          call this%par%smc%get_dist(eta, 0, f, df)
           e  = exp(-eta)
           g  = f * e
           dg = df * e - g
@@ -381,10 +383,6 @@ contains
         end if
         gen  = exp(- Edop) * g
         dgen = exp(- Edop) * dg
-
-        ! use non-regularized value in rec for correct stationary ionization rate
-        f  =  fd1h(eta) / gamma(1.5)
-        df = fdm1h(eta) / gamma(0.5)
       else
         ! FIXME: find and implement more general formula
         call program_error("Not implemented for general case")
