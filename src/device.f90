@@ -1,7 +1,6 @@
 module device_m
 
   use charge_density_m,  only: charge_density, calc_charge_density
-  use contact_m,         only: CT_OHMIC
   use continuity_m,      only: continuity
   use current_m,         only: current
   use current_density_m, only: current_density, calc_current_density
@@ -18,7 +17,6 @@ module device_m
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
-  use error_m,           only: assert_failed, program_error
 
   implicit none
 
@@ -91,7 +89,6 @@ module device_m
   contains
     procedure :: init        => device_init
     procedure :: destruct    => device_destruct
-    procedure :: equilibrium => device_equilibrium
   end type
 
   type(device) :: dev
@@ -247,29 +244,5 @@ contains
 
     call this%par%destruct()
   end subroutine
-
-  function device_equilibrium(this) result(equi)
-    !! check whether equilibrium voltage is applied
-    class(device), intent(in) :: this
-    logical                   :: equi
-      !! return true if ohmic contacts are in equilibrium, otherwise false
-
-    integer :: ict
-    real    :: V0
-
-    V0 = huge(1.0)
-    equi = .true.
-    do ict = 1, this%par%nct
-      if (this%par%contacts(ict)%type /= CT_OHMIC) cycle
-      if (V0 == huge(1.0)) then
-        V0 = this%volt(ict)%x
-        cycle
-      end if
-      if (this%volt(ict)%x /= V0) then
-        equi = .false.
-        exit
-      end if
-    end do
-  end function
 
 end module
