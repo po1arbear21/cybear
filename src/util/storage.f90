@@ -821,7 +821,7 @@ contains
       },{
         data_l = DT_SIZES(DT_$2)
         if (size(lbounds) > 0) data_l = data_l*product(sizes)
-        header_l = write_header(this%funit, name, DT_$2, lbounds, sizes, compression=compr_, data_length=data_l)
+        header_l = write_header(this%funit, name, DT_$2, lbounds, sizes, unit=unit, compression=compr_, data_length=data_l)
 
         if (.not. present(unit)) then
           data = transfer(var, data)

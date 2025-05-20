@@ -107,6 +107,8 @@ module circuit_m
 
     character(:), allocatable  :: name
       !! circuit name
+    character(:), allocatable  :: curr_unit
+      !! current unit
 
     type(vector_component_ptr) :: comps
       !! circuit components
@@ -223,7 +225,7 @@ contains
     call this%kcl%destruct()
   end subroutine
 
-  subroutine terminal_init(this, comp_name, iterm, nd)
+  subroutine terminal_init(this, comp_name, iterm, nd, curr_unit)
     !! initialize component terminal
     class(terminal),    intent(out)   :: this
     character(*),       intent(in)    :: comp_name
@@ -232,6 +234,8 @@ contains
       !! terminal index
     type(node), target, intent(inout) :: nd
       !! connected circuit node
+    character(*),       intent(in)    :: curr_unit
+      !! unit used for current
 
     character(len(comp_name)+16) :: curr_name
 
@@ -240,7 +244,7 @@ contains
 
     ! initialize current variable
     write (curr_name, "(A,I0)") comp_name // ".I", iterm
-    call this%curr%init(trim(curr_name))
+    call this%curr%init(trim(curr_name), unit = curr_unit)
 
     ! connect node to this terminal
     call nd%connect(this)
@@ -254,7 +258,7 @@ contains
     ptr%p => this
   end function
 
-  subroutine component_init(this, name, icomp, nodes)
+  subroutine component_init(this, name, icomp, nodes, curr_unit)
     !! initialize circuit component
     class(component), intent(out) :: this
     character(*),     intent(in)  :: name
@@ -263,6 +267,8 @@ contains
       !! component index
     type(node_ptr),   intent(in)  :: nodes(:)
       !! pointers to connnected nodes
+    character(*),     intent(in)  :: curr_unit
+      !! unit used fpr current
 
     integer :: iterm
 
@@ -272,17 +278,24 @@ contains
     ! initialize terminals
     allocate (this%terms(size(nodes)))
     do iterm = 1, size(nodes)
-      call this%terms(iterm)%init(name, iterm, nodes(iterm)%p)
+        call this%terms(iterm)%init(name, iterm, nodes(iterm)%p, curr_unit)
     end do
   end subroutine
 
-  subroutine circuit_init(this, name)
+  subroutine circuit_init(this, name, curr_unit)
     !! initialize circuit
-    class(circuit), intent(out) :: this
-    character(*),   intent(in)  :: name
+    class(circuit),         intent(out) :: this
+    character(*),           intent(in)  :: name
       !! name of circuit
+    character(*), optional, intent(in)  :: curr_unit
+      !! unit used fpr current
 
     this%name = name
+    if(present(curr_unit)) then
+      this%curr_unit = curr_unit
+    else
+      this%curr_unit= "A"
+    end if
 
     call this%comps%init(0, c = 8)
     call this%comp_map%init()
@@ -331,7 +344,7 @@ contains
     allocate (cptr%p)
     comp => cptr%p
     call this%comps%push(cptr)
-    call comp%init(comp_name, this%comps%n, n)
+    call comp%init(comp_name, this%comps%n, n, this%curr_unit)
     call this%comp_map%insert(new_string(comp_name), this%comps%n, status = status)
     m4_assert(status)
   end function

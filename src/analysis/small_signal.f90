@@ -8,6 +8,7 @@ module small_signal_m
   use gmres_m,         only: gmres_options, gmres
   use grid_data_m,     only: allocate_grid_data0_cmplx, grid_data_cmplx
   use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
+  use logging_m,       only: logging
   use matrix_m,        only: block_cmplx, matrix_add, matrix_convert, SPSOLVER_PARDISO, SOLVER_GMRES
   use matop_m,         only: single_matop_cmplx
   use string_m,        only: string, new_string
@@ -22,7 +23,7 @@ module small_signal_m
   type small_signal
     !! small-signal simulation -> solver linear equation (s*M + dfdx(x0)) * dx1/dInput = -df/dInput
 
-    ! general data
+    ! general data and parameters
     type(esystem), pointer :: sys => null()
       !! pointer to corresponding equation system
     complex, allocatable   :: s(:)
@@ -42,7 +43,7 @@ module small_signal_m
     type(gmres_options) :: gopt
       !! options for gmres in case an iterative solver is used (default atol 1e-16, default rtol 1e-12)
 
-    ! data for output (default no output)
+    ! output parameters (default no output)
     type(string), allocatable :: output_vars(:)
       !! list of variables for output
     character(:), allocatable :: varfile
@@ -59,6 +60,15 @@ module small_signal_m
 
     procedure, private :: output   => small_signal_output
   end type
+
+  abstract interface
+    subroutine consistency(s, x)
+      complex, intent(in) :: s
+        !! complex frequency
+      complex, allocatable, intent(in) :: x(:,:)
+        !! solution vector
+    end subroutine
+  end interface
 
 contains
 
@@ -140,13 +150,15 @@ contains
     this%cachefile = cachefile
   end subroutine
 
-  subroutine small_signal_run(this, s, calc_dxds)
+  subroutine small_signal_run(this, s, calc_dxds, consistency_check)
     !! perform small-signal analysis
     class(small_signal), intent(inout) :: this
     complex,             intent(in)    :: s(:)
       !! assume: x = x_0 + Re{x_1 * exp(s*t)}
     logical, optional,   intent(in)    :: calc_dxds
       !! calculate dxds in addition to x (default: false)
+    procedure(consistency), optional   :: consistency_check
+      !! optional procedure to run after each small_signal step
 
     complex, allocatable     :: rhs(:,:), x(:,:), tmp(:,:), dxds(:,:)
     integer                  :: nsrc, ns, i, j, k, stat
@@ -211,7 +223,7 @@ contains
 
     ! get small-signal quantities for all frequencies
     do i = 1, ns
-      if (this%log) print *, "small-signal step " // int2str(i) // " of " // int2str(ns)
+      if (this%log) m4_info("small-signal step " // int2str(i) // " of " // int2str(ns))
 
       if (this%solver == SOLVER_GMRES) then
         ! initial solution
@@ -259,6 +271,10 @@ contains
 
       ! release memory
       call mat%destruct()
+
+
+      ! call consistency check
+      if(present(consistency_check)) call consistency_check(s(i), x)
 
       ! output
       call this%output(i, x, dxds)
