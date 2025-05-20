@@ -8,6 +8,7 @@ module steady_state_m
   use esystem_m,       only: esystem
   use gmres_m,         only: gmres_options, gmres
   use ieee_arithmetic, only: ieee_is_finite, ieee_is_nan, ieee_value, ieee_positive_inf, ieee_negative_inf
+  use input_m,         only: input_file
   use input_src_m,     only: input_src
   use logging_m,       only: logging
   use matop_m,         only: single_matop_real
@@ -24,7 +25,7 @@ module steady_state_m
   type steady_state
     !! steady-state simulation -> solve stationary equation from esystem: f(x) = 0
 
-    ! general data
+    ! general data and parameters
     type(esystem), pointer    :: sys => null()
       !! pointer to corresponding equation system
     real, allocatable         :: x(:,:)
@@ -36,7 +37,7 @@ module steady_state_m
     character(:), allocatable :: msg
       !! message to print each Newton iteration if logging is enabled (default "Steady-State: ")
 
-    ! data for Newton
+    ! Newton parameters
     integer             :: solver
       !! matrix solver (default SPSOLVER_PARDISO)
     type(gmres_options) :: gopt
@@ -64,7 +65,7 @@ module steady_state_m
     logical             :: converged_when_lim
       !! convergence can be achieved even if the solution is limited to xmin or xmax (default false)
 
-    ! data for output (default no output)
+    ! output parameters (default no output)
     type(string), allocatable :: output_vars(:)
       !! list of variables for output
     integer                   :: vars_delta_it
@@ -76,13 +77,15 @@ module steady_state_m
     character(:), allocatable :: cachefile
       !! output file for cache
   contains
-    procedure :: init              => steady_state_init
-    procedure :: set_newton_params => steady_state_set_newton_params
-    procedure :: set_var_params    => steady_state_set_var_params
-    procedure :: init_output       => steady_state_init_output
-    procedure :: init_cache        => steady_state_init_cache
-    procedure :: run               => steady_state_run
-    procedure :: select            => steady_state_select
+    procedure :: init                => steady_state_init
+    procedure :: set_newton_params   => steady_state_set_newton_params
+    procedure :: input_newton_params => steady_state_input_newton_params
+    procedure :: set_var_params      => steady_state_set_var_params
+    procedure :: input_var_params    => steady_state_input_var_params
+    procedure :: init_output         => steady_state_init_output
+    procedure :: init_cache          => steady_state_init_cache
+    procedure :: run                 => steady_state_run
+    procedure :: select              => steady_state_select
   end type
 
   abstract interface
@@ -107,6 +110,7 @@ contains
     character(*), optional, intent(in)  :: msg
       !! message to print each Newton iteration if logging is enabled (default "Steady-State: ")
 
+    ! general parameters
     this%sys => sys
     this%use_ram = .true.
     if (present(use_ram)) this%use_ram = use_ram
@@ -116,6 +120,7 @@ contains
     if (present(msg)) deallocate (this%msg)
     if (present(msg)) this%msg = msg
 
+    ! Newton parameter defaults
     this%solver = SPSOLVER_PARDISO
     allocate (this%atol(sys%n), source = 1e-16)
     allocate (this%rtol(sys%n), source = 1e-12)
@@ -175,6 +180,59 @@ contains
     if (present(converged_when_lim)) this%converged_when_lim = converged_when_lim
   end subroutine
 
+  subroutine steady_state_input_newton_params(this, runfile, section)
+    !! read parameters for Newton iteration from runfile, overwriting the whole array
+    class(steady_state), intent(inout) :: this
+    type(input_file),    intent(in)    :: runfile
+      !! input file, needs to be initialized already
+    character(*),        intent(in)    :: section
+      !! name of the section where the parameters are specified
+
+    integer :: solver, min_it, max_it, gmres_max_it, gmres_solver
+    logical :: stat, error_if_not_converged, converged_when_lim, gmres_res_stop_test, gmres_print_msg
+    real    :: atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax, gmres_atol, gmres_rtol
+
+    ! general Newton parameters
+    call runfile%get(section, "solver", solver, status = stat)
+    if (stat) this%solver = solver
+    call runfile%get(section, "atol", atol, status = stat)
+    if (stat) this%atol = atol
+    call runfile%get(section, "rtol", rtol, status = stat)
+    if (stat) this%rtol = rtol
+    call runfile%get(section, "ftol", ftol, status = stat)
+    if (stat) this%ftol = ftol
+    call runfile%get(section, "dx_lim", dx_lim, status = stat)
+    if (stat) this%dx_lim = dx_lim
+    call runfile%get(section, "dx_lim_rel", dx_lim_rel, status = stat)
+    if (stat) this%dx_lim_rel = dx_lim_rel
+    call runfile%get(section, "xmin", xmin, status = stat)
+    if (stat) this%xmin = xmin
+    call runfile%get(section, "xmax", xmax, status = stat)
+    if (stat) this%xmax = xmax
+    call runfile%get(section, "min_it", min_it, status = stat)
+    if (stat) this%min_it = min_it
+    call runfile%get(section, "max_it", max_it, status = stat)
+    if (stat) this%max_it = max_it
+    call runfile%get(section, "error_if_not_converged", error_if_not_converged, status = stat)
+    if (stat) this%error_if_not_converged = error_if_not_converged
+    call runfile%get(section, "converged_when_lim", converged_when_lim, status = stat)
+    if (stat) this%converged_when_lim = converged_when_lim
+
+    ! gmres parameters
+    call runfile%get(section, "gmres max_it", gmres_max_it, status = stat)
+    if (stat) this%gopt%max_it = gmres_max_it
+    call runfile%get(section, "gmres res_stop_test", gmres_res_stop_test, status = stat)
+    if (stat) this%gopt%res_stop_test = gmres_res_stop_test
+    call runfile%get(section, "gmres rtol", gmres_rtol, status = stat)
+    if (stat) this%gopt%rtol = gmres_rtol
+    call runfile%get(section, "gmres atol", gmres_atol, status = stat)
+    if (stat) this%gopt%atol = gmres_atol
+    call runfile%get(section, "gmres print_msg", gmres_print_msg, status = stat)
+    if (stat) this%gopt%print_msg = gmres_print_msg
+    call runfile%get(section, "gmres solver", gmres_solver, status = stat)
+    if (stat) this%gopt%solver = gmres_solver
+  end subroutine
+
   subroutine steady_state_set_var_params(this, vs_name, atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax)
     !! set parameters for Newton iteration for specific vselector, leaving the rest of the array unchanged
     class(steady_state), intent(inout) :: this
@@ -209,6 +267,44 @@ contains
       if (present(dx_lim_rel)) this%dx_lim_rel(i0:i1) = dx_lim_rel
       if (present(xmin)) this%xmin(i0:i1) = xmin
       if (present(xmax)) this%xmax(i0:i1) = xmax
+    end do
+  end subroutine
+
+  subroutine steady_state_input_var_params(this, runfile, section)
+    !! read parameters for Newton iteration for specific vselector from runfile, leaving the rest of the array unchanged
+    class(steady_state), intent(inout) :: this
+    type(input_file),    intent(in)    :: runfile
+      !! input file, needs to be initialized already
+    character(*),        intent(in)    :: section
+      !! name of the section where the parameters are specified
+
+    character(:), allocatable :: vname
+    integer                   :: ivar, itab, ibl, i0, i1
+    logical                   :: stat
+    real                      :: atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax
+
+    do ivar = 1, this%sys%g%imvar%n
+      vname = this%sys%g%nodes%d(this%sys%g%imvar%d(ivar))%p%v%name
+      do itab = 1, size(this%sys%res2block(ivar)%d)
+        ibl = this%sys%res2block(ivar)%d(itab)
+        i0  = this%sys%i0(ibl)
+        i1  = this%sys%i1(ibl)
+        call runfile%get(section, vname // "-atol", atol, status = stat)
+        if (stat) this%atol(i0:i1) = atol
+        call runfile%get(section, vname // "-rtol", rtol, status = stat)
+        if (stat) this%rtol(i0:i1) = rtol
+        call runfile%get(section, vname // "-ftol", ftol, status = stat)
+        if (stat) this%ftol(i0:i1) = ftol
+        call runfile%get(section, vname // "-dx_lim", dx_lim, status = stat)
+        if (stat) this%dx_lim(i0:i1) = dx_lim
+        call runfile%get(section, vname // "-dx_lim_rel", dx_lim_rel, status = stat)
+        if (stat) this%dx_lim_rel(i0:i1) = dx_lim_rel
+        call runfile%get(section, vname // "-xmin", xmin, status = stat)
+        if (stat) this%xmin(i0:i1) = xmin
+        call runfile%get(section, vname // "-xmax", xmax, status = stat)
+        if (stat) this%xmax(i0:i1) = xmax
+      end do
+      deallocate(vname)
     end do
   end subroutine
 

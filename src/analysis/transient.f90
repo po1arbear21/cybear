@@ -9,6 +9,7 @@ module transient_m
   use esystem_m,       only: esystem
   use gmres_m,         only: gmres_options, gmres
   use ieee_arithmetic, only: ieee_is_finite, ieee_is_nan, ieee_value, ieee_positive_inf, ieee_negative_inf
+  use input_m,         only: input_file
   use input_src_m,     only: input_src
   use logging_m,       only: logging
   use matop_m,         only: single_matop_real
@@ -36,7 +37,7 @@ module transient_m
   ! Todo: add BE, BDF2 and MBDF2
   !! tr-bdf2 parameters
   real, parameter :: GAM = 2 - sqrt(2.0)
-  ! parameters for error erstimation
+  ! parameters for error estimation
   real, parameter :: POW = 1.0/3.0, C1 = (GAM-1)/3.0, C2 = 1.0/3.0, C3 = -GAM/3.0
   ! parameter for stepsize regulation (Matlab : 0.7, Bank (1985): 1.0)
   real, parameter :: THETA_1 = 1.0
@@ -44,7 +45,7 @@ module transient_m
   type transient
     !! transient simulation -> solve ODE from esystem: M*dx/dt + f(t,x) = 0
 
-    ! general data
+    ! general data and parameters
     type(esystem), pointer    :: sys => null()
       !! pointer to corresponding equation system
     real,         allocatable :: t(:)
@@ -72,7 +73,7 @@ module transient_m
     real, allocatable :: erel(:)
       !! adaptive: relative error tolerance for error estimate (default 1e-6)
 
-    ! data for Newton
+    ! Newton parameters
     integer             :: solver
       !! matrix solver (default SPSOLVER_PARDISO)
     type(gmres_options) :: gopt
@@ -96,7 +97,7 @@ module transient_m
     integer             :: max_it
       !! maximum number of Newton iterations (default huge)
 
-    ! data for output (default no output)
+    ! output parameters (default no output)
     type(string), allocatable :: output_vars(:)
       !! list of variables for output
     integer                   :: vars_delta_it
@@ -112,14 +113,17 @@ module transient_m
     character(:), allocatable :: cachefile
       !! output file for cache
   contains
-    procedure :: init              => transient_init
-    procedure :: set_ode_params    => transient_set_ode_params
-    procedure :: set_newton_params => transient_set_newton_params
-    procedure :: set_var_params    => transient_set_var_params
-    procedure :: init_output       => transient_init_output
-    procedure :: init_cache        => transient_init_cache
-    procedure :: run               => transient_run
-    generic   :: select_result     => transient_select_i, transient_select_t
+    procedure :: init                => transient_init
+    procedure :: set_ode_params      => transient_set_ode_params
+    procedure :: input_ode_params    => transient_input_ode_params
+    procedure :: set_newton_params   => transient_set_newton_params
+    procedure :: input_newton_params => transient_input_newton_params
+    procedure :: set_var_params      => transient_set_var_params
+    procedure :: input_var_params    => transient_input_var_params
+    procedure :: init_output         => transient_init_output
+    procedure :: init_cache          => transient_init_cache
+    procedure :: run                 => transient_run
+    generic   :: select_result       => transient_select_i, transient_select_t
 
     procedure, private :: transient_select_i, transient_select_t
     procedure, private :: solve_trapz  => transient_solve_trapz
@@ -161,6 +165,7 @@ contains
     character(*), optional, intent(in)  :: msg
       !! message to print each Newton iteration if logging is enabled (default "Transient: ")
 
+    ! general parameters
     this%sys => sys
     this%use_ram = .true.
     if (present(use_ram)) this%use_ram = use_ram
@@ -170,9 +175,14 @@ contains
     if (present(msg)) deallocate(this%msg)
     if (present(msg)) this%msg = msg
 
+    ! ODE parameter defaults
     this%method = TRANS_TRBDF2
     this%adaptive = .false.
+    this%reduction_factor = 0.5
+    allocate(this%eabs(this%sys%n), source = 1e-16)
+    allocate(this%erel(this%sys%n), source = 1e-6)
 
+    ! Newton parameter defaults
     this%solver = SPSOLVER_PARDISO
     allocate(this%atol(sys%n), source = 1e-16)
     allocate(this%rtol(sys%n), source = 1e-12)
@@ -188,10 +198,10 @@ contains
   subroutine transient_set_ode_params(this, method, adaptive, reduction_factor, eabs, erel)
     !! set parameters for ODE solver
     class(transient),  intent(inout) :: this
-    integer,           intent(in)    :: method
+    integer, optional, intent(in)    :: method
       !! ODE solver used for simulation (TRANS_BE, TRANS_TRAPZ, TRANS_BDF2, TRANS_MBDF2, TRANS_TRBDF2)
     logical, optional, intent(in)    :: adaptive
-      !! adaptive time step size (default false)
+      !! use adaptive time step size
     real,    optional, intent(in)    :: reduction_factor
       !! adaptive: time step reduction factor if Newton does not converge (default 0.5)
     real,    optional, intent(in)    :: eabs
@@ -199,21 +209,44 @@ contains
     real,    optional, intent(in)    :: erel
       !! adaptive: relative error tolerance for error estimate (default 1e-6)
 
-    this%method = method
-    this%adaptive = .false.
+    if (present(method)) this%method = method
     if (present(adaptive)) this%adaptive = adaptive
     if (this%adaptive) then
-      this%reduction_factor = 0.5
       if (present(reduction_factor)) this%reduction_factor = reduction_factor
       m4_assert(this%reduction_factor > 0.0 .and. this%reduction_factor < 1.0)
-      allocate(this%eabs(this%sys%n), source = 1e-16)
       if (present(eabs)) this%eabs = eabs
-      allocate(this%erel(this%sys%n), source = 1e-6)
       if (present(erel)) this%erel = erel
     else
       m4_assert(.not. present(reduction_factor))
       m4_assert(.not. present(eabs))
       m4_assert(.not. present(erel))
+    end if
+  end subroutine
+
+  subroutine transient_input_ode_params(this, runfile, section)
+    !! read parameters for ODE solver from runfile
+    class(transient),  intent(inout) :: this
+    type(input_file),  intent(in)    :: runfile
+      !! input file, needs to be initialized already
+    character(*),      intent(in)    :: section
+      !! name of the section where the parameters are specified
+
+    integer           :: method
+    logical           :: stat, adaptive
+    real              :: reduction_factor, eabs, erel
+
+    call runfile%get(section, "method", method, status = stat)
+    if (stat) this%method = method
+    call runfile%get(section, "adaptive", adaptive, status = stat)
+    if (stat) this%adaptive = adaptive
+    if (this%adaptive) then
+      call runfile%get(section, "reduction_factor", reduction_factor, status = stat)
+      if (stat) this%reduction_factor = reduction_factor
+      m4_assert(this%reduction_factor > 0.0 .and. this%reduction_factor < 1.0)
+      call runfile%get(section, "eabs", eabs, status = stat)
+      if (stat) this%eabs = eabs
+      call runfile%get(section, "erel", erel, status = stat)
+      if (stat) this%erel = erel
     end if
   end subroutine
 
@@ -256,6 +289,55 @@ contains
     if (present(max_it)) this%max_it = max_it
   end subroutine
 
+  subroutine transient_input_newton_params(this, runfile, section)
+    !! read parameters for Newton iteration from runfile, overwriting the whole array
+    class(transient),  intent(inout) :: this
+    type(input_file),  intent(in)    :: runfile
+      !! input file, needs to be initialized already
+    character(*),      intent(in)    :: section
+      !! name of the section where the parameters are specified
+
+    integer :: solver, min_it, max_it, gmres_max_it, gmres_solver
+    logical :: stat, gmres_res_stop_test, gmres_print_msg
+    real    :: atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax, gmres_atol, gmres_rtol
+
+    ! general Newton parameters
+    call runfile%get(section, "solver", solver, status = stat)
+    if (stat) this%solver = solver
+    call runfile%get(section, "atol", atol, status = stat)
+    if (stat) this%atol = atol
+    call runfile%get(section, "rtol", rtol, status = stat)
+    if (stat) this%rtol = rtol
+    call runfile%get(section, "ftol", ftol, status = stat)
+    if (stat) this%ftol = ftol
+    call runfile%get(section, "dx_lim", dx_lim, status = stat)
+    if (stat) this%dx_lim = dx_lim
+    call runfile%get(section, "dx_lim_rel", dx_lim_rel, status = stat)
+    if (stat) this%dx_lim_rel = dx_lim_rel
+    call runfile%get(section, "xmin", xmin, status = stat)
+    if (stat) this%xmin = xmin
+    call runfile%get(section, "xmax", xmax, status = stat)
+    if (stat) this%xmax = xmax
+    call runfile%get(section, "min_it", min_it, status = stat)
+    if (stat) this%min_it = min_it
+    call runfile%get(section, "max_it", max_it, status = stat)
+    if (stat) this%max_it = max_it
+
+    ! gmres parameters
+    call runfile%get(section, "gmres max_it", gmres_max_it, status = stat)
+    if (stat) this%gopt%max_it = gmres_max_it
+    call runfile%get(section, "gmres res_stop_test", gmres_res_stop_test, status = stat)
+    if (stat) this%gopt%res_stop_test = gmres_res_stop_test
+    call runfile%get(section, "gmres rtol", gmres_rtol, status = stat)
+    if (stat) this%gopt%rtol = gmres_rtol
+    call runfile%get(section, "gmres atol", gmres_atol, status = stat)
+    if (stat) this%gopt%atol = gmres_atol
+    call runfile%get(section, "gmres print_msg", gmres_print_msg, status = stat)
+    if (stat) this%gopt%print_msg = gmres_print_msg
+    call runfile%get(section, "gmres solver", gmres_solver, status = stat)
+    if (stat) this%gopt%solver = gmres_solver
+  end subroutine
+
   subroutine transient_set_var_params(this, vs_name, eabs, erel, atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax)
     !! set parameters for Newton iteration for specific vselector, leaving the rest of the array unchanged
     class(transient), intent(inout) :: this
@@ -296,6 +378,48 @@ contains
       if (present(dx_lim_rel)) this%dx_lim_rel(i0:i1) = dx_lim_rel
       if (present(xmin)) this%xmin(i0:i1) = xmin
       if (present(xmax)) this%xmax(i0:i1) = xmax
+    end do
+  end subroutine
+
+  subroutine transient_input_var_params(this, runfile, section)
+    !! read parameters for Newton iteration for specific vselector from runfile, leaving the rest of the array unchanged
+    class(transient),  intent(inout) :: this
+    type(input_file),  intent(in)    :: runfile
+      !! input file, needs to be initialized already
+    character(*),      intent(in)    :: section
+      !! name of the section where the parameters are specified
+
+    character(:), allocatable :: vname
+    integer                   :: ivar, itab, ibl, i0, i1
+    logical                   :: stat
+    real                      :: eabs, erel, atol, rtol, ftol, dx_lim, dx_lim_rel, xmin, xmax
+
+    do ivar = 1, this%sys%g%imvar%n
+      vname = this%sys%g%nodes%d(this%sys%g%imvar%d(ivar))%p%v%name
+      do itab = 1, size(this%sys%res2block(ivar)%d)
+        ibl = this%sys%res2block(ivar)%d(itab)
+        i0  = this%sys%i0(ibl)
+        i1  = this%sys%i1(ibl)
+        call runfile%get(section, vname // "-eabs", eabs, status = stat)
+        if (stat) this%eabs(i0:i1) = eabs
+        call runfile%get(section, vname // "-erel", erel, status = stat)
+        if (stat) this%erel(i0:i1) = erel
+        call runfile%get(section, vname // "-atol", atol, status = stat)
+        if (stat) this%atol(i0:i1) = atol
+        call runfile%get(section, vname // "-rtol", rtol, status = stat)
+        if (stat) this%rtol(i0:i1) = rtol
+        call runfile%get(section, vname // "-ftol", ftol, status = stat)
+        if (stat) this%ftol(i0:i1) = ftol
+        call runfile%get(section, vname // "-dx_lim", dx_lim, status = stat)
+        if (stat) this%dx_lim(i0:i1) = dx_lim
+        call runfile%get(section, vname // "-dx_lim_rel", dx_lim_rel, status = stat)
+        if (stat) this%dx_lim_rel(i0:i1) = dx_lim_rel
+        call runfile%get(section, vname // "-xmin", xmin, status = stat)
+        if (stat) this%xmin(i0:i1) = xmin
+        call runfile%get(section, vname // "-xmax", xmax, status = stat)
+        if (stat) this%xmax(i0:i1) = xmax
+      end do
+      deallocate(vname)
     end do
   end subroutine
 
@@ -501,7 +625,7 @@ contains
     p_cntr = 2
     this%t(1) = this%t(0) + delta_t
     do
-      if (this%log) print "(I0, ES25.16, x, A)", i, denorm(this%t(i), "fs"), "fs"
+      if (this%log) m4_info("transient step " // int2str(i) // " at t = " // real2str(denorm(this%t(i), "fs")) // " fs")
 
       ! set input at t(i)
       if (present(input)) call this%sys%set_input(input%get(this%t(i)))
@@ -668,7 +792,7 @@ contains
     p_cntr = 2
     this%t(1) = this%t(0) + delta_t
     do
-      if (this%log) print "(I0, ES25.16, x, A)", i, denorm(this%t(i), "fs"), "fs"
+      if (this%log) m4_info("transient step " // int2str(i) // " at t = " // real2str(denorm(this%t(i), "fs")) // " fs")
 
       ! set input at t_gam
       if (present(input)) call this%sys%set_input(input%get(this%t(i-1) + delta_t * GAM))
