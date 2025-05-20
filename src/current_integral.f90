@@ -50,9 +50,9 @@ module current_integral_m
   character(2), parameter :: CASENAME(7) = ["1a", "1b", "1c", "1d", "1e", "2a", "2b"]
   real,         parameter :: CASETOL = 1e-3
 
-  integer, parameter :: MIN_IT = 4
+  integer, parameter :: MIN_IT = 6
   integer, parameter :: MAX_IT = 50
-  real,    parameter :: RTOL   = 2e-13
+  real,    parameter :: RTOL   = 2e-14
   real,    parameter :: ATOL   = 1e-16
 
 contains
@@ -632,7 +632,7 @@ contains
       dIdeta = [-1.0, 1.0]
     else
       ! integrate using tanh-sinh
-      call quad(dist_k, eta(1), eta(2), dum, I, dIdeta(1), dIdeta(2), dum2)
+      call quad(dist_k, eta(1), eta(2), dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8)
     end if
 
   contains
