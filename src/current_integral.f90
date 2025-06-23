@@ -377,13 +377,10 @@ contains
       end do
 
       ! abbreviation
-      u       = exp(G(1) * dpot)
-      dudetam = u * dpot * dG(1)
-      duddpot = u * G(1)
-      v       = expm1(G(1) * dpot)
-      e       = (u + 1) / v
-      dedetam = - 2 * dudetam / v**2
-      deddpot = - 2 * duddpot / v**2
+      e = 1 / tanh(0.5 * G(1) * dpot)
+      u = 1 / sinh(0.5 * G(1) * dpot)**2
+      dedetam = - 0.5 * dpot * dG(1) * u
+      deddpot = - 0.5 * G(1) * u
 
       ! zero-th Taylor coefficient
       jc(0)       = dpot * F(0)

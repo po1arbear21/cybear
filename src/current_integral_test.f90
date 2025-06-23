@@ -4,20 +4,37 @@ program current_integral_test
   use distribution_table_m, only: distribution_table
   use error_m,              only: program_error
   use fukushima_m,          only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, dfdm9h, ifd1h
-  use ieee_arithmetic,      only: ieee_is_finite
+  use ieee_arithmetic,      only: ieee_is_finite, ieee_value, IEEE_NEGATIVE_INF, IEEE_POSITIVE_INF
   use math_m,               only: expm1, linspace, PI
+  use newton_m,             only: newton1D_opt, newton1D
 
   implicit none
 
+  logical :: use_table, use_fermi_dirac, use_fermi_reg
+  real    :: n(2), dpot, detadF, j, djdn(2), djddpot
   type(distribution_table) :: tab
-  logical                  :: use_table, use_fermi_dirac
+
+  use_table       = .false.
+  use_fermi_dirac = .false.
+  use_fermi_reg   = .true.
+
+  n(1) =   1.0133894099019129E-002
+  n(2) =   1.0131686670691727E-002
+  dpot =  -7.7078926603861942E+002
+  CURRENT_INTEGRAL_DEBUG = .true.
+  call current_integral_get(distribution, inv_distribution, n, dpot, j, djdn, djddpot)
+  print "(A,ES25.16E3)", "j       = ", j
+  print "(A,ES25.16E3)", "djdn1   = ", djdn(1)
+  print "(A,ES25.16E3)", "djdn2   = ", djdn(2)
+  print "(A,ES25.16E3)", "djddpot = ", djddpot
+  stop
 
   use_table       = .true.
   use_fermi_dirac = .true.
+  use_fermi_reg   = .false.
 
   ! call tab%init("F12", parabolic_dos, fermi_dirac, -100.0, 500.0, 3)
-  call tab%init("FGF", gauss_dos, fermi_dirac, -100.0, 500.0, 3)
-
+  call tab%init("FGF", gauss_dos, ieee_value(1.0, IEEE_NEGATIVE_INF), ieee_value(1.0, IEEE_POSITIVE_INF), fermi_dirac, .false., -100.0, 500.0, 3)
   call test_rect(0.0, -20.0, 20.0, 201, -50.0, 50.0, 501)
 
 contains
@@ -166,6 +183,8 @@ contains
     real,    intent(out) :: F
     real,    intent(out) :: dFdeta
 
+    real, parameter :: A = 1e-12
+    real, parameter :: B = 0.001
     real, parameter :: G0 = 1.0 / gamma(1.5)
     real, parameter :: G1 = 1.0 / gamma(0.5)
     real, parameter :: G2 = 1.0 / gamma(-0.5)
@@ -196,9 +215,29 @@ contains
         dFdeta = 0
         call program_error("not implemented for k outside of range 0..3")
       end select
+    elseif (use_fermi_reg) then
+      ! Fermi-Dirac integral with regularization
+      select case (k)
+      case (0)
+        F      = (fd1h( eta) + A*     fd1h(B*eta)) * G0
+        dFdeta = (fdm1h(eta) + A*B*   fdm1h(B*eta)) * G1
+      case (1)
+        F      = (fdm1h(eta) + A*B*   fdm1h(B*eta)) * G1
+        dFdeta = (fdm3h(eta) + A*B**2*fdm3h(B*eta)) * G2
+      case (2)
+        F      = (fdm3h(eta) + A*B**2*fdm3h(B*eta)) * G2
+        dFdeta = (fdm5h(eta) + A*B**3*fdm5h(B*eta)) * G3
+      case (3)
+        F      = (fdm5h(eta) + A*B**3*fdm5h(B*eta)) * G3
+        dFdeta = (fdm7h(eta) + A*B**4*fdm7h(B*eta)) * G4
+      case default
+        F      = 0
+        dFdeta = 0
+        call program_error("not implemented for k outside of range 0..3")
+      end select
     else
       ! Maxwell-Boltzmann
-      F      = exp(-eta)
+      F      = exp(eta)
       dFdeta = F
     end if
 
@@ -209,14 +248,57 @@ contains
     real, intent(out) :: eta
     real, intent(out) :: detadF
 
+    real, parameter :: A = 1e-12
+    real, parameter :: B = 0.001
     real, parameter :: G = gamma(1.5)
+    real, parameter :: C = 6.6e-11
+
+    real               :: eta0, p(1), detadp(1)
+    type(newton1D_opt) :: nopt
 
     if (use_table) then
       call tab%inv(F, eta, detadF)
-    else
+    elseif (use_fermi_dirac) then
       call ifd1h(F * G, eta, detadF)
       detadF = detadF * G
+    elseif (use_fermi_reg) then
+      ! initial guess
+      if (F < C) then
+        eta0 = log(F / A) / B
+      else
+        call ifd1h(F * G, eta0, detadF)
+      end if
+
+      ! solve with Newton
+      call nopt%init()
+      p(1) = F
+      call newton1D(fun, p, nopt, eta0, eta, dxdp = detadp)
+      detadF = detadp(1)
+    else
+      eta    = log(F)
+      detadF = 1 / F
     end if
+
+  end subroutine
+
+  subroutine fun(eta, p, res, dresdeta, dresdp)
+    real,              intent(in)  :: eta
+      !! argument
+    real,              intent(in)  :: p(:)
+      !! parameters: F
+    real,              intent(out) :: res
+      !! output function value
+    real,    optional, intent(out) :: dresdeta
+      !! optional output derivative of f wrt x
+    real,    optional, intent(out) :: dresdp(:)
+      !! optional output derivatives of f wrt p
+
+    real :: dresdeta_
+
+    call distribution(eta, 0, res, dresdeta_)
+    res       = res - p(1)
+    if (present(dresdeta)) dresdeta = dresdeta_
+    if (present(dresdp)) dresdp(1) = - 1
   end subroutine
 
   function parabolic_dos(t) result(Z)
