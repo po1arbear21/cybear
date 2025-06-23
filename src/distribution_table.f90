@@ -62,13 +62,19 @@ module distribution_table_m
 
 contains
 
-  subroutine distribution_table_init(this, name, dos, dist, eta_min, eta_max, kmax)
+  subroutine distribution_table_init(this, name, dos, t_min, t_max, dist, shift_eta, eta_min, eta_max, kmax)
     !! initialize distribution table
     class(distribution_table), intent(out) :: this
     character(*),              intent(in)  :: name
       !! name for loading and saving
     procedure(density_of_states)           :: dos
+    real,                      intent(in)  :: t_min
+      !! minimal t for Z(t) with Z(t<t_min) = 0
+    real,                      intent(in)  :: t_max
+      !! maximal t for Z(t) with Z(t>t_max) = 0
     procedure(distribution_density)        :: dist
+    logical,                   intent(in)  :: shift_eta
+      !! shift integration by eta or not (might improve performance, should not change result)
     real,                      intent(in)  :: eta_min
       !! minimal supported eta
     real,                      intent(in)  :: eta_max
@@ -102,7 +108,7 @@ contains
 
     !$omp parallel default(none) &
     !$omp private(i,i1,i2,i3,j1,j2,j3,k,k1,k2,k3,ithread,lg1,eta1,eta2,eta3,deta,val1,val2,err1,err2,sgn,stack,vlg,veta,vval) &
-    !$omp shared(this,kmax,nthreads,n,nth,eta,val,lg)
+    !$omp shared(this,t_min,t_max,shift_eta,kmax,nthreads,n,nth,eta,val,lg)
 
     ithread = omp_get_thread_num() + 1
 
@@ -115,8 +121,10 @@ contains
     ! generate entries for coarse grid
     !$omp do schedule(dynamic)
     do i = 1, N0
-      call this%gen(dos, dist, eta(i), val(:,i))
+      call this%gen(dos, t_min, t_max, dist, shift_eta, eta(i), val(:,i))
       lg(:,i) = .false.
+
+      print "(I4,A,I4)", i, " / ", N0
     end do
     !$omp end do
 
@@ -163,7 +171,7 @@ contains
         call vval%resize(k3)
 
         ! generate data for new point
-        call this%gen(dos, dist, eta3, vval%d(j3:k3))
+        call this%gen(dos, t_min, t_max, dist, shift_eta, eta3, vval%d(j3:k3))
 
         ! direct interpolation from existing data
         val1(0:kmax) = 0.5 * (vval%d(j1:k1-1) + vval%d(j2:k2-1)) + 0.125 * deta * (vval%d(j1+1:k1) - vval%d(j2+1:k2))
@@ -253,23 +261,34 @@ contains
     call this%save("/tmp")
   end subroutine
 
-  subroutine distribution_table_gen(this, dos, dist, eta, val)
+  subroutine distribution_table_gen(this, dos, t_min, t_max, dist, shift_eta, eta, val)
     !! generate single entry
     class(distribution_table), intent(in)  :: this
     procedure(density_of_states)           :: dos
+    real,                      intent(in)  :: t_min
+      !! minimal t for Z(t) with Z(t<t_min) = 0
+    real,                      intent(in)  :: t_max
+      !! maximal t for Z(t) with Z(t>t_max) = 0
     procedure(distribution_density)        :: dist
+    logical,                   intent(in)  :: shift_eta
+      !! shift integration by eta or not
     real,                      intent(in)  :: eta
       !! chemical potential
     real,                      intent(out) :: val(0:)
       !! output value + derivatives
 
     integer       :: k
-    real(kind=16) :: inf16, p16(0), dFda16, dFdb16, dFdp16(0), val16
+    real(kind=16) :: t_min16, t_max16, p16(0), dFda16, dFdb16, dFdp16(0), val16
 
-    inf16 = ieee_value(1.0_16, IEEE_POSITIVE_INF)
+    t_min16 = t_min
+    t_max16 = t_max
 
     do k = 0, this%kmax + 1
-      call quad(integrand, -real(eta,kind=16), INF16, p16, val16, dFda16, dFdb16, dFdp16, rtol = 1e-14_16, max_levels = 20)
+      if (shift_eta) then
+        call quad(integrand, t_min16 - eta, t_max16 - eta, p16, val16, dFda16, dFdb16, dFdp16, rtol = 1e-15_16, max_levels = 20)
+      else
+        call quad(integrand, t_min16, t_max16, p16, val16, dFda16, dFdb16, dFdp16, rtol = 1e-15_16, max_levels = 20)
+      end if
       val(k) = real(val16)
     end do
 
@@ -286,7 +305,11 @@ contains
       dgdt = 0
       m4_ignore(dgdp)
 
-      g = dos(t + eta) * dist(t, k)
+      if (shift_eta) then
+        g = dos(t + eta) * dist(t, k)
+      else
+        g = dos(t) * dist(t - eta, k)
+      end if
       if (mod(k, 2) == 1) g = -g
     end subroutine
 
@@ -364,7 +387,12 @@ contains
     integer :: i, it
     real    :: eta1, eta2, deta, F1, dF1, F2, dF2, t, t_min, t_max, t_old, res, dresdt, dt, err
 
-    m4_assert((F >= this%val(0,1)) .and. (F <= this%val(0,size(this%eta))))
+    if ((F < this%val(0,1)) .or. (F > this%val(0,size(this%eta)))) then
+      print "(A,ES25.16E3)", "F   = ", F
+      print "(A,ES25.16E3)", "min = ", this%val(0,1)
+      print "(A,ES25.16E3)", "max = ", this%val(0,size(this%eta))
+      call program_error("F is out of range")
+    end if
 
     ! find interval
     i = bin_search(this%val(0,:), F, mode = BS_LESS)
@@ -488,6 +516,7 @@ contains
     eta = linspace(eta1, eta2, nsamples)
 
     open (newunit = funit, file = fname, status = "replace", action = "write")
+    write (funit, "(A)") "eta F"
     do i = 1, nsamples
       call this%get(eta(i), k, val, dval)
       write (funit, "(2ES25.16E3)") eta(i), val

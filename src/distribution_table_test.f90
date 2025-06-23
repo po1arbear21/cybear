@@ -10,7 +10,7 @@ program distribution_table_test
   type(distribution_table) :: tab
   real :: eta, F, dFdeta, eta2, deta2dF
 
-  call tab%init("F12", parabolic_dos, fermi_dirac, -100.0, 500.0, 3)
+  call tab%init("F12", parabolic_dos, 0.0, ieee_value(1.0, IEEE_POSITIVE_INF), fermi_dirac, -100.0, 500.0, 3)
 
   eta = 243.235225456
   call tab%get(eta, 0, F, dFdeta)
@@ -27,13 +27,13 @@ program distribution_table_test
   !   print *, i, tab%eta(i), tab%lg(0,i)
   ! end do
 
-  ! call tab%init("FMB", parabolic_dos, maxwell_boltzmann, -100.0, 100.0, 3)
+  ! call tab%init("FMB", parabolic_dos, 0.0, ieee_value(1.0, IEEE_POSITIVE_INF), maxwell_boltzmann, -100.0, 100.0, 3)
   ! call tab%output("FMB.csv", -100.0, 100.0, 0, 10001)
   ! call tab%output("FMB1.csv", -100.0, 100.0, 1, 10001)
   ! call tab%output("FMB2.csv", -100.0, 100.0, 2, 10001)
   ! call tab%output("FMB3.csv", -100.0, 100.0, 3, 10001)
 
-  ! call tab%init("FGF", gauss_dos, fermi_dirac, -100.0, 500.0, 3)
+  ! call tab%init("FGF", gauss_dos, 0.0, ieee_value(1.0, IEEE_POSITIVE_INF), fermi_dirac, -100.0, 500.0, 3)
   ! call tab%output("FGF.csv", -100.0, 500.0, 0, 10001)
   ! call tab%output("FGF1.csv", -100.0, 500.0, 1, 10001)
   ! call tab%output("FGF2.csv", -100.0, 500.0, 2, 10001)
