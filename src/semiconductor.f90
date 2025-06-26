@@ -5,7 +5,7 @@ module semiconductor_m
   use distribution_table_m, only: distribution_table
   use error_m,              only: program_error
   use fukushima_m,          only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, ifd1h
-  use ieee_arithmetic,      only: ieee_is_finite
+  use ieee_arithmetic,      only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf
   use math_m,               only: PI, expm1
   use newton_m,             only: newton1D_opt, newton1D
   use util_m,               only: int2str
@@ -96,7 +96,7 @@ contains
 
     if (this%dos == DOS_PARABOLIC) return
 
-    call this%dist_tab%init("dist_" // int2str(this%dos) // int2str(this%dist), ieee_value(1.0, IEEE_NEGATIVE_INF), ieee_value(1.0, IEEE_POSITIVE_INF), dos, dist, .false., -100.0, 1000.0, 3)
+    call this%dist_tab%init("dist_" // int2str(this%dos) // int2str(this%dist), dos, ieee_value(1.0, ieee_negative_inf), ieee_value(1.0, ieee_positive_inf), dist, .false., -100.0, 1000.0, 3)
 
   contains
 
