@@ -40,14 +40,14 @@ module current_integral_m
     end subroutine
   end interface
 
-  integer,      parameter :: CASE1A  = 1
-  integer,      parameter :: CASE1B  = 2
-  integer,      parameter :: CASE1C  = 3
-  integer,      parameter :: CASE1D  = 4
-  integer,      parameter :: CASE1E  = 5
+  integer,      parameter :: CASE0A  = 1
+  integer,      parameter :: CASE0B  = 2
+  integer,      parameter :: CASE0C  = 3
+  integer,      parameter :: CASE1A  = 4
+  integer,      parameter :: CASE1B  = 5
   integer,      parameter :: CASE2A  = 6
   integer,      parameter :: CASE2B  = 7
-  character(2), parameter :: CASENAME(7) = ["1a", "1b", "1c", "1d", "1e", "2a", "2b"]
+  character(2), parameter :: CASENAME(7) = ["0A", "0B", "0C", "1a", "1b", "2a", "2b"]
   real,         parameter :: CASETOL = 1e-3
 
   integer, parameter :: MIN_IT = 6
@@ -98,15 +98,15 @@ contains
     ! get case
     if (abs(dpot) > CASETOL) then
       if (deta - dpot > dpot * CASETOL) then
-        cs = CASE1A
+        cs = CASE0A
       elseif (deta - dpot >= - dpot * CASETOL) then
-        cs = CASE1B
+        cs = CASE1A
       elseif (deta > CASETOL) then
-        cs = CASE1C
+        cs = CASE0B
       elseif (deta >= - CASETOL) then
-        cs = CASE1D
+        cs = CASE1B
       else
-        cs = CASE1E
+        cs = CASE0C
       end if
     else
       if (abs(deta) > CASETOL) then
@@ -130,16 +130,8 @@ contains
 
     ! calculate current based on case
     select case (cs)
-    case (CASE1B)
-      call case_1b(j, djdeta, djddpot)
-    case (CASE1D)
-      call case_1d(j, djdeta, djddpot)
-    case (CASE2A)
-      call case_2a(j, djdeta, djddpot)
-    case (CASE2B)
-      call case_2b(j, djdeta, djddpot)
-    case default
-      ! range for jj by mean value theorem
+    case (CASE0A, CASE0B, CASE0C) ! general case
+      ! range for jj (jj = j scaled by 1/dpot) by mean value theorem
       jjmin = abs(1 - deta / dpot) * min(n(1), n(2))
       jjmax = abs(1 - deta / dpot) * max(n(1), n(2))
       if (deta > dpot) then
@@ -150,15 +142,15 @@ contains
       end if
 
       ! further reduce range if possible
-      if (cs == CASE1A) then
+      if (cs == CASE0A) then
         block
           real :: I, dI(2)
           call integrate_dist(dist, [eta(2) - dpot, eta(2)], -1, I, dI)
           jjmin = max(jjmin, (dpot - deta) / I)
         end block
-      elseif (cs == CASE1C) then
+      elseif (cs == CASE0B) then
         jjmax = min(jjmax, n(1))
-      elseif (cs == CASE1E) then
+      elseif (cs == CASE0C) then
         jjmin = max(jjmin, n(1))
       end if
 
@@ -262,7 +254,14 @@ contains
       j       = dpot * jj
       djdeta  =    - dpot * dresdeta  / dresdjj
       djddpot = jj - dpot * dresddpot / dresdjj
-
+    case (CASE1A)
+      call case_1a(j, djdeta, djddpot)
+    case (CASE1B)
+      call case_1b(j, djdeta, djddpot)
+    case (CASE2A)
+      call case_2a(j, djdeta, djddpot)
+    case (CASE2B)
+      call case_2b(j, djdeta, djddpot)
     end select
 
     ! derivatives wrt densities
@@ -270,7 +269,7 @@ contains
 
   contains
 
-    subroutine case_1b(j, djdeta, djddpot)
+    subroutine case_1a(j, djdeta, djddpot)
       !! dpot >> 0 and deta ~ dpot
       real,       intent(out) :: j
         !! output normalized current density on edge
@@ -351,7 +350,7 @@ contains
       j = real(j_16)
     end subroutine
 
-    subroutine case_1d(j, djdeta, djddpot)
+    subroutine case_1b(j, djdeta, djddpot)
       !! |dpot| >> 0 and deta ~ 0
       real,       intent(out) :: j
         !! output normalized current density on edge

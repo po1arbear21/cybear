@@ -96,7 +96,7 @@ contains
 
     if (this%dos == DOS_PARABOLIC) return
 
-    call this%dist_tab%init("dist_" // int2str(this%dos) // int2str(this%dist), dos, dist, -100.0, 1000.0, 3)
+    call this%dist_tab%init("dist_" // int2str(this%dos) // int2str(this%dist), ieee_value(1.0, IEEE_NEGATIVE_INF), ieee_value(1.0, IEEE_POSITIVE_INF), dos, dist, .false., -100.0, 1000.0, 3)
 
   contains
 
