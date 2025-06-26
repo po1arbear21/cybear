@@ -248,8 +248,9 @@ contains
       call current_integral_get(dist, idist, n, dpot, j, djdn, djddpot)
 
       if (.not. ieee_is_finite(j)) then
-        CURRENT_INTEGRAL_DEBUG = .true.
-        call current_integral_get(dist, idist, n, dpot, j, djdn, djddpot)
+        print "(A,ES25.16E3)", "n1        = ", n(1)
+        print "(A,ES25.16E3)", "n2        = ", n(2)
+        print "(A,ES25.16E3)", "dpot      = ", dpot
 
         error stop "not finite"
       end if
