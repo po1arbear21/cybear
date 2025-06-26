@@ -4,6 +4,7 @@ module device_params_m
 
   use bin_search_m,     only: bin_search
   use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use container_m,      only: container, STORAGE_WRITE
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
@@ -17,7 +18,7 @@ module device_params_m
   use map_m,            only: map_string_int, mapnode_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, region_contact
-  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, DOP_NAME, DOS_PARABOLIC, DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor
   use string_m,         only: string, new_string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
@@ -48,9 +49,9 @@ module device_params_m
     class(grid_data_real), allocatable :: surf(:)
       !! adjoint volume surfaces
     class(grid_data_real), allocatable :: dop(:,:,:)
-      !! donator/acceptor concentration (idx_type, idx_dir, dcon/acon)
+      !! donor/acceptor concentration (idx_type, idx_dir, dcon/acon)
     class(grid_data_real), allocatable :: ii_E_dop(:)
-      !! incomplete ionization donator/acceptor dopant energy level (dcon/acon)
+      !! incomplete ionization donor/acceptor dopant energy level (dcon/acon)
     class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
     class(grid_data_real), allocatable :: tr_surf(:)
@@ -154,10 +155,11 @@ contains
     real,                         intent(in)  :: T
       !! temperature in K
 
-    integer                   :: gal_sid, i, status
+    integer                   :: gal_sid, i, status, ci, idx_dir
     type(string)              :: gal_filename
     type(string), allocatable :: s(:)
     type(gal_block), pointer  :: gblock
+    type(container)           :: ctnr
 
     this%T = T
 
@@ -210,6 +212,26 @@ contains
     call this%init_doping(file)
     call this%init_mobility()
     call this%init_contacts()
+
+    ! output
+    call ctnr%open("device.fbs", flag = STORAGE_WRITE)
+    ! grid
+    call ctnr%save(this%g)
+    ! permittivity on cells
+    call ctnr%save("perm", this%eps(IDX_CELL, 0), unit = "eps0")
+    do ci = this%ci0, this%ci1
+      ! doping on cells
+      call ctnr%save(DOP_NAME(ci)//"con_cell", this%dop(IDX_CELL, 0, ci), unit = "cm^-3")
+      ! doping on vertices
+      call ctnr%save(DOP_NAME(ci)//"con_vert", this%dop(IDX_VERTEX, 0, ci), unit = "cm^-3")
+      ! dopant ionization energy on vertices
+      if (this%smc%incomp_ion) call ctnr%save(DOP_NAME(ci)//"conE_vert", this%ii_E_dop(ci), unit = "eV")
+      do idx_dir = 1, this%g%idx_dim
+        ! mobility on edges
+        call ctnr%save(CR_NAME(ci)//"mob"//DIR_NAME(idx_dir), this%mob0(IDX_EDGE, idx_dir, ci), unit = "cm^2/V/s")
+      end do
+    end do
+    call ctnr%close()
   end subroutine
 
   subroutine device_params_destruct(this)
