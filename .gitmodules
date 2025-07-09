@@ -1,0 +1,3 @@
+[submodule "lib/fortran-basic"]
+	path = lib/fortran-basic
+	url = git@git.rwth-aachen.de:ithe/fortran-basic.git

@@ -9,6 +9,7 @@
   single    = false                  # single or multiple jobs in section?
   workers   = 0                      # builder number of workers (0 = number of cpu cores)
   timeout   = 60.0                   # builder timeout
+  sources = ["lib/fortran-basic/src"]
 
   # runner      = "..."              # runner: "local" or "node"
   # runner_args = {...}              # runner arguments
