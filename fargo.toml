@@ -1,81 +1,78 @@
 [defaults]
-  intsize   = 32                     # integer size in bits (32 or 64)
-  idxsize   = 32                     # integer size of sparse matrix row pointers (32 or 64, >= intsize)
-  compiler  = "gfortran"             # "gfortran", "ifort", "ifx"
-  mode      = "debug"                # "debug", "release", "profile"
-  march     = "broadwell"            # cpu architecture, broadwell should work on all nodes
-  m4flags   = ["-P", "-s"]           # do not change
-  libraries = ["BLAS95", "LAPACK95"] # list of libraries to link with
-  single    = false                  # single or multiple jobs in section?
-  workers   = 0                      # builder number of workers (0 = number of cpu cores)
-  timeout   = 60.0                   # builder timeout
-  sources = ["lib/fortran-basic/src"]
+intsize = 32                        # integer size in bits (32 or 64)
+idxsize = 32                        # integer size of sparse matrix row pointers (32 or 64, >= intsize)
+compiler = "gfortran"               # "gfortran", "ifort", "ifx"
+mode = "debug"                      # "debug", "release", "profile"
+march = "broadwell"                 # cpu architecture, broadwell should work on all nodes
+m4flags = ["-P", "-s"]              # do not change
+libraries = ["BLAS95", "LAPACK95"]  # list of libraries to link with
+single = false                      # single or multiple jobs in section?
+workers = 0                         # builder number of workers (0 = number of cpu cores)
+timeout = 60.0                      # builder timeout
+sources = ["lib/fortran-basic/src"]
 
-  # runner      = "..."              # runner: "local" or "node"
-  # runner_args = {...}              # runner arguments
-  # task_name   = "..."              # task sub-directory name template (default: automatic)
-  # m4flags     = [...]              # additional flags for M4 ("-P" and "-s" are implicit)
-  # m4vars      = {...}              # additional variables for M4
-  # args        = "..."              # arguments passed to target
-  # wanted      = [...]              # list of additional targets
-  # variables   = [{...}]            # variables
-  # templates   = [{...}]            # template files
-  # postprocess = [{...}]            # postprocessing
+# runner      = "..."              # runner: "local" or "node"
+# runner_args = {...}              # runner arguments
+# task_name   = "..."              # task sub-directory name template (default: automatic)
+# m4flags     = [...]              # additional flags for M4 ("-P" and "-s" are implicit)
+# m4vars      = {...}              # additional variables for M4
+# args        = "..."              # arguments passed to target
+# wanted      = [...]              # list of additional targets
+# variables   = [{...}]            # variables
+# templates   = [{...}]            # template files
+# postprocess = [{...}]            # postprocessing
 
-[debug]
-  single    = true
-  target    = "dd"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-  args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
-
-  templates = [
-    { files = [ "run.ini" ] },
-    { files = [ "pmosfet2D.ini" ], action="expand" }
-  ]
 
 [release]
-  mode      = "release"
-  single    = true
-  target    = "dd"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-  args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
+mode = "release"
+single = true
+target = "dd"
+libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 
-  templates = [
-    { files = [ "run.ini" ] },
-    { files = [ "pmosfet2D.ini" ], action="expand" }
-  ]
+templates = [
+  { files = [
+    "run.ini",
+  ] },
+  { files = [
+    "pmosfet2D.ini",
+  ], action = "expand" },
+]
 
-[test]
-  single      = true
-  libraries   = ["ARPACK", "EXPOKIT", "FEAST", "KLU2", "MPFR", "MUMPS", "QUADPACK", "SPIKE", "TRIANGLE", "ZLIB"]
-  target      = "test"
+[real_nw]
+mode = "debug"
+single = true
+target = "nw_test"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
 
-  templates = [
-    { files = [
-        "src/test/example.inp",
-        "src/test/example_matrix4.dat",
-        "src/test/S1.test",
-        "src/test/S2.test",
-        "src/test/S3.test",
-        "src/test/table.csv",
-        "src/test/test1.json",
-        "src/test/test2.json",
-    ] }
-  ]
 
-[max_test]
-  single = true
-  target = "max_test"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+templates = [
+  { files = [
+    "run.ini",
+  ] },
+  { files = [
+    "nanowire_3D.ini",
+  ], action = "expand" },
+]
 
-[distribution_table_test]
-  mode = "release"
-  single = true
-  target = "distribution_table_test"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+[nw_2D]
+mode = "debug"
+single = true
+target = "nw_2D"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
 
-[current_integral_test]
-  mode      = "debug"
-  single    = true
-  target    = "current_integral_test"
-  libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+
+templates = [
+  { files = [
+    "run.ini",
+  ] },
+  { files = [
+    "nw_2D.ini",
+  ], action = "expand" },
+]
