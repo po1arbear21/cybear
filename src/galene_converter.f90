@@ -98,9 +98,9 @@ contains
     write(*,*) "==============================="
 
     do i = 1, gf%blocks%n
-      associate(block => gf%blocks%d(i))
+      associate(gal_b => gf%blocks%d(i))
         write(*,'(I3,". ",A," [",A,"] (",I0," elements)")') &
-              i, trim(block%name), trim(block%unit), block%ndata
+              i, trim(gal_b%name), trim(gal_b%unit), gal_b%ndata
       end associate
     end do
   end subroutine
@@ -109,20 +109,20 @@ contains
     !! Export a variable to ASCII file
     type(gal_file), intent(in) :: gat, sil
     character(256) :: varname, outfile
-    type(gal_block), pointer :: block
+    type(gal_block), pointer :: gal_b
     integer :: unit, i
 
     write(*,*) "Enter variable name: "
     read(*,*) varname
 
     ! Try to find in simulation data first
-    block => gat%get_block(trim(varname))
-    if (.not. associated(block)) then
+    gal_b => gat%get_block(trim(varname))
+    if (.not. associated(gal_b)) then
       ! Try geometry data
-      block => sil%get_block(trim(varname))
+      gal_b => sil%get_block(trim(varname))
     end if
 
-    if (.not. associated(block)) then
+    if (.not. associated(gal_b)) then
       write(*,*) "Variable '", trim(varname), "' not found!"
       return
     end if
@@ -130,23 +130,23 @@ contains
     outfile = trim(varname) // ".dat"
     open(newunit=unit, file=outfile, status='replace')
 
-    write(unit,'("# Variable: ",A)') trim(block%name)
-    write(unit,'("# Unit: ",A)') trim(block%unit)
-    write(unit,'("# Number of elements: ",I0)') block%ndata
-    write(unit,'("# Data type: ",I0)') block%dtype
+    write(unit,'("# Variable: ",A)') trim(gal_b%name)
+    write(unit,'("# Unit: ",A)') trim(gal_b%unit)
+    write(unit,'("# Number of elements: ",I0)') gal_b%ndata
+    write(unit,'("# Data type: ",I0)') gal_b%dtype
     write(unit,'("#")')
 
-    select case(block%dtype)
+    select case(gal_b%dtype)
     case(GALDATA_INT)
-      do i = 1, block%ndata
-        write(unit,'(I0)') block%idata(i)
+      do i = 1, gal_b%ndata
+        write(unit,'(I0)') gal_b%idata(i)
       end do
     case(GALDATA_REAL)
-      do i = 1, block%ndata
-        write(unit,'(ES15.8)') denorm(block%rdata(i), trim(block%unit))
+      do i = 1, gal_b%ndata
+        write(unit,'(ES15.8)') denorm(gal_b%rdata(i), trim(gal_b%unit))
       end do
     case(GALDATA_CHAR)
-      write(unit,'(A)') trim(block%cdata)
+      write(unit,'(A)') trim(gal_b%cdata)
     end select
 
     close(unit)
@@ -157,20 +157,20 @@ contains
     !! Export a variable to MATLAB-compatible format
     type(gal_file), intent(in) :: gat, sil
     character(256) :: varname, outfile, matlab_varname
-    type(gal_block), pointer :: block
+    type(gal_block), pointer :: gal_b
     integer :: unit, i
 
     write(*,*) "Enter variable name: "
     read(*,*) varname
 
     ! Try to find in simulation data first
-    block => gat%get_block(trim(varname))
-    if (.not. associated(block)) then
+    gal_b => gat%get_block(trim(varname))
+    if (.not. associated(gal_b)) then
       ! Try geometry data
-      block => sil%get_block(trim(varname))
+      gal_b => sil%get_block(trim(varname))
     end if
 
-    if (.not. associated(block)) then
+    if (.not. associated(gal_b)) then
       write(*,*) "Variable '", trim(varname), "' not found!"
       return
     end if
@@ -185,34 +185,34 @@ contains
     outfile = trim(matlab_varname) // ".m"
     open(newunit=unit, file=outfile, status='replace')
 
-    write(unit,'("% Variable: ",A)') trim(block%name)
-    write(unit,'("% Unit: ",A)') trim(block%unit)
-    write(unit,'("% Number of elements: ",I0)') block%ndata
+    write(unit,'("% Variable: ",A)') trim(gal_b%name)
+    write(unit,'("% Unit: ",A)') trim(gal_b%unit)
+    write(unit,'("% Number of elements: ",I0)') gal_b%ndata
     write(unit,'("%")')
 
-    select case(block%dtype)
+    select case(gal_b%dtype)
     case(GALDATA_INT)
       write(unit,'(A," = [")') trim(matlab_varname)
-      do i = 1, block%ndata
-        if (i < block%ndata) then
-          write(unit,'(I0,";")') block%idata(i)
+      do i = 1, gal_b%ndata
+        if (i < gal_b%ndata) then
+          write(unit,'(I0,";")') gal_b%idata(i)
         else
-          write(unit,'(I0)') block%idata(i)
+          write(unit,'(I0)') gal_b%idata(i)
         end if
       end do
       write(unit,'("];")')
     case(GALDATA_REAL)
       write(unit,'(A," = [")') trim(matlab_varname)
-      do i = 1, block%ndata
-        if (i < block%ndata) then
-          write(unit,'(ES15.8,";")') denorm(block%rdata(i), trim(block%unit))
+      do i = 1, gal_b%ndata
+        if (i < gal_b%ndata) then
+          write(unit,'(ES15.8,";")') denorm(gal_b%rdata(i), trim(gal_b%unit))
         else
-          write(unit,'(ES15.8)') denorm(block%rdata(i), trim(block%unit))
+          write(unit,'(ES15.8)') denorm(gal_b%rdata(i), trim(gal_b%unit))
         end if
       end do
       write(unit,'("];")')
     case(GALDATA_CHAR)
-      write(unit,'(A," = ''",A,"'';")') trim(matlab_varname), trim(block%cdata)
+      write(unit,'(A," = ''",A,"'';")') trim(matlab_varname), trim(gal_b%cdata)
     end select
 
     close(unit)
@@ -313,60 +313,60 @@ contains
     !! Quick view of a variable's data
     type(gal_file), intent(in) :: gat, sil
     character(256) :: varname
-    type(gal_block), pointer :: block
+    type(gal_block), pointer :: gal_b
     integer :: i, max_display
 
     write(*,*) "Enter variable name: "
     read(*,*) varname
 
     ! Try to find in simulation data first
-    block => gat%get_block(trim(varname))
-    if (.not. associated(block)) then
+    gal_b => gat%get_block(trim(varname))
+    if (.not. associated(gal_b)) then
       ! Try geometry data
-      block => sil%get_block(trim(varname))
+      gal_b => sil%get_block(trim(varname))
     end if
 
-    if (.not. associated(block)) then
+    if (.not. associated(gal_b)) then
       write(*,*) "Variable '", trim(varname), "' not found!"
       return
     end if
 
 
     write(*,*)
-    write(*,*) "Variable: ", trim(block%name)
-    write(*,*) "Unit: ", trim(block%unit)
-    write(*,*) "Type: ", block%dtype, " (1=int, 2=real, 3=char)"
-    write(*,*) "Elements: ", block%ndata
+    write(*,*) "Variable: ", trim(gal_b%name)
+    write(*,*) "Unit: ", trim(gal_b%unit)
+    write(*,*) "Type: ", gal_b%dtype, " (1=int, 2=real, 3=char)"
+    write(*,*) "Elements: ", gal_b%ndata
     write(*,*)
 
-    max_display = min(10, block%ndata)
+    max_display = min(10, gal_b%ndata)
 
-    select case(block%dtype)
+    select case(gal_b%dtype)
     case(GALDATA_INT)
       write(*,*) "First", max_display, "values:"
       do i = 1, max_display
-        write(*,'("  ",I0,": ",I0)') i, block%idata(i)
+        write(*,'("  ",I0,": ",I0)') i, gal_b%idata(i)
       end do
-      if (block%ndata > max_display) then
-        write(*,*) "  ... (", block%ndata - max_display, " more values)"
+      if (gal_b%ndata > max_display) then
+        write(*,*) "  ... (", gal_b%ndata - max_display, " more values)"
       end if
     case(GALDATA_REAL)
       write(*,*) "First", max_display, "values:"
       do i = 1, max_display
-        write(*,'("  ",I0,": ",ES15.8)') i, denorm(block%rdata(i), trim(block%unit))
+        write(*,'("  ",I0,": ",ES15.8)') i, denorm(gal_b%rdata(i), trim(gal_b%unit))
       end do
-      if (block%ndata > max_display) then
-        write(*,*) "  ... (", block%ndata - max_display, " more values)"
+      if (gal_b%ndata > max_display) then
+        write(*,*) "  ... (", gal_b%ndata - max_display, " more values)"
       end if
-      if (block%ndata > 1) then
+      if (gal_b%ndata > 1) then
         write(*,*)
         write(*,*) "Statistics:"
-        write(*,*) "  Min: ", denorm(minval(block%rdata), trim(block%unit))
-        write(*,*) "  Max: ", denorm(maxval(block%rdata), trim(block%unit))
-        write(*,*) "  Mean: ", denorm(sum(block%rdata) / block%ndata, trim(block%unit))
+        write(*,*) "  Min: ", denorm(minval(gal_b%rdata), trim(gal_b%unit))
+        write(*,*) "  Max: ", denorm(maxval(gal_b%rdata), trim(gal_b%unit))
+        write(*,*) "  Mean: ", denorm(sum(gal_b%rdata) / gal_b%ndata, trim(gal_b%unit))
       end if
     case(GALDATA_CHAR)
-      write(*,*) "Content: ", trim(block%cdata)
+      write(*,*) "Content: ", trim(gal_b%cdata)
     end select
   end subroutine
 
@@ -374,7 +374,7 @@ contains
     !! Export a variable to binary MATLAB .mat format using Python
     type(gal_file), intent(in) :: gat, sil
     character(256) :: varname, outfile, matlab_varname
-    type(gal_block), pointer :: block
+    type(gal_block), pointer :: gal_b
     integer :: unit, i
     character(1024) :: temp_pyfile
 
@@ -382,13 +382,13 @@ contains
     read(*,*) varname
 
     ! Try to find in simulation data first
-    block => gat%get_block(trim(varname))
-    if (.not. associated(block)) then
+    gal_b => gat%get_block(trim(varname))
+    if (.not. associated(gal_b)) then
       ! Try geometry data
-      block => sil%get_block(trim(varname))
+      gal_b => sil%get_block(trim(varname))
     end if
 
-    if (.not. associated(block)) then
+    if (.not. associated(gal_b)) then
       write(*,*) "Variable '", trim(varname), "' not found!"
       return
     end if
@@ -427,38 +427,38 @@ contains
     write(unit,'("")')
 
     ! Write variable data
-    select case(block%dtype)
+    select case(gal_b%dtype)
     case(GALDATA_INT)
       write(unit,'(A," = np.array([")') trim(matlab_varname)
-      do i = 1, block%ndata
-        if (i < block%ndata) then
-          write(unit,'(I0,",")') block%idata(i)
+      do i = 1, gal_b%ndata
+        if (i < gal_b%ndata) then
+          write(unit,'(I0,",")') gal_b%idata(i)
         else
-          write(unit,'(I0)') block%idata(i)
+          write(unit,'(I0)') gal_b%idata(i)
         end if
       end do
       write(unit,'("], dtype=int)")')
     case(GALDATA_REAL)
       write(unit,'(A," = np.array([")') trim(matlab_varname)
-      do i = 1, block%ndata
-        if (i < block%ndata) then
-          write(unit,'(ES15.8,",")') denorm(block%rdata(i), trim(block%unit))
+      do i = 1, gal_b%ndata
+        if (i < gal_b%ndata) then
+          write(unit,'(ES15.8,",")') denorm(gal_b%rdata(i), trim(gal_b%unit))
         else
-          write(unit,'(ES15.8)') denorm(block%rdata(i), trim(block%unit))
+          write(unit,'(ES15.8)') denorm(gal_b%rdata(i), trim(gal_b%unit))
         end if
       end do
       write(unit,'("], dtype=float)")')
     case(GALDATA_CHAR)
-      write(unit,'(A," = ''",A,"''")') trim(matlab_varname), trim(block%cdata)
+      write(unit,'(A," = ''",A,"''")') trim(matlab_varname), trim(gal_b%cdata)
     end select
 
     ! Add metadata as a dictionary
     write(unit,'("")')
     write(unit,'(A,"_info = {")') trim(matlab_varname)
-    write(unit,'("    ''name'': ''",A,"'',")') trim(block%name)
-    write(unit,'("    ''unit'': ''",A,"'',")') trim(block%unit)
-    write(unit,'("    ''dtype'': ",I0,",")') block%dtype
-    write(unit,'("    ''ndata'': ",I0)') block%ndata
+    write(unit,'("    ''name'': ''",A,"'',")') trim(gal_b%name)
+    write(unit,'("    ''unit'': ''",A,"'',")') trim(gal_b%unit)
+    write(unit,'("    ''dtype'': ",I0,",")') gal_b%dtype
+    write(unit,'("    ''ndata'': ",I0)') gal_b%ndata
     write(unit,'("}")')
 
     outfile = trim(matlab_varname) // '.mat'
@@ -480,7 +480,7 @@ contains
     type(gal_file), intent(in) :: gat, sil
     character(256) :: temp_pyfile, matlab_varname
     integer :: unit, i, j
-    type(gal_block), pointer :: block
+    type(gal_block), pointer :: gal_b
 
     temp_pyfile = 'temp_database.py'
     open(newunit=unit, file=temp_pyfile, status='replace')
@@ -497,8 +497,8 @@ contains
     ! Export simulation data
     write(unit,'("# Simulation Data (.OSV file)")')
     do i = 1, gat%blocks%n
-      associate(block => gat%blocks%d(i))
-        matlab_varname = trim(block%name)
+      associate(gal_b => gat%blocks%d(i))
+        matlab_varname = trim(gal_b%name)
         do j = 1, len_trim(matlab_varname)
           if (matlab_varname(j:j) == '-') matlab_varname(j:j) = '_'
           if (matlab_varname(j:j) == '#') matlab_varname(j:j) = '_'
@@ -521,36 +521,36 @@ contains
           matlab_varname = matlab_varname(1:26)
         end if
 
-        select case(block%dtype)
+        select case(gal_b%dtype)
         case(GALDATA_INT)
           write(unit,'("data[''sim''][''",A,"''] = np.array([")') trim(matlab_varname)
-          do j = 1, block%ndata
-            if (j < block%ndata) then
-              write(unit,'(I0,",")') block%idata(j)
+          do j = 1, gal_b%ndata
+            if (j < gal_b%ndata) then
+              write(unit,'(I0,",")') gal_b%idata(j)
             else
-              write(unit,'(I0)') block%idata(j)
+              write(unit,'(I0)') gal_b%idata(j)
             end if
           end do
           write(unit,'("], dtype=int)")')
         case(GALDATA_REAL)
           write(unit,'("data[''sim''][''",A,"''] = np.array([")') trim(matlab_varname)
-          do j = 1, block%ndata
-            if (j < block%ndata) then
-              write(unit,'(ES15.8,",")') denorm(block%rdata(j), trim(block%unit))
+          do j = 1, gal_b%ndata
+            if (j < gal_b%ndata) then
+              write(unit,'(ES15.8,",")') denorm(gal_b%rdata(j), trim(gal_b%unit))
             else
-              write(unit,'(ES15.8)') denorm(block%rdata(j), trim(block%unit))
+              write(unit,'(ES15.8)') denorm(gal_b%rdata(j), trim(gal_b%unit))
             end if
           end do
           write(unit,'("], dtype=float)")')
         case(GALDATA_CHAR)
-          write(unit,'("data[''sim''][''",A,"''] = ''",A,"''")') trim(matlab_varname), trim(block%cdata)
+          write(unit,'("data[''sim''][''",A,"''] = ''",A,"''")') trim(matlab_varname), trim(gal_b%cdata)
         end select
 
         write(unit,'("data[''sim''][''",A,"_info''] = {")') trim(matlab_varname)
-        write(unit,'("    ''name'': ''",A,"'',")') trim(block%name)
-        write(unit,'("    ''unit'': ''",A,"'',")') trim(block%unit)
-        write(unit,'("    ''dtype'': ",I0,",")') block%dtype
-        write(unit,'("    ''ndata'': ",I0)') block%ndata
+        write(unit,'("    ''name'': ''",A,"'',")') trim(gal_b%name)
+        write(unit,'("    ''unit'': ''",A,"'',")') trim(gal_b%unit)
+        write(unit,'("    ''dtype'': ",I0,",")') gal_b%dtype
+        write(unit,'("    ''ndata'': ",I0)') gal_b%ndata
         write(unit,'("}")')
         write(unit,'("")')
       end associate
@@ -560,8 +560,8 @@ contains
     write(unit,'("# Geometry Data (.GEO file)")')
     write(unit,'("print(f''Processing {",I0,"} geometry blocks'')")') sil%blocks%n
     do i = 1, sil%blocks%n
-      associate(block => sil%blocks%d(i))
-        matlab_varname = trim(block%name)
+      associate(gal_b => sil%blocks%d(i))
+        matlab_varname = trim(gal_b%name)
         do j = 1, len_trim(matlab_varname)
           if (matlab_varname(j:j) == '-') matlab_varname(j:j) = '_'
           if (matlab_varname(j:j) == '#') matlab_varname(j:j) = '_'
@@ -585,50 +585,50 @@ contains
         end if
 
         write(unit,'("print(''Block ",I0,": ",A," dtype=",I0," ndata=",I0,"'')")') &
-              i, trim(matlab_varname), block%dtype, block%ndata
+              i, trim(matlab_varname), gal_b%dtype, gal_b%ndata
 
-        select case(block%dtype)
+        select case(gal_b%dtype)
         case(GALDATA_INT)
-          write(unit,'("if ",I0," > 0:")') block%ndata
+          write(unit,'("if ",I0," > 0:")') gal_b%ndata
           write(unit,'("    data[''geo''][''",A,"''] = np.array([")') trim(matlab_varname)
-          do j = 1, block%ndata
-            if (j < block%ndata) then
-              write(unit,'(I0,",")') block%idata(j)
+          do j = 1, gal_b%ndata
+            if (j < gal_b%ndata) then
+              write(unit,'(I0,",")') gal_b%idata(j)
             else
-              write(unit,'(I0)') block%idata(j)
+              write(unit,'(I0)') gal_b%idata(j)
             end if
           end do
           write(unit,'("    ], dtype=int)")')
           write(unit,'("else:")')
           write(unit,'("    data[''geo''][''",A,"''] = np.array([], dtype=int)")') trim(matlab_varname)
         case(GALDATA_REAL)
-          write(unit,'("if ",I0," > 0:")') block%ndata
+          write(unit,'("if ",I0," > 0:")') gal_b%ndata
           write(unit,'("    data[''geo''][''",A,"''] = np.array([")') trim(matlab_varname)
-          do j = 1, block%ndata
-            if (j < block%ndata) then
-              write(unit,'(ES15.8,",")') denorm(block%rdata(j), trim(block%unit))
+          do j = 1, gal_b%ndata
+            if (j < gal_b%ndata) then
+              write(unit,'(ES15.8,",")') denorm(gal_b%rdata(j), trim(gal_b%unit))
             else
-              write(unit,'(ES15.8)') denorm(block%rdata(j), trim(block%unit))
+              write(unit,'(ES15.8)') denorm(gal_b%rdata(j), trim(gal_b%unit))
             end if
           end do
           write(unit,'("    ], dtype=float)")')
           write(unit,'("else:")')
           write(unit,'("    data[''geo''][''",A,"''] = np.array([], dtype=float)")') trim(matlab_varname)
         case(GALDATA_CHAR)
-          write(unit,'("if len(''",A,"'') > 0:")') trim(block%cdata)
-          write(unit,'("    data[''geo''][''",A,"''] = ''",A,"''")') trim(matlab_varname), trim(block%cdata)
+          write(unit,'("if len(''",A,"'') > 0:")') trim(gal_b%cdata)
+          write(unit,'("    data[''geo''][''",A,"''] = ''",A,"''")') trim(matlab_varname), trim(gal_b%cdata)
           write(unit,'("else:")')
           write(unit,'("    data[''geo''][''",A,"''] = ''''")') trim(matlab_varname)
         case default
-          write(unit,'("print(f''Unknown dtype ",I0," for block ",A,"'')")') block%dtype, trim(matlab_varname)
+          write(unit,'("print(f''Unknown dtype ",I0," for block ",A,"'')")') gal_b%dtype, trim(matlab_varname)
           write(unit,'("data[''geo''][''",A,"''] = None  # Unknown dtype")') trim(matlab_varname)
         end select
 
         write(unit,'("data[''geo''][''",A,"_info''] = {")') trim(matlab_varname)
-        write(unit,'("    ''name'': ''",A,"'',")') trim(block%name)
-        write(unit,'("    ''unit'': ''",A,"'',")') trim(block%unit)
-        write(unit,'("    ''dtype'': ",I0,",")') block%dtype
-        write(unit,'("    ''ndata'': ",I0)') block%ndata
+        write(unit,'("    ''name'': ''",A,"'',")') trim(gal_b%name)
+        write(unit,'("    ''unit'': ''",A,"'',")') trim(gal_b%unit)
+        write(unit,'("    ''dtype'': ",I0,",")') gal_b%dtype
+        write(unit,'("    ''ndata'': ",I0)') gal_b%ndata
         write(unit,'("}")')
         write(unit,'("")')
       end associate
@@ -741,4 +741,4 @@ contains
     write(*,*) "Compile with: pdflatex ", trim(outfile)
   end subroutine
 
-end program galene_converter
+end program
