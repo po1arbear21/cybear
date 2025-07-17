@@ -28,6 +28,7 @@ mode = "release"
 single = true
 target = "dd"
 libraries = ["MPFR", "TRIANGLE", "ZLIB"]
+# m4vars = { m4_triangle = "1" }
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 
 templates = [
@@ -39,7 +40,7 @@ templates = [
   ], action = "expand" },
 ]
 
-[real_nw]
+[nw_3D]
 mode = "debug"
 single = true
 target = "nw_test"
@@ -61,7 +62,7 @@ templates = [
 [nw_2D]
 mode = "debug"
 single = true
-target = "nw_2D"
+target = "nw_2d"
 libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
@@ -76,3 +77,12 @@ templates = [
     "nw_2D.ini",
   ], action = "expand" },
 ]
+
+[galene_converter]
+mode = "debug"
+single = true
+target = "galene_converter"
+libraries = ["MPFR", "ZLIB"]
+args = ""
+
+templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]

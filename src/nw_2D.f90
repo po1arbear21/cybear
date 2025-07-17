@@ -1,4 +1,4 @@
-program nw_2D
+program nw_2d
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
@@ -38,7 +38,7 @@ program nw_2D
   ! call solve_small_signal()
   ! call solve_transient()
 
- contains
+contains
 
   subroutine command_line()
     !! parse command line arguments, init normalization, device and run file

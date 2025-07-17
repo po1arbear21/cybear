@@ -9,9 +9,9 @@ module device_params_m
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME, grid, grid_ptr
   use grid_data_m,      only: allocate_grid_data0_real, allocate_grid_data1_real, allocate_grid_data2_real, &
-    &                         allocate_grid_data3_real, allocate_grid_data0_int, allocate_grid_data1_int, &
-    &                         grid_data_int, grid_data_real
-  use grid_generator_m, only: DIR_NAME, generate_1D_grid, generate_triangle_grid
+  &                         allocate_grid_data3_real, allocate_grid_data0_int, allocate_grid_data1_int, &
+  &                         grid_data_int, grid_data_real
+  use grid_generator_m, only: DIR_NAME, generate_1D_grid m4_ifdef({m4_triangle},{, generate_triangle_grid})
   use grid_table_m,     only: grid_table
   use grid1D_m,         only: grid1D
   use input_m,          only: input_file
@@ -22,7 +22,7 @@ module device_params_m
   use string_m,         only: string, new_string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
-  use triangle_m,       only: triangulation
+  m4_ifdef({m4_triangle},{  use triangle_m,       only: triangulation})
   use util_m,           only: int2str, split_string
 
   implicit none
@@ -94,7 +94,7 @@ module device_params_m
       !! x, y, z grids
     type(tensor_grid)         :: tg
       !! tensor grid
-    type(triangulation)       :: tr
+    m4_ifdef({m4_triangle},{type(triangulation)       :: tr})
       !! triangles generated from regions
     type(triang_grid)         :: gtr
       !! triangle grid
@@ -453,7 +453,7 @@ contains
       end do
 
     case("tr_xy", "tr_xyz")
-      call generate_triangle_grid(file, load, this%reg, this%tr, this%gtr, gptr, ngptr)
+      m4_ifdef({m4_triangle},{      call generate_triangle_grid(file, load, this%reg, this%tr, this%gtr, gptr, ngptr)})
       if (dim == 3) then
         call generate_1D_grid(file, load, .false., this%gal_fl, 3, this%reg, this%g1D(3), gptr, ngptr)
       end if

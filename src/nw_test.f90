@@ -29,6 +29,7 @@ program nw_test
 
   print "(A)", "Start simulation on " // get_hostname()
   print *, "NW Test Here"
+  print *, "Current time: "
 
   ! parse command line arguments
   call command_line()
@@ -57,15 +58,15 @@ contains
       do i = iclopt(idesc), iclopt(idesc + 1) - 1
         j = jclopt(i)
         select case (clopt(j)%short)
-         case ('T')
+        case ('T')
           read (clopt(j)%arg, *) temperature
           call init_normconst(temperature)
           print "(A,ES25.16E3,A)", "T = ", temperature, " K"
 
-         case ('d')
+        case ('d')
           call dev%init(clopt(j)%arg, temperature)
 
-         case ('r')
+        case ('r')
           call runfile%init(clopt(j)%arg)
 
         end select
