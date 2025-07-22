@@ -28,7 +28,6 @@ mode = "release"
 single = true
 target = "dd"
 libraries = ["MPFR", "TRIANGLE", "ZLIB"]
-# m4vars = { m4_triangle = "1" }
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 
 templates = [

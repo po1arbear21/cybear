@@ -179,6 +179,7 @@ contains
       call ss%init(dev%sys_full, log = log, msg = "Newton: ")
       call ss%input_newton_params(runfile, "full newton params")
       call ss%input_var_params(runfile, "full newton params")
+      print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       call ss%init_output([new_string("pot"), new_string("ndens"),  new_string("V_GAT"), new_string("I_DRN")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
