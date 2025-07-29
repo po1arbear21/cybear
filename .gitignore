@@ -7,5 +7,6 @@
 *.gv
 doc
 jobs
+CLAUDE.md
 !.gitignore
 !.gitlab-ci.yml

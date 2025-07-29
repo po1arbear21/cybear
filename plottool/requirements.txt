@@ -1,0 +1,8 @@
+# Core plotting dependencies
+matplotlib>=3.5.0
+numpy>=1.20.0
+scipy>=1.7.0
+scienceplots>=2.0.0
+
+# Data conversion
+# flatbuffers>=2.0.0  # Optional, for direct FBS handling

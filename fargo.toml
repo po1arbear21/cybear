@@ -77,6 +77,24 @@ templates = [
   ], action = "expand" },
 ]
 
+[vfet_test]
+mode = "debug"
+single = true
+target = "nw_2d"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "run.ini",
+  ] },
+  { files = [
+    "vfet_test.ini",
+  ], action = "expand" },
+]
+
 [galene_converter]
 mode = "debug"
 single = true
