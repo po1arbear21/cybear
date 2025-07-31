@@ -181,12 +181,24 @@ contains
         j = j + 1
         idx1 = par%transport_vct(ict)%get_idx(i)
         call this%jaco_dens%set(idx1, idx1, 1.0)
-        if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
-          this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
-        else
-          call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
-          this%b(j) = par%smc%edos(ci) * F
-        end if
+        select case (par%contacts(ict)%type)
+        case (3)  ! CT_SCHOTTKY
+          ! Schottky contact: barrier-limited injection n_0 = N_c * exp(-q*Phi_B/(k*T))
+          if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
+            this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%barrier_height)
+          else
+            call par%smc%get_dist(- CR_CHARGE(ci) * par%contacts(ict)%barrier_height, 0, F, dF)
+            this%b(j) = par%smc%edos(ci) * F
+          end if
+        case default  ! CT_OHMIC, CT_GATE
+          ! Ohmic contact: infinite injection (equilibrium density)
+          if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
+            this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
+          else
+            call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
+            this%b(j) = par%smc%edos(ci) * F
+          end if
+        end select
       end do
     end do
 

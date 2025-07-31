@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module device_params_m
 
   use bin_search_m,     only: bin_search
-  use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use contact_m,        only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
   use container_m,      only: container, STORAGE_WRITE
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
@@ -1204,6 +1204,13 @@ contains
           this%contacts(ict)%name  = name%s
           this%contacts(ict)%type  = this%reg_ct(ri)%type
           this%contacts(ict)%phims = this%reg_ct(ri)%phims
+          ! copy Schottky-specific parameters
+          if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
+            this%contacts(ict)%barrier_height    = this%reg_ct(ri)%barrier_height
+            this%contacts(ict)%richardson_const  = this%reg_ct(ri)%richardson_const
+            this%contacts(ict)%surf_recomb_vel   = this%reg_ct(ri)%surf_recomb_vel
+            this%contacts(ict)%tunneling_enabled = this%reg_ct(ri)%tunneling_enabled
+          end if
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
           call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
           call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)

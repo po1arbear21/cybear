@@ -1,6 +1,6 @@
 module region_m
 
-  use contact_m,       only: CT_OHMIC, CT_GATE
+  use contact_m,       only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
@@ -43,9 +43,17 @@ module region_m
     type(string) :: name
       !! contact name
     integer      :: type
-      !! contact type (CT_OHMIC or CT_GATE)
+      !! contact type (CT_OHMIC, CT_GATE, or CT_SCHOTTKY)
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
+    real         :: barrier_height
+      !! Schottky barrier height Φ_B (eV)
+    real         :: richardson_const
+      !! Richardson constant A* (A/cm²/K²)
+    real         :: surf_recomb_vel(2)
+      !! surface recombination velocities S_n, S_p (cm/s)
+    logical      :: tunneling_enabled
+      !! enable field emission tunneling
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -146,11 +154,27 @@ contains
         this%type = CT_OHMIC
       elseif (type%s == "gate") then
         this%type = CT_GATE
+      elseif (type%s == "schottky") then
+        this%type = CT_SCHOTTKY
       else
         call program_error("unknown contact type "//type%s)
       end if
       call file%get(sid, "phims", this%phims, status = st)
       if (.not. st) this%phims = 0
+      
+      ! get Schottky-specific parameters
+      if (this%type == CT_SCHOTTKY) then
+        call file%get(sid, "barrier_height", this%barrier_height, status = st)
+        if (.not. st) this%barrier_height = 0.7  ! default 0.7 eV
+        call file%get(sid, "richardson_const", this%richardson_const, status = st)
+        if (.not. st) this%richardson_const = 112.0  ! default for Si
+        call file%get(sid, "surf_recomb_vel_n", this%surf_recomb_vel(1), status = st)
+        if (.not. st) this%surf_recomb_vel(1) = 1.0e7  ! default 10^7 cm/s
+        call file%get(sid, "surf_recomb_vel_p", this%surf_recomb_vel(2), status = st)
+        if (.not. st) this%surf_recomb_vel(2) = 1.0e7  ! default 10^7 cm/s
+        call file%get(sid, "tunneling", this%tunneling_enabled, status = st)
+        if (.not. st) this%tunneling_enabled = .false.  ! default off
+      end if
 
     end select
 

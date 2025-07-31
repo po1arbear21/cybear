@@ -27,9 +27,17 @@ module contact_m
     character(:), allocatable :: name
       !! contact name
     integer                   :: type
-      !! type of contact (CT_OHMIC, CT_GATE)
+      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY)
     real                      :: phims
       !! metal-semiconductor workfunction difference
+    real                      :: barrier_height
+      !! Schottky barrier height Φ_B (eV)
+    real                      :: richardson_const
+      !! Richardson constant A* (A/cm²/K²)
+    real                      :: surf_recomb_vel(2)
+      !! surface recombination velocities S_n, S_p (cm/s)
+    logical                   :: tunneling_enabled
+      !! enable field emission tunneling
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
   end type
