@@ -19,7 +19,7 @@ from cybear_plotter import CybearPlotter
 # ============================================================================
 
 # Basic settings
-JOB_NAME = 'vfet_test'
+JOB_NAME = 'nw_2D'
 FBS_FILE = 'SS.fbs'
 STYLE = 'ieee'  # Options: 'nature', 'ieee', 'retro', 'high-vis'
 

@@ -176,8 +176,17 @@ class CybearDataLoader:
         dict
             Dictionary containing simulation data
         """
-        # Construct path to FBS file
-        fbs_path = Path.cwd() / "jobs" / job_name / "run" / fbs_name
+        # Auto-locate cybear root and construct path
+        current = Path.cwd()
+        cybear_root = current
+        
+        # Find cybear root by looking for jobs and plottool directories
+        for path in [current] + list(current.parents):
+            if (path / 'jobs').exists() and (path / 'plottool').exists():
+                cybear_root = path
+                break
+        
+        fbs_path = cybear_root / "jobs" / job_name / "run" / fbs_name
         
         if not fbs_path.exists():
             raise FileNotFoundError(f"Simulation data not found: {fbs_path}")
@@ -310,7 +319,17 @@ class CybearDataLoader:
         list
             List of available .fbs file names
         """
-        job_path = Path.cwd() / "jobs" / job_name / "run"
+        # Auto-locate cybear root and construct path
+        current = Path.cwd()
+        cybear_root = current
+        
+        # Find cybear root by looking for jobs and plottool directories
+        for path in [current] + list(current.parents):
+            if (path / 'jobs').exists() and (path / 'plottool').exists():
+                cybear_root = path
+                break
+        
+        job_path = cybear_root / "jobs" / job_name / "run"
         
         if not job_path.exists():
             raise FileNotFoundError(f"Job directory not found: {job_path}")

@@ -1,0 +1,13 @@
+GALENE vs Cybear Comparison Summary
+========================================
+
+Cybear Job: nw_2D/SS.fbs
+GALENE Database: galene_database.mat
+Variables Compared: potential, n_density
+Generated Files: 4
+
+Generated Files:
+  - comparison_galene_potential.pdf
+  - comparison_cybear_potential.pdf
+  - comparison_galene_n_density.pdf
+  - comparison_cybear_n_density.pdf

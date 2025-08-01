@@ -343,8 +343,17 @@ class CybearPlotter:
         plt.Figure
             The created figure
         """
-        # Read log file directly (not from FBS)
-        log_path = Path.cwd() / "jobs" / job_name / "run" / "stdout.txt"
+        # Auto-locate cybear root and construct path
+        current = Path.cwd()
+        cybear_root = current
+        
+        # Find cybear root by looking for jobs and plottool directories
+        for path in [current] + list(current.parents):
+            if (path / 'jobs').exists() and (path / 'plottool').exists():
+                cybear_root = path
+                break
+        
+        log_path = cybear_root / "jobs" / job_name / "run" / "stdout.txt"
         
         if not log_path.exists():
             raise FileNotFoundError(f"Log file not found: {log_path}")
