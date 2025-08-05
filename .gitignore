@@ -5,6 +5,7 @@
 *.csv
 *.pdf
 *.gv
+*.mat
 doc
 jobs
 CLAUDE.md

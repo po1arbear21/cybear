@@ -41,7 +41,7 @@ contains
   subroutine command_line()
     !! parse command line arguments, init normalization, device and run file
 
-    integer                      :: i, j
+    integer                      :: idesc, i, j
     integer,         allocatable :: iclopt(:), jclopt(:)
     type(cl_option), allocatable :: clopt(:)
     type(cl_option_descriptor)   :: desc(3) = [ &
@@ -53,9 +53,10 @@ contains
 
     temperature = 300 ! default
 
-    do i = 1, size(iclopt)
-      j = jclopt(i)
-      select case (clopt(j)%short)
+    do idesc = 1, size(desc)
+      do i = iclopt(idesc), iclopt(idesc + 1) - 1
+        j = jclopt(i)
+        select case (clopt(j)%short)
       case ('T')
         read (clopt(j)%arg, *) temperature
         call init_normconst(temperature)
@@ -68,6 +69,7 @@ contains
         call runfile%init(clopt(j)%arg)
 
       end select
+      end do
     end do
   end subroutine
 
