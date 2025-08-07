@@ -40,6 +40,7 @@ module contact_m
       !! enable field emission tunneling
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
+    procedure :: set_phims_schottky => contact_set_phims_schottky
   end type
 
 contains
@@ -157,6 +158,66 @@ contains
         m4_ignore(drhodp)
       end if
     end subroutine
+  end subroutine
+
+  subroutine contact_set_phims_schottky(this, ci0, ci1, dop, ii_E_dop, smc)
+    !! set phims for Schottky contacts based on barrier height and doping
+    class(contact),        intent(inout) :: this
+    integer,               intent(in)    :: ci0, ci1
+      !! lower/upper carrier index (CR_ELEC, CR_HOLE)
+    real,                  intent(in)    :: dop(2)
+      !! donor/acceptor concentration
+    real,                  intent(in)    :: ii_E_dop(2)
+      !! dopant energy level (for incomplete ionization)
+    type(semiconductor),   intent(in)    :: smc
+      !! semiconductor parameters
+
+    real :: n_bulk, p_bulk, n_i, phi_bulk
+    real :: F, dF
+    integer :: ci
+
+    ! Calculate intrinsic carrier concentration
+    if ((smc%dos == DOS_PARABOLIC) .and. (smc%dist == DIST_MAXWELL)) then
+      n_i = sqrt(smc%edos(1) * smc%edos(2)) * exp(-0.5 * smc%band_gap)
+    else
+      ! For non-parabolic DOS, approximate with mid-gap
+      n_i = sqrt(smc%edos(1) * smc%edos(2)) * exp(-0.5 * smc%band_gap)
+    end if
+
+    ! Calculate bulk carrier concentrations based on doping
+    ! For simplicity, assume complete ionization at room temperature
+    if (dop(1) > dop(2)) then
+      ! n-type semiconductor
+      n_bulk = dop(1) - dop(2)  ! ND - NA
+      p_bulk = n_i**2 / n_bulk
+      
+      ! Bulk potential (from intrinsic level to Fermi level)
+      ! In normalized units: phi_bulk = ln(n_bulk/n_i)
+      phi_bulk = log(n_bulk / n_i)
+    else
+      ! p-type semiconductor
+      p_bulk = dop(2) - dop(1)  ! NA - ND
+      n_bulk = n_i**2 / p_bulk
+      
+      ! Bulk potential (from intrinsic level to Fermi level)
+      ! In normalized units: phi_bulk = -ln(p_bulk/n_i)
+      phi_bulk = -log(p_bulk / n_i)
+    end if
+
+    ! Set phims for Schottky contact
+    ! phims = phi_bulk - barrier_height
+    ! The barrier height reduces the built-in potential
+    this%phims = phi_bulk - this%barrier_height
+
+    ! Debug output
+    print *, "DEBUG: set_phims_schottky:"
+    print *, "  n_i (normalized) =", n_i
+    print *, "  Doping: ND =", dop(1), ", NA =", dop(2)
+    print *, "  n_bulk =", n_bulk, ", p_bulk =", p_bulk
+    print *, "  phi_bulk =", phi_bulk
+    print *, "  barrier_height =", this%barrier_height
+    print *, "  phims =", this%phims
+
   end subroutine
 
 end module

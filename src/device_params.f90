@@ -1132,6 +1132,13 @@ contains
 
     this%nct = nct
     allocate (this%contacts(nct))
+    ! Initialize contact fields to avoid garbage values
+    do ict = 1, nct
+      this%contacts(ict)%barrier_height = 0.0
+      this%contacts(ict)%richardson_const = 0.0
+      this%contacts(ict)%surf_recomb_vel = 0.0
+      this%contacts(ict)%tunneling_enabled = .false.
+    end do
 
     ! allocate/initialize grid data
     allocate (idx(idx_dim))
@@ -1272,21 +1279,33 @@ contains
     do ict = 1, nct
       call this%contacted(ict)%init_final()
 
-      ! set phims for ohmic contacts
-      if (this%contacts(ict)%type == CT_OHMIC) then
+      ! set phims for ohmic and Schottky contacts
+      if (this%contacts(ict)%type == CT_OHMIC .or. this%contacts(ict)%type == CT_SCHOTTKY) then
         ! find vertex indices in transport region
         do i = 1, this%contacted(ict)%n
           idx = this%contacted(ict)%get_idx(i)
           if (this%transport(IDX_VERTEX,0)%flags%get(idx)) exit
         end do
-        if (i > this%contacted(ict)%n) call program_error("Ohmic contact "//this%contacts(ict)%name//" not at transport region")
+        if (i > this%contacted(ict)%n) then
+          if (this%contacts(ict)%type == CT_OHMIC) then
+            call program_error("Ohmic contact "//this%contacts(ict)%name//" not at transport region")
+          else
+            call program_error("Schottky contact "//this%contacts(ict)%name//" not at transport region")
+          end if
+        end if
 
-        ! calculate phims using charge neutrality
+        ! get doping at contact
         dop(DOP_DCON) = this%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
         dop(DOP_ACON) = this%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
         ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
         ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
-        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+        
+        ! calculate phims based on contact type
+        if (this%contacts(ict)%type == CT_OHMIC) then
+          call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+        else if (this%contacts(ict)%type == CT_SCHOTTKY) then
+          call this%contacts(ict)%set_phims_schottky(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+        end if
       end if
 
       ! update contact vertex tables

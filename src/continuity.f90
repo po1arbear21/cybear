@@ -201,6 +201,19 @@ contains
             S = calculate_thermionic_velocity(par, ci, ict1)
             D = par%mob0(IDX_EDGE, idx_dir, ci)%get(idx)  ! D = mobility in normalized units
             
+            ! Debug output
+            if (i == 1) then
+              print *, "DEBUG Robin BC parameters (edge 1):"
+              print *, "  n0 =", n0
+              print *, "  S =", S
+              print *, "  D =", D
+              print *, "  dx =", dx
+              print *, "  surf =", surf
+              print *, "  D/dx =", D/dx
+              print *, "  D/dx + S =", D/dx + S
+              print *, "  -(D/dx + S)*surf =", -(D/dx + S) * surf
+            end if
+            
             ! Robin BC: -D(n2 - n1)/dx = S(n1 - n0)
             ! Rearrange: D/dx * n2 - (D/dx + S) * n1 = -S * n0
             call this%jaco_cdens(idx_dir)%p%set(idx1, idx, -(D/dx + S) * surf)  ! contact vertex
@@ -255,8 +268,15 @@ contains
     do ict = 1, par%nct
       select case (par%contacts(ict)%type)
       case (CT_SCHOTTKY)
-        ! Skip Dirichlet BC for Schottky contacts - handled by Robin BC in edge assembly
-        j = j + par%transport_vct(ict)%n
+        ! Apply approximate Dirichlet BC for initial guess at Schottky contacts
+        ! The Robin BC in edge assembly will handle the actual physics
+        do i = 1, par%transport_vct(ict)%n
+          j = j + 1
+          idx1 = par%transport_vct(ict)%get_idx(i)
+          call this%jaco_dens%set(idx1, idx1, 1.0)
+          ! Use equilibrium density as initial guess
+          this%b(j) = calculate_equilibrium_density(par, ci, ict)
+        end do
       case default  ! CT_OHMIC, CT_GATE
         ! Apply Dirichlet BC for Ohmic/Gate contacts
         do i = 1, par%transport_vct(ict)%n
@@ -307,20 +327,24 @@ contains
           ict1 = this%par%ict%get(idx1)
           ict2 = this%par%ict%get(idx2)
           
-          ! Get indices in solution vector using vselector
+          ! CRITICAL FIX: Only add contribution to the INTERIOR (uncontacted) vertex
+          ! The Robin BC contribution should only affect the equation of the interior vertex
+          ! Not both vertices (which was causing double-counting)
+          
           if (ict1 == 0) then
+            ! Vertex 1 is interior, vertex 2 is contact
             j1 = this%dens%itab%get(idx1)
             if (j1 > 0 .and. j1 <= this%par%transport_vct(0)%n) then
               tmp(j1) = tmp(j1) - this%b_edge(i, idx_dir)
             end if
-          end if
-          
-          if (ict2 == 0) then
+          else if (ict2 == 0) then
+            ! Vertex 2 is interior, vertex 1 is contact
             j2 = this%dens%itab%get(idx2)
             if (j2 > 0 .and. j2 <= this%par%transport_vct(0)%n) then
               tmp(j2) = tmp(j2) - this%b_edge(i, idx_dir)
             end if
           end if
+          ! If both vertices are contacted or both uncontacted, no Robin BC contribution
         end if
       end do
     end do
@@ -338,40 +362,87 @@ contains
     
     real :: phi_B
     
+    ! barrier_height is already in normalized units from input file parsing
     phi_B = par%contacts(ict)%barrier_height
     
-    ! Use same pattern as existing ohmic contact calculation
+    ! Schottky barrier reduces carrier density for both electrons and holes
+    ! n₀ = N_c * exp(-Φ_B/kT) where Φ_B > 0 is the barrier height
     if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
-      n0 = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(-CR_CHARGE(ci) * phi_B)
+      ! The barrier always reduces density, regardless of carrier type
+      n0 = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(-phi_B)
     else
-      call par%smc%get_dist(-CR_CHARGE(ci) * phi_B, 0, n0, phi_B)  ! use phi_B as dummy for dF
+      ! For general distribution, barrier reduces occupancy
+      call par%smc%get_dist(-phi_B, 0, n0, phi_B)  ! use phi_B as dummy for dF
       n0 = par%smc%edos(ci) * n0
     end if
   end function
 
   function calculate_thermionic_velocity(par, ci, ict) result(S)
     !! Calculate thermionic emission velocity
-    !! S = (A*T²)/(q*N_c) * exp(-q*Φ_B/kT)
+    !! S = (A*T²)/(q*N_c) - NO barrier factor here!
+    !! The barrier is included in n₀, not in S
+    use normalization_m, only: norm, denorm
+    
     type(device_params), intent(in) :: par
     integer,             intent(in) :: ci   ! carrier index
     integer,             intent(in) :: ict  ! contact index  
     real                            :: S
     
-    real :: A_star, phi_B, T, N_c, n0
+    real :: A_star_phys, phi_B_norm, T, N_c, exp_factor
+    real :: N_c_physical, S_physical, A_star_norm, phi_B_phys
+    real, parameter :: ELEMENTARY_CHARGE = 1.602176634e-19  ! C (exact NIST value)
+    logical, save :: first_call = .true.
     
-    A_star = par%contacts(ict)%richardson_const  ! A/cm²/K²
-    phi_B = par%contacts(ict)%barrier_height     ! eV
-    T = par%T                                    ! K
-    N_c = par%smc%edos(ci)                      ! cm⁻³
+    ! Get parameters (already normalized from input file parsing!)
+    A_star_norm = par%contacts(ict)%richardson_const  ! Already normalized
+    phi_B_norm = par%contacts(ict)%barrier_height     ! Already normalized
+    T = par%T                                         ! K (physical)
+    N_c = par%smc%edos(ci)                           ! normalized density
     
-    ! Get equilibrium density (includes exp(-q*Φ_B/kT) factor)  
-    n0 = calculate_equilibrium_density(par, ci, ict)
+    ! CRITICAL FIX: Values from input file are ALREADY NORMALIZED
+    ! Denormalize them to get physical values for display
+    A_star_phys = denorm(A_star_norm, "A/cm^2/K^2")
+    phi_B_phys = denorm(phi_B_norm, "eV")
     
-    ! S = A*T²/(q*N_c) * exp(-q*Φ_B/kT) = A*T²*n0/(q*N_c²)
-    ! But need to be careful about charge sign and units
-    S = A_star * T**2 * n0 / (abs(CR_CHARGE(ci)) * N_c)
+    ! IMPORTANT: The thermionic emission velocity S does NOT include the barrier!
+    ! The barrier effect is included in n₀ (equilibrium density), not in S
+    ! S = (A*T²)/(q*N_c) is just the emission velocity coefficient
+    exp_factor = 1.0  ! No barrier factor in velocity calculation!
     
-    ! Note: This gives S in units of cm/s if A* is in A/cm²/K² and other units are consistent
+    ! Denormalize N_c to physical units (cm⁻³)
+    N_c_physical = denorm(N_c, "1/cm^3")
+    
+    if (first_call) then
+      print *, "DEBUG calculate_thermionic_velocity:"
+      print *, "  A_star (physical) =", A_star_phys, "A/cm²/K²"
+      print *, "  A_star (normalized) =", A_star_norm
+      print *, "  phi_B (physical) =", phi_B_phys, "eV"
+      print *, "  phi_B (normalized) =", phi_B_norm
+      print *, "  T =", T, "K"
+      print *, "  N_c (normalized) =", N_c
+      print *, "  N_c_physical =", N_c_physical, "cm⁻³"
+      print *, "  CR_CHARGE(ci) =", CR_CHARGE(ci)
+      print *, "  exp_factor =", exp_factor
+      print *, "  ELEMENTARY_CHARGE =", ELEMENTARY_CHARGE, "C"
+    end if
+    
+    ! Calculate thermionic velocity in physical units
+    ! S = (A*T²)/(q*N_c) - WITHOUT barrier factor
+    ! A* in A/cm²/K², T in K, exp_factor=1.0, EC in C, N_c in cm⁻³
+    ! Units: [A/cm²/K²][K²]/([C][cm⁻³]) = [A/cm²]/[C/cm³] = [A·cm]/[C] 
+    ! Since A = C/s, we get [C·cm/s]/[C] = cm/s ✓
+    S_physical = (A_star_phys * T**2 * exp_factor) / (ELEMENTARY_CHARGE * N_c_physical)  ! cm/s
+    
+    ! Normalize to simulator units
+    S = norm(S_physical, "cm/s")
+    
+    if (first_call) then
+      print *, "  S_physical =", S_physical, "cm/s"
+      print *, "  S (normalized) =", S
+      first_call = .false.
+    end if
+    
+    ! Note: This properly handles pre-normalized input values
   end function
 
 end module
