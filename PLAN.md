@@ -694,22 +694,64 @@ I = I_s * (exp(qV/kT) - 1)
 
 ---
 
+## **🚨 CRITICAL PHYSICS ERROR - INCORRECT I-V BEHAVIOR**
+
+### **Observed Problem: Non-Physical I-V Characteristics**
+**Date:** August 7, 2025  
+**Issue:** Simulation shows **opposite** of expected Schottky diode behavior
+
+#### **What We're Seeing (WRONG):**
+- Peak current at V = 0V
+- Current collapses toward zero by V = 0.2V
+- Decreasing current with forward bias
+
+#### **What We Should See (CORRECT):**
+- Near-zero current at V = 0V  
+- Exponential increase with forward bias
+- Current should be ~10^4 times higher at V = 0.8V than at V = 0V
+
+### **Root Cause Analysis**
+
+This inverted I-V characteristic indicates a **fundamental sign or BC error**, not just parameter tuning:
+
+1. **Sign Error in Robin BC** - Most likely culprit
+   - Current formulation may be injecting when it should extract
+   - Check signs in: `-D∇n = S(n - n₀)`
+   
+2. **Boundary Condition Reversal**
+   - Robin BC may be applied with wrong orientation
+   - Interior vs contact vertex assignment could be swapped
+
+3. **Current Calculation Error**
+   - Post-processing may have sign flip
+   - Current density integration could be inverted
+
+4. **Matrix Assembly Bug**
+   - Jacobian entries might have wrong signs
+   - Edge contribution signs could be flipped
+
+### **Diagnostic Strategy**
+
+1. **Check equilibrium (V=0):** Should have near-zero current
+2. **Verify carrier injection:** Forward bias should increase n at contact
+3. **Examine edge contributions:** Sign of `b_edge` terms
+4. **Review matrix entries:** Signs in Jacobian assembly
+
 ## **🎯 NEXT STEPS**
 
-### **Immediate Actions**
-1. **Investigate current sign** - Verify if negative is correct convention
-2. **Validate physics** - Compare I-V curve with analytical model
-3. **Parameter sweep** - Test different barrier heights
-4. **Temperature study** - Verify Arrhenius behavior
+### **Immediate Actions - FIX PHYSICS**
+1. **Debug sign convention** in Robin BC implementation
+2. **Verify boundary orientation** (contact vs interior vertex)
+3. **Check current calculation** sign and direction
+4. **Test with simple cases** (e.g., S=0 should give ohmic behavior)
 
-### **Future Enhancements**
-1. **Image force lowering** - Implement barrier lowering with field
-2. **Tunneling** - Add field emission for thin barriers
-3. **Surface states** - Include interface trap effects
-4. **2D/3D extension** - Generalize to higher dimensions
+### **Validation Required**
+- Current at V=0 should be ~10^-8 A/cm²
+- Current at V=0.8V should be ~10^-2 A/cm²
+- Rectification ratio > 10^6
 
 ---
 
-**Status:** ✅ **IMPLEMENTATION COMPLETE** - Schottky contacts functional with Robin BC
-**Achievement:** From non-convergent to working implementation in single session
-**Impact:** Enables simulation of Schottky barrier devices in Cybear
+**Status:** ❌ **PHYSICS ERROR** - Implementation runs but produces non-physical results
+**Priority:** Critical - Must fix sign/BC error before any other work
+**Impact:** Current implementation unusable for Schottky barrier devices

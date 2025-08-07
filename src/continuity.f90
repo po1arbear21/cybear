@@ -369,7 +369,7 @@ contains
     ! n₀ = N_c * exp(-Φ_B/kT) where Φ_B > 0 is the barrier height
     if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
       ! The barrier always reduces density, regardless of carrier type
-      n0 = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(-phi_B)
+      n0 = par%smc%edos(ci) * exp(-phi_B)
     else
       ! For general distribution, barrier reduces occupancy
       call par%smc%get_dist(-phi_B, 0, n0, phi_B)  ! use phi_B as dummy for dF
