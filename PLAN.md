@@ -752,6 +752,122 @@ This inverted I-V characteristic indicates a **fundamental sign or BC error**, n
 
 ---
 
-**Status:** ❌ **PHYSICS ERROR** - Implementation runs but produces non-physical results
-**Priority:** Critical - Must fix sign/BC error before any other work
-**Impact:** Current implementation unusable for Schottky barrier devices
+## **🎯 CRITICAL BUGS IDENTIFIED - DECEMBER 2024**
+
+### **Bug #1: Dirichlet BC Override (ROOT CAUSE)**
+**Location:** `src/continuity.f90:291-307`  
+**Problem:** Schottky contacts have BOTH Dirichlet BC (n=n₀) AND Robin BC from edges  
+**Effect:** Over-constrained system forcing huge spurious currents  
+
+The code applies TWO conflicting boundary conditions:
+1. **Edge Assembly**: Sets up proper Robin BC with matrix entries `-(D/dx + S)` and `(D/dx)`
+2. **Dirichlet Override**: Then sets `matrix[contact,contact] = 1` and `RHS = n₀`
+
+This forces the contact density to a fixed value, completely negating the Robin BC physics!
+
+**Solution:** Remove Dirichlet BC for Schottky contacts - let Robin BC fully determine density
+
+### **Bug #2: Missing Bias Dependence**
+**Location:** `src/continuity.f90:410`  
+**Problem:** `exp_factor = 1.0` hardcoded - no bias dependence in thermionic emission  
+**Effect:** BC frozen at equilibrium regardless of applied voltage  
+
+Thermionic emission should be:
+```
+J = A*T² × exp(-Φ_B/kT) × [exp(qV/kT) - 1]
+```
+
+But the bias term `exp(qV/kT)` is missing, so forward bias doesn't increase injection!
+
+**Solution:** 
+- Move Robin BC assembly from `init` to `eval` 
+- Recalculate thermionic parameters with current potential during iterations
+- Include voltage-dependent exp factor
+
+### **Bug #3: Weak Thermionic Coupling (Physical, not bug)**
+**Observation:** S ≈ 1.9×10⁶ cm/s << D/dx ≈ 3.1×10⁷ cm/s  
+**Effect:** Diffusion dominates (94%) over thermionic emission (6%)  
+**Note:** This may be physically correct for Φ_B = 0.7 eV
+
+### **Implementation Strategy**
+
+The key insight is that **Robin BC parameters must update during Newton iterations** as the potential changes:
+
+1. **Remove Dirichlet BC override** for Schottky contacts
+2. **Move Robin BC edge assembly to eval()** so it updates each iteration
+3. **Calculate bias-dependent thermionic velocity** using current potential
+4. **Update equilibrium density n₀** based on applied voltage
+
+This transforms the static BC into a dynamic, bias-responsive boundary condition that produces proper rectifying behavior.
+
+---
+
+## **📊 IMPLEMENTATION STATUS - DECEMBER 2024**
+
+### **✅ Completed Fixes**
+
+#### **1. Removed Dirichlet BC Override**
+- **Location:** `src/continuity.f90:292-307`
+- **Change:** Schottky contacts no longer apply Dirichlet BC (n=n₀)
+- **Result:** Eliminated over-constrained system, Robin BC now fully determines contact density
+
+#### **2. Added Potential Dependency**
+- **Files Modified:** 
+  - `src/continuity.f90`: Added potential pointer to type, modified init signature
+  - `src/device.f90`: Pass potential to continuity initialization
+- **Result:** Continuity equation now has access to electrostatic potential for bias-dependent calculations
+
+#### **3. Implemented Dynamic Robin BC**
+- **Location:** `src/continuity.f90:335-393`
+- **Features:**
+  - New `update_robin_bc()` subroutine called in `eval()`
+  - Recalculates b_edge array based on current potential
+  - Bias-dependent equilibrium density: n₀(V) = N_c × exp(-(Φ_B - qV)/kT)
+- **Result:** Robin BC now updates during Newton iterations
+
+### **⚠️ Current Issues - CONVERGENCE FAILURE**
+
+#### **Problem: Newton Solver Not Converging**
+- **Symptom:** "Solution could not be found within maximum number of iterations"
+- **Observation:** Bias-dependent calculations are triggered (confirmed by debug output)
+- **Root Cause:** Unknown - needs investigation
+
+#### **Possible Causes:**
+1. **Numerical instability** from rapidly changing BC during iterations
+2. **Incorrect sign** in bias-dependent formula
+3. **Too aggressive BC update** - may need damping/relaxation
+4. **Matrix conditioning** degraded by dynamic BC
+5. **Initial guess** too far from solution with new BC
+
+### **🔍 Debug Observations**
+- Multiple "DEBUG: Bias-dependent n0:" messages confirm BC is updating
+- System compiles and runs without crashes
+- Robin BC edge contributions are being recalculated
+- But Newton solver fails to converge to solution
+
+### **📋 Next Steps Required**
+
+1. **Add detailed convergence diagnostics**
+   - Print residuals at each iteration
+   - Monitor how n₀ changes with bias
+   - Check if BC values are reasonable
+
+2. **Implement damping/relaxation**
+   - Gradually update BC rather than full step
+   - Use under-relaxation factor (e.g., 0.1-0.5)
+
+3. **Verify physics implementation**
+   - Check sign of bias term in exponential
+   - Ensure proper charge sign for electrons/holes
+   - Validate against analytical expressions
+
+4. **Consider alternative approaches**
+   - Update BC less frequently (every N iterations)
+   - Use previous solution as better initial guess
+   - Implement adaptive BC update strategy
+
+---
+
+**Status:** ⚠️ **PARTIALLY WORKING** - BC updates implemented but convergence issues remain
+**Priority:** Critical - Must resolve convergence for functional Schottky simulation
+**Impact:** System architecture correct but numerical stability needs improvement

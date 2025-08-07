@@ -34,8 +34,6 @@ module contact_m
       !! Schottky barrier height Φ_B (eV)
     real                      :: richardson_const
       !! Richardson constant A* (A/cm²/K²)
-    real                      :: surf_recomb_vel(2)
-      !! surface recombination velocities S_n, S_p (cm/s)
     logical                   :: tunneling_enabled
       !! enable field emission tunneling
   contains

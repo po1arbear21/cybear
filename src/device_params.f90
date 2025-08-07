@@ -1136,7 +1136,6 @@ contains
     do ict = 1, nct
       this%contacts(ict)%barrier_height = 0.0
       this%contacts(ict)%richardson_const = 0.0
-      this%contacts(ict)%surf_recomb_vel = 0.0
       this%contacts(ict)%tunneling_enabled = .false.
     end do
 
@@ -1211,12 +1210,35 @@ contains
           this%contacts(ict)%name  = name%s
           this%contacts(ict)%type  = this%reg_ct(ri)%type
           this%contacts(ict)%phims = this%reg_ct(ri)%phims
+          
+          print *, "DEBUG: device_params - Contact initialization:"
+          print *, "  Contact name: ", trim(name%s)
+          print *, "  Contact index: ", ict
+          print *, "  Contact type: ", this%reg_ct(ri)%type
+          select case (this%reg_ct(ri)%type)
+          case (CT_OHMIC)
+            print *, "  Contact type name: OHMIC"
+          case (CT_GATE) 
+            print *, "  Contact type name: GATE"
+          case (CT_SCHOTTKY)
+            print *, "  Contact type name: SCHOTTKY"
+          case default
+            print *, "  Contact type name: UNKNOWN"
+          end select
+          print *, "  phims: ", this%contacts(ict)%phims
+          
           ! copy Schottky-specific parameters
           if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
             this%contacts(ict)%barrier_height    = this%reg_ct(ri)%barrier_height
             this%contacts(ict)%richardson_const  = this%reg_ct(ri)%richardson_const
-            this%contacts(ict)%surf_recomb_vel   = this%reg_ct(ri)%surf_recomb_vel
             this%contacts(ict)%tunneling_enabled = this%reg_ct(ri)%tunneling_enabled
+            
+            print *, "  === SCHOTTKY PARAMETERS ==="
+            print *, "  barrier_height (normalized): ", this%contacts(ict)%barrier_height
+            print *, "  barrier_height (eV): ", denorm(this%contacts(ict)%barrier_height, "eV")
+            print *, "  richardson_const (normalized): ", this%contacts(ict)%richardson_const  
+            print *, "  richardson_const (A/cm^2/K^2): ", denorm(this%contacts(ict)%richardson_const, "A/cm^2/K^2")
+            print *, "  tunneling_enabled: ", this%contacts(ict)%tunneling_enabled
           end if
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
           call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)

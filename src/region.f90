@@ -50,8 +50,6 @@ module region_m
       !! Schottky barrier height Φ_B (eV)
     real         :: richardson_const
       !! Richardson constant A* (A/cm²/K²)
-    real         :: surf_recomb_vel(2)
-      !! surface recombination velocities S_n, S_p (cm/s)
     logical      :: tunneling_enabled
       !! enable field emission tunneling
   contains
@@ -171,10 +169,6 @@ contains
         print *, "DEBUG region_contact_init: Contact", trim(this%name%s), "type=SCHOTTKY"
         print *, "  barrier_height =", this%barrier_height, "eV"
         print *, "  richardson_const =", this%richardson_const, "A/cm²/K²"
-        call file%get(sid, "surf_recomb_vel_n", this%surf_recomb_vel(1), status = st)
-        if (.not. st) this%surf_recomb_vel(1) = 1.0e7  ! default 10^7 cm/s
-        call file%get(sid, "surf_recomb_vel_p", this%surf_recomb_vel(2), status = st)
-        if (.not. st) this%surf_recomb_vel(2) = 1.0e7  ! default 10^7 cm/s
         call file%get(sid, "tunneling", this%tunneling_enabled, status = st)
         if (.not. st) this%tunneling_enabled = .false.  ! default off
       end if

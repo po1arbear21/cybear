@@ -257,18 +257,51 @@ contains
     !! evaluate Ramo-Shockley current equation
     class(ramo_shockley_current), intent(inout) :: this
 
-    integer           :: idx_dir, ci
+    integer           :: idx_dir, ci, ict
     real, allocatable :: tmp(:)
+    real, allocatable :: curr_vals(:), cdens_vals(:)
 
     allocate (tmp(this%curr%n))
 
+    print *, "DEBUG: Ramo-Shockley current calculation"
+    print *, "  Number of contacts: ", this%par%nct
+    print *, "  Carrier range: ", this%par%ci0, " to ", this%par%ci1
+    print *, "  Dimension: ", this%par%g%idx_dim
+
     ! calculate residuals
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
+    
+    ! Debug current values
+    curr_vals = this%curr%get()
+    print *, "  Current values (normalized):"
+    do ict = 1, this%par%nct
+      if (ict <= size(curr_vals)) then
+        print *, "    Contact ", ict, " (", trim(this%par%contacts(ict)%name), "):"
+        print *, "      I (normalized) = ", curr_vals(ict)
+        print *, "      I (physical) = ", denorm(curr_vals(ict), "A"), " A"
+        print *, "      I (mA) = ", denorm(curr_vals(ict), "A") * 1000.0, " mA"
+      end if
+    end do
+    
     do ci = this%par%ci0, this%par%ci1
+      print *, "  Carrier ", ci, ":"
       do idx_dir = 1, this%par%g%idx_dim
+        cdens_vals = this%cdens(idx_dir,ci)%get()
+        print *, "    Direction ", idx_dir, ": current density contributions"
+        print *, "      Number of edges: ", size(cdens_vals)
+        if (size(cdens_vals) > 0) then
+          print *, "      Max |cdens| = ", maxval(abs(cdens_vals))
+          print *, "      Max |cdens| (physical) = ", denorm(maxval(abs(cdens_vals)), "1/cm^2/s"), " cm⁻²s⁻¹"
+        end if
         call this%jaco_cdens(idx_dir,ci)%p%matr%mul_vec(this%cdens(idx_dir,ci)%get(), tmp, fact_y = 1.0)
       end do
     end do
+    
+    print *, "  Final residual tmp:"
+    do ict = 1, min(size(tmp), this%par%nct)
+      print *, "    tmp(", ict, ") = ", tmp(ict)
+    end do
+    
     call this%f%set(tmp)
   end subroutine
 
