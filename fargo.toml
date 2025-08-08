@@ -88,7 +88,7 @@ partition = "faster"
 
 templates = [
   { files = [
-    "run.ini",
+    "run_vfet.ini",
   ] },
   { files = [
     "vfet_test.ini",
@@ -98,7 +98,7 @@ templates = [
 [schottky_test]
 mode = "debug"
 single = true
-target = "schottky_test"  
+target = "schottky_test"
 libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"

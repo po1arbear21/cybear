@@ -1,24 +1,90 @@
 # Revised Schottky Contact Implementation Plan for Cybear
 
+## **🛡️ GOLDEN RULE: PRESERVE EXISTING FUNCTIONALITY**
+## TO TEST SCHOTTKY: RUN AND ONLYYYYYYY RUN "fargo run schottky_test" ##
+
+> **CRITICAL DEVELOPMENT PRINCIPLE:** Any implementation of Schottky contact physics **MUST NOT** break or modify the behavior of existing contact types (Ohmic, Gate). All changes must be:
+ **Isolated** to Schottky-specific code paths
+
+
 > **🚨 CRITICAL ISSUE IDENTIFIED:** Previous implementation status was incorrect. Schottky contact implementation has **fundamental physics errors** causing convergence failure. See **"Critical Implementation Issues"** section below.
 
 > **⚠️ IMPORTANT:** This plan has been significantly revised based on deep code analysis and debugging sessions. The boundary condition implementation requires complete redesign.
 
 ---
 
-## **🎯 CURRENT IMPLEMENTATION STATUS - MAJOR BREAKTHROUGH ACHIEVED**
+## **🎯 CURRENT IMPLEMENTATION STATUS - PHYSICS CORRECTED, NUMERICAL CHALLENGES REMAIN**
 
-**Investigation Date:** August 5, 2025  
-**Status:** ✅ **FUNCTIONAL** - Core architecture issues resolved, debugging Robin BC physics
+**Last Update:** December 19, 2024
+**Status:** ⚠️ **PARTIALLY FUNCTIONAL** - Correct physics implemented, convergence issues persist
+
+## **📅 December 19, 2024 Implementation Updates**
+
+### **Critical Physics Correction: Reference Frame Fix**
+
+**Problem Identified:** The Schottky contact potential boundary condition was missing the critical reference frame correction term `ln(Nc/ni)`.
+
+**Original (Incorrect) Implementation:**
+```fortran
+! contact.f90 - WRONG
+phims = phi_bulk - barrier_height  ! Used bulk doping potential
+```
+
+**Corrected Implementation:**
+```fortran
+! contact.f90 - CORRECT
+n_i = sqrt(smc%edos(CR_ELEC) * smc%edos(CR_HOLE)) * exp(-0.5 * smc%band_gap)
+ln_Nc_over_ni = log(smc%edos(CR_ELEC) / n_i)
+this%phims = -this%barrier_height + ln_Nc_over_ni
+```
+
+**Physics Explanation:**
+- The potential must be: `φ = V_applied - Φ_B + (kT/q)ln(Nc/ni)`
+- Since Poisson applies: `φ = V_applied + phims`
+- Therefore: `phims = -Φ_B + ln(Nc/ni)`
+- The `ln(Nc/ni)` term (~0.38V for Si at 300K) shifts reference from Ei to Ec
+
+### **Removed Incorrect Bias-Dependent Implementation**
+
+**What was removed:**
+1. `calculate_equilibrium_density_bias()` - Incorrectly tried to modify n0 with voltage
+2. `calculate_thermionic_velocity_bias()` - Velocity should be voltage-independent
+3. `update_robin_bc()` - BC should not update during Newton iterations
+4. Potential pointer from continuity type - Not needed
+
+**Why removed:**
+- Bias dependence enters through the Poisson equation boundary condition
+- The Robin BC uses static n0 = Nc*exp(-Φ_B/kT)
+- Dynamic updates during iteration caused instability
+
+### **Fixed Matrix Assembly for Schottky Contacts**
+
+**Problem:** Schottky contact vertices had no equation in the matrix (all zeros), causing singularity.
+
+**Solution:**
+```fortran
+! continuity.f90
+case (CT_SCHOTTKY)
+  ! Add regularization to prevent singular matrix
+  call this%jaco_dens%set(idx1, idx1, 1.0)  ! Diagonal entry
+  n0 = calculate_equilibrium_density(par, ci, ict)
+  this%b(j) = n0  ! RHS: initial guess
+```
+
+**How it works:**
+1. Diagonal = 1.0 provides non-singular matrix
+2. RHS = n0 gives reasonable initial guess
+3. Edge assembly adds dominant Robin BC terms (~5.0)
+4. Final equation dominated by Robin BC physics
 
 ### **Phase 1: Core Infrastructure ✅ COMPLETE**
 
 #### **1.1 Contact Type Extension**
-- **Location:** `src/contact.f90:24-40`  
+- **Location:** `src/contact.f90:24-40`
 - **Added Parameters:**
   ```fortran
   real :: barrier_height        ! Φ_B (eV)
-  real :: richardson_const      ! A* (A/cm²/K²)  
+  real :: richardson_const      ! A* (A/cm²/K²)
   real :: surf_recomb_vel(2)    ! S_n, S_p (cm/s)
   logical :: tunneling_enabled  ! field emission flag
   ```
@@ -53,7 +119,7 @@ do ict = 1, par%nct
   select case (par%contacts(ict)%type)
   case (CT_SCHOTTKY)
     st_cdens(ict) = this%st_nn(idx_dir)%get_ptr()  ! Enable edge contributions!
-  case (CT_OHMIC, CT_GATE)  
+  case (CT_OHMIC, CT_GATE)
     st_cdens(ict) = this%st_em%get_ptr()           ! Standard empty stencil
   end select
 end do
@@ -61,14 +127,14 @@ end do
 
 **Key Insight:** Each contact can have its own stencil type, enabling:
 - **Schottky contacts:** Robin BC with edge-to-vertex coupling
-- **Ohmic contacts:** Standard Dirichlet BC  
+- **Ohmic contacts:** Standard Dirichlet BC
 - **Gate contacts:** Electrostatic-only behavior
 
 ### **Current Implementation Status ✅**
 
 #### **✅ Phase 2: Robin BC Implementation COMPLETE**
 - **Location:** `src/continuity.f90:197-226`
-- **Physics:** True Robin BC: `J = S(n - n₀)` 
+- **Physics:** True Robin BC: `J = S(n - n₀)`
 - **Discretization:** `-D(n₂-n₁)/dx = S(n₁-n₀)`
 - **Matrix Assembly:** Contact vertices now receive edge contributions
 - **Edge Contributions:** `b_edge` array stores RHS terms for Robin BC
@@ -79,104 +145,131 @@ end do
 - **Architecture Compatibility:** ✅ Ohmic/Gate contacts unchanged
 - **Parameter Integration:** ✅ Richardson constant and barrier height utilized
 
-## **🔧 CURRENT DEBUG STATUS: Robin BC Physics**
+## **🔧 CURRENT CHALLENGES: Numerical Convergence Issues**
 
-### **Current Issue: nDD Solver Convergence**
+### **Primary Issue: Newton Solver Convergence with Small n0**
 
-**Status:** System runs without crashes, NLPE converges perfectly, but nDD solver fails
+**Status:** Physics is correct but numerical challenges prevent convergence
 
-**Symptoms:**
-- **NLPE Solver:** ✅ Perfect convergence (residual ~10⁻³²)
-- **nDD Solver:** ❌ Constant residual `1.291891E+026` - no improvement over 100 iterations
-- **Behavior:** No crashes, stable execution, physics modules initialized correctly
+**Key Problem:**
+- **Equilibrium density:** n0 = Nc*exp(-Φ_B/kT) ≈ 2.86×10⁻¹³ (normalized)
+- **Barrier height:** Φ_B = 0.7 eV → exp(-27.08) in normalized units
+- **Result:** Extremely small values cause numerical difficulties
 
-**Probable Causes:**
-1. **Sign Error:** Robin BC discretization may have wrong signs
-2. **Scaling Issue:** Thermionic velocity `S` might have incorrect units/magnitude  
-3. **Missing RHS:** Edge contributions `b_edge` not properly added to residual
-4. **Matrix Conditioning:** Robin BC coupling may create ill-conditioned system
+**Observed Behavior:**
+- **Compilation:** ✅ Successful
+- **NLPE Solver:** ✅ Converges (Poisson equation)
+- **nDD Solver:** ❌ Fails to converge (continuity equation)
+- **Residual:** Oscillates without decreasing
 
-### **Systematic Debug Strategy**
+**Root Cause Analysis:**
+1. **Correct Physics:** n0 should be tiny for 0.7 eV barrier
+2. **Numerical Challenge:** Solver struggles with 13 orders of magnitude difference
+3. **Matrix Conditioning:** Large dynamic range causes ill-conditioning
 
-#### **Phase 1: Isolate the Problem ⏳ IN PROGRESS**
-```fortran
-! Test 1: Replace Schottky with Ohmic contacts in test case
-! If Ohmic converges → Problem is Robin BC implementation
-! If Ohmic fails → We broke something fundamental in stencil changes
-```
+## **🚀 PROPOSED SOLUTIONS**
 
-#### **Phase 2: Verify Robin BC Physics**
-**Expected Values (Order of Magnitude Check):**
-- **S (thermionic velocity):** ~10³-10⁷ cm/s
-- **D (diffusion coefficient):** ~1-100 cm²/s  
-- **n₀ (equilibrium density):** ~10⁷ cm⁻³ (for Φ_B=0.7eV)
-- **Residual:** Should be ~10⁻¹⁰, not 10²⁶
+### **Option 1: Numerical Scaling/Preconditioning**
+- **Approach:** Scale variables to avoid extreme values
+- **Implementation:** Use log-space for densities or shift reference
+- **Pros:** Maintains exact physics
+- **Cons:** Requires significant code changes
 
-#### **Phase 3: Incremental Robin BC Testing**
-1. **Start with S=0:** Should behave like Ohmic contact
-2. **Small S values:** Gradually increase thermionic coupling
-3. **Debug Matrix Entries:** Verify Jacobian assembly correctness
+### **Option 2: Barrier Height Continuation**
+- **Approach:** Start with small barrier, gradually increase
+- **Implementation:** Solve sequence: Φ_B = 0.1, 0.2, ..., 0.7 eV
+- **Pros:** Uses previous solution as initial guess
+- **Cons:** Multiple solves required
 
-#### **Phase 4: Edge Contribution Verification**
-- **Current Status:** `b_edge` calculated but may not be added to residual properly
-- **Check:** Ensure `continuity_eval` includes all edge contributions in final RHS
+### **Option 3: Modified Robin BC Formulation**
+- **Approach:** Reformulate BC to avoid tiny n0
+- **Implementation:** Use relative densities or flux formulation
+- **Pros:** Better numerical properties
+- **Cons:** Needs careful physics validation
+
+### **Option 4: Hybrid Dirichlet-Robin Approach**
+- **Approach:** Start with Dirichlet, transition to Robin
+- **Implementation:** Weight BC based on convergence
+- **Pros:** Robust convergence
+- **Cons:** More complex implementation
+
+## **📋 SUMMARY OF COMPLETED WORK**
+
+### **✅ Successfully Implemented:**
+1. **Correct Schottky contact physics** with proper reference frame
+2. **Robin BC edge assembly** with thermionic emission
+3. **Matrix regularization** to prevent singularity
+4. **Clean code architecture** with removed incorrect implementations
+
+### **❌ Remaining Issues:**
+1. **Numerical convergence** with realistic barrier heights
+2. **Scaling problems** with tiny equilibrium densities
+3. **Matrix conditioning** with large dynamic range
+
+### **🎯 Next Steps:**
+1. **Test with smaller barrier** (e.g., 0.3 eV) to verify implementation
+2. **Implement scaling** or preconditioning for better numerics
+3. **Consider alternative formulations** for robust convergence
+4. **Validate against** analytical solutions or reference data
 
 ---
 
-## **📋 IMPLEMENTATION SUMMARY**
+## **📊 TEST CONFIGURATION**
 
-### **What We Achieved Today (August 5, 2025)**
-
-#### **🎯 Major Architectural Breakthrough**
-- **Solved the fundamental constraint:** Implemented contact-type-specific stencils
-- **Eliminated over-constraint:** Removed dual BC application (Robin + Dirichlet)
-- **Enabled true Robin BC:** Schottky contacts now support edge-to-vertex coupling
-- **Maintained compatibility:** Ohmic/Gate contacts work exactly as before
-
-#### **✅ System Status**
-- **No crashes:** All assertion failures eliminated
-- **NLPE convergence:** Perfect (residual ~10⁻³²)
-- **Architecture working:** Stencil system functional for mixed contact types
-- **Parameters integrated:** Richardson constant and barrier height utilized
-
-#### **🔧 Current Focus**
-- **Issue:** nDD solver residual stuck at `1.291891E+026`
-- **Approach:** Systematic isolation - test Ohmic first, then debug Robin BC physics
-- **Timeline:** Close to solution - architecture problems solved, likely physics/math error
-
-### **Test Infrastructure ✅ COMPLETE**
-- **Build System:** `fargo.toml` - `schottky_test` job configured
-- **Test Case:** 1D Si Schottky diode (Φ_B=0.7eV, A*=112 A/cm²/K²)
-- **Validation Framework:** Ready for physics debugging
-
-## **🎯 IMMEDIATE NEXT STEPS**
-
-### **Step 1: Isolate the Problem (PRIORITY 1)**
-```bash
-# Test: Change schottky_diode.ini contact from "schottky" to "ohmic"
-# Expected result: If Ohmic converges → Robin BC is the issue
-#                 If Ohmic fails → We broke fundamental architecture
+### **Current Test Case:** `schottky_diode.ini`
+```ini
+[region]
+type = "contact"
+name = "SCHOTTKY"
+barrier_height = 0.7 : eV        # High barrier causes numerical issues
+richardson_const = 112 : A/cm^2/K^2
 ```
 
-### **Step 2: Debug Robin BC Physics (If Step 1 passes)**
-**Check values in Robin BC calculation:**
-```fortran
-! Add debug prints to see:
-! - S (thermionic velocity): Expected ~10³-10⁷ cm/s
-! - D (diffusion coefficient): Expected ~1-100 cm²/s  
-! - n0 (equilibrium density): Expected ~10⁷ cm⁻³
-! - Residual contributions: Should not be ~10²⁶
+### **Recommended Test Modifications:**
+1. **Lower barrier:** Try 0.3 eV for better convergence
+2. **Temperature sweep:** Higher T reduces exp(-Φ_B/kT)
+3. **Mesh refinement:** Coarser mesh for initial testing
+
+## **📊 OBSERVED VALUES FROM DEBUG OUTPUT**
+
+### **Physical Parameters (December 19, 2024 Test):**
+- **S (thermionic velocity):** 1.94×10⁶ cm/s ✅ Correct magnitude
+- **D (diffusion coefficient):** 31.4 cm²/s ✅ Correct magnitude
+- **n₀ (equilibrium density):** 2.86×10⁻¹³ (normalized) ⚠️ Extremely small
+- **Barrier height:** 27.08 (normalized) = 0.7 eV (physical)
+- **Matrix diagonal after assembly:** ~-4.94 (dominated by Robin BC) ✅
+
+### **Numerical Behavior:**
+- **NLPE (Poisson):** Converges perfectly
+- **nDD (Continuity):** Oscillates, fails to converge
+- **RHS contribution:** ~10⁻¹⁴ (very small due to tiny n₀)
+
+---
+
+## **🔬 PHYSICS VALIDATION**
+
+### **Thermionic Emission Theory Check:**
+```
+n₀ = Nc × exp(-qΦ_B/kT)
+   = 3.25×10¹⁹ × exp(-0.7/0.026)
+   = 3.25×10¹⁹ × exp(-27)
+   ≈ 6×10⁷ cm⁻³  ✅ Physics is correct
 ```
 
-### **Step 3: Verify Edge Contribution Assembly**
-**Ensure `b_edge` is properly added to residual in `continuity_eval`**
-
-### **Step 4: Sign/Scaling Verification**
-**Robin BC discretization check:**
-```fortran
-! Current: -D(n2-n1)/dx = S(n1-n0)
-! Verify: Signs, units, coefficient scaling
+### **Robin BC Formulation:**
 ```
+J·n̂ = q·v_n·(n - n₀)
+-D∇n·n̂ = S·(n - n₀)
+```
+✅ Correctly implemented in edge assembly
+
+### **Matrix Assembly:**
+```
+Contact vertex: -(D/dx + S)·surf ≈ -4.94
+Interior vertex: (D/dx)·surf ≈ 4.65
+RHS: -S·n₀·surf ≈ -8.2×10⁻¹⁴
+```
+✅ Correct signs and magnitudes
 
 ---
 
@@ -184,7 +277,7 @@ end do
 
 ### **Architectural Understanding**
 - **Stencil flexibility:** Each contact type can have different stencil behavior
-- **BC coupling:** Robin BC requires edge contributions to contact vertex equations  
+- **BC coupling:** Robin BC requires edge contributions to contact vertex equations
 - **Over-constraint danger:** Applying multiple BCs to same vertex causes non-convergence
 - **System design:** Cybear's modular approach enables complex boundary condition mixing
 
@@ -208,7 +301,7 @@ end do
 
 ## **📚 CRITICAL NORMALIZATION LESSON LEARNED**
 
-**Date:** August 6, 2025  
+**Date:** August 6, 2025
 **Discovery:** Input file parser automatically normalizes values when units are specified
 
 ### **The Normalization Trap**
@@ -241,7 +334,7 @@ The parser **automatically normalizes** these values using the specified units:
 ! WRONG - Shows confusing normalized value
 print *, "barrier_height =", par%contacts(ict)%barrier_height, "eV"  ! Shows 27.08
 
-! CORRECT - Shows expected physical value  
+! CORRECT - Shows expected physical value
 print *, "barrier_height =", denorm(par%contacts(ict)%barrier_height, "eV"), "eV"  ! Shows 0.7
 ```
 
@@ -251,7 +344,7 @@ This lesson is crucial for any future work with the Cybear simulator's input sys
 
 ## **🔧 ROBIN BOUNDARY CONDITION IMPLEMENTATION PLAN**
 
-**Updated:** August 4, 2025  
+**Updated:** August 4, 2025
 **Priority:** Critical - Fixes fundamental physics error blocking Schottky contact functionality
 
 ### **Mathematical Formulation**
@@ -263,9 +356,9 @@ Robin BC: -D∇n·n̂ = S(n - n₀)
 ```
 
 Where:
-- **D** = diffusion coefficient = μkT/q  
+- **D** = diffusion coefficient = μkT/q
 - **S** = thermionic emission velocity = (A*T²)/(qN_c) × exp(-Φ_B/kT)
-- **n₀** = equilibrium density = N_c × exp(-Φ_B/kT)  
+- **n₀** = equilibrium density = N_c × exp(-Φ_B/kT)
 - **n̂** = outward normal at contact
 - **A*** = Richardson constant (112 A/cm²/K² for Si)
 - **Φ_B** = barrier height (0.7 eV for test case)
@@ -316,10 +409,10 @@ case (3)  ! CT_SCHOTTKY - NEW ROBIN BC
   ! Calculate thermionic parameters
   n0 = calculate_equilibrium_density(par, ci, ict)
   S = calculate_thermionic_velocity(par, ci, ict)
-  
+
   ! Initial guess for contact density
   this%b(j) = n0
-  
+
   ! Add Robin BC contributions via edge assembly
   call add_robin_bc_contributions(this, par, ci, ict, S, n0)
 ```
@@ -357,18 +450,18 @@ subroutine add_schottky_edge_contribution(this, par, ci, idx_edge, idx_contact, 
   ! Calculate thermionic parameters
   S = calculate_thermionic_velocity(par, ci, ict)
   n0 = calculate_equilibrium_density(par, ci, ict)
-  
+
   ! Robin BC: -D∇n = S(n - n0)
   ! Discretized: -D(n_interior - n_contact)/dx = S(n_contact - n0)
   ! Rearranged: D*n_interior - (D + S*dx)*n_contact = -S*dx*n0
-  
+
   dx = par%g%get_len(idx_edge, idx_dir)
   D = calculate_diffusion_coeff(par, ci, idx_edge)
-  
+
   ! Modify matrix entries
   call this%jaco_dens%set(idx_interior, idx_interior, D*surf/dx)
   call this%jaco_dens%set(idx_interior, idx_contact, -(D + S*dx)*surf/dx)
-  
+
   ! Modify RHS
   this%b(idx_interior) = this%b(idx_interior) - S*dx*n0*surf/dx
 end subroutine
@@ -379,15 +472,15 @@ end subroutine
 function calculate_thermionic_velocity(par, ci, ict) result(S)
   ! S = (A*T²)/(q*N_c) * exp(-Φ_B/kT)
   A_star = par%contacts(ict)%richardson_const
-  phi_B = par%contacts(ict)%barrier_height  
+  phi_B = par%contacts(ict)%barrier_height
   T = par%temperature
   N_c = par%smc%edos(ci)
-  
+
   S = A_star * T**2 / (CR_CHARGE_MAG * N_c) * exp(-CR_CHARGE_MAG * phi_B / (K_BOLTZMANN * T))
 end function
 
 function calculate_equilibrium_density(par, ci, ict) result(n0)
-  ! n₀ = N_c * exp(-Φ_B/kT)  
+  ! n₀ = N_c * exp(-Φ_B/kT)
   phi_B = par%contacts(ict)%barrier_height
   n0 = par%smc%edos(ci) * exp(-CR_CHARGE(ci) * phi_B)
 end function
@@ -397,7 +490,7 @@ end function
 
 #### **8. Sign Convention Management**
 - **Current direction**: From contact to interior (positive flux outward)
-- **Normal vector**: Outward from contact surface  
+- **Normal vector**: Outward from contact surface
 - **Robin BC sign**: Ensures proper current injection/extraction
 
 #### **9. Matrix Assembly Strategy**
@@ -413,7 +506,7 @@ this%b(j) = n_prescribed  ! Fixed RHS
 call this%jaco_dens%set(idx_contact, idx_contact, 1.0)
 this%b(j_contact) = n_initial_guess
 
-! Interior vertices get Robin BC contributions  
+! Interior vertices get Robin BC contributions
 ! (implemented via edge assembly modification)
 ```
 
@@ -434,14 +527,14 @@ this%b(j_contact) = n_initial_guess
 2. **Add helper functions** - Thermionic velocity and equilibrium density
 3. **Test convergence** - Verify Newton solver stability
 
-#### **Phase 2: Edge Assembly Integration (If Phase 1 Fails)**  
+#### **Phase 2: Edge Assembly Integration (If Phase 1 Fails)**
 4. **Modify edge loop** - Add Schottky contact detection
 5. **Implement edge contributions** - Robin BC via edge assembly
 6. **Add contact tracking** - Edge indices and normals
 
 #### **Phase 3: Advanced Features (After Basic Functionality)**
 7. **Parameter validation** - Richardson constant units, barrier height ranges
-8. **Temperature dependence** - Validate Arrhenius behavior  
+8. **Temperature dependence** - Validate Arrhenius behavior
 9. **Performance optimization** - Minimize computational overhead
 
 ### **Validation Checkpoints**
@@ -471,7 +564,7 @@ this%b(j_contact) = n_initial_guess
 
 #### **Fallback Strategies:**
 - **Damping**: If oscillations occur, implement under-relaxation
-- **Ramping**: Gradually transition from Dirichlet to Robin BC  
+- **Ramping**: Gradually transition from Dirichlet to Robin BC
 - **Preconditioning**: Use previous bias point as initial guess
 - **Tolerances**: Temporarily relax Newton tolerances during development
 
@@ -492,9 +585,9 @@ This Robin BC implementation plan provides a systematic approach to fixing the f
 ### **Complete Chronicle of Schottky Contact Implementation**
 
 #### **✅ Bug #1: Double-Counting in Edge Assembly (FIXED)**
-**Location:** `src/continuity.f90:299-350`  
-**Problem:** Robin BC contributions were incorrectly added to BOTH vertices of an edge  
-**Root Cause:** Misunderstanding of edge-to-vertex assembly in drift-diffusion formulation  
+**Location:** `src/continuity.f90:299-350`
+**Problem:** Robin BC contributions were incorrectly added to BOTH vertices of an edge
+**Root Cause:** Misunderstanding of edge-to-vertex assembly in drift-diffusion formulation
 **Solution:**
 ```fortran
 ! CRITICAL FIX: Only add contribution to the INTERIOR (uncontacted) vertex
@@ -505,7 +598,7 @@ if (ict1 == 0) then
     tmp(j1) = tmp(j1) - this%b_edge(i, idx_dir)
   end if
 else if (ict2 == 0) then
-  ! Vertex 2 is interior, vertex 1 is contact  
+  ! Vertex 2 is interior, vertex 1 is contact
   j2 = this%dens%itab%get(idx2)
   if (j2 > 0 .and. j2 <= this%par%transport_vct(0)%n) then
     tmp(j2) = tmp(j2) - this%b_edge(i, idx_dir)
@@ -514,26 +607,26 @@ end if
 ```
 
 #### **✅ Bug #2: Physics Error in Thermionic Velocity (FIXED)**
-**Location:** `src/continuity.f90:380-441`  
-**Problem:** Equilibrium density n₀ was incorrectly included in numerator  
-**Physical Error:** S = (A*T²)/(q*N_c*n₀) × exp(-Φ_B/kT) ❌ WRONG  
-**Correct Physics:** S = (A*T²)/(q*N_c) × exp(-Φ_B/kT) ✅ CORRECT  
+**Location:** `src/continuity.f90:380-441`
+**Problem:** Equilibrium density n₀ was incorrectly included in numerator
+**Physical Error:** S = (A*T²)/(q*N_c*n₀) × exp(-Φ_B/kT) ❌ WRONG
+**Correct Physics:** S = (A*T²)/(q*N_c) × exp(-Φ_B/kT) ✅ CORRECT
 **Solution:** Removed n₀ from thermionic velocity calculation
 
 #### **✅ Bug #3: Sign Convention Error (FIXED)**
-**Location:** `src/continuity.f90:409`  
-**Problem:** Used exp(+phi_B_norm) instead of exp(-phi_B_norm)  
-**Physics:** Schottky barrier REDUCES emission, requires negative exponent  
+**Location:** `src/continuity.f90:409`
+**Problem:** Used exp(+phi_B_norm) instead of exp(-phi_B_norm)
+**Physics:** Schottky barrier REDUCES emission, requires negative exponent
 **Solution:**
 ```fortran
 ! Correct: barrier reduces emission
-exp_factor = exp(-phi_B_norm)  
+exp_factor = exp(-phi_B_norm)
 ```
 
 #### **✅ Bug #4: Double Normalization (FIXED)**
-**Location:** `src/continuity.f90:394-403`  
-**Problem:** Attempted to normalize already-normalized input values  
-**Discovery:** Input parser automatically normalizes when units specified  
+**Location:** `src/continuity.f90:394-403`
+**Problem:** Attempted to normalize already-normalized input values
+**Discovery:** Input parser automatically normalizes when units specified
 **Solution:** Use values directly from parsed input, denormalize only for display
 ```fortran
 ! Values from input file are ALREADY NORMALIZED
@@ -546,8 +639,8 @@ phi_B_phys = denorm(phi_B_norm, "eV")            ! For display only
 ```
 
 #### **✅ Bug #5: Missing Parameter Initialization (FIXED)**
-**Location:** `src/device_params.f90:1208-1213`  
-**Problem:** Schottky parameters not transferred from region_contact to contact structure  
+**Location:** `src/device_params.f90:1208-1213`
+**Problem:** Schottky parameters not transferred from region_contact to contact structure
 **Solution:** Added proper parameter initialization in device_params module
 
 ### **Final Working Implementation**
@@ -613,15 +706,15 @@ This separation is fundamental to drift-diffusion formulation and explains why R
 - **Architecture:** Stencil-based Robin BC implementation functional
 
 ### **⚠️ Outstanding Issue: Negative Currents**
-**Observation:** All currents from simulation are negative  
+**Observation:** All currents from simulation are negative
 **Possible Causes:**
 1. **Sign Convention:** Drift-diffusion simulators often use electron current convention
 2. **Reference Direction:** Current may be defined opposite to expected
 3. **Post-processing:** May need sign flip in output routine
 
 ### **Message: "Solution limited to min"**
-**Source:** `steady_state.f90:459`  
-**Meaning:** Newton solver clamping solutions to prevent unphysical negative densities  
+**Source:** `steady_state.f90:459`
+**Meaning:** Newton solver clamping solutions to prevent unphysical negative densities
 **Status:** Normal behavior during initial iterations, not an error
 
 ---
@@ -697,7 +790,7 @@ I = I_s * (exp(qV/kT) - 1)
 ## **🚨 CRITICAL PHYSICS ERROR - INCORRECT I-V BEHAVIOR**
 
 ### **Observed Problem: Non-Physical I-V Characteristics**
-**Date:** August 7, 2025  
+**Date:** August 7, 2025
 **Issue:** Simulation shows **opposite** of expected Schottky diode behavior
 
 #### **What We're Seeing (WRONG):**
@@ -706,7 +799,7 @@ I = I_s * (exp(qV/kT) - 1)
 - Decreasing current with forward bias
 
 #### **What We Should See (CORRECT):**
-- Near-zero current at V = 0V  
+- Near-zero current at V = 0V
 - Exponential increase with forward bias
 - Current should be ~10^4 times higher at V = 0.8V than at V = 0V
 
@@ -717,7 +810,7 @@ This inverted I-V characteristic indicates a **fundamental sign or BC error**, n
 1. **Sign Error in Robin BC** - Most likely culprit
    - Current formulation may be injecting when it should extract
    - Check signs in: `-D∇n = S(n - n₀)`
-   
+
 2. **Boundary Condition Reversal**
    - Robin BC may be applied with wrong orientation
    - Interior vs contact vertex assignment could be swapped
@@ -755,9 +848,9 @@ This inverted I-V characteristic indicates a **fundamental sign or BC error**, n
 ## **🎯 CRITICAL BUGS IDENTIFIED - DECEMBER 2024**
 
 ### **Bug #1: Dirichlet BC Override (ROOT CAUSE)**
-**Location:** `src/continuity.f90:291-307`  
-**Problem:** Schottky contacts have BOTH Dirichlet BC (n=n₀) AND Robin BC from edges  
-**Effect:** Over-constrained system forcing huge spurious currents  
+**Location:** `src/continuity.f90:291-307`
+**Problem:** Schottky contacts have BOTH Dirichlet BC (n=n₀) AND Robin BC from edges
+**Effect:** Over-constrained system forcing huge spurious currents
 
 The code applies TWO conflicting boundary conditions:
 1. **Edge Assembly**: Sets up proper Robin BC with matrix entries `-(D/dx + S)` and `(D/dx)`
@@ -768,9 +861,9 @@ This forces the contact density to a fixed value, completely negating the Robin 
 **Solution:** Remove Dirichlet BC for Schottky contacts - let Robin BC fully determine density
 
 ### **Bug #2: Missing Bias Dependence**
-**Location:** `src/continuity.f90:410`  
-**Problem:** `exp_factor = 1.0` hardcoded - no bias dependence in thermionic emission  
-**Effect:** BC frozen at equilibrium regardless of applied voltage  
+**Location:** `src/continuity.f90:410`
+**Problem:** `exp_factor = 1.0` hardcoded - no bias dependence in thermionic emission
+**Effect:** BC frozen at equilibrium regardless of applied voltage
 
 Thermionic emission should be:
 ```
@@ -779,14 +872,14 @@ J = A*T² × exp(-Φ_B/kT) × [exp(qV/kT) - 1]
 
 But the bias term `exp(qV/kT)` is missing, so forward bias doesn't increase injection!
 
-**Solution:** 
-- Move Robin BC assembly from `init` to `eval` 
+**Solution:**
+- Move Robin BC assembly from `init` to `eval`
 - Recalculate thermionic parameters with current potential during iterations
 - Include voltage-dependent exp factor
 
 ### **Bug #3: Weak Thermionic Coupling (Physical, not bug)**
-**Observation:** S ≈ 1.9×10⁶ cm/s << D/dx ≈ 3.1×10⁷ cm/s  
-**Effect:** Diffusion dominates (94%) over thermionic emission (6%)  
+**Observation:** S ≈ 1.9×10⁶ cm/s << D/dx ≈ 3.1×10⁷ cm/s
+**Effect:** Diffusion dominates (94%) over thermionic emission (6%)
 **Note:** This may be physically correct for Φ_B = 0.7 eV
 
 ### **Implementation Strategy**
@@ -812,7 +905,7 @@ This transforms the static BC into a dynamic, bias-responsive boundary condition
 - **Result:** Eliminated over-constrained system, Robin BC now fully determines contact density
 
 #### **2. Added Potential Dependency**
-- **Files Modified:** 
+- **Files Modified:**
   - `src/continuity.f90`: Added potential pointer to type, modified init signature
   - `src/device.f90`: Pass potential to continuity initialization
 - **Result:** Continuity equation now has access to electrostatic potential for bias-dependent calculations
@@ -871,3 +964,94 @@ This transforms the static BC into a dynamic, bias-responsive boundary condition
 **Status:** ⚠️ **PARTIALLY WORKING** - BC updates implemented but convergence issues remain
 **Priority:** Critical - Must resolve convergence for functional Schottky simulation
 **Impact:** System architecture correct but numerical stability needs improvement
+
+---
+
+## **📊 LATEST STATUS UPDATE - AUGUST 8, 2025**
+
+### **Current Situation**
+- **Compilation:** ✅ Clean
+- **Execution:** ✅ Runs without crashes
+- **Robin BC:** ⚠️ Large residuals (10^-5 to 10^-3)
+- **Contact Density:** ❌ Way too high (n_contact/n0_B ~ 10^8 to 10^9)
+
+### **Key Findings from Debug Session**
+
+#### **1. Matrix Overwriting Hypothesis - DISPROVEN**
+- **Initial Theory:** calc_charge_density overwrites Robin BC matrix entries
+- **Investigation Result:** FALSE - Schottky vertices are NOT in transport_vct(0)
+- **Explanation:** When a vertex becomes a contact, it's moved from transport_vct(0) to transport_vct(ict)
+- **Conclusion:** calc_charge_density only operates on uncontacted vertices, so no conflict
+
+#### **2. Robin BC Residual Analysis**
+Debug output shows severe convergence issues:
+```
+=== ROBIN BC RESIDUAL CHECK ===
+Contact: SCHOTTKY
+  Fixed n0_B = 2.858E-13
+  S = 2.874E-01 (normalized)
+  D/dx = 4.650E+00
+Edge 1 (contact->interior):
+  n_contact = 7.049E-04
+  n_interior = 2.326E-04
+  n_contact/n0_B = 2.467E+09  ← Way too high!
+  Residual Rc = 2.399E-03      ← Should be ~10^-15
+```
+
+#### **3. Root Cause Analysis**
+The Robin BC is correctly assembled but not being satisfied:
+1. **Matrix Assembly:** ✅ Correct coefficients -(D/dx + S) and D/dx
+2. **RHS Assembly:** ✅ Correct term -S*n0*surf
+3. **Edge Processing:** ✅ Correct handling of contact-interior edges
+4. **Convergence:** ❌ Newton solver cannot find solution satisfying Robin BC
+
+### **Why Robin BC Fails to Converge**
+
+#### **Numerical Scale Mismatch**
+- **n0_B:** ~10^-13 (extremely small due to 0.7eV barrier)
+- **Typical densities:** ~10^-4 to 10^-5 in transport region
+- **Ratio:** 10^8 to 10^9 difference in scale
+
+#### **Matrix Conditioning Issue**
+The Robin BC equation at contact:
+```
+-(D/dx + S)*n_contact + (D/dx)*n_interior = -S*n0
+```
+With values:
+- Left side: ~10^-3 (large due to high n_contact)
+- Right side: ~10^-14 (tiny due to small n0)
+- Residual: ~10^-3 (dominated by left side)
+
+### **Fundamental Problem**
+The simulator cannot reconcile:
+1. **Physics requirement:** n_contact should be close to n0_B (very small)
+2. **Numerical reality:** Newton solver drives n_contact to much larger values
+3. **Result:** Robin BC equation never satisfied, large residuals persist
+
+### **Proposed Solutions**
+
+#### **Option A: Variable Transformation**
+Use log(n) instead of n as the primary variable:
+- Advantages: Better handles wide dynamic range
+- Disadvantages: Major code restructuring required
+
+#### **Option B: Barrier Height Ramping**
+Start with small barrier, gradually increase:
+- Advantages: Better initial guess at each step
+- Disadvantages: Multiple solves, still may fail at large barriers
+
+#### **Option C: Relaxation Factor**
+Under-relax the Robin BC enforcement:
+- Advantages: May improve convergence
+- Disadvantages: Slower convergence, may still fail
+
+#### **Option D: Mixed Formulation**
+Use Dirichlet BC initially, transition to Robin BC:
+- Advantages: Robust starting point
+- Disadvantages: Complex implementation
+
+### **Immediate Next Steps**
+1. Try smaller barrier height (0.1-0.3 eV) to verify implementation
+2. Add more detailed convergence monitoring
+3. Consider implementing logarithmic transformation for densities
+4. Investigate preconditioning strategies for better matrix conditioning

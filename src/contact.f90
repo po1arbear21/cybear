@@ -159,62 +159,44 @@ contains
   end subroutine
 
   subroutine contact_set_phims_schottky(this, ci0, ci1, dop, ii_E_dop, smc)
-    !! set phims for Schottky contacts based on barrier height and doping
+    !! set phims for Schottky contacts with correct reference frame
+    !! phi = V_applied - Phi_B + (kT/q)*ln(Nc/ni)
     class(contact),        intent(inout) :: this
     integer,               intent(in)    :: ci0, ci1
       !! lower/upper carrier index (CR_ELEC, CR_HOLE)
     real,                  intent(in)    :: dop(2)
-      !! donor/acceptor concentration
+      !! donor/acceptor concentration (not used for Schottky barrier)
     real,                  intent(in)    :: ii_E_dop(2)
-      !! dopant energy level (for incomplete ionization)
+      !! dopant energy level (not used for Schottky barrier)
     type(semiconductor),   intent(in)    :: smc
       !! semiconductor parameters
 
-    real :: n_bulk, p_bulk, n_i, phi_bulk
-    real :: F, dF
-    integer :: ci
+    real :: n_i, ln_Nc_over_ni
 
     ! Calculate intrinsic carrier concentration
-    if ((smc%dos == DOS_PARABOLIC) .and. (smc%dist == DIST_MAXWELL)) then
-      n_i = sqrt(smc%edos(1) * smc%edos(2)) * exp(-0.5 * smc%band_gap)
-    else
-      ! For non-parabolic DOS, approximate with mid-gap
-      n_i = sqrt(smc%edos(1) * smc%edos(2)) * exp(-0.5 * smc%band_gap)
-    end if
-
-    ! Calculate bulk carrier concentrations based on doping
-    ! For simplicity, assume complete ionization at room temperature
-    if (dop(1) > dop(2)) then
-      ! n-type semiconductor
-      n_bulk = dop(1) - dop(2)  ! ND - NA
-      p_bulk = n_i**2 / n_bulk
-      
-      ! Bulk potential (from intrinsic level to Fermi level)
-      ! In normalized units: phi_bulk = ln(n_bulk/n_i)
-      phi_bulk = log(n_bulk / n_i)
-    else
-      ! p-type semiconductor
-      p_bulk = dop(2) - dop(1)  ! NA - ND
-      n_bulk = n_i**2 / p_bulk
-      
-      ! Bulk potential (from intrinsic level to Fermi level)
-      ! In normalized units: phi_bulk = -ln(p_bulk/n_i)
-      phi_bulk = -log(p_bulk / n_i)
-    end if
-
-    ! Set phims for Schottky contact
-    ! phims = phi_bulk - barrier_height
-    ! The barrier height reduces the built-in potential
-    this%phims = phi_bulk - this%barrier_height
+    ! ni = sqrt(Nc * Nv) * exp(-Eg/2kT) in normalized units
+    n_i = sqrt(smc%edos(CR_ELEC) * smc%edos(CR_HOLE)) * exp(-0.5 * smc%band_gap)
+    
+    ! Calculate ln(Nc/ni) for reference frame correction
+    ! This shifts the reference from intrinsic level (Ei) to conduction band edge
+    ! ln(Nc/ni) = ln(Nc) - ln(ni)
+    ln_Nc_over_ni = log(smc%edos(CR_ELEC) / n_i)
+    
+    ! Schottky contact boundary condition:
+    ! phi = V_applied - Phi_B + (kT/q)*ln(Nc/ni)
+    ! Since Poisson equation applies: phi = V_applied + phims
+    ! We need: phims = -Phi_B + ln(Nc/ni)
+    this%phims = -this%barrier_height + ln_Nc_over_ni
 
     ! Debug output
-    print *, "DEBUG: set_phims_schottky:"
+    print *, "DEBUG: set_phims_schottky (corrected physics):"
+    print *, "  Nc (normalized) =", smc%edos(CR_ELEC)
+    print *, "  Nv (normalized) =", smc%edos(CR_HOLE) 
     print *, "  n_i (normalized) =", n_i
-    print *, "  Doping: ND =", dop(1), ", NA =", dop(2)
-    print *, "  n_bulk =", n_bulk, ", p_bulk =", p_bulk
-    print *, "  phi_bulk =", phi_bulk
-    print *, "  barrier_height =", this%barrier_height
-    print *, "  phims =", this%phims
+    print *, "  ln(Nc/ni) =", ln_Nc_over_ni
+    print *, "  barrier_height (normalized) =", this%barrier_height
+    print *, "  phims = -barrier_height + ln(Nc/ni) =", this%phims
+    print *, "  Note: doping not used - Schottky barrier is independent of bulk doping"
 
   end subroutine
 
