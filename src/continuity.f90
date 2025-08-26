@@ -92,53 +92,159 @@ contains
     allocate (this%cdens(idx_dim), this%st_nn(idx_dim), this%jaco_cdens(idx_dim))
 
     ! init variable selectors
+    print "(A)", "DEBUG: Initializing variable selectors for continuity equation"
+    print "(A,I0)", "DEBUG: Carrier index ci = ", ci
+    print "(A,I0)", "DEBUG: Number of contacts nct = ", par%nct
+    print "(A,I0)", "DEBUG: Grid dimensions idx_dim = ", idx_dim
+
     call this%dens%init(dens, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+
     do idx_dir = 1, idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
+      print "(A,I0,A)", "DEBUG: Initialized current density selector for direction ", idx_dir, " with edge transport region"
     end do
-    if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
+
+    if (par%smc%incomp_ion) then
+      call this%genrec%init(genrec, par%ionvert(ci))
+      print "(A,I0)", "DEBUG: Incomplete ionization enabled - initialized generation/recombination selector for carrier ", ci
+    else
+      print "(A)", "DEBUG: Incomplete ionization disabled - skipping genrec initialization"
+    end if
+
+
+    print "(A)", "************** Check from Here **************"
 
     ! init residuals using this%dens or this%iref as main variable
+    print "(A)", "DEBUG: Initializing residual calculation method"
     if (stat) then
+      print "(A)", "DEBUG: Stationary mode - using quasi-Fermi potential (iref) as main variable"
       call this%iref%init(iref, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
       call this%init_f(this%iref)
+      print "(A)", "DEBUG: Initialized residual function with iref selector"
     else
+      print "(A)", "DEBUG: Transient mode - using carrier density (dens) as main variable"
       call this%init_f(this%dens)
+      print "(A)", "DEBUG: Initialized residual function with density selector"
     end if
 
     ! init stencils
+    print "(A)", "DEBUG: Initializing finite difference stencils"
+    print "(A,A)", "DEBUG: Grid name = ", par%g%name
+    print "(A,I0)", "DEBUG: Grid spatial dimensions (dim) = ", par%g%dim
+    print "(A,I0)", "DEBUG: Grid index dimensions (idx_dim) = ", par%g%idx_dim
+    print "(A,I0)", "DEBUG: Cell vertices per cell = ", par%g%cell_nvert
+    print "(A,I0)", "DEBUG: Maximum edges per cell = ", par%g%max_cell_nedge
+
+    print "(A)", "DEBUG: About to initialize st_dir (dirichlet_stencil)"
+    print "(A)", "DEBUG: st_dir will create identity mapping for diagonal Jacobian terms"
     call this%st_dir%init(par%g)
+    print "(A)", "DEBUG: st_dir initialized with following properties:"
+    print "(A,I0)", "DEBUG: st_dir%nmax (max dependencies per point) = ", this%st_dir%nmax
+    if (allocated(this%st_dir%perm)) then
+      print "(A,*(I0,:,','))", "DEBUG: st_dir%perm (permutation array) = ", this%st_dir%perm
+    else
+      print "(A)", "DEBUG: st_dir%perm not allocated"
+    end if
+    if (allocated(this%st_dir%off1)) then
+      print "(A,*(I0,:,','))", "DEBUG: st_dir%off1 (start offsets) = ", this%st_dir%off1
+      print "(A,*(I0,:,','))", "DEBUG: st_dir%off2 (end offsets) = ", this%st_dir%off2
+    else
+      print "(A)", "DEBUG: st_dir offset arrays not allocated"
+    end if
+    print "(A)", "DEBUG: st_dir purpose: handles identity mapping (idx -> idx) for time derivatives"
+
     do idx_dir = 1, idx_dim
+      print "(A,I0)", "DEBUG: About to initialize st_nn for spatial direction ", idx_dir
+      print "(A)", "DEBUG: st_nn maps: IDX_VERTEX (grid points) -> IDX_EDGE (flux locations)"
+      print "(A,I0)", "DEBUG: Source: IDX_VERTEX = ", IDX_VERTEX
+      print "(A,I0)", "DEBUG: Target: IDX_EDGE = ", IDX_EDGE
+      print "(A,I0)", "DEBUG: Direction = ", idx_dir
       call this%st_nn(idx_dir)%init(par%g, IDX_VERTEX, 0, IDX_EDGE, idx_dir)
+      print "(A,I0,A,I0)", "DEBUG: st_nn(", idx_dir, ")%nmax = ", this%st_nn(idx_dir)%nmax
+      print "(A,I0,A,I0)", "DEBUG: st_nn(", idx_dir, ")%idx1_type = ", this%st_nn(idx_dir)%idx1_type
+      print "(A,I0,A,I0)", "DEBUG: st_nn(", idx_dir, ")%idx1_dir = ", this%st_nn(idx_dir)%idx1_dir
+      print "(A,I0,A,I0)", "DEBUG: st_nn(", idx_dir, ")%idx2_type = ", this%st_nn(idx_dir)%idx2_type
+      print "(A,I0,A,I0)", "DEBUG: st_nn(", idx_dir, ")%idx2_dir = ", this%st_nn(idx_dir)%idx2_dir
+      print "(A,I0,A)", "DEBUG: st_nn(", idx_dir, ") purpose: finds neighbor vertices for each edge flux"
     end do
+
     call this%st_em%init()
+    print "(A)", "DEBUG: Initialized empty stencil st_em"
 
     ! dependencies
+    print "(A)", "DEBUG: Setting up equation dependencies"
     idens = this%depend(this%dens)
+    print "(A,I0)", "DEBUG: Density dependency index = ", idens
     do idx_dir = 1, idx_dim
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
+      print "(A,I0,A,I0)", "DEBUG: Current density dependency index for direction ", idx_dir, " = ", icdens(idx_dir)
     end do
-    if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
+    if (par%smc%incomp_ion) then
+      igenrec = this%depend(this%genrec)
+      print "(A,I0)", "DEBUG: Generation/recombination dependency index = ", igenrec
+    else
+      print "(A)", "DEBUG: No generation/recombination dependency (complete ionization)"
+    end if
 
     ! init jacobians
+    print "(A)", "DEBUG: ==================== JACOBIAN INITIALIZATION ===================="
+    print "(A)", "DEBUG: Creating Jacobian matrices for continuity equation"
+    print "(A)", "DEBUG: Jacobian represents ∂(continuity_residual)/∂(variables)"
+
+    ! Density Jacobian - ∂(continuity)/∂(density)
+    print "(A,I0,A,I0)", "DEBUG: init_jaco_f idens=", idens, " with stencil array size=", 1+par%nct
+    print "(A,I0,A,I0)", "DEBUG: v1 (result): ntab=", this%f%ntab, " nval=", this%f%nval
+    print "(A,I0,A,I0)", "DEBUG: v2 (depend): ntab=", this%vdep%d(idens)%p%ntab, " nval=", this%vdep%d(idens)%p%nval
     this%jaco_dens   => this%init_jaco_f(idens, &
       & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, par%nct)], &
       & const = .true., dtime = .false.)
+    print "(A,I0,A,I0)", "DEBUG: jaco_dens allocated: matr blocks=", size(this%jaco_dens%matr%const,1), " x ", size(this%jaco_dens%matr%const,2)
+    print "(A,L1,A,L1,A,L1)", "DEBUG: block(1,1) const=", this%jaco_dens%matr%const(1,1), " zero=", this%jaco_dens%matr%zero(1,1), " dense=", this%jaco_dens%matr%dense(1,1)
+    if (allocated(this%jaco_dens%matr%s)) then
+      print "(A,I0,A,I0)", "DEBUG: sparse blocks allocated: ", size(this%jaco_dens%matr%s,1), " x ", size(this%jaco_dens%matr%s,2)
+    end if
+    if (allocated(this%jaco_dens%st)) then
+      print "(A,I0)", "DEBUG: stencils stored: ", size(this%jaco_dens%st)
+    end if
+
     if (.not. stat) then
+      print "(A)", "DEBUG: Creating transient jaco_dens_t with dtime=.true."
       this%jaco_dens_t => this%init_jaco_f(idens, &
         & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .true. )
+      print "(A,I0,A,I0)", "DEBUG: jaco_dens_t allocated: matr blocks=", size(this%jaco_dens_t%matr%const,1), " x ", size(this%jaco_dens_t%matr%const,2)
+      print "(A,L1)", "DEBUG: jaco_dens_t%const(1,1) = ", this%jaco_dens_t%matr%const(1,1)
+    else
+      print "(A)", "DEBUG: stat=.true. - skipping transient jacobian"
     end if
+
+    ! Current density Jacobians - ∂(continuity)/∂(J_x,J_y,J_z)
     do idx_dir = 1, idx_dim
+      print "(A,I0,A,I0,A,I0)", "DEBUG: jaco_cdens(", idx_dir, ") icdens=", icdens(idx_dir), " st_nn%nmax=", this%st_nn(idx_dir)%nmax
       this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), &
         & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
+      print "(A,I0,A,I0,A,I0)", "DEBUG: jaco_cdens(", idx_dir, ") allocated: blocks=", &
+        & size(this%jaco_cdens(idx_dir)%p%matr%const,1), " x ", size(this%jaco_cdens(idx_dir)%p%matr%const,2)
+      if (allocated(this%jaco_cdens(idx_dir)%p%sd)) then
+        print "(A,I0,A,I0)", "DEBUG: jaco_cdens(", idx_dir, ") sparse_data allocated: ", size(this%jaco_cdens(idx_dir)%p%sd)
+      end if
+      print "(A,I0,A,L1)", "DEBUG: jaco_cdens(", idx_dir, ")%dense(1,1)=", this%jaco_cdens(idx_dir)%p%matr%dense(1,1)
     end do
+
     if (par%smc%incomp_ion) then
+      print "(A,I0)", "DEBUG: Creating jaco_genrec with igenrec=", igenrec
       this%jaco_genrec => this%init_jaco_f(igenrec, &
         & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
+      print "(A,I0,A,I0)", "DEBUG: jaco_genrec allocated: blocks=", size(this%jaco_genrec%matr%const,1), " x ", size(this%jaco_genrec%matr%const,2)
+      print "(A,L1)", "DEBUG: jaco_genrec%const(1,1)=", this%jaco_genrec%matr%const(1,1)
+    else
+      print "(A)", "DEBUG: par%smc%incomp_ion=.false. - skipping genrec jacobian"
     end if
+
+    print "(A,I0,A,I0,A,I0,A)", "DEBUG: Total Jacobians created: jaco_dens + ", &
+      & merge(1,0,.not.stat), " jaco_dens_t + ", idx_dim, " jaco_cdens + ", merge(1,0,par%smc%incomp_ion), " jaco_genrec"
 
     ! set current density jacobian entries
     do idx_dir = 1, idx_dim
