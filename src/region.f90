@@ -1,6 +1,6 @@
 module region_m
 
-  use contact_m,       only: CT_OHMIC, CT_GATE
+  use contact_m,       only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
@@ -43,9 +43,13 @@ module region_m
     type(string) :: name
       !! contact name
     integer      :: type
-      !! contact type (CT_OHMIC or CT_GATE)
+      !! contact type (CT_OHMIC, CT_GATE, or CT_SCHOTTKY)
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
+    real         :: phi_b
+      !! Schottky barrier height (eV)
+    real         :: A_richardson
+      !! Richardson constant (A/cm²/K²)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -146,6 +150,13 @@ contains
         this%type = CT_OHMIC
       elseif (type%s == "gate") then
         this%type = CT_GATE
+      elseif (type%s == "schottky") then
+        this%type = CT_SCHOTTKY
+        ! Parse Schottky-specific parameters
+        call file%get(sid, "phi_b", this%phi_b, status = st)
+        if (.not. st) this%phi_b = 0.7  ! Default 0.7 eV
+        call file%get(sid, "A_richardson", this%A_richardson, status = st)
+        if (.not. st) this%A_richardson = 112.0  ! Default for Si (A/cm²/K²)
       else
         call program_error("unknown contact type "//type%s)
       end if

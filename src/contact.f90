@@ -14,11 +14,12 @@ module contact_m
   implicit none
 
   private
-  public :: CT_OHMIC, CT_GATE, contact
+  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
 
   ! contact types
-  integer, parameter :: CT_OHMIC = 1
-  integer, parameter :: CT_GATE  = 2
+  integer, parameter :: CT_OHMIC   = 1
+  integer, parameter :: CT_GATE    = 2
+  integer, parameter :: CT_SCHOTTKY = 3
 
   type contact
     !! device contact
@@ -26,9 +27,13 @@ module contact_m
     character(:), allocatable :: name
       !! contact name
     integer                   :: type
-      !! type of contact (CT_OHMIC, CT_GATE)
+      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY)
     real                      :: phims
       !! metal-semiconductor workfunction difference
+    real                      :: phi_b
+      !! Schottky barrier height (normalized, eV physical)
+    real                      :: A_richardson
+      !! Richardson constant (normalized, A/cm²/K² physical)
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
   end type

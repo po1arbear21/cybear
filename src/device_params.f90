@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module device_params_m
 
   use bin_search_m,     only: bin_search
-  use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use contact_m,        only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
   use container_m,      only: container, STORAGE_WRITE
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
@@ -1204,6 +1204,13 @@ contains
           this%contacts(ict)%name  = name%s
           this%contacts(ict)%type  = this%reg_ct(ri)%type
           this%contacts(ict)%phims = this%reg_ct(ri)%phims
+          
+          ! Transfer Schottky-specific parameters if applicable
+          if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
+            this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
+            this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
+          end if
+          
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
           call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
           call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)
@@ -1265,7 +1272,7 @@ contains
     do ict = 1, nct
       call this%contacted(ict)%init_final()
 
-      ! set phims for ohmic contacts
+      ! set phims for ohmic contacts (not for Schottky)
       if (this%contacts(ict)%type == CT_OHMIC) then
         ! find vertex indices in transport region
         do i = 1, this%contacted(ict)%n
