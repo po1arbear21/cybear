@@ -131,6 +131,7 @@ module device_params_m
   contains
     procedure :: init     => device_params_init
     procedure :: destruct => device_params_destruct
+    procedure :: get_contact_area
 
     procedure, private :: init_transport_params  => device_params_init_transport_params
     procedure, private :: init_regions           => device_params_init_regions
@@ -1209,6 +1210,9 @@ contains
           if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
             this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
             this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
+            print *, "DEBUG: Contact ", ict, " A_richardson:"
+            print *, "  Physical: ", this%reg_ct(ri)%A_richardson, " A/cm^2/K^2"
+            print *, "  Stored (should be physical): ", this%contacts(ict)%A_richardson
           end if
           
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
@@ -1336,5 +1340,25 @@ contains
       call this%ionvert(ci)%init_final()
     end do
   end subroutine
+  
+  function get_contact_area(this, ict, idx_vert) result(A_b)
+    !! Calculate boundary area for a contact vertex
+    !! For 1D: returns cross-sectional area (usually 1.0 in normalized units)
+    !! For 2D/3D: TODO - sum boundary face areas belonging to contact ict at vertex idx_vert
+    
+    class(device_params), intent(in) :: this
+    integer,              intent(in) :: ict         ! Contact index
+    integer,              intent(in) :: idx_vert(:) ! Vertex index array
+    real                             :: A_b
+    
+    ! Simple 1D implementation for now
+    ! In normalized units, cross-sectional area is typically 1.0
+    A_b = 1.0
+    
+    ! TODO: For 2D/3D, need to:
+    ! 1. Find all boundary faces connected to idx_vert
+    ! 2. Filter those belonging to contact ict
+    ! 3. Sum their areas
+  end function
 
 end module

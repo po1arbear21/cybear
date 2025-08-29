@@ -161,7 +161,7 @@ contains
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
-      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("V_SCHOTTKY"), new_string("I_OHMIC")], name%s // ".fbs")
+      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
   end subroutine

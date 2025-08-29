@@ -95,6 +95,24 @@ templates = [
   ], action = "expand" },
 ]
 
+[schottky_test]
+mode = "debug"
+single = true
+target = "schottky_test"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "run_schottky.ini",
+  ] },
+  { files = [
+    "schottky_diode.ini",
+  ], action = "expand" },
+]
+
 [galene_converter]
 mode = "debug"
 single = true
