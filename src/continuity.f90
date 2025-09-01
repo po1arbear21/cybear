@@ -78,7 +78,7 @@ contains
     logical              :: status
     real                 :: surf, F, dF
     real                 :: A_ct, v_surf, n0b  ! Variables for Schottky BC
-    type(stencil_ptr), allocatable :: st_dens_ct(:), st_cdens_ct(:)
+    type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:)
 
     print "(A)", "continuity_init"
 
@@ -120,14 +120,15 @@ contains
     call this%st_em%init()
 
     ! setup contact-specific stencils
-    allocate(st_cdens_ct(par%nct),st_dens_ct(par%nct))
-    ! This will be set inside the idx_dir loop below
+    allocate(st_cdens_ct(par%nct), st_dens_ct(par%nct), st_dens_t_ct(par%nct))
 
+    ! For time-dependent jaco_dens_t: differentiate by contact type
     do ict = 1, par%nct
+      st_dens_ct(ict) = this%st_dir%get_ptr()
       if (par%contacts(ict)%type == CT_SCHOTTKY) then
-        st_dens_ct(ict) = this%st_dir%get_ptr()  ! Time and genrec terms for Schottky
+        st_dens_t_ct(ict) = this%st_dir%get_ptr()  ! Time and genrec terms for Schottky
       else
-        st_dens_ct(ict) = this%st_em%get_ptr()   ! No time/genrec for Ohmic/Gate
+        st_dens_t_ct(ict) = this%st_em%get_ptr()   ! No time/genrec for Ohmic/Gate
       end if
     end do
 
@@ -140,11 +141,11 @@ contains
 
     ! init jacobians
     this%jaco_dens   => this%init_jaco_f(idens, &
-      & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, par%nct)], &
+      & st = [this%st_em%get_ptr(), (st_dens_ct(ict), ict = 1, par%nct)], &
       & const = .true., dtime = .false.)
     if (.not. stat) then
       this%jaco_dens_t => this%init_jaco_f(idens, &
-        & st = [this%st_dir%get_ptr(), (st_dens_ct(ict), ict = 1, par%nct)], &
+        & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .true. )
     end if
     do idx_dir = 1, idx_dim
@@ -163,7 +164,7 @@ contains
     end do
     if (par%smc%incomp_ion) then
       this%jaco_genrec => this%init_jaco_f(igenrec, &
-        & st = [this%st_dir%get_ptr(), (st_dens_ct(ict), ict = 1, par%nct)], &
+        & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end if
 
@@ -220,9 +221,7 @@ contains
     ! boundary conditions: Dirichlet for Ohmic/Gate, Robin for Schottky
     allocate (this%b(this%f%n), source = 0.0)
     j = par%transport_vct(0)%n
-    print *, "DEBUG: Setting boundary conditions, nct = ", par%nct
     do ict = 1, par%nct
-      print *, "  Contact ", ict, " has ", par%transport_vct(ict)%n, " vertices, type = ", par%contacts(ict)%type
       do i = 1, par%transport_vct(ict)%n
         j = j + 1
         idx1 = par%transport_vct(ict)%get_idx(i)
@@ -234,24 +233,21 @@ contains
           v_surf = schottky_velocity(par, ci, ict)
           A_ct = par%get_contact_area(ict, idx1)
 
-          ! Debug output
-          if (i <= 2) then  ! Print for first two vertices
-            print *, "DEBUG: Schottky BC for contact ", ict, " carrier ", ci, " vertex idx = ", idx1
-            print *, "  phims (normalized) = ", par%contacts(ict)%phims
-            print *, "  phi_b (normalized) = ", par%contacts(ict)%phi_b
+          ! Debug output for first vertex of each contact
+          if (i == 1) then
+            print *, "DEBUG Robin BC at contact ", ict, " for carrier ", ci
             print *, "  n0b (normalized) = ", n0b
-            print *, "  n0b (1/cm^3) = ", denorm(n0b, "1/cm^3")
+            print *, "  n0b (physical) = ", denorm(n0b, "1/cm^3"), " 1/cm^3"
             print *, "  v_surf (normalized) = ", v_surf
-            print *, "  v_surf (cm/s) = ", denorm(v_surf, "cm/s")
-            print *, "  A_ct (normalized) = ", A_ct
-            print *, "  A_ct (cm^2) = ", denorm(A_ct, "cm^2")
-            print *, "  Matrix diagonal = ", A_ct * v_surf
-            print *, "  RHS contribution = ", - A_ct * v_surf * n0b
+            print *, "  v_surf (physical) = ", denorm(v_surf, "cm/s"), " cm/s"
+            print *, "  A_ct = ", A_ct
+            print *, "  Jacobian diagonal += ", A_ct * v_surf
+            print *, "  RHS += ", A_ct * v_surf * n0b
           end if
 
-          ! Add Robin BC terms (ADD to accumulate with interior contributions)
-          call this%jaco_dens%add(idx1, idx1, A_ct * v_surf)
-          this%b(j) = this%b(j) + A_ct * v_surf * n0b
+          ! Add Robin BC terms (use SET not ADD for contact vertices)
+          call this%jaco_dens%set(idx1, idx1, A_ct * v_surf)
+          this%b(j) = A_ct * v_surf * n0b
         else
           ! Dirichlet BC for Ohmic/Gate contacts
           call this%jaco_dens%set(idx1, idx1, 1.0)

@@ -1210,9 +1210,6 @@ contains
           if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
             this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
             this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
-            print *, "DEBUG: Contact ", ict, " A_richardson:"
-            print *, "  Physical: ", this%reg_ct(ri)%A_richardson, " A/cm^2/K^2"
-            print *, "  Stored (should be physical): ", this%contacts(ict)%A_richardson
           end if
           
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)

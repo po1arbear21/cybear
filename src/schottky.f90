@@ -1,6 +1,7 @@
 module schottky_m
 
   use device_params_m,  only: device_params
+  use normalization_m,  only: norm, denorm
   use semiconductor_m,  only: CR_ELEC, CR_HOLE
 
   implicit none
@@ -29,10 +30,6 @@ contains
     if (ci == CR_ELEC) then
       ! Electrons: n0 = Nc * exp(-phi_Bn)
       ninj = par%smc%edos(CR_ELEC) * exp(-phi_Bn)
-      print *, "DEBUG schottky_injection_mb:"
-      print *, "  phi_b (normalized) = ", phi_Bn
-      print *, "  N_c (normalized) = ", par%smc%edos(CR_ELEC)
-      print *, "  n0b = N_c * exp(-phi_b) = ", ninj
     else  ! CR_HOLE
       ! Holes: barrier from valence band
       phi_Bp = par%smc%band_gap - phi_Bn
@@ -42,8 +39,8 @@ contains
 
   function schottky_velocity(par, ci, ict) result(s)
     !! Calculate thermionic emission velocity at Schottky contact
-    !! For now: input-driven or simple estimate
-    !! Later: can add Richardson constant based calculation
+    !! Using Richardson constant: v_surf = A*T^2/(q*Nc)
+    !! The normalization system handles the elementary charge q
 
     type(device_params), intent(in) :: par
     integer,             intent(in) :: ci   ! Carrier index
@@ -52,11 +49,20 @@ contains
 
     ! Check if Richardson constant is provided and > 0
     if (par%contacts(ict)%A_richardson > 0.0) then
-      ! TODO: Implement Richardson-based velocity
-      ! For now, use simple thermal velocity estimate
-      s = 0.25  ! v_th/4 in normalized units
+      ! Calculate normalized surface velocity
+      ! v_surf = A*T^2/(q*Nc) where q is handled by normalization
+      ! T must be normalized, Nc is already normalized
+      s = par%contacts(ict)%A_richardson * norm(par%T, "K") * norm(par%T, "K") / par%smc%edos(ci)
+
+      ! Debug output
+      print *, "DEBUG schottky_velocity for contact ", ict, ":"
+      print *, "  A_richardson = ", par%contacts(ict)%A_richardson, " A/cm^2/K^2"
+      print *, "  Temperature = ", par%T, " K"
+      print *, "  Nc (normalized) = ", par%smc%edos(ci)
+      print *, "  v_surf (normalized) = ", s
+      print *, "  v_surf (physical) = ", denorm(s, "cm/s"), " cm/s"
     else
-      ! Default thermal velocity estimate
+      ! Default thermal velocity estimate (v_th/4)
       s = 0.25  ! v_th/4 in normalized units
     end if
   end function
