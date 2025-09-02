@@ -8,6 +8,7 @@ module schottky_m
 
   private
   public :: schottky_injection_mb, schottky_velocity
+  public :: schottky_injection_mb_bias, schottky_barrier_lowering
 
 contains
 
@@ -40,7 +41,6 @@ contains
   function schottky_velocity(par, ci, ict) result(s)
     !! Calculate thermionic emission velocity at Schottky contact
     !! Using Richardson constant: v_surf = A*T^2/(q*Nc)
-    !! The normalization system handles the elementary charge q
 
     type(device_params), intent(in) :: par
     integer,             intent(in) :: ci   ! Carrier index
@@ -67,4 +67,43 @@ contains
     end if
   end function
 
-end module schottky_m
+  subroutine schottky_injection_mb_bias(par, ci, ict, E_field, ninj, dninj_dE)
+    !! Calculate bias-dependent equilibrium density and derivative for Schottky contact
+    !! PLACEHOLDER: Will include image force barrier lowering effect
+    
+    type(device_params), intent(in)  :: par
+    integer,             intent(in)  :: ci      ! Carrier index (CR_ELEC or CR_HOLE)
+    integer,             intent(in)  :: ict     ! Contact index
+    real,                intent(in)  :: E_field ! Electric field at interface (normalized)
+    real,                intent(out) :: ninj    ! Injection density (normalized)
+    real,                intent(out) :: dninj_dE ! Derivative d(ninj)/dE (normalized)
+    
+    ! PLACEHOLDER: For now, just call the original function and set derivative to zero
+    call schottky_injection_mb(par, ci, ict, ninj)
+    dninj_dE = 0.0
+    
+    ! TODO: Implement barrier lowering physics
+    ! - Calculate barrier lowering from E_field
+    ! - Modify ninj based on lowered barrier
+    ! - Calculate derivative for Jacobian
+  end subroutine
+
+  subroutine schottky_barrier_lowering(par, E_field, delta_phi_b, d_delta_phi_dE)
+    !! Calculate image force barrier lowering (Schottky effect)
+    !! PLACEHOLDER: Will implement Δφ_b = sqrt(q*|E|/(4π*ε))
+    
+    type(device_params), intent(in)  :: par
+    real,                intent(in)  :: E_field       ! Electric field (normalized)
+    real,                intent(out) :: delta_phi_b   ! Barrier lowering (normalized)
+    real,                intent(out) :: d_delta_phi_dE ! Derivative d(Δφ_b)/dE
+    
+    ! PLACEHOLDER: No barrier lowering for now
+    delta_phi_b = 0.0
+    d_delta_phi_dE = 0.0
+    
+    ! TODO: Implement proper physics
+    ! - Calculate barrier lowering: Δφ_b = sqrt(q*|E|/(4π*ε))
+    ! - Calculate derivative for Jacobian
+  end subroutine
+
+end module

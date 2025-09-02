@@ -15,7 +15,7 @@ module continuity_m
   use normalization_m,   only: norm, denorm
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil, stencil_ptr
   use vselector_m,       only: vselector
-  use schottky_m,        only: schottky_injection_mb, schottky_velocity
+  use schottky_m,        only: schottky_injection_mb, schottky_velocity, schottky_injection_mb_bias
 
   implicit none
 
@@ -38,6 +38,8 @@ module continuity_m
       !! dependencies: current densities in 2 directions
     type(vselector)              :: genrec
       !! generation - recombination
+    type(vselector)              :: pot
+      !! dependency: potential (for bias-dependent Schottky BC)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -50,6 +52,8 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
     type(jacobian),     pointer     :: jaco_genrec   => null()
+    type(jacobian),     pointer     :: jaco_pot      => null()
+      !! jacobian for potential dependency (Schottky BC)
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -57,7 +61,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec)
+  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, pot)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -72,8 +76,10 @@ contains
       !! electron/hole current density
     type(generation_recombination), intent(in)  :: genrec
       !! generation-recombination rate
+    type(potential), optional,      intent(in)  :: pot
+      !! potential (optional, for bias-dependent Schottky BC)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, ipot
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
     real                 :: surf, F, dF
@@ -103,6 +109,11 @@ contains
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
+
+    ! init potential selector if provided (for bias-dependent Schottky BC)
+    if (present(pot)) then
+      call this%pot%init(pot, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    end if
 
     ! init residuals using this%dens or this%iref as main variable
     if (stat) then
@@ -138,6 +149,7 @@ contains
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
     if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
+    if (present(pot)) ipot = this%depend(this%pot)
 
     ! init jacobians
     this%jaco_dens   => this%init_jaco_f(idens, &
@@ -166,6 +178,19 @@ contains
       this%jaco_genrec => this%init_jaco_f(igenrec, &
         & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
+    end if
+
+    ! init potential jacobian for bias-dependent Schottky BC
+    if (present(pot)) then
+      ! Check if any contacts are Schottky type
+      if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)) then
+        ! For now, use empty stencil for interior and dir stencil for Schottky contacts
+        ! This will be refined when we implement the actual bias dependency
+        this%jaco_pot => this%init_jaco_f(ipot, &
+          & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
+          & par%contacts(ict)%type == CT_SCHOTTKY), ict = 1, par%nct)], &
+          & const = .false., dtime = .false.)
+      end if
     end if
 
     ! set current density jacobian entries
@@ -248,6 +273,12 @@ contains
           ! Add Robin BC terms (use SET not ADD for contact vertices)
           call this%jaco_dens%set(idx1, idx1, A_ct * v_surf)
           this%b(j) = A_ct * v_surf * n0b
+
+          ! Add potential derivative for bias-dependent BC
+          if (associated(this%jaco_pot)) then
+            ! Placeholder: zero derivative for now (will be updated in eval)
+            call this%jaco_pot%set(idx1, idx1, 0.0)
+          end if
         else
           ! Dirichlet BC for Ohmic/Gate contacts
           call this%jaco_dens%set(idx1, idx1, 1.0)
@@ -269,15 +300,70 @@ contains
     !! evaluate continuity equation
     class(continuity), intent(inout) :: this
 
-    integer           :: idx_dir
-    real, allocatable :: tmp(:)
+    integer              :: idx_dir, i, j, ict
+    integer, allocatable :: idx1(:)
+    real, allocatable    :: tmp(:)
+    real                 :: A_ct, v_surf, n0b, dn0b_dE, phi0
+    real                 :: E_field  ! Electric field for barrier lowering
+    real                 :: phi0_arr(1)  ! Temporary array for vselector get
 
     allocate (tmp(this%f%n))
+    allocate (idx1(this%par%g%idx_dim))
+
+    ! Update boundary conditions for Schottky contacts (bias-dependent)
+    if (associated(this%jaco_pot)) then
+      j = this%par%transport_vct(0)%n
+      do ict = 1, this%par%nct
+        if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+          ! Get surface velocity once per contact
+          v_surf = schottky_velocity(this%par, this%ci, ict)
+        end if
+
+        do i = 1, this%par%transport_vct(ict)%n
+          j = j + 1
+          idx1 = this%par%transport_vct(ict)%get_idx(i)
+
+          if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+            ! Get contact area for this vertex
+            A_ct = this%par%get_contact_area(ict, idx1)
+
+            ! TODO: Calculate electric field at contact and dE/dphi
+            ! For now, use placeholder zero field
+            E_field = 0.0
+
+            ! Get bias-dependent injection density and derivative w.r.t. E field
+            call schottky_injection_mb_bias(this%par, this%ci, ict, E_field, n0b, dn0b_dE)
+
+            ! Get potential at contact vertex for linearization
+            phi0_arr = this%pot%get(idx1)
+            phi0 = phi0_arr(1)
+
+            ! Update RHS with linearization: b = Av(n0b - dn0b/dphi * phi0)
+            ! Note: dn0b/dphi = dn0b/dE * dE/dphi, but dE/dphi = 0 for now (placeholder)
+            this%b(j) = A_ct * v_surf * (n0b - dn0b_dE * 0.0)  ! No phi coupling yet
+
+            ! Update potential Jacobian entry
+            ! Will be -A*v*dn0b/dphi when dE/dphi is implemented
+            call this%jaco_pot%set(idx1, idx1, 0.0)  ! Placeholder until dE/dphi available
+          end if
+        end do
+      end do
+
+      ! Materialize the Jacobian matrix after all entries are set
+      call this%jaco_pot%set_matr(const = .false., nonconst = .true.)
+    end if
+
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
     do idx_dir = 1, this%par%g%idx_dim
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
+
+    ! Add potential contribution for bias-dependent Schottky BC
+    if (associated(this%jaco_pot)) then
+      call this%jaco_pot%matr%mul_vec(this%pot%get(), tmp, fact_y = 1.0)
+    end if
+
     call this%f%set(tmp - this%b)
   end subroutine
 
