@@ -6,6 +6,7 @@ module device_m
   use current_density_m, only: current_density, calc_current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
+  use electric_field_m,  only: electric_field, calc_electric_field
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
@@ -43,6 +44,8 @@ module device_m
       !! electron/hole quasi-fermi potential (carrier index)
     type(mobility),        allocatable :: mob(:,:)
       !! electron/hole mobility (direction, carrier index)
+    type(electric_field),  allocatable :: efield(:)
+      !! electric field components at vertices (direction)
     type(charge_density)               :: rho
       !! charge density
     type(voltage),         allocatable :: volt(:)
@@ -77,6 +80,8 @@ module device_m
       !! calculate charge density from electron/hole density and (ionized) doping concentrations
     type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
+    type(calc_electric_field),  allocatable :: calc_efield(:)
+      !! calculate electric field components from potential gradient (direction)
 
     type(esystem) :: sys_nlpe
       !! non-linear poisson equation system
@@ -104,7 +109,7 @@ contains
     real,          intent(in)  :: T
       !! temperature in K
 
-    integer          :: ci, idx_dir, ict
+    integer          :: ci, idx_dir, ict, dir
     type(input_file) :: file
 
     ! load device parameters
@@ -114,6 +119,7 @@ contains
     ! init variables
     allocate (this%cdens(this%par%g%idx_dim,2))
     allocate (this%mob(this%par%g%idx_dim,2))
+    allocate (this%efield(this%par%g%dim))
     call this%pot%init(this%par)
     do ci = this%par%ci0, this%par%ci1
       call this%dens(ci)%init(this%par, ci)
@@ -125,6 +131,9 @@ contains
         call this%mob(idx_dir,ci)%init(this%par, ci, idx_dir)
       end do
     end do
+    do dir = 1, this%par%g%dim
+      call this%efield(dir)%init(this%par, dir)
+    end do
     call this%rho%init(this%par)
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
@@ -135,6 +144,7 @@ contains
 
     ! init equations
     allocate (this%calc_cdens(this%par%g%idx_dim,2))
+    allocate (this%calc_efield(this%par%g%dim))
     if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
@@ -155,6 +165,9 @@ contains
       end do
     end do
     call this%calc_rho%init(this%par, this%dens, this%ion, this%rho)
+    do dir = 1, this%par%g%dim
+      call this%calc_efield(dir)%init(this%par, this%pot, this%efield(dir))
+    end do
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
