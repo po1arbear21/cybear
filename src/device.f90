@@ -6,7 +6,7 @@ module device_m
   use current_density_m, only: current_density, calc_current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
-  use electric_field_m,  only: electric_field, calc_electric_field
+  use electric_field_m,  only: electric_field, calc_efield
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
@@ -80,7 +80,7 @@ module device_m
       !! calculate charge density from electron/hole density and (ionized) doping concentrations
     type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
-    type(calc_electric_field),  allocatable :: calc_efield(:)
+    type(calc_efield),  allocatable :: calc_efield(:)
       !! calculate electric field components from potential gradient (direction)
 
     type(esystem) :: sys_nlpe
@@ -220,6 +220,10 @@ contains
         call this%sys_full_stat%add_equation(this%calc_genrec(ci))
       end if
     end do
+    ! add electric field calculation equations
+    do dir = 1, this%par%g%dim
+      call this%sys_full_stat%add_equation(this%calc_efield(dir))
+    end do
     call this%sys_full_stat%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
@@ -242,6 +246,10 @@ contains
         call this%sys_full%add_equation(this%calc_genrec(ci))
       end if
       call this%sys_full%add_equation(this%calc_iref(ci))
+    end do
+    ! add electric field calculation equations
+    do dir = 1, this%par%g%dim
+      call this%sys_full%add_equation(this%calc_efield(dir))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct

@@ -256,7 +256,7 @@ contains
           ! Get Schottky BC parameters
           call schottky_injection_mb(par, ci, ict, n0b)
           v_surf = schottky_velocity(par, ci, ict)
-          A_ct = par%get_contact_area(ict, idx1)
+          A_ct = par%get_ct_surf(ict, idx1)
 
           ! Debug output for first vertex of each contact
           if (i == 1) then
@@ -325,7 +325,7 @@ contains
 
           if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
             ! Get contact area for this vertex
-            A_ct = this%par%get_contact_area(ict, idx1)
+            A_ct = this%par%get_ct_surf(ict, idx1)
 
             ! TODO: Calculate electric field at contact and dE/dphi
             ! For now, use placeholder zero field

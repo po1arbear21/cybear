@@ -1,4 +1,4 @@
-program schottky_test
+program efield_test
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
@@ -28,7 +28,7 @@ program schottky_test
   type(input_file) :: runfile
 
   print "(A)", "Start simulation on " // get_hostname()
-  print *, "Schottky Diode Test"
+  print *, "Electric Field Verification Test"
 
   ! parse command line arguments
   call command_line()
@@ -161,11 +161,135 @@ contains
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
-      ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
+      ! Use LEFT and RIGHT contact variables for testing
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), &
-        & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC")], name%s // ".fbs")
+        & new_string("V_LEFT"), new_string("I_LEFT"), new_string("I_RIGHT")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
+
+      ! Perform analytical comparison after steady-state
+      call verify_electric_field()
     end do
+  end subroutine
+
+  subroutine verify_electric_field()
+    !! Compare computed electric field with analytical solution
+
+    integer :: i, n_points, ict
+    real    :: V_applied, L_device, E_analytical
+    real    :: E_computed, E_error, max_error, avg_error
+    real    :: p_vertex(dev%par%g%dim), ct_surf_val
+    real, allocatable :: efield_values(:), x_positions(:), pot_values(:), ct_surf_values(:)
+    integer, allocatable :: idx_temp(:)
+    character(len=10), allocatable :: vertex_type(:)
+
+    print *, ""
+    print *, "========================================="
+    print *, "Electric Field Analytical Verification"
+    print *, "========================================="
+
+    ! Get device parameters (assuming uniform 1D grid from 0 to 100 nm)
+    V_applied = norm(0.15, "V")  ! Normalize the applied voltage
+    L_device = norm(100.0, "nm")  ! Normalize the device length
+
+    ! Analytical solution for uniform field: E = -V/L (both in normalized units)
+    E_analytical = -V_applied / L_device  ! This gives normalized E-field
+
+    ! Get computed electric field values in grid order
+    n_points = dev%efield(1)%data%n
+    allocate(efield_values(n_points), pot_values(n_points))
+    efield_values = dev%efield(1)%get()
+    pot_values = dev%pot%get()
+
+    ! Debug: Print potential values to check ordering
+    print *, ""
+    print *, "DEBUG: Potential values in data array order:"
+    do i = 1, dev%pot%data%n
+      print "(A,I3,A,ES15.8)", "  pot[", i, "] = ", denorm(pot_values(i), "V")
+    end do
+
+    ! Allocate arrays for position, type info, and contact surface
+    allocate(x_positions(n_points), vertex_type(n_points), ct_surf_values(n_points))
+    allocate(idx_temp(dev%par%g%idx_dim))
+
+    ! For each data point, determine its position, type, and contact surface
+    ! We'll iterate through the grid in its natural order
+    do i = 1, n_points
+      ! Get grid index for this data point
+      idx_temp = [i]  ! For 1D grid, data index equals grid index
+      call dev%par%g%get_vertex(idx_temp, p_vertex)
+      x_positions(i) = denorm(p_vertex(1), "nm")
+
+      ! Get contact index for this vertex
+      ict = dev%par%ict%get(idx_temp)
+      
+      ! Calculate contact surface if this is a contact vertex
+      if (ict > 0) then
+        ct_surf_val = dev%par%get_ct_surf(ict, idx_temp)
+        ct_surf_values(i) = ct_surf_val
+        vertex_type(i) = trim(dev%par%contacts(ict)%name)
+      else
+        ct_surf_values(i) = 0.0
+        vertex_type(i) = "interior"
+      end if
+    end do
+
+    ! Calculate error metrics
+    max_error = 0.0
+    avg_error = 0.0
+
+    print *, ""
+    print "(A)", "Idx  Type       X(nm)      Potential(V)     E_computed(V/cm)    E_analytical(V/cm)    Error(%)      Contact Surface"
+    print "(A)", "---  --------   -------    ------------     ----------------    -----------------    --------      ---------------"
+
+    do i = 1, n_points
+      E_computed = efield_values(i)
+      E_error = abs((E_computed - E_analytical) / E_analytical) * 100.0
+
+      if (ct_surf_values(i) > 0.0) then
+        print "(I3, 2X, A10, F8.2, 4ES20.5, ES20.5)", i, vertex_type(i), &
+          & x_positions(i), denorm(pot_values(i), "V"), denorm(E_computed, "V/cm"), &
+          & denorm(E_analytical, "V/cm"), E_error, ct_surf_values(i)
+      else
+        print "(I3, 2X, A10, F8.2, 4ES20.5, A20)", i, vertex_type(i), &
+          & x_positions(i), denorm(pot_values(i), "V"), denorm(E_computed, "V/cm"), &
+          & denorm(E_analytical, "V/cm"), E_error, "         -"
+      end if
+
+      max_error = max(max_error, abs(E_computed - E_analytical))
+      avg_error = avg_error + abs(E_computed - E_analytical)
+    end do
+
+    avg_error = avg_error / real(n_points)
+
+    print *, ""
+    print "(A,ES12.5,A)", "Analytical E-field: ", denorm(E_analytical, "V/cm"), " V/cm"
+    print "(A,ES12.5,A)", "Average computed E: ", denorm(sum(efield_values)/real(n_points), "V/cm"), " V/cm"
+    print "(A,ES12.5)",    "Max absolute error: ", denorm(max_error, "V/cm")
+    print "(A,ES12.5)",    "Avg absolute error: ", denorm(avg_error, "V/cm")
+
+    ! Check interior points (skip boundaries)
+    if (n_points > 4) then
+      print *, ""
+      print *, "Interior field uniformity check (points 3 to n-2):"
+      max_error = 0.0
+      do i = 3, n_points-2
+        max_error = max(max_error, abs(efield_values(i) - efield_values(3)))
+      end do
+      print "(A,ES12.5,A)", "Max variation in interior: ", denorm(max_error, "V/cm"), " V/cm"
+    end if
+
+    ! Print contact surface values
+    print *, ""
+    print *, "Contact Surface Summary:"
+    do i = 1, n_points
+      if (ct_surf_values(i) > 0.0) then
+        print "(A,I3,A,A10,A,ES15.6,A,ES15.6,A)", "  Vertex ", i, " (", vertex_type(i), &
+          & "): ct_surf = ", ct_surf_values(i), " (normalized), ", &
+          & denorm(ct_surf_values(i), "nm^2"), " nm^2 (denormalized)"
+      end if
+    end do
+
+    deallocate(efield_values, vertex_type, x_positions, idx_temp, ct_surf_values)
   end subroutine
 
   subroutine gummel()

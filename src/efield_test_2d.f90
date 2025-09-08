@@ -1,9 +1,10 @@
-program schottky_test
+program efield_test_2d
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
   use device_m,           only: dev
   use error_m,            only: program_error
+  use grid_m,             only: IDX_VERTEX
   use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file
   use input_src_m,        only: polygon_src, harmonic_src
@@ -28,7 +29,7 @@ program schottky_test
   type(input_file) :: runfile
 
   print "(A)", "Start simulation on " // get_hostname()
-  print *, "Schottky Diode Test"
+  print *, "2D Electric Field Verification Test"
 
   ! parse command line arguments
   call command_line()
@@ -161,11 +162,173 @@ contains
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
-      ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
-      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), &
-        & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC")], name%s // ".fbs")
+      ! Use LEFT and RIGHT contact variables for testing, include Ey for 2D
+      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), new_string("Ey"), &
+        & new_string("V_LEFT"), new_string("I_LEFT"), new_string("I_RIGHT")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
+
+      ! Perform analytical comparison after steady-state
+      call verify_electric_field()
     end do
+  end subroutine
+
+  subroutine verify_electric_field()
+    !! Compare computed electric field with analytical solution
+
+    integer :: i, n_points, ict, ix, iy, nx, ny
+    real    :: V_applied, L_device, E_analytical
+    real    :: E_computed, E_error, max_error, avg_error
+    real    :: p_vertex(dev%par%g%dim), ct_surf_val, tr_vol_val
+    real, allocatable :: efield_x(:), efield_y(:), x_positions(:), y_positions(:), pot_values(:), ct_surf_values(:), tr_vol_values(:)
+    integer, allocatable :: idx_temp(:)
+    character(len=10), allocatable :: vertex_type(:)
+
+    print *, ""
+    print *, "========================================="
+    print *, "2D Electric Field Analytical Verification"
+    print *, "========================================="
+
+    ! Get device parameters (assuming uniform 1D grid from 0 to 100 nm)
+    V_applied = norm(0.15, "V")  ! Normalize the applied voltage
+    L_device = norm(100.0, "nm")  ! Normalize the device length
+
+    ! Analytical solution for uniform field: E = -V/L (both in normalized units)
+    E_analytical = -V_applied / L_device  ! This gives normalized E-field
+
+    ! Get computed electric field values in grid order
+    n_points = dev%efield(1)%data%n
+    allocate(efield_x(n_points), efield_y(n_points), pot_values(n_points))
+    efield_x = dev%efield(1)%get()  ! Ex component
+    if (dev%par%g%dim >= 2) then
+      efield_y = dev%efield(2)%get()  ! Ey component
+    else
+      efield_y = 0.0
+    end if
+    pot_values = dev%pot%get()
+
+    ! Debug: Print potential values to check ordering
+    print *, ""
+    print *, "DEBUG: Potential values in data array order:"
+    do i = 1, dev%pot%data%n
+      print "(A,I3,A,ES15.8)", "  pot[", i, "] = ", denorm(pot_values(i), "V")
+    end do
+
+    ! Allocate arrays for position, type info, and contact surface
+    allocate(x_positions(n_points), y_positions(n_points), vertex_type(n_points), ct_surf_values(n_points), tr_vol_values(n_points))
+    allocate(idx_temp(dev%par%g%idx_dim))
+
+    ! For 2D tensor grid, iterate through vertices systematically
+    ! The data is stored in column-major order (Fortran style)
+    nx = dev%par%g1D(1)%n  ! number of x points
+    ny = dev%par%g1D(2)%n  ! number of y points
+
+    i = 0
+    do iy = 1, ny
+      do ix = 1, nx
+        i = i + 1
+        if (i > n_points) exit
+        idx_temp = [ix, iy]
+
+        ! Get vertex position
+        call dev%par%g%get_vertex(idx_temp, p_vertex)
+        x_positions(i) = denorm(p_vertex(1), "nm")
+        if (dev%par%g%dim >= 2) then
+          y_positions(i) = denorm(p_vertex(2), "nm")
+        else
+          y_positions(i) = 0.0
+        end if
+
+        ! Get contact index for this vertex
+        ict = dev%par%ict%get(idx_temp)
+
+        ! Always try to get tr_vol if it exists (for both contact and interior vertices)
+        if (dev%par%transport(IDX_VERTEX,0)%flags%get(idx_temp)) then
+          tr_vol_values(i) = dev%par%tr_vol%get(idx_temp)
+        else
+          tr_vol_values(i) = 0.0
+        end if
+
+        ! Get values for comparison
+        if (ict > 0) then
+          ! Contact vertex: get contact boundary length [nm in 2D]
+          ct_surf_val = dev%par%get_ct_surf(ict, idx_temp)
+          ct_surf_values(i) = ct_surf_val
+          vertex_type(i) = trim(dev%par%contacts(ict)%name)
+        else
+          ! Interior vertex: set to 0 since we display tr_vol separately
+          ct_surf_values(i) = 0.0
+          vertex_type(i) = "interior"
+        end if
+      end do
+      if (i > n_points) exit
+    end do
+
+    ! Calculate error metrics
+    max_error = 0.0
+    avg_error = 0.0
+
+    print *, ""
+    print "(A)", "All grid points:"
+    print "(A)", "Idx  Grid[x,y]  Type     X(nm)  Y(nm)   Pot(V)    Ex(V/cm)    Ey(V/cm)   ct_surf     tr_vol"
+    print "(A)", "---  ---------  -------  -----  -----   -------   ---------   ---------  ----------  ----------"
+
+    ! Re-iterate for printing (same ordering as above)
+    i = 0
+    do iy = 1, ny
+      do ix = 1, nx
+        i = i + 1
+        if (i > n_points) exit
+        idx_temp = [ix, iy]
+
+        ! Print all points with both ct_surf and tr_vol
+        print "(I3, 2X, '[',I2,',',I2,']', 2X, A8, 2F7.1, 3ES12.4, 2ES12.4)", i, idx_temp(1), idx_temp(2), vertex_type(i), &
+          & x_positions(i), y_positions(i), denorm(pot_values(i), "V"), &
+          & denorm(efield_x(i), "V/cm"), denorm(efield_y(i), "V/cm"), &
+          & denorm(ct_surf_values(i), "nm"), denorm(tr_vol_values(i), "nm^2")
+      end do
+      if (i > n_points) exit
+    end do
+
+    ! Calculate statistics for Ex and Ey separately
+    print *, ""
+    print *, "Field Statistics:"
+    print "(A,ES12.5,A)", "Analytical Ex: ", denorm(E_analytical, "V/cm"), " V/cm"
+    print "(A,ES12.5,A)", "Average Ex:    ", denorm(sum(efield_x)/real(n_points), "V/cm"), " V/cm"
+    print "(A,ES12.5,A)", "Average Ey:    ", denorm(sum(efield_y)/real(n_points), "V/cm"), " V/cm (should be ~0)"
+    print "(A,ES12.5,A)", "Max |Ey|:      ", denorm(maxval(abs(efield_y)), "V/cm"), " V/cm"
+
+    ! Check field uniformity in interior
+    print *, ""
+    print *, "Interior field uniformity check:"
+    block
+      real :: ex_min, ex_max, ey_min, ey_max
+      integer :: n_interior
+      n_interior = 0
+      ex_min = huge(1.0)
+      ex_max = -huge(1.0)
+      ey_min = huge(1.0)
+      ey_max = -huge(1.0)
+
+      do i = 1, n_points
+        if (vertex_type(i) == "interior") then
+          n_interior = n_interior + 1
+          ex_min = min(ex_min, efield_x(i))
+          ex_max = max(ex_max, efield_x(i))
+          ey_min = min(ey_min, efield_y(i))
+          ey_max = max(ey_max, efield_y(i))
+        end if
+      end do
+
+      if (n_interior > 0) then
+        print "(A,I5)", "Number of interior points: ", n_interior
+        print "(A,ES12.5,A,ES12.5,A)", "Ex range: [", denorm(ex_min, "V/cm"), ", ", denorm(ex_max, "V/cm"), "] V/cm"
+        print "(A,ES12.5,A,ES12.5,A)", "Ey range: [", denorm(ey_min, "V/cm"), ", ", denorm(ey_max, "V/cm"), "] V/cm"
+        print "(A,ES12.5,A)", "Ex variation: ", denorm(ex_max - ex_min, "V/cm"), " V/cm"
+        print "(A,ES12.5,A)", "Ey variation: ", denorm(ey_max - ey_min, "V/cm"), " V/cm"
+      end if
+    end block
+
+    deallocate(efield_x, efield_y, vertex_type, x_positions, y_positions, idx_temp, ct_surf_values, tr_vol_values)
   end subroutine
 
   subroutine gummel()
@@ -313,4 +476,4 @@ contains
     end do
   end subroutine
 
-end program
+end program efield_test_2D
