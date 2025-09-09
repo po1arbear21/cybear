@@ -421,3 +421,203 @@ Debug why current doesn't show proper exponential increase with voltage.
 ---
 
 End of Progress Report
+
+---
+
+## SESSION SUMMARY (2025-01-09) - Finite Volume & Electric Field Implementation
+
+### Work Completed
+
+#### 1. Finite Volume Method Analysis
+- **Understanding tr_vol and tr_surf**:
+  - `tr_vol`: Control/adjoint volume around vertices (area in 2D [nm²], volume in 3D [nm³])
+  - `tr_surf`: Surface area of edges connecting vertices (length in 2D [nm], area in 3D [nm²])
+  - Vertex-centered finite volume approach with adjoint volumes from Voronoi tessellation
+  - Contact vertices at transport boundaries DO have tr_vol values (they're transport vertices that also belong to contacts)
+
+#### 2. Contact Surface Area Implementation
+- **Implemented `get_ct_surf` function** in `device_params.f90`:
+  - 1D: Returns normalized cross-sectional area
+  - 2D: Sums half of edge lengths to neighboring contact vertices
+  - 3D: (Placeholder for future implementation)
+  - Formula for 2D: `ct_surf = Σ(0.5 * edge_length)` for edges connecting to same-contact neighbors
+
+#### 3. 2D Electric Field Test Development
+- **Created 2D test files**:
+  - `src/efield_test_2d.f90`: 2D electric field verification program
+  - `test/efield_test_device_2D.ini`: 100nm × 50nm device configuration
+  - Displays control volumes (tr_vol) and contact surfaces (ct_surf) for all grid points
+  - Verifies uniform electric field in x-direction
+
+#### 4. Key Discoveries
+- **Contact vertex categorization**:
+  - Vertices at transport boundaries are BOTH transport AND contact vertices
+  - They have tr_vol values because they're in the transport region
+  - During initialization, they're moved from `transport_vct(0)` to `transport_vct(ict)`
+  - Example: In 1D with LEFT contact at x=0, vertex 1 has tr_vol = 0.5nm (half control volume)
+
+- **Removed `get_ct_vol` function**:
+  - Was redundant - just returned tr_vol without modification
+  - Electric field calculation now directly uses `par%tr_vol%get(idx_k)` for all vertices
+
+### Issues Resolved
+1. Grid iteration in 2D using tensor grid dimensions (`g1D(1)%n`, `g1D(2)%n`)
+2. Format string errors in print statements
+3. Understanding that tr_surf is defined on edges, not vertices
+4. Clarified that contact vertices have tr_vol values when at transport boundaries
+
+---
+
+## TODO: Image Force Barrier Lowering Implementation
+
+### Overview
+Implement Schottky barrier lowering due to image force effect: Δφ_b = √(q|E_n|/(4πε))
+
+### Key Decisions
+1. **WHERE**: Image force lowering belongs in **continuity equation boundary conditions**, NOT Poisson
+   - It's a local effect at the metal-semiconductor interface
+   - Modifies the effective barrier height for thermionic emission
+   - Poisson equation remains unchanged
+
+2. **WHICH FIELD**: Use the **normal component** of electric field at interface
+   - Need |E·n| where n is the outward normal
+   - Must manually determine which component based on contact geometry
+   - No automatic routing of E components to boundary conditions
+
+### Implementation Plan
+
+#### 1. Detect Contact Orientation and Normal Direction
+**File**: `src/device_params.f90`
+- Add function to determine contact normal direction:
+  ```fortran
+  function get_contact_normal_dir(this, ict) result(normal_dir)
+    ! Returns: 
+    !   +1 for x-normal contacts at x_min (LEFT)
+    !   -1 for x-normal contacts at x_max (RIGHT)
+    !   +2 for y-normal contacts at y_min (BOTTOM)
+    !   -2 for y-normal contacts at y_max (TOP)
+    !   +3 for z-normal contacts at z_min (FRONT)
+    !   -3 for z-normal contacts at z_max (BACK)
+  ```
+- Detection logic for tensor grids:
+  - Check if all contact vertices have same coordinate in one direction
+  - Compare with grid bounds to determine orientation
+  - Store result for efficiency
+
+#### 2. Extract Normal Electric Field Component
+**File**: `src/continuity.f90` (lines 332-336)
+- Replace `E_field = 0.0` with actual field extraction:
+  ```fortran
+  ! Get normal E field component at contact
+  normal_dir = par%get_contact_normal_dir(ict)
+  idx_dir = abs(normal_dir)
+  sign_dir = sign(1, normal_dir)
+  
+  ! Get field component and apply sign for outward normal
+  E_normal = sign_dir * efield(idx_dir)%get(idx1)
+  
+  ! Use absolute value for barrier lowering
+  E_field_mag = abs(E_normal)
+  ```
+
+#### 3. Implement Barrier Lowering Physics
+**File**: `src/schottky.f90`
+- Complete `schottky_barrier_lowering` function (lines 91-107):
+  ```fortran
+  subroutine schottky_barrier_lowering(par, E_field, delta_phi_b, d_delta_phi_dE)
+    type(device_params), intent(in)  :: par
+    real,                intent(in)  :: E_field       ! Normal E field (normalized)
+    real,                intent(out) :: delta_phi_b   ! Barrier lowering (normalized)
+    real,                intent(out) :: d_delta_phi_dE ! Derivative d(Δφ_b)/dE
+    
+    real :: E_abs, eps_r
+    
+    E_abs = abs(E_field)
+    
+    if (E_abs > 1e-10) then
+      ! Get relative permittivity (need to add to device_params)
+      eps_r = 11.7  ! Silicon, should get from par
+      
+      ! Image force barrier lowering: Δφ_b = sqrt(q*|E|/(4π*ε0*εr))
+      ! In normalized units with proper constants
+      delta_phi_b = sqrt(E_abs / (4.0 * PI * eps_r))
+      
+      ! Derivative for Jacobian (w.r.t signed E field)
+      d_delta_phi_dE = 0.5 * delta_phi_b / E_abs * sign(1.0, E_field)
+    else
+      delta_phi_b = 0.0
+      d_delta_phi_dE = 0.0
+    end if
+  end subroutine
+  ```
+
+- Update `schottky_injection_mb_bias` (lines 70-89):
+  ```fortran
+  subroutine schottky_injection_mb_bias(par, ci, ict, E_field, ninj, dninj_dE)
+    type(device_params), intent(in)  :: par
+    integer,             intent(in)  :: ci
+    integer,             intent(in)  :: ict
+    real,                intent(in)  :: E_field
+    real,                intent(out) :: ninj
+    real,                intent(out) :: dninj_dE
+    
+    real :: ninj_base, delta_phi_b, d_delta_phi_dE
+    
+    ! Get base injection without field
+    call schottky_injection_mb(par, ci, ict, ninj_base)
+    
+    ! Calculate barrier lowering
+    call schottky_barrier_lowering(par, E_field, delta_phi_b, d_delta_phi_dE)
+    
+    ! Modify injection with lowered barrier
+    if (ci == CR_ELEC) then
+      ! Electrons: lower barrier increases injection
+      ninj = ninj_base * exp(delta_phi_b)
+      dninj_dE = ninj * d_delta_phi_dE
+    else  ! CR_HOLE
+      ! Holes: opposite effect
+      ninj = ninj_base * exp(-delta_phi_b)
+      dninj_dE = -ninj * d_delta_phi_dE
+    end if
+  end subroutine
+  ```
+
+#### 4. Update Continuity Equation with E-field Dependency
+**File**: `src/continuity.f90`
+- Modify Robin BC assembly (lines 390-414) to include E-field contribution:
+  ```fortran
+  ! Get electric field dependency
+  if (par%contacts(ict)%type == CT_SCHOTTKY) then
+    ! Get normal field direction
+    normal_dir = par%get_contact_normal_dir(ict)
+    idx_dir = abs(normal_dir)
+    
+    ! Add E-field contribution to Jacobian
+    ! ∂R/∂φ includes ∂n0b/∂E * ∂E/∂φ term
+    ! This requires adding dependency on efield variables
+  end if
+  ```
+
+#### 5. Testing and Validation
+- Create test with known E field at contacts
+- Verify barrier lowering magnitude: typical ~0.01-0.1 eV for E~10^5 V/cm
+- Check I-V characteristics show enhanced current with barrier lowering
+- Ensure Newton convergence with field-dependent BC
+
+### Physical Constants and Considerations
+- Silicon permittivity: εr = 11.7
+- Formula in SI: Δφ = √(qE/(4πε0εr))
+- Typical lowering: 0.05 eV at E = 10^5 V/cm
+- Effect more pronounced at higher fields/reverse bias
+- Sign convention: E field positive pointing from metal into semiconductor
+
+### Implementation Notes
+1. **Normalization**: Ensure all quantities properly normalized
+2. **Sign conventions**: Careful with field direction vs normal direction
+3. **Jacobian**: Need derivatives w.r.t both n and φ (through E field)
+4. **Convergence**: May need damping for strong field dependence
+5. **Physical limits**: Cap barrier lowering at reasonable values
+
+### References
+- Sze & Ng, "Physics of Semiconductor Devices", 3rd Ed., Section 3.2
+- Standard formula: Δφ_b = √(qE/(4πε))

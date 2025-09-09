@@ -140,3 +140,16 @@ templates = [
     "test/efield_test_device_2D.ini",
   ], action = "expand" },
 ]
+
+[test_contact_normal]
+mode = "debug"
+single = true
+target = "test_contact_normal"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "{files[0]}"
+
+templates = [
+  { files = [
+    "/test/test_6contacts_3d.ini",
+  ] },
+]

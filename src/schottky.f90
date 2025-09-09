@@ -3,14 +3,82 @@ module schottky_m
   use device_params_m,  only: device_params
   use normalization_m,  only: norm, denorm
   use semiconductor_m,  only: CR_ELEC, CR_HOLE
+  use grid_m,           only: IDX_VERTEX
 
   implicit none
 
   private
   public :: schottky_injection_mb, schottky_velocity
   public :: schottky_injection_mb_bias, schottky_barrier_lowering
+  public :: get_schottky_contact_normal_dir
 
 contains
+
+  function get_schottky_contact_normal_dir(par, ict) result(normal_dir)
+    !! Determine the normal direction of a Schottky contact for barrier lowering
+    !! Analyzes vertex coordinates to find the constant dimension
+    !! Returns: 1 for x-normal, 2 for y-normal, 3 for z-normal
+    !! Returns: 0 if contact is not axis-aligned
+    
+    type(device_params), intent(in) :: par
+    integer,             intent(in) :: ict     ! Contact index
+    integer                         :: normal_dir
+    
+    integer :: i, dir, idx(par%g%idx_dim)
+    integer :: n_vertices
+    real    :: coord_min(3), coord_max(3), coord_range(3)
+    real    :: vertex_pos(3)
+    real    :: tolerance, min_range, char_length
+    
+    ! Initialize
+    normal_dir = 0
+    coord_min = 1e30
+    coord_max = -1e30
+    tolerance = 1e-6  ! Relative tolerance for planarity
+    
+    ! Get number of transport vertices for this contact
+    n_vertices = par%transport_vct(ict)%n
+    
+    if (n_vertices == 0) then
+      print *, "WARNING: Schottky contact ", ict, " has no transport vertices"
+      return
+    end if
+    
+    ! Analyze coordinate ranges
+    do i = 1, n_vertices
+      idx = par%transport_vct(ict)%get_idx(i)
+      call par%g%get_vertex(idx, vertex_pos(1:par%g%dim))
+      
+      do dir = 1, par%g%dim
+        coord_min(dir) = min(coord_min(dir), vertex_pos(dir))
+        coord_max(dir) = max(coord_max(dir), vertex_pos(dir))
+      end do
+    end do
+    
+    ! Calculate range in each direction
+    do dir = 1, par%g%dim
+      coord_range(dir) = coord_max(dir) - coord_min(dir)
+    end do
+    
+    ! Find direction with minimum range (normal to contact)
+    min_range = huge(1.0)
+    do dir = 1, par%g%dim
+      if (coord_range(dir) < min_range) then
+        min_range = coord_range(dir)
+        normal_dir = dir
+      end if
+    end do
+    
+    ! Validate planarity
+    if (par%g%dim > 1) then
+      char_length = maxval(coord_range(1:par%g%dim))
+      if (min_range > tolerance * char_length .and. char_length > 0.0) then
+        print *, "WARNING: Schottky contact ", ict, " not perfectly axis-aligned for barrier lowering"
+        print *, "  Range in normal direction: ", denorm(min_range, "nm"), " nm"
+      end if
+    end if
+    
+  end function
 
   subroutine schottky_injection_mb(par, ci, ict, ninj)
     !! Calculate equilibrium density n0 for Schottky contact Robin BC

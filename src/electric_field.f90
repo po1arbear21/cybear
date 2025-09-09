@@ -140,17 +140,6 @@ contains
         Omega_k = par%tr_vol%get(idx_k)
         if (Omega_k <= 0.0) cycle  ! skip if zero volume
 
-        ! Debug: print control volume for contact and interior vertices
-        if ((ict > 0 .and. i <= 5) .or. (ict == 0 .and. i <= 5)) then  ! Print first few vertices
-          if (ict == 0) then
-            print "(A,I4,A,ES12.5,A,I0)", &
-              & "DEBUG: Interior vertex ", i, " Omega_k = ", Omega_k, ", dim=", par%g%dim
-          else
-            print "(A,I2,A,I4,A,ES12.5,A,I0)", &
-              & "DEBUG: Contact ", ict, " vertex ", i, " Omega_k = ", Omega_k, ", dim=", par%g%dim, ")"
-          end if
-        end if
-
         ! get coordinates of vertex k
         call par%g%get_vertex(idx_k, p_k)
 
@@ -178,36 +167,12 @@ contains
             A_kl = par%tr_surf(idx_dir)%get(edge_idx)
             L_kl = par%g%get_len(edge_idx, idx_dir)
 
-            ! Debug: print edge properties for contact and interior vertices
-            if ((ict > 0 .and. i <= 2 .and. j <= 2) .or. (ict == 0 .and. j <= 2)) then
-              if (ict == 0) then
-                print "(A,I4,A,I2,A,ES12.5,A,ES12.5,A,ES12.5,A)", &
-                  & "  Edge from interior vertex ", i, " edge ", j, &
-                  & " A_kl = ", A_kl, " (norm), L_kl = ", L_kl, &
-                  & " (norm), L_kl_real = ", denorm(L_kl, "nm"), " nm"
-              else
-                print "(A,I2,A,I4,A,I2,A,ES12.5,A,ES12.5,A,ES12.5,A)", &
-                  & "  Edge from contact ", ict, " vertex ", i, " edge ", j, &
-                  & " A_kl = ", A_kl, " (norm), L_kl = ", L_kl, &
-                  & " (norm), L_kl_real = ", denorm(L_kl, "nm"), " nm"
-              end if
-            end if
-
             ! get coordinates of vertex l
             call par%g%get_vertex(idx_l, p_l)
 
             ! calculate geometric factor
             ! E_k,dir = -sum_l [A_kl * (coord_l - coord_k)_dir / (Omega_k * L_kl)] * (phi_l - phi_k)
             geometric_factor = -0.5 * A_kl * (p_l(dir) - p_k(dir)) / (Omega_k * L_kl)
-
-            ! Debug: print geometric factor for contact and interior vertices
-            if ((ict > 0 .and. i <= 2 .and. j <= 2) .or. (ict == 0 .and. i <= 3 .and. j <= 2)) then
-              print "(A,ES12.5,A,ES12.5,A,ES12.5)", &
-                & "  Geometric factor = ", geometric_factor, &
-                & ", Delta_x = ", (p_l(dir) - p_k(dir)), &
-                & ", Factor = ", geometric_factor / (p_l(dir) - p_k(dir))
-              print "(A,ES12.5)", "Geometric factor (denormed)= ", denorm(geometric_factor, "1/cm")
-            end if
 
             ! set Jacobian entries (accumulate contributions)
             call this%jaco_pot%add(idx_k, idx_l, geometric_factor)
