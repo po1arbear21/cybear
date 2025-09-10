@@ -7,7 +7,7 @@ module semiconductor_m
   use fukushima_m,          only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, ifd1h
   use ieee_arithmetic,      only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf
   use math_m,               only: PI, expm1
-  use newton_m,             only: newton1D_opt, newton1D
+  use newton_m,             only: newton_opt, newton
   use util_m,               only: int2str
 
   implicit none
@@ -37,11 +37,11 @@ module semiconductor_m
 
 
   type semiconductor
-    real    :: edos(2)
+    real :: edos(2)
       !! effective density of states Nc, Nv
-    real    :: band_gap
+    real :: band_gap
       !! band gap
-    real    :: band_edge(2)
+    real :: band_edge(2)
       !! conduction/valence band edge
 
     integer                  :: dos
@@ -254,8 +254,8 @@ contains
     real, parameter :: G = gamma(1.5)
     real, parameter :: C = 6.6e-11
 
-    real               :: eta0, p(1), detadp(1)
-    type(newton1D_opt) :: nopt
+    real             :: eta0, p(1), detadp(1)
+    type(newton_opt) :: nopt
 
     ! safety check
     if (F <= 0) then
@@ -284,7 +284,7 @@ contains
         ! solve with Newton
         call nopt%init()
         p(1) = F
-        call newton1D(fun, p, nopt, eta0, eta, dxdp = detadp)
+        call newton(fun, p, nopt, eta0, eta, dxdp = detadp)
         detadF = detadp(1)
 
       end select

@@ -8,7 +8,7 @@ module imref_m
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
   use semiconductor_m, only: CR_NAME, CR_CHARGE, DOS_PARABOLIC, DIST_MAXWELL
-  use variable_m,      only: variable_real
+  use variable_m,      only: variable
   use error_m,         only: assert_failed, program_error
 
   implicit none
@@ -16,7 +16,7 @@ module imref_m
   private
   public :: imref, calc_imref, calc_density
 
-  type, extends(variable_real) :: imref
+  type, extends(variable) :: imref
     !! quasi-fermi potential
 
     integer :: ci

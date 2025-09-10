@@ -3,7 +3,7 @@ module potential_m
   use device_params_m, only: device_params
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
-  use variable_m,      only: variable_real
+  use variable_m,      only: variable
   use error_m,         only: assert_failed, program_error
 
   implicit none
@@ -11,7 +11,7 @@ module potential_m
   private
   public potential
 
-  type, extends(variable_real) :: potential
+  type, extends(variable) :: potential
     !! electrostatic potential
 
     real, pointer :: x1(:)     => null()

@@ -4,9 +4,9 @@ module galene_m
 
   use error_m,         only: program_error
   use iso_fortran_env, only: int32, int64
-  use map_m,           only: map_string_int, mapnode_string_int, map_string_string, mapnode_string_string
+  use map_m,           only: map_string_int, map_string_string
   use normalization_m, only: norm
-  use string_m,        only: new_string
+  use string_m,        only: string
 
   implicit none
 
@@ -21,9 +21,9 @@ module galene_m
   type gal_block
     !! GALENE III data block
 
-    character(:), allocatable :: name
+    type(string) :: name
       !! identifier
-    character(:), allocatable :: unit
+    type(string) :: unit
       !! physical unit
 
     integer :: dtype
@@ -71,10 +71,10 @@ contains
 
     integer(int32) :: n1, n2
     integer        :: nch
-    m4_ifelse(m4_intsize,64,{
-      integer(int32), allocatable :: tmp(:)
-    },{})
-    type(mapnode_string_string), pointer :: nd
+    ! m4_ifelse(m4_intsize,64,{
+    integer(int32), allocatable :: tmp(:)
+    ! },{})
+    logical :: status
 
     this%dtype = dtype
 
@@ -84,33 +84,32 @@ contains
     nch        = int(n2)
 
     ! read name
-    allocate (character(nch) :: this%name)
-    read (funit) this%name
+    allocate (character(nch) :: this%name%s)
+    read (funit) this%name%s
 
     ! read data
     select case (dtype)
     case (GALDATA_INT)
       allocate (this%idata(this%ndata))
       if (this%ndata > 0) then
-        m4_ifelse(m4_intsize,64,{
-          allocate (tmp(this%ndata))
-          read (funit) tmp
-          this%idata = int(tmp, int64)
-        },{
-          read (funit) this%idata
-        })
+      ! m4_ifelse(m4_intsize,64,{
+        allocate (tmp(this%ndata))
+        read (funit) tmp
+        this%idata = int(tmp, int64)
+      ! },{
+        read (funit) this%idata
+      ! })
       end if
 
     case (GALDATA_REAL)
       allocate (this%rdata(this%ndata))
       if (this%ndata > 0) then
         read (funit) this%rdata
-        nd => units%find(new_string(this%name))
-        if (associated(nd)) then
-          this%unit = nd%value%s
-          this%rdata = norm(this%rdata, this%unit)
+        call units%get(this%name, this%unit, status = status)
+        if (status) then
+          this%rdata = norm(this%rdata, this%unit%s)
         else
-          this%unit = "1"
+          this%unit%s = "1"
         end if
       end if
 
@@ -131,40 +130,40 @@ contains
     integer         :: funit, iostat, dtype
     type(gal_block) :: b
 
-    if (.not. associated(units%root)) then
+    if (units%root <= 0) then
       ! add units for SOME quantities
       call units%init()
-      call units%insert(new_string("n-temp"), new_string("K"))
-      call units%insert(new_string("p-temp"), new_string("K"))
-      call units%insert(new_string("n-density"), new_string("1/cm^3"))
-      call units%insert(new_string("p-density"), new_string("1/cm^3"))
-      call units%insert(new_string("n-imref"), new_string("V"))
-      call units%insert(new_string("p-imref"), new_string("V"))
-      call units%insert(new_string("n-velocity"), new_string("cm/s"))
-      call units%insert(new_string("p-velocity"), new_string("cm/s"))
-      call units%insert(new_string("n-mobility"), new_string("cm^2/V/s"))
-      call units%insert(new_string("p-mobility"), new_string("cm^2/V/s"))
-      call units%insert(new_string("electron-current"), new_string("A/cm^2"))
-      call units%insert(new_string("hole-current"), new_string("A/cm^2"))
-      call units%insert(new_string("electron-energy"), new_string("J/(cm^2*s)"))
-      call units%insert(new_string("hole-energy"), new_string("J/(cm^2*s)"))
-      call units%insert(new_string("potential"), new_string("V"))
-      call units%insert(new_string("avalanche-generation"), new_string("1/(cm^3*s)"))
-      call units%insert(new_string("srh-recombination"), new_string("1/(cm^3*s)"))
-      call units%insert(new_string("blank.dd"), new_string("1"))
-      call units%insert(new_string("blank.td"), new_string("1"))
-      call units%insert(new_string("ni"), new_string("1/cm^3"))
-      call units%insert(new_string("nv"), new_string("1/cm^3"))
-      call units%insert(new_string("ec"), new_string("eV"))
-      call units%insert(new_string("ev"), new_string("eV"))
-      call units%insert(new_string("delta-ec"), new_string("eV"))
-      call units%insert(new_string("delta-ev"), new_string("eV"))
-      call units%insert(new_string("eg"), new_string("eV"))
-      call units%insert(new_string("ge-concentration"), new_string("1"))
-      call units%insert(new_string("mc-pot"), new_string("V"))
-      call units%insert(new_string("electric-field"), new_string("kV/cm"))
-      call units%insert(new_string("x-coord"), new_string("um"))
-      call units%insert(new_string("y-coord"), new_string("um"))
+      call units%set(string("n-temp"), string("K"))
+      call units%set(string("p-temp"), string("K"))
+      call units%set(string("n-density"), string("1/cm^3"))
+      call units%set(string("p-density"), string("1/cm^3"))
+      call units%set(string("n-imref"), string("V"))
+      call units%set(string("p-imref"), string("V"))
+      call units%set(string("n-velocity"), string("cm/s"))
+      call units%set(string("p-velocity"), string("cm/s"))
+      call units%set(string("n-mobility"), string("cm^2/V/s"))
+      call units%set(string("p-mobility"), string("cm^2/V/s"))
+      call units%set(string("electron-current"), string("A/cm^2"))
+      call units%set(string("hole-current"), string("A/cm^2"))
+      call units%set(string("electron-energy"), string("J/(cm^2*s)"))
+      call units%set(string("hole-energy"), string("J/(cm^2*s)"))
+      call units%set(string("potential"), string("V"))
+      call units%set(string("avalanche-generation"), string("1/(cm^3*s)"))
+      call units%set(string("srh-recombination"), string("1/(cm^3*s)"))
+      call units%set(string("blank.dd"), string("1"))
+      call units%set(string("blank.td"), string("1"))
+      call units%set(string("ni"), string("1/cm^3"))
+      call units%set(string("nv"), string("1/cm^3"))
+      call units%set(string("ec"), string("eV"))
+      call units%set(string("ev"), string("eV"))
+      call units%set(string("delta-ec"), string("eV"))
+      call units%set(string("delta-ev"), string("eV"))
+      call units%set(string("eg"), string("eV"))
+      call units%set(string("ge-concentration"), string("1"))
+      call units%set(string("mc-pot"), string("V"))
+      call units%set(string("electric-field"), string("kV/cm"))
+      call units%set(string("x-coord"), string("um"))
+      call units%set(string("y-coord"), string("um"))
     end if
 
     call this%blocks%init(0, c = 32)
@@ -190,7 +189,7 @@ contains
 
       ! save block + index
       call this%blocks%push(b)
-      call this%blmap%insert(new_string(b%name), this%blocks%n)
+      call this%blmap%set(b%name, this%blocks%n)
     end do
 
     close (funit)
@@ -203,12 +202,12 @@ contains
     type(gal_block), pointer            :: b
       !! return pointer to galene data block
 
-    type(mapnode_string_int), pointer :: nd
+    integer :: i
+    logical :: status
 
-    nd => this%blmap%find(new_string(name))
-
-    nullify(b)
-    if (associated(nd)) b => this%blocks%d(nd%value)
+    call this%blmap%get(string(name), i, status = status)
+    nullify (b)
+    if (status) b => this%blocks%d(i)
   end function
 
 end module

@@ -5,14 +5,14 @@ module density_m
   use grid_m,          only: IDX_VERTEX
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use semiconductor_m, only: CR_NAME
-  use variable_m,      only: variable_real
+  use variable_m,      only: variable
 
   implicit none
 
   private
   public density
 
-  type, extends(variable_real) :: density
+  type, extends(variable) :: density
     !! electron/hole density
 
     integer :: ci

@@ -9,14 +9,14 @@ module charge_density_m
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use semiconductor_m, only: CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE
-  use variable_m,      only: variable_real
+  use variable_m,      only: variable
 
   implicit none
 
   private
   public charge_density, calc_charge_density
 
-  type, extends(variable_real) :: charge_density
+  type, extends(variable) :: charge_density
     !! charge density including electrons, holes and ionized dopants
 
     real, pointer :: x1(:)     => null()

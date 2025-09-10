@@ -2,6 +2,7 @@ m4_include(util/macro.f90.inc)
 
 module approx_m
 
+  use block_m,          only: block_real
   use charge_density_m, only: charge_density
   use contact_m,        only: CT_OHMIC
   use device_params_m,  only: device_params
@@ -11,10 +12,11 @@ module approx_m
   use grid0D_m,         only: get_dummy_grid
   use ieee_arithmetic,  only: ieee_is_finite
   use imref_m,          only: imref
+  use input_m,          only: input_section
   use jacobian_m,       only: jacobian
   use math_m,           only: eye_real
-  use matrix_m,         only: block_real
   use normalization_m,  only: norm
+  use pardiso_m,        only: pardiso_default_params, pardiso_real
   use poisson_m,        only: poisson
   use potential_m,      only: potential
   use res_equation_m,   only: res_equation
@@ -68,6 +70,8 @@ contains
     type(imref_approx_eq)     :: eq
     type(esystem)             :: sys
     type(block_real), pointer :: df
+    type(pardiso_real)        :: solver
+    type(input_section)       :: params
 
     ! initialize approximation equation
     call eq%init(par, iref, volt)
@@ -83,8 +87,11 @@ contains
     ! solve for imref
     allocate (dx(sys%n), f(sys%n))
     call sys%eval(f = f, df = df)
-    call df%factorize()
-    call df%solve_vec(f, dx)
+    params = pardiso_default_params()
+    call solver%init(params)
+    call solver%factorize(df)
+    call solver%solve(f, dx)
+    call solver%destruct()
     call sys%set_x(sys%get_x() - dx)
 
     ! free memory

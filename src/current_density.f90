@@ -20,14 +20,14 @@ module current_density_m
   use radau5_m,           only: ode_options, ode_result, radau5
   use semiconductor_m,    only: CR_NAME, CR_CHARGE, DOS_PARABOLIC, DIST_MAXWELL, semiconductor
   use stencil_m,          only: dirichlet_stencil, near_neighb_stencil
-  use variable_m,         only: variable_real
+  use variable_m,         only: variable
 
   implicit none
 
   private
   public current_density, calc_current_density, time
 
-  type, extends(variable_real) :: current_density
+  type, extends(variable) :: current_density
     !! electron/hole current density
 
     integer :: ci

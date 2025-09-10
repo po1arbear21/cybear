@@ -12,7 +12,7 @@ module current_integral_m
   implicit none
 
   private
-  public :: CURRENT_INTEGRAL_DEBUG, current_integral_get
+  public :: CURRENT_INTEGRAL_DEBUG, current_integral_get, integrate_dist
 
   logical :: CURRENT_INTEGRAL_DEBUG = .false.
 

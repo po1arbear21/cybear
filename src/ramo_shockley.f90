@@ -8,14 +8,16 @@ module ramo_shockley_m
   use grid_m,            only: IDX_VERTEX, IDX_EDGE, IDX_CELL
   use grid_data_m,       only: grid_data_real, allocate_grid_data1_real
   use grid0D_m,          only: get_dummy_grid
+  use input_m,           only: input_section
   use jacobian_m,        only: jacobian, jacobian_ptr
   use math_m,            only: eye_real
-  use matrix_m,          only: sparse_real
   use normalization_m,   only: denorm
+  use pardiso_m,         only: pardiso_default_params, pardiso_real
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
   use semiconductor_m,   only: CR_CHARGE
+  use sparse_m,          only: sparse_real
   use stencil_m,         only: dirichlet_stencil
   use voltage_m,         only: voltage
   use vselector_m,       only: vselector
@@ -76,12 +78,14 @@ contains
       !! poisson equation
 
     integer               :: i, j, k, nct, idx_dir
+    integer, allocatable  :: idx1(:), idx2(:), idx(:)
+    logical               :: status
     real                  :: cap, dxi, dxj
     real,    allocatable  :: x(:,:), rhs(:,:)
     type(esystem)         :: sys
     type(sparse_real)     :: df
-    integer, allocatable  :: idx1(:), idx2(:), idx(:)
-    logical               :: status
+    type(pardiso_real)    :: solver
+    type(input_section)   :: params
 
     print "(A)", "ramo_shockley_init"
 
@@ -120,9 +124,11 @@ contains
     end do
 
     ! factorize and solve
-    call df%factorize()
-    call df%solve_mat(rhs, x)
-    call df%destruct()
+    params = pardiso_default_params()
+    call solver%init(params)
+    call solver%factorize(df)
+    call solver%solve(rhs, x)
+    call solver%destruct()
 
     ! save fundamental solutions
     call allocate_grid_data1_real(this%x, par%g%idx_dim, 1, nct)
@@ -165,7 +171,7 @@ contains
     ! print capacitances
     do i = 1, nct
       do j = i, nct
-        print "(A,ES25.16E3,A)", "C_" // par%contacts(i)%name // "_" // par%contacts(j)%name // " = ", denorm(this%cap(i,j), "F"), "F"
+        print "(A,ES25.16E3,A)", "C_" // par%contacts(i)%name // "_" // par%contacts(j)%name // " = ", denorm(this%cap(i,j), "F"), " F"
       end do
     end do
   end subroutine

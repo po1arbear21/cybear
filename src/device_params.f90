@@ -15,11 +15,11 @@ module device_params_m
   use grid_table_m,     only: grid_table
   use grid1D_m,         only: grid1D
   use input_m,          only: input_file
-  use map_m,            only: map_string_int, mapnode_string_int
+  use map_m,            only: map_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, region_contact
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor
-  use string_m,         only: string, new_string
+  use string_m,         only: string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
   m4_ifdef({m4_triangle},{  use triangle_m,       only: triangulation})
@@ -185,10 +185,10 @@ contains
       s = split_string(gblock%cdata, [" "])
       call this%gal_mat%init()
       do i = 1, size(s)
-        call this%gal_mat%insert(s(i), i)
+        call this%gal_mat%set(s(i), i)
       end do
-      this%gal_ox = this%gal_mat%get(new_string("OX"))
-      this%gal_si = this%gal_mat%get(new_string("SIL"))
+      call this%gal_mat%get(string("OX"),  this%gal_ox)
+      call this%gal_mat%get(string("SIL"), this%gal_si)
       call file%get(gal_sid, "epsox", this%gal_epsox)
       call file%get(gal_sid, "epssi", this%gal_epssi)
       call file%get(gal_sid, "phims", this%gal_phims)
@@ -562,7 +562,7 @@ contains
           end if
 
           ! enable poisson in region
-          gtype_tmp = new_string("tr_xy")
+          gtype_tmp = string("tr_xy")
           do i = 1, this%gtr%ncell
             ! check if triangle is in region using centroid
             call this%gtr%get_cell([i], p)
@@ -717,7 +717,7 @@ contains
           end if
 
           ! enable transport in region
-          gtype_tmp = new_string("tr_xy")
+          gtype_tmp = string("tr_xy")
           do i = 1, this%gtr%ncell
             ! check if triangle is in region using centroid
             call this%gtr%get_cell([i], p)
@@ -890,7 +890,7 @@ contains
           end if
 
           ! loop over triangle cells
-          gtype_tmp = new_string("tr_xy")
+          gtype_tmp = string("tr_xy")
           do i = 1, this%gtr%ncell
             ! check if triangle is in region using centroid
             call this%gtr%get_cell([i], p)
@@ -1043,7 +1043,7 @@ contains
         end if
 
         ! loop over triangle cells
-        gtype_tmp = new_string("tr_xy")
+        gtype_tmp = string("tr_xy")
         do i = 1, this%gtr%ncell
           ! check if triangle is in region using centroid
           call this%gtr%get_cell([i], p)
@@ -1089,13 +1089,14 @@ contains
   subroutine device_params_init_contacts(this)
     class(device_params), intent(inout) :: this
 
-    integer                           :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, k0, k1, kk, nct, ri, nv_poiss, nv_conti
-    integer, allocatable              :: idx(:), gimat(:)
-    real                              :: dop(2), ii_E_dop(2), p(2)
-    type(string)                      :: name
-    type(string), allocatable         :: gmat(:)
-    type(mapnode_string_int), pointer :: node
-    type(gal_block), pointer          :: gblock1, gblock2, gblock3
+    integer                   :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, k0, k1, kk, ri
+    integer                   :: nct, nv_poiss, nv_conti
+    integer, allocatable      :: idx(:), gimat(:)
+    logical                   :: status
+    real                      :: dop(2), ii_E_dop(2), p(2)
+    type(string)              :: name
+    type(string), allocatable :: gmat(:)
+    type(gal_block), pointer  :: gblock1, gblock2, gblock3
 
     print "(A)", "init_contacts"
 
@@ -1107,26 +1108,26 @@ contains
     call this%contact_map%init()
     nct = 0
     if (this%gal) then
-      allocate (gmat(this%gal_mat%n), gimat(this%gal_mat%n))
+      allocate (gmat(this%gal_mat%nodes%n), gimat(this%gal_mat%nodes%n))
       call this%gal_mat%to_array(keys = gmat, values = gimat)
       do i = 1, size(gmat)
         if ((gmat(i)%s == "SIL") .or. (gmat(i)%s == "OX")) cycle
 
         ! new contact
         nct = nct + 1
-        call this%contact_map%insert(gmat(i), nct)
+        call this%contact_map%set(gmat(i), nct)
       end do
     else
       do ri = 1, size(this%reg_ct)
         ! search for contact name in map
-        node => this%contact_map%find(this%reg_ct(ri)%name)
+        call this%contact_map%get(this%reg_ct(ri)%name, ict, status = status)
 
         ! do nothing if name already exists
-        if (associated(node)) cycle
+        if (status) cycle
 
         ! new contact
         nct = nct + 1
-        call this%contact_map%insert(this%reg_ct(ri)%name, nct)
+        call this%contact_map%set(this%reg_ct(ri)%name, nct)
       end do
     end if
 
@@ -1158,7 +1159,7 @@ contains
           if (gimat(j) == i) exit
         end do
         if ((gmat(j)%s == "SIL") .or. (gmat(j)%s == "OX")) cycle
-        ict = this%contact_map%get(gmat(j))
+        call this%contact_map%get(gmat(j), ict)
 
         !i: gal contact order
         !j: gimat contact order
@@ -1197,7 +1198,7 @@ contains
       do ri = 1, size(this%reg_ct)
         ! get contact name, index and type
         name = this%reg_ct(ri)%name
-        ict  = this%contact_map%get(name)
+        call this%contact_map%get(name, ict)
 
         ! create new contact if name is encountered for the first time
         if (.not. allocated(this%contacts(ict)%name)) then
@@ -1243,7 +1244,7 @@ contains
           do i = 1, this%gtr%nvert
             ! test if vertex belongs to contact surface
             call this%gtr%get_vertex([i], p)
-            if (.not. this%reg_ct(ri)%point_test(new_string("tr_xy"), p)) cycle
+            if (.not. this%reg_ct(ri)%point_test(string("tr_xy"), p)) cycle
 
             ! loop over z direction
             do k = i0(3), i1(3)

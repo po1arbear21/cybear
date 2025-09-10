@@ -7,7 +7,7 @@ module contact_m
   use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   use grid_data_m,     only: grid_data_real
   use high_precision_m
-  use newton_m,        only: newton1D, newton1D_opt
+  use newton_m,        only: newton, newton_opt
   use normalization_m, only: norm, denorm
   use semiconductor_m, only: CR_ELEC, CR_HOLE, CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE, DOS_PARABOLIC, DIST_MAXWELL, semiconductor
 
@@ -47,8 +47,8 @@ contains
     type(semiconductor),   intent(in)    :: smc
       !! semiconductor parameters
 
-    real               :: dum(0), fmin, fmax, xmin, xmax, x0
-    type(newton1D_opt) :: opt
+    real             :: dum(0), fmin, fmax, xmin, xmax, x0
+    type(newton_opt) :: opt
 
     ! coarse search for bounds
     if (dop(1) > dop(2)) then
@@ -75,7 +75,7 @@ contains
     end if
 
     call opt%init(xmin = xmin, xmax = xmax, dx_lim = 10.0)
-    call newton1D(phims_newton, dum, opt, x0, this%phims)
+    call newton(phims_newton, dum, opt, x0, this%phims)
 
     ! safety check
     m4_assert(ieee_is_finite(this%phims))

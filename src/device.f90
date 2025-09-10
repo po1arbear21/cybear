@@ -78,13 +78,11 @@ module device_m
     type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
 
-    type(esystem) :: sys_nlpe
+    type(esystem)              :: sys_nlpe
       !! non-linear poisson equation system
-    type(esystem) :: sys_dd(2)
+    type(esystem), allocatable :: sys_dd(:)
       !! electron/hole drift-diffusion equation system
-    type(esystem) :: sys_full_stat
-      !! full newton equation system for steady-state only (uses imrefs instead of densities)
-    type(esystem) :: sys_full
+    type(esystem)              :: sys_full
       !! full newton equation system
   contains
     procedure :: init        => device_init
@@ -171,9 +169,11 @@ contains
       call this%sys_nlpe%provide(this%volt(ict))
     end do
     call this%sys_nlpe%init_final()
+    print "(2A,I0,A)", this%sys_nlpe%name, ": ", this%sys_nlpe%n, " variables"
     call this%sys_nlpe%g%output("nlpe")
 
-    ! init drift-diffusion equation system
+    ! init drift-diffusion equation systems
+    allocate (this%sys_dd(this%par%ci0:this%par%ci1))
     do ci = this%par%ci0, this%par%ci1
       call this%sys_dd(ci)%init(CR_NAME(ci)//" drift-diffusion")
       call this%sys_dd(ci)%add_equation(this%contin(ci))
@@ -188,31 +188,9 @@ contains
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
+      print "(2A,I0,A)", this%sys_dd(ci)%name, ": ", this%sys_dd(ci)%n, " variables"
       call this%sys_dd(ci)%g%output(CR_NAME(ci)//"dd")
     end do
-
-    ! init stationary full-newton equation system
-    call this%sys_full_stat%init("full newton stat")
-    call this%sys_full_stat%add_equation(this%poiss)
-    call this%sys_full_stat%add_equation(this%calc_rho)
-    do ci = this%par%ci0, this%par%ci1
-      call this%sys_full_stat%add_equation(this%contin_stat(ci))
-      call this%sys_full_stat%add_equation(this%calc_dens(ci))
-      do idx_dir = 1, this%par%g%idx_dim
-        call this%sys_full_stat%add_equation(this%calc_cdens(idx_dir,ci))
-        if (this%par%smc%mob) call this%sys_full_stat%add_equation(this%calc_mob(idx_dir,ci))
-      end do
-      if (this%par%smc%incomp_ion) then
-        call this%sys_full_stat%add_equation(this%ion_contin(ci))
-        call this%sys_full_stat%add_equation(this%calc_genrec(ci))
-      end if
-    end do
-    call this%sys_full_stat%add_equation(this%ramo_curr)
-    do ict = 1, this%par%nct
-      call this%sys_full_stat%provide(this%volt(ict), input = .true.)
-    end do
-    call this%sys_full_stat%init_final()
-    call this%sys_full_stat%g%output("full_stat")
 
     ! init full-newton equation system
     call this%sys_full%init("full newton")
@@ -235,6 +213,7 @@ contains
       call this%sys_full%provide(this%volt(ict), input = .true.)
     end do
     call this%sys_full%init_final()
+    print "(2A,I0,A)", this%sys_full%name, ": ", this%sys_full%n, " variables"
     call this%sys_full%g%output("full")
   end subroutine
 

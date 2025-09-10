@@ -10,7 +10,7 @@ module mobility_m
   use jacobian_m,       only: jacobian
   use semiconductor_m,  only: CR_NAME
   use stencil_m,        only: near_neighb_stencil
-  use variable_m,       only: variable_real
+  use variable_m,       only: variable
   use error_m,          only: assert_failed, program_error
 
   implicit none
@@ -18,7 +18,7 @@ module mobility_m
   private
   public :: mobility, calc_mobility
 
-  type, extends(variable_real) :: mobility
+  type, extends(variable) :: mobility
     !! electron/hole mobility
     integer       :: ci
       !! carrier index (CR_ELEC, CR_HOLE)

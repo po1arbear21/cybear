@@ -15,7 +15,7 @@ module ionization_m
   use res_equation_m,  only: res_equation
   use semiconductor_m, only: DOP_NAME, CR_CHARGE, CR_ELEC, CR_HOLE, DOS_PARABOLIC, DIST_MAXWELL, DIST_FERMI_REG
   use stencil_m,       only: dirichlet_stencil, empty_stencil
-  use variable_m,      only: variable_real
+  use variable_m,      only: variable
   use vselector_m,     only: vselector
 
   implicit none
@@ -24,7 +24,7 @@ module ionization_m
   public ionization, calc_ionization, ion_continuity
   public generation_recombination, calc_generation_recombination
 
-  type, extends(variable_real) :: ionization
+  type, extends(variable) :: ionization
     !! ionization concentration
 
     integer :: ci
@@ -74,7 +74,7 @@ module ionization_m
     procedure :: eval => ion_continuity_eval
   end type
 
-  type, extends(variable_real) :: generation_recombination
+  type, extends(variable) :: generation_recombination
     !! generation - recombination rate
 
     integer      :: ci
