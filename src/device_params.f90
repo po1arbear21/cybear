@@ -22,7 +22,9 @@ module device_params_m
   use string_m,         only: string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
-  m4_ifdef({m4_triangle},{  use triangle_m,       only: triangulation})
+  ! m4_ifdef({m4_triangle},{
+  use triangle_m,       only: triangulation
+  ! })
   use util_m,           only: int2str, split_string
 
   implicit none
@@ -94,8 +96,10 @@ module device_params_m
       !! x, y, z grids
     type(tensor_grid)         :: tg
       !! tensor grid
-    m4_ifdef({m4_triangle},{type(triangulation)       :: tr})
+    ! m4_ifdef({m4_triangle},{
+    type(triangulation)       :: tr
       !! triangles generated from regions
+    ! })
     type(triang_grid)         :: gtr
       !! triangle grid
     class(grid),  pointer     :: g => null()
@@ -416,6 +420,10 @@ contains
 
     print "(A)", "init_grid"
 
+    ! m4_ifdef({m4_triangle},,{
+    if ((this%gtype%s == "tr_xy") .or. (this%gtype%s == "tr_xyz")) call program_error("Triangle library not enabled")
+    ! })
+
     ! grid dimension
     select case(this%gtype%s)
     case("x")
@@ -453,13 +461,15 @@ contains
       end do
 
     case("tr_xy", "tr_xyz")
-      m4_ifdef({m4_triangle},{      call generate_triangle_grid(file, load, this%reg, this%tr, this%gtr, gptr, ngptr)})
+      ! m4_ifdef({m4_triangle},{
+      call generate_triangle_grid(file, load, this%reg, this%tr, this%gtr, gptr, ngptr)
       if (dim == 3) then
         call generate_1D_grid(file, load, .false., this%gal_fl, 3, this%reg, this%g1D(3), gptr, ngptr)
       end if
       allocate (character(2) :: this%idx_dir_name(dim-1))
       this%idx_dir_name(1) = "xy"
       if (dim == 3) this%idx_dir_name(2) = "z"
+      ! })
 
     end select
 

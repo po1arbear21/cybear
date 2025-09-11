@@ -16,11 +16,11 @@ module grid_generator_m
   use vector_m,      only: vector_real
   use math_m,        only: linspace, expm1
   use qsort_m,       only: qsort
-  use normalization_m
+
   implicit none
 
   private
-  public :: DIR_NAME, generate_1D_grid
+  public  :: DIR_NAME, generate_1D_grid
   ! m4_ifdef({m4_triangle},{
   public :: generate_triangle_grid
   ! })
@@ -96,7 +96,7 @@ contains
     gptr(ngptr)%p => g1D
   end subroutine
 
-  !m4_ifdef({m4_triangle},{
+  ! m4_ifdef({m4_triangle},{
   subroutine generate_triangle_grid(file, load, reg, tr, gtr, gptr, ngptr)
     !! create triangle grid
     type(input_file),          intent(in)    :: file
@@ -134,7 +134,7 @@ contains
     ngptr = ngptr + 1
     gptr(ngptr)%p => gtr
   end subroutine
-  !})
+  ! })
 
   function get_refinements(file, dim) result(ref)
     type(input_file), intent(in)  :: file

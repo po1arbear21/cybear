@@ -1,6 +1,6 @@
 [defaults]
 sources   = ["lib/fortran-basic/src"]
-libraries = ["BLAS95", "LAPACK95", "MPFR", "MUMPS", "TRIANGLE", "ZLIB"]
+libraries = ["BLAS95", "LAPACK95", "MPFR", "MUMPS", "ZLIB"]
 
 
 [debug]
