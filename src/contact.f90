@@ -2,7 +2,8 @@ m4_include(util/macro.f90.inc)
 
 module contact_m
 
-  use ieee_arithmetic, only: ieee_is_finite
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
   use error_m,         only: assert_failed, program_error
   use grid_m,          only: IDX_VERTEX, IDX_EDGE, IDX_FACE, IDX_CELL, IDX_NAME
   use grid_data_m,     only: grid_data_real

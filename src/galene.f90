@@ -2,8 +2,9 @@ m4_include(util/macro.f90.inc)
 
 module galene_m
 
+  use, intrinsic :: iso_fortran_env, only: int32, int64
+
   use error_m,         only: program_error
-  use iso_fortran_env, only: int32, int64
   use map_m,           only: map_string_int, map_string_string
   use normalization_m, only: norm
   use string_m,        only: string

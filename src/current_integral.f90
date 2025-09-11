@@ -3,7 +3,8 @@ m4_include(util/macro.f90.inc)
 module current_integral_m
   !! get edge-current by solving integral equation
 
-  use ieee_arithmetic
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_next_after
+
   use error_m, only: program_error
   use math_m,  only: expm1
   use quad_m,  only: quad

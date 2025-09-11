@@ -1,5 +1,7 @@
 module ionization_m
 
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
   use density_m,       only: density
   use device_params_m, only: device_params
   use fukushima_m,     only: fd1h, fdm1h
@@ -9,7 +11,6 @@ module ionization_m
   use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
   use high_precision_m
   use imref_m,         only: imref
-  use ieee_arithmetic, only: ieee_is_finite
   use jacobian_m,      only: jacobian
   use potential_m,     only: potential
   use res_equation_m,  only: res_equation

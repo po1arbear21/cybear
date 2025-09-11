@@ -2,6 +2,8 @@ m4_include(util/macro.f90.inc)
 
 module current_density_m
 
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_negative_inf, ieee_positive_inf, ieee_value
+
   use current_integral_m, only: current_integral_get, CURRENT_INTEGRAL_DEBUG
   use density_m,          only: density
   use device_params_m,    only: device_params
@@ -12,7 +14,6 @@ module current_density_m
   use grid_data_m,        only: grid_data1_real, grid_data2_real, grid_data3_real
   use grid_generator_m,   only: DIR_NAME
   use high_precision_m
-  use ieee_arithmetic,    only: ieee_is_finite, ieee_negative_inf, ieee_positive_inf, ieee_value
   use jacobian_m,         only: jacobian
   use math_m,             only: ber, dberdx, log1p
   use mobility_m,         only: mobility

@@ -2,13 +2,15 @@ m4_include(util/macro.f90.inc)
 
 module semiconductor_m
 
-  use distribution_table_m, only: distribution_table
-  use error_m,              only: program_error
-  use fukushima_m,          only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, ifd1h
-  use ieee_arithmetic,      only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf
-  use math_m,               only: PI, expm1
-  use newton_m,             only: newton_opt, newton
-  use util_m,               only: int2str
+  use, intrinsic :: iso_fortran_env, only: real128
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_positive_inf, ieee_negative_inf
+
+  use lookup_table_m, only: lookup_table
+  use error_m,        only: program_error
+  use fukushima_m,    only: fd1h, fdm1h, fdm3h, fdm5h, fdm7h, ifd1h
+  use math_m,         only: expm1
+  use newton_m,       only: newton_opt, newton
+  use util_m,         only: int2str
 
   implicit none
 
@@ -52,8 +54,7 @@ module semiconductor_m
       !! distribution density (DIST_MAXWELL, DIST_FERMI or DIST_FERMI_REG)
     real                     :: dist_params(2)
       !! parameters for distribution
-    type(distribution_table) :: dist_tab
-      !! get cumulative distribution from table
+    type(lookup_table)       :: Ftab(0:3)
 
     logical           :: mob
       !! enable/disable mobility saturation
@@ -94,25 +95,55 @@ contains
   subroutine semiconductor_init_dist(this)
     class(semiconductor), intent(inout) :: this
 
+    integer :: k
+
     if (this%dos == DOS_PARABOLIC) return
 
-    call this%dist_tab%init("dist_" // int2str(this%dos) // int2str(this%dist), dos, ieee_value(1.0, ieee_negative_inf), ieee_value(1.0, ieee_positive_inf), dist, .false., -100.0, 1000.0, 3)
+    do k = lbound(this%Ftab, 1), ubound(this%Ftab, 1)
+      call this%Ftab(k)%init("/tmp", "dist_" // int2str(this%dos) // int2str(this%dist), -100.0, 1000.0, b1, b2, func)
+    end do
 
   contains
 
-    function dos(t) result(Z)
-      !! get density of states
-      real(kind=16), intent(in) :: t
-        !! energy relative to band edge (in units of k_B T)
-      real(kind=16)             :: Z
-        !! return density of states
+    subroutine b1(x, b, dbdx)
+      real(real128), intent(in)  :: x
+      real(real128), intent(out) :: b
+      real(real128), intent(out) :: dbdx
 
-      real :: t0, sigma
+      m4_ignore(x)
 
+      b    = ieee_value(1.0_16, IEEE_NEGATIVE_INF)
+      dbdx = 0
+    end subroutine
+
+    subroutine b2(x, b, dbdx)
+      real(real128), intent(in)  :: x
+      real(real128), intent(out) :: b
+      real(real128), intent(out) :: dbdx
+
+      m4_ignore(x)
+
+      b    = ieee_value(1.0_16, IEEE_POSITIVE_INF)
+      dbdx = 0
+    end subroutine
+
+    subroutine func(t, p, f, dfdt, dfdp)
+      real(real128), intent(in)  :: t
+      real(real128), intent(in)  :: p(:)
+      real(real128), intent(out) :: f
+      real(real128), intent(out) :: dfdt
+      real(real128), intent(out) :: dfdp(:)
+
+      real(real128), parameter :: PI16 = 4 * atan(1.0_real128)
+
+      real          :: t0, sigma
+      real(real128) :: Z, e, f0
+
+      ! density of states
       select case (this%dos)
       case (DOS_PARABOLIC)
         if (t > 0) then
-          Z = 2 * sqrt(t / PI)
+          Z = 2 * sqrt(t / PI16)
         else
           Z = 0
         end if
@@ -120,53 +151,52 @@ contains
       case (DOS_PARABOLIC_TAIL)
         t0 = this%dos_params(1)
         if (t > t0) then
-          Z = 2 * sqrt(t / PI)
+          Z = 2 * sqrt(t / PI16)
         else
-          Z = 2 * sqrt(t0 / PI) * exp(0.5 * (t - t0) / t0)
+          Z = 2 * sqrt(t0 / PI16) * exp(0.5 * (t - t0) / t0)
         end if
 
       case (DOS_GAUSS)
         sigma = this%dos_params(1)
-        Z = 1 / (sqrt(2 * PI) * sigma) * exp(- (t / sigma)**2 / 2)
+        Z = 1 / (sqrt(2 * PI16) * sigma) * exp(- (t / sigma)**2 / 2)
 
       end select
-    end function
 
-    function dist(u, k) result(f)
-      !! k-th derivative of distribution density (e.g. fermi-dirac or maxwell-boltzmann)
-      real(kind=16),    intent(in) :: u
-        !! energy relative to chemical potential/fermi level (in units of k_B T)
-      integer,          intent(in) :: k
-        !! k-th derivative (possible values from 0 to kmax)
-      real(kind=16)                :: f
-        !! return k-th distribution density
-
-      real(kind=16) :: e, f0
-
+      ! distribution density
       select case (this%dist)
       case (DIST_MAXWELL)
-        f = exp(-u)
+        f = exp(t - p(1))
         if (mod(k, 2) /= 0) f = - f
+        dfdp(1) = - f
 
       case (DIST_FERMI)
-        e  = exp(u)
-        f0 = 1 / (1 + e)
-        f  = 0
-
-        select case (k)
-        case (0)
-          f = f0
-        case (1)
-          if (ieee_is_finite(e)) f = (- e * f0) * f0
-        case (2)
-          if (ieee_is_finite(e)) f = ((e * f0) * (expm1(u) * f0)) * f0
-        case (3)
-          if (ieee_is_finite(e)) f = (e * f0) * (- 1 + 6 * (e * f0) * (1 - e * f0)) * f0
-        case (4)
-          if (ieee_is_finite(e)) f = (- (e * f0) + 14 * (e * f0)**2 - 36 * (e * f0)**3 + 24 * (e * f0)**4) * f0
-        end select
+        f       = 0
+        dfdp(1) = 0
+        e  = exp(t - p(1))
+        if (ieee_is_finite(e)) then
+          f0 = 1 / (1 + e)
+          select case (k)
+          case (0)
+            f       = f0
+            dfdp(1) = e * f0 * f0
+          case (1)
+            f       = - e * f0 * f0
+            dfdp(1) = -((e * f0) * (expm1(t - p(1)) * f0)) * f0
+          case (2)
+            f       = ((e * f0) * (expm1(t - p(1)) * f0)) * f0
+            dfdp(1) = (e * f0) * (1 - 6 * (e * f0) * (1 - e * f0)) * f0
+          case (3)
+            f       = (e * f0) * (- 1 + 6 * (e * f0) * (1 - e * f0)) * f0
+            dfdp(1) = ((e * f0) - 14 * (e * f0)**2 + 36 * (e * f0)**3 - 24 * (e * f0)**4) * f0
+          end select
+        end if
       end select
-    end function
+
+      ! combine
+      f       = Z * f
+      dfdt    = 0
+      dfdp(1) = Z * dfdp(1)
+    end subroutine
 
   end subroutine
 
@@ -237,7 +267,7 @@ contains
       end select
     else
       ! use table
-      call this%dist_tab%get(eta, k, F, dFdeta)
+      call this%Ftab(k)%get(eta, F, dFdeta)
     end if
   end subroutine
 
@@ -290,7 +320,7 @@ contains
       end select
     else
       ! use table
-      call this%dist_tab%inv(F, eta, detadF)
+      call this%Ftab(0)%inv(F, eta, detadF)
     end if
 
     ! second safety check

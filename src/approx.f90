@@ -2,6 +2,8 @@ m4_include(util/macro.f90.inc)
 
 module approx_m
 
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
   use block_m,          only: block_real
   use charge_density_m, only: charge_density
   use contact_m,        only: CT_OHMIC
@@ -10,7 +12,6 @@ module approx_m
   use esystem_m,        only: esystem
   use grid_m,           only: IDX_VERTEX, IDX_CELL, IDX_EDGE
   use grid0D_m,         only: get_dummy_grid
-  use ieee_arithmetic,  only: ieee_is_finite
   use imref_m,          only: imref
   use input_m,          only: input_section
   use jacobian_m,       only: jacobian
