@@ -57,8 +57,6 @@ module device_m
       !! poisson equation
     type(continuity)                        :: contin(2)
       !! electron/hole continuity equation (carrier index)
-    type(continuity)                        :: contin_stat(2)
-      !! electron/hole continuity equation for stationary case (carrier index)
     type(ion_continuity)                    :: ion_contin(2)
       !! ionization continuity equations (carrier index)
     type(ramo_shockley_current)             :: ramo_curr
@@ -138,8 +136,7 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
-      call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
+      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then

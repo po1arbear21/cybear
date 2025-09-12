@@ -28,8 +28,6 @@ module continuity_m
       !! pointer to device parameters
     type(vselector)              :: dens
       !! main variable: density
-    type(vselector)              :: iref
-      !! main variable: quasi-fermi potential
     type(vselector), allocatable :: cdens(:)
       !! dependencies: current densities in 2 directions
     type(vselector)              :: genrec
@@ -53,17 +51,13 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec)
+  subroutine continuity_init(this, par, dens, cdens, genrec)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
       !! device parameters
-    logical,                        intent(in)  :: stat
-      !! stationary? if true, use imref as main variable
     type(density),                  intent(in)  :: dens
       !! electron/hole density
-    type(imref),                    intent(in)  :: iref
-      !! electron/hole quasi-fermi potential
     type(current_density),          intent(in)  :: cdens(:)
       !! electron/hole current density
     type(generation_recombination), intent(in)  :: genrec
@@ -79,11 +73,7 @@ contains
     ci = dens%ci
 
     ! init base
-    if (stat) then
-      call this%equation_init(CR_NAME(dens%ci)//"continuity_stat")
-    else
-      call this%equation_init(CR_NAME(dens%ci)//"continuity")
-    end if
+    call this%equation_init(CR_NAME(dens%ci)//"continuity")
     this%par => par
     this%ci  = ci
 
@@ -99,12 +89,7 @@ contains
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
 
     ! init residuals using this%dens or this%iref as main variable
-    if (stat) then
-      call this%iref%init(iref, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
-      call this%init_f(this%iref)
-    else
-      call this%init_f(this%dens)
-    end if
+    call this%init_f(this%dens)
 
     ! init stencils
     call this%st_dir%init(par%g)
@@ -124,11 +109,9 @@ contains
     this%jaco_dens   => this%init_jaco_f(idens, &
       & st = [this%st_em%get_ptr(), (this%st_dir%get_ptr(), ict = 1, par%nct)], &
       & const = .true., dtime = .false.)
-    if (.not. stat) then
-      this%jaco_dens_t => this%init_jaco_f(idens, &
-        & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
-        & const = .true., dtime = .true. )
-    end if
+    this%jaco_dens_t => this%init_jaco_f(idens, &
+      & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
+      & const = .true., dtime = .true. )
     do idx_dir = 1, idx_dim
       this%jaco_cdens(idx_dir)%p => this%init_jaco_f(icdens(idx_dir), &
         & st = [this%st_nn(idx_dir)%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
@@ -158,12 +141,10 @@ contains
     end do
 
     ! density time derivative factor
-    if (.not. stat) then
-      do i = 1, par%transport_vct(0)%n
-        idx1 = par%transport_vct(0)%get_idx(i)
-        call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
-      end do
-    end if
+    do i = 1, par%transport_vct(0)%n
+      idx1 = par%transport_vct(0)%get_idx(i)
+      call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
+    end do
 
     ! generation-recombination
     if (par%smc%incomp_ion) then
