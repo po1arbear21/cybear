@@ -1,91 +1,71 @@
-# Cybear Scientific Plotting Toolkit
+# Cybear Plotter - Click & Run!
 
-A publication-quality plotting toolkit for Cybear semiconductor device simulation results. Redesigned following your MATLAB workflow with separate data loading and plotting modules.
+## 🚀 Quick Start (No Command Line!)
 
-## 🎯 Overview
+### Method 1: Edit & Run (Recommended)
+1. Open `quickplot.py` in any text editor
+2. Edit these 3 lines:
+   ```python
+   JOB = 'vfet_test'    # Your job name
+   FILE = 'SS.fbs'      # Your file
+   FIELDS = 'auto'      # What to plot
+   ```
+3. Save and double-click the file (or run `python3 quickplot.py`)
+4. Done! PDFs are generated automatically.
 
-This toolkit provides two main components:
-1. **Data Loading** (`CybearDataLoader`) - FlatBuffers conversion using `flott-cli` (equivalent to your MATLAB `init_flott`/`load_flott`)
-2. **Plotting** (`CybearPlotter`) - Publication-quality plots with LaTeX labels and journal standards
+### Method 2: Interactive Menu
+Just run:
+```bash
+python3 interactive.py
+```
+Follow the prompts - no typing commands!
 
-## 🚀 Quick Start
+## 📊 Field Options
 
-### Basic Usage
+- `'auto'` - Smart detection of important physics fields (pot, ndens, Ex, Ey)
+- `'all'` - Plot everything available
+- `['pot', 'ndens']` - Specific fields only
 
-```python
-from plottool import CybearPlotter
+## 📁 Structure
 
-# Initialize plotter
-plotter = CybearPlotter()
-
-# Plot 2D potential field
-plotter.plot_2d_field('vfet_test', 'SS.fbs', 'pot', save_path='potential_plot')
-
-# Plot electron density line cut  
-plotter.plot_line_cut('vfet_test', 'SS.fbs', 'ndens', direction='x', save_path='density_cut')
+```
+plottool/
+├── quickplot.py      # ← MAIN: Edit & run this!
+├── interactive.py    # Alternative: Menu-driven
+├── core/
+│   ├── loader.py    # Data handling
+│   ├── plotter.py   # Plotting logic
+│   └── labels.py    # LaTeX labels
+└── README.md        # This file
 ```
 
-### Example: vfet_test Analysis
+## ✨ Features
 
+- **Zero command-line** - Just click and run!
+- **Smart defaults** - Knows what physicists want to plot
+- **Auto-conversion** - Handles .fbs → .mat automatically
+- **1D/2D support** - Works with all simulation types
+- **Publication-ready** - IEEE journal styling with LaTeX
+
+## 📝 Examples
+
+**Plot VFET simulation:**
 ```python
-# Test the toolkit
-python3 test_vfet.py
+# In quickplot.py, just change:
+JOB = 'vfet_test'
+FILE = 'SS.fbs'
+# Then run it!
 ```
 
-This generates:
-- `vfet_potential_2d.pdf` - 2D potential distribution
-- `vfet_ndens_2d.pdf` - 2D electron density (log scale)
-- `vfet_potential_linecut.pdf` - 1D potential line cut
-- `vfet_ndens_linecut.pdf` - 1D density line cut  
-- `vfet_convergence.pdf` - Newton-Raphson convergence
-
-## 📁 Architecture
-
-### Data Loading Module (`data_loader.py`)
-Handles FlatBuffers conversion exactly like your MATLAB workflow:
-
+**Plot Schottky diode:**
 ```python
-from data_loader import CybearDataLoader
-
-loader = CybearDataLoader()
-
-# Convert .fbs to .mat (like MATLAB init_flott)
-mat_file = loader.init_flott('jobs/vfet_test/run/SS.fbs')
-
-# Load specific variables (like MATLAB load_flott)
-data = loader.load_flott('jobs/vfet_test/run/SS.fbs', ['pot', 'ndens'])
+JOB = 'schottky_test'
+FILE = 'SS_Test.fbs'
 ```
 
-### Label Dictionary (`label_dict.py`)
-LaTeX symbols and units for scientific variables:
-
+**Plot everything:**
 ```python
-from label_dict import LabelDictionary
-
-labels = LabelDictionary()
-xlabel, ylabel = labels.get_labels('x', 'ndens')
-# Returns: ('$x$ (nm)', '$n$ (cm$^{-3}$)')
+FIELDS = 'all'  # Instead of 'auto'
 ```
 
-## 🔬 Successfully Tested Features
-
-✅ **FlatBuffers Data Loading**: Uses your `flott-cli` workflow  
-✅ **2D Field Visualization**: Potential and density plots with proper scaling  
-✅ **Line Cut Analysis**: 1D cuts through 2D data  
-✅ **Convergence Plotting**: Newton-Raphson iteration analysis  
-✅ **LaTeX Label Dictionary**: Automatic scientific notation  
-✅ **Publication-Quality Output**: Vector PDF with proper formatting  
-✅ **Auto-Detection**: Coordinate arrays (`x_vertices`, `y_vertices`)  
-✅ **Log Scale**: Automatic for density fields  
-
-## 🧪 Test Results
-
-**Successfully generated from `vfet_test/SS.fbs`**:
-- All plots generated with proper LaTeX labels
-- Vector PDF output ready for publication
-- Handles your actual simulation data structure
-- Compatible with your existing `flott-cli` workflow
-
----
-
-**Ready for your perovskite VFET research! 🚀**
+That's it! No more command lines, just edit and click! 🎉
