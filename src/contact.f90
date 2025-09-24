@@ -34,8 +34,11 @@ module contact_m
       !! Schottky barrier height (normalized, eV physical)
     real                      :: A_richardson
       !! Richardson constant (normalized, A/cm²/K² physical)
+    logical                   :: ifbl = .false.
+      !! Image force barrier lowering for Schottky contacts
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
+    procedure :: set_phims_schottky => contact_set_phims_schottky
   end type
 
 contains
@@ -153,6 +156,36 @@ contains
         m4_ignore(drhodp)
       end if
     end subroutine
+  end subroutine
+
+  subroutine contact_set_phims_schottky(this, smc)
+    !! Set phims for Schottky contacts using Sentaurus Device approach:
+    !! phims = -phi_b + V_T * ln(N_c/n_i)
+    !! Where n_i = sqrt(N_c * N_v) * exp(-E_g/2kT)
+    !! In normalized units: phims = -phi_b + 0.5*ln(N_c/N_v) + E_g/2
+    class(contact),      intent(inout) :: this
+    type(semiconductor), intent(in)    :: smc
+      !! semiconductor parameters
+
+    real :: ni_term
+
+    ! Calculate ln(N_c/n_i) term
+    ! n_i = sqrt(N_c * N_v) * exp(-E_g/2) in normalized units
+    ! ln(N_c/n_i) = ln(N_c/sqrt(N_c*N_v)) + E_g/2
+    !             = 0.5*ln(N_c/N_v) + E_g/2
+    ni_term = 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE)) + 0.5 * smc%band_gap
+
+    ! Set phims according to Sentaurus Device formula
+    ! phims = -phi_b + ln(N_c/n_i)
+    this%phims = -this%phi_b + ni_term
+
+    print "(A)", "DEBUG: Schottky contact phims calculation:"
+    print "(A,ES12.5,A,ES12.5)", "  phi_b = ", denorm(this%phi_b,"eV"), " eV (normalized: ", this%phi_b, ")"
+    print "(A,ES12.5,A,ES12.5)", "  ni_term = ", denorm(ni_term,"V"), " V (normalized: ", ni_term, ")"
+    print "(A,ES12.5,A,ES12.5)", "  phims = ", denorm(this%phims,"V"), " V (normalized: ", this%phims, ")"
+
+    ! Safety check
+    m4_assert(ieee_is_finite(this%phims))
   end subroutine
 
 end module

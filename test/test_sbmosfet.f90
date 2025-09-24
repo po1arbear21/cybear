@@ -1,9 +1,13 @@
-program nw_2d
+program test_sbmosfet
+  !! Test program for Schottky Barrier MOSFET
+  !! Simulates a simple 2D SB-MOSFET with top gate
+  !! Outputs electric field distribution for analysis
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
   use device_m,           only: dev
   use error_m,            only: program_error
+  use grid_m,             only: IDX_VERTEX
   use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file
   use input_src_m,        only: polygon_src, harmonic_src
@@ -19,7 +23,6 @@ program nw_2d
   use transient_m,        only: transient, TRANS_TRBDF2
   use util_m,             only: get_hostname
 
-  use current_density_m, only: time
 
   implicit none
 
@@ -27,16 +30,17 @@ program nw_2d
   real             :: temperature
   type(input_file) :: runfile
 
-  print "(A)", "Start simulation on " // get_hostname()
-  print *, "NW 2D Test"
+  print "(A)", "Start SB-MOSFET test on " // get_hostname()
+  print *, "Schottky Barrier MOSFET Test with Electric Field Output"
+  print *, "========================================================="
 
   ! parse command line arguments
   call command_line()
 
-  ! solve
+  ! solve steady-state with voltage sweep
   call solve_steady_state()
-  ! call solve_small_signal()
-  ! call solve_transient()
+
+  print *, "Test completed successfully!"
 
 contains
 
@@ -48,51 +52,31 @@ contains
     type(cl_option), allocatable :: clopt(:)
     type(cl_option_descriptor)   :: desc(3) = [ &
           cl_option_descriptor('T', "temperature", .true., .false., .true., .true.), &
-          cl_option_descriptor('d', "device",      .true., .false., .true., .true.), &
-          cl_option_descriptor('r', "run",         .true., .false., .true., .true.)  &
-          ]
+          cl_option_descriptor('r', "run",         .true., .false., .true., .true.), &
+          cl_option_descriptor('d', "device",      .true., .false., .true., .true.)]
 
     call get_cl_options(desc, clopt, iclopt, jclopt)
+
+    temperature = 300 ! default
+
     do idesc = 1, size(desc)
       do i = iclopt(idesc), iclopt(idesc + 1) - 1
         j = jclopt(i)
         select case (clopt(j)%short)
-        case ('T')
-          read (clopt(j)%arg, *) temperature
-          call init_normconst(temperature)
-          print "(A,ES25.16E3,A)", "T = ", temperature, " K"
+      case ('T')
+        read (clopt(j)%arg, *) temperature
+        call init_normconst(temperature)
+        print "(A,ES25.16E3,A)", "T = ", temperature, " K"
 
-        case ('d')
-          call dev%init(clopt(j)%arg, temperature)
+      case ('d')
+        call dev%init(clopt(j)%arg, temperature)
 
-        case ('r')
-          call runfile%init(clopt(j)%arg)
+      case ('r')
+        call runfile%init(clopt(j)%arg)
 
-        end select
+      end select
       end do
     end do
-  end subroutine
-
-  subroutine load_iteration_params(section, n, opt)
-    character(*),     intent(in)  :: section
-    !! section name in input file
-    integer,          intent(in)  :: n
-    !! system size
-    type(newton_opt), intent(out) :: opt
-    !! output newton options
-
-    integer :: min_it, max_it
-    logical :: log
-    real    :: rtol, atol, lim
-
-    call runfile%get(section, "min_it", min_it)
-    call runfile%get(section, "max_it", max_it)
-    call runfile%get(section, "rtol",   rtol  )
-    call runfile%get(section, "atol",   atol  )
-    call runfile%get(section, "lim",    lim   )
-    call runfile%get(section, "log",    log   )
-
-    call opt%init(n, atol = atol, rtol = rtol, dx_lim = lim, min_it = min_it, max_it = max_it, log = log)
   end subroutine
 
   subroutine voltage_input_ss(sid, t_inp, V, t_sim)
@@ -180,185 +164,19 @@ contains
       call ss%input_newton_params(runfile, "full newton params")
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
-      call ss%init_output([new_string("pot"), new_string("ndens"),  new_string("V_GAT"), &
-      & new_string("I_DRN")], name%s // ".fbs")
-      call ss%run(input = input, t_input = t, gummel = gummel)
-    end do
-  end subroutine
-
-
-  subroutine solve_small_signal()
-    integer              :: si, Nf, i
-    integer, allocatable :: sids(:)
-    logical              :: flog, log
-    real                 :: f0, f1
-    real,    allocatable :: f(:), V(:,:), t_inp(:), t(:)
-    complex, allocatable :: s(:), result(:,:)
-    type(string)         :: name
-    type(polygon_src)    :: input
-    type(small_signal)   :: ac
-    type(steady_state)   :: ss
-    type(storage)        :: st
-
-    call runfile%get_sections("small signal", sids)
-    do si = 1, size(sids)
-      print "(A)", "small signal"
-
-      call runfile%get(sids(si), "name", name)
-
-      ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
-      end if
-      s = 2 * PI * (0.0, 1.0) * f
-
-      ! steady-state config
-      call voltage_input_ss(sids(si), t_inp, V, t)
-      call input%init(t_inp, V)
-
-      gummel_restart = .true.
-      gummel_once    = .false.
-      gummel_enabled = .true.
-
-      ! solve steady-state
-      call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
-      call ss%input_newton_params(runfile, "full newton params")
-      call ss%input_var_params(runfile, "full newton params")
+      print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
+      ! Use SRC, GAT, DRN contact variables for SB-MOSFET
+      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), new_string("Ey"), &
+        & new_string("V_GAT"), new_string("I_SRC"), new_string("I_DRN")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
-      ! run small-signal analysis for a single working point
-      call ac%init(dev%sys_full, log=.true.)
-      call ac%init_output([new_string("I_GAT")], name%s // ".fbs")
-      call ac%run(s)
-
-      deallocate (f, s)
-    end do
-
-    call runfile%get_sections("small signal voltage sweep", sids)
-    do si = 1, size(sids)
-      print "(A)", "small signal voltage sweep"
-
-      call runfile%get(sids(si), "name", name)
-
-      ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
-      end if
-      s = 2 * PI * (0.0, 1.0) * f
-
-      ! steady-state config
-      call voltage_input_ss(sids(si), t_inp, V, t)
-      call input%init(t_inp, V)
-
-      gummel_restart = .true.
-      gummel_once    = .false.
-      gummel_enabled = .true.
-
-      ! solve steady-state
-      call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
-      call ss%input_newton_params(runfile, "full newton params")
-      call ss%input_var_params(runfile, "full newton params")
-      call ss%set_var_params("currents", atol=1e300)
-      call ss%set_var_params("ndens", dx_lim_rel=0.2)
-      ! call ss%set_var_params("pdens", dx_lim_rel=0.2)
-
-      ! run small-signal analysis at each working point
-      allocate (result(size(t), Nf), source = (0.0,0.0))
-      do i = 1, size(t)
-        print *, "steady-state step: ", i
-        call ss%run(input = input, t_input = [t(i)], gummel = gummel)
-        call ac%init(dev%sys_full, log = .true.)
-        call ac%run(s)
-        result(i,:) = ac%get_scalar("I_GAT", "V_GAT")
-        call st%open(name%s // ".fbs", flag = STORAGE_WRITE)
-        call st%write("small-signal/s", [s(i)], unit = "Hz", dynamic = DYNAMIC_APP)
-        call st%write("small-signal/dI_GAT_dV_GAT", result(i,:), unit = "A/V", dynamic = DYNAMIC_EXT)
-        call st%close()
-      end do
-
-      deallocate (f, s)
     end do
   end subroutine
-
-  subroutine solve_transient()
-    integer              :: ict, Nt, si, start, end, rate
-    integer, allocatable :: sids(:)
-    logical              :: log
-    real                 :: dt0
-    real,    allocatable :: ti(:), Vtmp(:), Vi(:,:)
-    type(string)         :: name
-    type(steady_state)   :: ss
-    type(transient)      :: trans
-    type(polygon_src)    :: input
-
-    call runfile%get_sections("transient", sids)
-    do si = 1, size(sids)
-      print "(A)", "transient"
-
-      call runfile%get(sids(si), "name", name)
-      call runfile%get(sids(si), "dt0", dt0)
-      call runfile%get(sids(si), "t", ti)
-      Nt = size(ti)
-      allocate (Vi(dev%par%nct, Nt))
-      do ict = 1, dev%par%nct
-        call runfile%get(sids(si), "V_"//dev%par%contacts(ict)%name, Vtmp)
-        if (size(Vtmp) == 1) then
-          Vi(ict,:) = Vtmp(1)
-        else
-          Vi(ict,:) = Vtmp
-        end if
-      end do
-
-      call input%init(ti, Vi)
-
-      gummel_restart = .true.
-      gummel_once    = .true.
-      gummel_enabled = .true.
-
-      ! solve steady-state
-      call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
-      call ss%input_newton_params(runfile, "full newton params")
-      call ss%input_var_params(runfile, "full newton params")
-      call ss%run(input = input, gummel = gummel)
-
-      ! run transient simulation
-      call runfile%get("transient params", "log", log)
-      call trans%init(dev%sys_full, log = log, msg = "Transient: ")
-      call trans%set_ode_params(method = TRANS_TRBDF2, adaptive = .true., eabs = 0.01)
-      call trans%input_newton_params(runfile, "transient params")
-      call trans%input_var_params(runfile, "transient params")
-      call trans%init_output([new_string("pot"), new_string("ndens"), new_string("V_GAT"), new_string("I_DRN"), new_string("I_GAT"), &
-      & new_string("I_SRC"), new_string("I_BLK"), new_string("ncdensx"),&
-      & new_string("ncdensy")], name%s // ".fbs")
-      call system_clock(start, rate)
-      call trans%run(ti, dt0=dt0, input=input, start_steady_state=.true.)
-      call system_clock(end)
-      print *, "Transient time: ", real(end-start)/real(rate)
-      print *, "Time used for current calculation: ", time
-      print *, "which is ", time/(real(end-start)/real(rate)) * 100, "% of the total runtime"
-    end do
-  end subroutine
-
 
   subroutine gummel()
     !! gummel iteration
 
-    integer            :: it, ci, min_it, max_it
+    integer            :: it, ci, dir, min_it, max_it
     logical            :: log
     real               :: error, err_pot, err_iref(2), atol
     real, allocatable  :: pot0(:), iref0(:,:)
@@ -403,6 +221,11 @@ contains
       call solve_nlpe()
       err_pot = maxval(abs(dev%pot%get() - pot0))
       error = err_pot
+
+      ! update electric field from new potential
+      do dir = 1, dev%par%g%dim
+        call dev%calc_efield(dir)%eval()
+      end do
 
       ! solve dd model for electrons and holes
       do ci = dev%par%ci0, dev%par%ci1

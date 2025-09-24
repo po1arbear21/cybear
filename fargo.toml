@@ -153,3 +153,22 @@ templates = [
     "/test/test_6contacts_3d.ini",
   ] },
 ]
+
+[sbmosfet_test]
+mode = "debug"
+single = true
+target = "test_sbmosfet"
+libraries = ["MPFR", "ZLIB", "ILUPACK"]
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "test/run_sbmosfet.ini",
+  ] },
+  { files = [
+    "test/sbmosfet_2d.ini",
+  ], action = "expand" },
+]

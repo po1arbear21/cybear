@@ -160,7 +160,6 @@ contains
       call ss%input_newton_params(runfile, "full newton params")
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
-      print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
       ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), &
         & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC")], name%s // ".fbs")

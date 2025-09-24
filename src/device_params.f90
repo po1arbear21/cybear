@@ -1210,6 +1210,7 @@ contains
           if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
             this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
             this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
+            this%contacts(ict)%ifbl = this%reg_ct(ri)%ifbl
           end if
 
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
@@ -1288,6 +1289,9 @@ contains
         ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
         ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
         call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+      elseif (this%contacts(ict)%type == CT_SCHOTTKY) then
+        ! set phims for Schottky contacts using Sentaurus Device approach
+        call this%contacts(ict)%set_phims_schottky(this%smc)
       end if
 
       ! update contact vertex tables
@@ -1345,7 +1349,7 @@ contains
 
     class(device_params), intent(in) :: this
     integer,              intent(in) :: ict
-    integer,              intent(in) :: idx_vert(:) 
+    integer,              intent(in) :: idx_vert(:)
     real                             :: ct_surf
 
     integer :: l, m, idx_dir, n_verts

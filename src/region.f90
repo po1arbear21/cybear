@@ -4,6 +4,7 @@ module region_m
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
+  use normalization_m, only: norm
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
   use string_m,        only: string
 
@@ -50,6 +51,8 @@ module region_m
       !! Schottky barrier height (eV)
     real         :: A_richardson
       !! Richardson constant (A/cm²/K²)
+    logical      :: ifbl
+      !! Image force barrier lowering flag
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -153,10 +156,13 @@ contains
       elseif (type%s == "schottky") then
         this%type = CT_SCHOTTKY
         ! Parse Schottky-specific parameters
+        ! Note: file%get automatically normalizes when unit is specified in config file
         call file%get(sid, "phi_b", this%phi_b, status = st)
-        if (.not. st) this%phi_b = 0.7  ! Default 0.7 eV
+        if (.not. st) this%phi_b = norm(0.7, "eV")  ! Default 0.7 eV (normalize default only)
         call file%get(sid, "A_richardson", this%A_richardson, status = st)
-        if (.not. st) this%A_richardson = 112.0  ! Default for Si (A/cm²/K²)
+        if (.not. st) this%A_richardson = norm(112.0, "A/cm^2/K^2")  ! Default for Si (normalize default only)
+        call file%get(sid, "ifbl", this%ifbl, status = st)
+        if (.not. st) this%ifbl = .false.  ! Default disabled
       else
         call program_error("unknown contact type "//type%s)
       end if

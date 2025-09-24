@@ -1,6 +1,7 @@
 module device_m
 
   use charge_density_m,  only: charge_density, calc_charge_density
+  use contact_m,         only: CT_SCHOTTKY
   use continuity_m,      only: continuity
   use current_m,         only: current
   use current_density_m, only: current_density, calc_current_density
@@ -16,6 +17,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
+  use schottky_m,        only: schottky_injection, calc_schottky_injection
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -46,6 +48,8 @@ module device_m
       !! electron/hole mobility (direction, carrier index)
     type(electric_field),  allocatable :: efield(:)
       !! electric field components at vertices (direction)
+    type(schottky_injection)           :: n0b(2)
+      !! Schottky injection density at contacts (carrier index)
     type(charge_density)               :: rho
       !! charge density
     type(voltage),         allocatable :: volt(:)
@@ -82,6 +86,8 @@ module device_m
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
     type(calc_efield),  allocatable :: calc_efield(:)
       !! calculate electric field components from potential gradient (direction)
+    type(calc_schottky_injection)      :: calc_n0b(2)
+      !! calculate Schottky injection density from electric field (carrier index)
 
     type(esystem) :: sys_nlpe
       !! non-linear poisson equation system
@@ -134,6 +140,9 @@ contains
     do dir = 1, this%par%g%dim
       call this%efield(dir)%init(this%par, dir)
     end do
+    do ci = this%par%ci0, this%par%ci1
+      call this%n0b(ci)%init(this%par, ci)
+    end do
     call this%rho%init(this%par)
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
@@ -150,8 +159,15 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot)
-      call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot)
+      ! Only pass n0b if any Schottky contact has IFBL enabled
+      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+              this%par%contacts(1:this%par%nct)%ifbl)) then
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield, this%n0b(ci))
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield, this%n0b(ci))
+      else
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield)
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield)
+      end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
@@ -168,6 +184,13 @@ contains
     do dir = 1, this%par%g%dim
       call this%calc_efield(dir)%init(this%par, this%pot, this%efield(dir))
     end do
+    ! Only initialize calc_n0b if there are Schottky contacts with IFBL enabled
+    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+            this%par%contacts(1:this%par%nct)%ifbl)) then
+      do ci = this%par%ci0, this%par%ci1
+        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci))
+      end do
+    end if
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
@@ -198,8 +221,19 @@ contains
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
       end if
+      ! Add calc_n0b for field-dependent Schottky BC (only if Schottky contacts with IFBL exist)
+      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+              this%par%contacts(1:this%par%nct)%ifbl)) then
+        call this%sys_dd(ci)%add_equation(this%calc_n0b(ci))
+      end if
+      ! Add calc_efield equations for E-field components
+      do dir = 1, this%par%g%dim
+        call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
+      end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
+      ! Provide n0b variable for Schottky boundary conditions
+      call this%sys_dd(ci)%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
       call this%sys_dd(ci)%g%output(CR_NAME(ci)//"dd")
     end do
@@ -224,9 +258,20 @@ contains
     do dir = 1, this%par%g%dim
       call this%sys_full_stat%add_equation(this%calc_efield(dir))
     end do
+    ! add calc_n0b for field-dependent Schottky BC (only if Schottky contacts with IFBL exist)
+    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+            this%par%contacts(1:this%par%nct)%ifbl)) then
+      do ci = this%par%ci0, this%par%ci1
+        call this%sys_full_stat%add_equation(this%calc_n0b(ci))
+      end do
+    end if
     call this%sys_full_stat%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
+    end do
+    ! Provide n0b variables for Schottky boundary conditions
+    do ci = this%par%ci0, this%par%ci1
+      call this%sys_full_stat%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
     end do
     call this%sys_full_stat%init_final()
     call this%sys_full_stat%g%output("full_stat")
@@ -251,9 +296,20 @@ contains
     do dir = 1, this%par%g%dim
       call this%sys_full%add_equation(this%calc_efield(dir))
     end do
+    ! add calc_n0b for field-dependent Schottky BC (only if Schottky contacts with IFBL exist)
+    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+            this%par%contacts(1:this%par%nct)%ifbl)) then
+      do ci = this%par%ci0, this%par%ci1
+        call this%sys_full%add_equation(this%calc_n0b(ci))
+      end do
+    end if
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
+    end do
+    ! Provide n0b variables for Schottky boundary conditions
+    do ci = this%par%ci0, this%par%ci1
+      call this%sys_full%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
     end do
     call this%sys_full%init_final()
     call this%sys_full%g%output("full")
