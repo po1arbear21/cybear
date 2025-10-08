@@ -1,623 +1,609 @@
-# Schottky Contact Implementation Progress Report
+# Schottky Contact Implementation Notes
+## Cybear General-Purpose Drift-Diffusion Simulator
 
-## Date: 2025-08-29
-## Status: Step 1 Complete ✅, Step 2 Complete ✅
-
----
-
-## COMPLETED WORK
-
-### Step 1: Contact Type Infrastructure ✅
-
-#### 1.1 Added CT_SCHOTTKY Contact Type
-**File**: `src/contact.f90`
-```fortran
-integer, parameter :: CT_SCHOTTKY = 3
-real :: phi_b         ! Schottky barrier height (normalized)
-real :: A_richardson  ! Richardson constant (normalized)
-```
-
-#### 1.2 Updated Region Parsing
-**File**: `src/region.f90`
-- Added import: `CT_SCHOTTKY`
-- Added to `region_contact` type:
-  - `phi_b`: barrier height (eV)
-  - `A_richardson`: Richardson constant (A/cm²/K²)
-- Parsing logic for "schottky" type with defaults:
-  - `phi_b = 0.7 eV`
-  - `A_richardson = 112.0 A/cm²/K²`
-
-#### 1.3 Device Parameter Transfer
-**File**: `src/device_params.f90`
-- Added import: `CT_SCHOTTKY`
-- Transfer Schottky parameters from `reg_ct` to `contacts`:
-```fortran
-if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
-  this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
-  this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
-end if
-```
-- Excluded Schottky from phims calculation (only for Ohmic)
-
-#### 1.4 Test Configuration
-**File**: `schottky_diode.ini`
-```ini
-[contact]
-  name = "SCHOTTKY"
-  type = "schottky"
-  x = 0.0, 0.0 : nm
-  phi_b = 0.3 : eV
-  A_richardson = 112 : A/cm^2/K^2
-```
-
-### Git Commit
-```
-Add Schottky contact type infrastructure
-* Add CT_SCHOTTKY constant and parameters to contact type
-* Update region parsing to handle schottky contact type
-* Transfer Schottky parameters in device initialization
-* Maintain backward compatibility with ohmic/gate contacts
-```
+**Author**: Chenyang Yu
+**Date**: 2025-10-06
+**Simulator**: Cybear DD - Supporting multiple device architectures
 
 ---
 
-## COMPLETED: Step 2 - Direct FV Boundary Condition ✅
+> **Note**: This document covers Schottky contact implementation for the Cybear general-purpose DD simulator. While examples include various device types (nanowires, 2D materials, perovskites), the physics and implementation are universally applicable to all semiconductor devices with metal-semiconductor junctions.
 
-### Step 2.1: Module Creation ✅
-**File**: `src/schottky.f90`
+## Table of Contents
+1. [Current Implementation Status](#current-implementation-status)
+2. [Material Parameter Handling Issues](#material-parameter-handling-issues)
+3. [Tunneling Physics for Ultrathin Contacts](#tunneling-physics-for-ultrathin-contacts)
+4. [Implementation Roadmap](#implementation-roadmap)
+5. [Device-Specific Tunneling Considerations](#device-specific-tunneling-considerations)
+6. [Validation Strategy](#validation-strategy)
+7. [Historical Development](#historical-development)
+
+---
+
+## Current Implementation Status
+
+### ✅ Implemented Features
+
+#### 1. **Thermionic Emission (TE) Model**
+- Location: `src/schottky.f90`
+- Robin boundary conditions in continuity equation
+- Richardson constant support (A* = 112 A/cm²/K² for Si)
+- Surface recombination velocity: v_surf = A*T²/(q*Nc)
+- Zero-bias injection: n₀ = Nc × exp(-φ_Bn/kT)
+
+#### 2. **Image Force Barrier Lowering (IFBL)**
+- Schottky effect: Δφ_b = √(q|E|/(4π*ε))
+- Field-dependent injection: n₀B = n₀ × exp(±Δφ_b/kT)
+- Automatic contact normal direction detection
+- Smoothing parameter ε = 1e-10 to avoid E=0 singularity
+- Can be enabled/disabled per contact via `ifbl` flag
+
+#### 3. **Electric Field Coupling**
+- E-field calculated at vertices from potential gradients (`src/electric_field.f90`)
+- Field components passed to Schottky injection calculation
+- Full Jacobian matrix for E-field dependencies
+- Proper coupling with continuity equation via `calc_schottky_injection`
+
+#### 4. **Contact Infrastructure**
+- CT_SCHOTTKY contact type (value = 3)
+- Support for barrier height (phi_b) and Richardson constant (A_richardson)
+- Proper parsing from configuration files
+- Integration with device parameter system
+
+### ⚠️ Issues Fixed Today (2025-10-06)
+
+1. **Permittivity Retrieval** (FIXED)
+   - Problem: Used vertex index to access edge data
+   - Solution: Added `get_neighb` call to find connected edge
+   - Location: `calc_schottky_injection_eval` line 450-463
+   ```fortran
+   ! NEW (correct):
+   call this%par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, normal_dir, idx, 1, edge_idx, edge_status)
+   if (edge_status) then
+     eps_r = this%par%eps(IDX_EDGE, normal_dir)%get(edge_idx)
+   else
+     eps_r = 11.7  ! Fallback to Si default
+   end if
+   ```
+
+2. **Hardcoded Material Parameters** (FIXED)
+   - Problem: eps_r = 11.7 hardcoded in `schottky_injection_mb_bias`
+   - Solution: Added eps_r as function parameter
+   - Note: Function marked as legacy (not used in main flow)
+
+---
+
+## Material Parameter Handling Issues
+
+### Fixed Issues
+- Permittivity now properly retrieved from device parameters via edge connectivity
+- Richardson constant properly normalized with temperature scaling
+- Fallback values for edge cases (though should ideally come from semiconductor parameters)
+
+### Remaining Issues
+1. Fallback permittivity should come from semiconductor parameters, not hardcoded
+2. Missing tunneling effective mass in device parameters
+3. Need interface doping concentration for TFE calculations
+
+---
+
+## Tunneling Physics for Ultrathin Contacts
+
+### 🚨 **CRITICAL**: Current Implementation Lacks Tunneling
+
+The current pure thermionic emission model is **insufficient** for modern nanoscale devices:
+
+#### Universal Criteria (Any Device Type)
+- Barrier thickness < 10 nm
+- Doping concentration > 10¹⁸ cm⁻³
+- Electric fields > 10⁶ V/cm
+- Low temperatures < 200 K
+
+#### Device-Specific Thresholds
+| Device Type | Critical Dimension | When Tunneling Dominates |
+|-------------|-------------------|--------------------------|
+| **Si Nanowire FET** | d < 10nm | Always (quantum confinement) |
+| **2D Material FET** | t < 1nm | Always (atomically thin) |
+| **FinFET** | Fin width < 7nm | High doping or low T |
+| **GAA FET** | d < 5nm | Always |
+| **Perovskite VFET** | Channel < 50nm | Perforated contacts |
+| **Schottky Diode** | Any | N_D > 10¹⁸ cm⁻³ |
+
+### Required Transport Mechanisms
+
+#### 1. **Thermionic-Field Emission (TFE)**
+
+**Characteristic tunneling energy**:
+```
+E₀₀ = (qℏ/2) × √(N_D/(m*×ε_s))
+```
+
+**Regime determination**:
+- kT/E₀₀ >> 1: Thermionic emission dominates
+- kT/E₀₀ ≈ 1: Thermionic-field emission
+- kT/E₀₀ << 1: Field emission dominates
+
+**Padovani-Stratton TFE model**:
+```
+J_TFE = A*T² × exp(-qφ_eff/kT)
+φ_eff = φ_b - ξ
+
+where:
+ξ = E₀₀ × coth(E₀₀/kT)  (energy position of tunneling maximum)
+E₀ = E₀₀ × coth(E₀₀/kT)  (characteristic energy)
+```
+
+#### 2. **WKB Transmission Probability**
+
+**General WKB formula**:
+```
+T(E) = exp(-2∫√(2m*(V(x)-E))/ℏ dx)
+```
+
+**Triangular barrier (Fowler-Nordheim)**:
+```
+T_FN = exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
+```
+
+**Trapezoidal barrier (direct tunneling)**:
+```
+T_DT = exp(-4√(2m*q)φ_b × t_ox/(3ℏ(1+V/φ_b)))
+```
+
+#### 3. **Field Emission (FE)**
+
+**Pure field emission current (T→0)**:
+```
+J_FE = (A*q³E²/8πhφ_b) × exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
+```
+
+#### 4. **Direct Tunneling (DT)**
+
+**For ultrathin barriers (< 3 nm)**:
+```
+J_DT = (q³m₀V²/8πℏ²m*d³) × exp(-4√(2m*q)φ_b × d/(3ℏ))
+```
+
+---
+
+## Implementation Roadmap
+
+### Phase 1: Essential TFE Model (IMMEDIATE PRIORITY)
+
 ```fortran
-module schottky_m
-  subroutine schottky_injection_mb(par, ci, ict, ninj)
-    ! Calculate equilibrium density n0 = N_c * exp(-phi_Bn)
+module schottky_tunneling_m
+  use normalization_m, only: norm, denorm
+  use math_m, only: PI
+
+  implicit none
+
+  type schottky_tunneling_params
+    real :: E00           ! Characteristic energy (normalized)
+    real :: m_tunnel      ! Tunneling effective mass ratio
+    real :: N_interface   ! Interface doping concentration
+    logical :: enable_tfe ! Enable TFE model
+    logical :: enable_dt  ! Enable direct tunneling
+    logical :: enable_fe  ! Enable field emission
+  end type
+
+contains
+
+  function calc_E00(N_D, eps_r, m_eff) result(E00)
+    !! Calculate characteristic tunneling energy
+    real, intent(in) :: N_D    ! Doping concentration (normalized)
+    real, intent(in) :: eps_r  ! Relative permittivity
+    real, intent(in) :: m_eff  ! Effective mass ratio
+    real :: E00
+
+    ! E00 = (q*hbar/2) * sqrt(N_D/(m_eff*eps_0*eps_r))
+    ! In normalized units:
+    E00 = 0.5 * sqrt(N_D/(m_eff*eps_r))
+  end function
+
+  function calc_tfe_enhancement(E00, T, phi_b, E_field) result(f_tfe)
+    !! Calculate TFE enhancement factor over pure TE
+    real, intent(in) :: E00, T, phi_b, E_field
+    real :: f_tfe
+    real :: E0, xi, kT_E00
+
+    kT_E00 = T/E00  ! Temperature ratio
+
+    if (kT_E00 > 10.0) then
+      ! Pure thermionic regime
+      f_tfe = 1.0
+    elseif (kT_E00 < 0.1) then
+      ! Pure field emission
+      f_tfe = exp(4.0*sqrt(2.0*phi_b**3)/(3.0*sqrt(E_field)))
+    else
+      ! TFE regime
+      E0 = E00/tanh(E00/T)
+      xi = E00*coth(E00/T)
+      f_tfe = (E0/T)/sin(PI*T/E0) * exp((phi_b - xi)/T)
+    end if
+  end function
+
+  subroutine calc_schottky_current_total(params, phi_b, E_field, T, V_bias, &
+                                         J_total, dJ_dV, dJ_dE)
+    !! Calculate total Schottky current including all mechanisms
+    type(schottky_tunneling_params), intent(in) :: params
+    real, intent(in)  :: phi_b, E_field, T, V_bias
+    real, intent(out) :: J_total, dJ_dV, dJ_dE
+
+    real :: J_TE, J_TFE, J_DT, J_FE
+    real :: f_tfe, T_wkb
+
+    ! Base thermionic emission
+    J_TE = calc_thermionic_current(phi_b, T)
+
+    ! TFE enhancement
+    if (params%enable_tfe .and. params%E00 > 0.01*T) then
+      f_tfe = calc_tfe_enhancement(params%E00, T, phi_b, E_field)
+      J_TFE = J_TE * f_tfe
+    else
+      J_TFE = J_TE
+    end if
+
+    ! Direct tunneling (ultrathin barriers)
+    if (params%enable_dt .and. phi_b < 0.1) then  ! < 100 meV
+      J_DT = calc_direct_tunneling(phi_b, E_field, V_bias)
+    else
+      J_DT = 0.0
+    end if
+
+    ! Field emission (high field, low temp)
+    if (params%enable_fe .and. E_field > 1e6 .and. T < 100) then
+      J_FE = calc_field_emission(phi_b, E_field, params%m_tunnel)
+    else
+      J_FE = 0.0
+    end if
+
+    ! Total current
+    J_total = J_TFE + J_DT + J_FE
+
+    ! Derivatives for Newton solver
+    call calc_current_derivatives(J_total, V_bias, E_field, dJ_dV, dJ_dE)
   end subroutine
 
-  function schottky_velocity(par, ci, ict) result(s)
-    ! Returns surface recombination velocity (v_th/4)
-  end function
 end module
 ```
 
-### Step 2.2: Stencil Architecture Fix ✅
-**File**: `src/continuity.f90`
-- Created contact-specific stencil arrays: `st_dens_ct(:)`, `st_cdens_ct(:)`
-- Schottky uses `st_dir` for density, `st_nn` for current density
-- Ohmic/Gate uses `st_em` (empty) to maintain Dirichlet BC
+### Phase 2: WKB Implementation
 
-### Step 2.3: Edge Assembly ✅
-**Location**: Lines 192-204
-- Successfully includes Schottky-interior edges
-- Proper check: `if (par%contacts(par%ict%get(idx))%type == CT_SCHOTTKY)`
-- Maintains flux discretization consistency
-
-### Step 2.4: Robin BC Implementation ✅
-**Location**: Lines 234-258
 ```fortran
+function calc_wkb_transmission(E, phi_b, E_field, d_barrier) result(T_wkb)
+  !! WKB transmission through arbitrary barrier
+  real, intent(in) :: E         ! Carrier energy
+  real, intent(in) :: phi_b     ! Barrier height
+  real, intent(in) :: E_field   ! Electric field
+  real, intent(in) :: d_barrier ! Barrier width
+  real :: T_wkb
+
+  real :: x_tp  ! Classical turning point
+  real :: gamma ! Tunneling exponent
+
+  ! Find turning point where E = V(x)
+  x_tp = min((phi_b - E)/(q*E_field), d_barrier)
+
+  if (E > phi_b) then
+    ! Over-barrier transport
+    T_wkb = 1.0
+  elseif (x_tp < d_barrier) then
+    ! Triangular barrier
+    gamma = 4.0*sqrt(2.0*m_eff)*(phi_b - E)**1.5/(3.0*hbar*q*E_field)
+    T_wkb = exp(-gamma)
+  else
+    ! Trapezoidal barrier
+    gamma = 4.0*sqrt(2.0*m_eff*q)/(3.0*hbar) * &
+            (phi_b - E)**1.5 * (1.0 - (1.0 - q*E_field*d_barrier/(phi_b-E))**1.5) / &
+            (q*E_field)
+    T_wkb = exp(-gamma)
+  end if
+end function
+```
+
+### Phase 3: Integration with Continuity Equation
+
+```fortran
+! Modify continuity.f90 boundary conditions
 if (par%contacts(ict)%type == CT_SCHOTTKY) then
-  ! Robin BC: J = q*v*(n - n0b)
-  call schottky_injection_mb(par, ci, ict, n0b)
-  v_surf = schottky_velocity(par, ci, ict)
-  A_ct = par%get_contact_area(ict, idx1)
-  call this%jaco_dens%add(idx1, idx1, A_ct * v_surf)
-  this%b(j) = this%b(j) + A_ct * v_surf * n0b
-else
-  ! Dirichlet BC for Ohmic/Gate
+  ! Get tunneling parameters
+  call get_tunneling_params(par, ict, st_params)
+
+  ! Calculate total current including tunneling
+  call calc_schottky_current_total(st_params, phi_b, E_field, T, V_bias, &
+                                   J_total, dJ_dV, dJ_dE)
+
+  ! Update Robin BC coefficients
+  v_surf_eff = J_total/(n - n0B)  ! Effective surface velocity
+  call this%jaco_dens%set(idx1, idx1, A_ct * v_surf_eff)
+
+  ! Add field derivative
+  if (associated(this%jaco_efield)) then
+    call this%jaco_efield%set(idx1, idx1, A_ct * dJ_dE)
+  end if
 end if
 ```
 
-### Step 2.5: Device Parameters Enhancement ✅
-**File**: `src/device_params.f90`
-- Added `get_contact_area` function (returns 1.0 for 1D)
-- Proper parameter transfer with debug output
-- Configuration parameter names fixed: `phi_b`, `A_richardson`
+### Phase 4: Configuration Parameters
+
+```ini
+[schottky parameters]
+  # Material parameters
+  m_tunnel    = 0.3      : m0      # Tunneling effective mass
+  m_dos       = 0.5      : m0      # DOS effective mass
+
+  # Model selection
+  enable_tfe  = true               # Thermionic-field emission
+  enable_dt   = true               # Direct tunneling
+  enable_fe   = true               # Field emission
+  enable_btbt = false              # Band-to-band tunneling
+
+  # Interface parameters
+  N_interface = 1e19     : 1/cm^3  # Doping at interface
+  d_barrier   = 2        : nm      # Effective barrier width
+  trap_density = 1e12    : 1/cm^2  # Interface trap density
+
+  # Numerical parameters
+  E_mesh      = 100                # Energy grid points
+  smooth_factor = 1e-10            # Field smoothing parameter
+```
 
 ---
 
-## CRITICAL PHYSICS UNDERSTANDING
+## Device-Specific Tunneling Considerations
 
-### Reference Level Consistency
+### Applications Across Different Device Types
 
-#### Key Insight from Discussion:
-- **Poisson**: `ψ = V_contact + phims` (unchanged for Schottky)
-- **At contact**: `Δψ = ψ - V_contact = phims`
-- **DO NOT** modify phims for Schottky (would double-count barrier)
+#### 1. **Nanowire FETs (Sub-10nm diameter)**
+```
+Quantum confinement effects:
+- Subband formation modifies barrier shape
+- Surface states dominate at Si/SiO₂ interface
+- Radial tunneling through gate oxide
+- Axial tunneling at source/drain Schottky contacts
 
-#### Correct Formulation:
+Critical parameters:
+- Wire diameter < 10nm → strong confinement
+- Surface-to-volume ratio → interface trap dominance
+- Gate-all-around → radial field enhancement
+```
+
+#### 2. **2D Material FETs (MoS₂, WSe₂, Graphene)**
+```
+Van der Waals contacts:
+- No Fermi level pinning → tunable Schottky barrier
+- Interlayer tunneling in vdW heterojunctions
+- Edge contact vs surface contact geometries
+- Thickness-dependent bandgap (1L vs bulk)
+
+Tunneling considerations:
+- Atomically thin channels (~0.7nm) → direct S-D tunneling
+- Low DOS → enhanced TFE at moderate doping
+- Anisotropic effective mass → direction-dependent tunneling
+```
+
+#### 3. **Perovskite Vertical FETs (Project A07)**
+```
+Perforated Source Electrode (80nm apertures):
+```
+Field enhancement at aperture edges:
+β = 2-5 (geometric factor)
+E_local = β × E_applied
+
+Requires:
+- Field emission at aperture edges
+- 3D field distribution modeling
+- Local barrier height variation
+```
+
+#### 2. **Ultra-short Channel (10-50nm)**
+```
+Source-drain tunneling:
+- Becomes significant < 20nm
+- Direct S-D tunneling in OFF state
+- Band-to-band tunneling (BTBT) needed
+```
+
+#### 3. **Ion Migration Effects**
+```
+Time-dependent barrier:
+φ_b(t) = φ_b0 + Δφ_ion(t)
+
+where:
+Δφ_ion = q × N_ion × x_ion / ε
+
+Requires:
+- Coupled ion-electron transport
+- Dynamic barrier recalculation
+- Hysteresis modeling
+```
+
+#### 4. **Mixed Conduction Mechanisms**
+```
+Total current:
+J_total = J_drift + J_thermionic + J_tunneling + J_ionic
+
+With transitions:
+- Low field: Ohmic (J ∝ V)
+- Medium field: SCLC (J ∝ V²)
+- High field: Tunneling (J ∝ exp(-1/E))
+```
+
+### Implementation Priority for Advanced Devices
+
+#### Universal Requirements (All Nanoscale Devices)
+1. **MUST HAVE** (for accuracy):
+   - TFE model with E₀₀ calculation
+   - WKB transmission for arbitrary barriers
+   - Field-dependent barrier lowering
+
+2. **SHOULD HAVE** (for completeness):
+   - Direct tunneling for ultrathin barriers
+   - Interface trap states
+   - Temperature-dependent effective mass
+
+3. **DEVICE-SPECIFIC**:
+   - **Nanowires**: Quantum confinement, subband structure
+   - **2D Materials**: Interlayer tunneling, anisotropic transport
+   - **Perovskites**: Ion migration, dynamic barriers
+   - **Silicon**: Band-to-band tunneling, hot carriers
+
+---
+
+## Validation Strategy
+
+### 1. **Unit Tests**
 ```fortran
-! Electrons
-n0B = N_c * exp(Δψ - Φ_Bn)
+! Test E00 calculation
+N_D = norm(1e18, "1/cm^3")
+E00_expected = norm(4.5e-3, "eV")  ! For Si at 1e18
+E00_calc = calc_E00(N_D, 11.7, 0.26)
+assert(abs(E00_calc - E00_expected) < 0.001)
 
-! Holes
-p0B = N_v * exp(-Δψ - Φ_Bp)  where Φ_Bp = E_g - Φ_Bn
+! Test regime transitions
+assert(is_thermionic(kT=0.026, E00=0.001))     ! kT/E00 = 26
+assert(is_tfe(kT=0.026, E00=0.026))            ! kT/E00 = 1
+assert(is_field_emission(kT=0.026, E00=0.26))  ! kT/E00 = 0.1
 ```
 
-#### Why No Potential Coupling (Initially):
-- Contact vertices have **Dirichlet ψ** (fixed)
-- Therefore n0B is constant during Newton iteration
-- No need for ∂R/∂ψ Jacobian entries
-- Simpler implementation, add coupling later if needed
+### 2. **I-V Characteristic Tests**
+```python
+# Expected behavior with tunneling
+def test_iv_with_tunneling():
+    # Low doping (1e16): pure thermionic
+    J_1e16 = simulate(N_D=1e16, enable_tfe=False)
+    J_1e16_tfe = simulate(N_D=1e16, enable_tfe=True)
+    assert(J_1e16_tfe / J_1e16 < 1.1)  # < 10% difference
 
-### Unit Consistency
-- Interior uses current density (includes q factor)
-- Must match in boundary terms: multiply by `abs(CR_CHARGE(ci))`
-
-### Matrix Assembly Strategy
-- Use **ADD** not SET for diagonal and RHS
-- Preserves interior edge contributions
-- Accumulates all terms properly
-
----
-
-## DEBUGGING FINDINGS (2025-08-29)
-
-### Successful Implementation:
-- Code compiles and runs without errors
-- Newton convergence achieved for all voltage points
-- Current flows in correct direction (negative for forward bias)
-- Robin BC properly implemented with correct sign
-
-### Key Physics Insights:
-1. **n0b (equilibrium density)**:
-   - Should be constant: n0b = N_c * exp(-φ_Bn)
-   - NOT voltage-dependent
-   - For φ_B = 0.7 eV: n0b ≈ 5.6×10^7 cm^-3
-
-2. **n (actual density)**:
-   - Solved self-consistently by drift-diffusion
-   - Increases exponentially with forward bias
-   - This provides the voltage dependence
-
-3. **Current Direction**:
-   - Negative current is correct for n-type Schottky
-   - Electrons flow Schottky→Ohmic under forward bias
-   - Current flows opposite to electron motion
-
-### Remaining Issue:
-**Current magnitude problem**: Current only increases by ~70× over 0.7V range instead of expected ~10^11×
-
-**Test Results**:
-```
-V = 0.1V: I = -2.0e-8 A
-V = 0.8V: I = -1.4e-3 A
-Ratio: ~7×10^4 (should be ~5×10^11)
+    # High doping (1e19): significant tunneling
+    J_1e19 = simulate(N_D=1e19, enable_tfe=False)
+    J_1e19_tfe = simulate(N_D=1e19, enable_tfe=True)
+    assert(J_1e19_tfe / J_1e19 > 10)  # > 10x enhancement
 ```
 
-**Hypothesis**: The actual carrier density n at the boundary may not be responding properly to applied voltage. Need to investigate:
-- How applied voltage couples to boundary carrier density
-- Whether surface recombination velocity is too small
-- Potential numerical stiffness in Robin BC
+### 3. **Temperature Dependence**
+```
+Plot: ln(J/T²) vs 1/T
 
-## TODO LIST
-
-### Completed Tasks: ✅
-1. ✅ Add CT_SCHOTTKY constant and parameters
-2. ✅ Add phi_b and A_richardson to region_contact
-3. ✅ Update contact type parsing
-4. ✅ Transfer Schottky parameters in device_params
-5. ✅ Test compilation and parsing
-6. ✅ Add required imports to continuity.f90
-7. ✅ Fix stencil architecture for Schottky contacts
-8. ✅ Include Schottky-interior edges in assembly
-9. ✅ Replace Dirichlet BC with Robin BC
-10. ✅ Implement schottky_injection_mb with correct physics
-11. ✅ Add get_contact_area to device_params
-12. ✅ Fix configuration parameter names (phi_b, A_richardson)
-13. ✅ Verify current sign is correct
-
-### Next Session Tasks:
-
-1. **Investigate exponential I-V characteristic issue** 🔴
-   - Analyze why current only increases by 70× instead of 10^11×
-   - Check how carrier density n responds to voltage at boundary
-   - Examine potential numerical stiffness
-
-2. **Test with lower barrier height**
-   - Try φ_B = 0.1 eV (nearly ohmic)
-   - Should show much larger currents
-   - Verify exponential behavior
-
-3. **Implement Richardson constant properly**
-   - Currently using fixed v_surf = 0.25
-   - Should calculate from A_richardson
-   - May affect current magnitude
-
-4. **Add I_SCHOTTKY output** ✅
-   - Already added to schottky_test.f90
-   - Verify current conservation
-
-5. **Consider voltage-dependent effects**
-   - Image force barrier lowering
-   - Field-dependent mobility
-   - Thermionic-field emission (if high doping)
-
----
-
-## ARCHITECTURAL INSIGHTS
-
-### Vertex Organization:
-- `transport_vct(0)`: Interior vertices
-- `transport_vct(ict)`: Contact vertices (ict = 1..nct)
-- Contact vertices ARE in vselector (lines 95)
-
-### Edge Processing:
-- ALL edges in `transport(IDX_EDGE)` are processed
-- Condition `par%ict%get(idx) == 0` filters contributions
-- Contact-contact edges automatically excluded
-
-### Stencil System:
-- Controls matrix sparsity pattern
-- Empty stencil → no matrix entries possible
-- Near-neighbor stencil → allows edge contributions
-
-### Key Discovery:
-Using `st_nn` for Schottky is safe because:
-- Contact-contact edges get no contributions (filtered by ict checks)
-- Only interior-Schottky edges contribute
-- No spurious currents between contacts
-
----
-
-## TESTING STRATEGY
-
-### Phase 1: Low Barrier Test
-- Start with φ_B = 0.1 eV (almost ohmic)
-- Verify matrix structure has non-zero Schottky rows
-- Check convergence
-
-### Phase 2: Gradual Increase
-- Test 0.2, 0.3, 0.4 eV barriers
-- Monitor n0B values
-- Check Newton convergence
-
-### Phase 3: Target Barrier
-- Test φ_B = 0.7 eV
-- Verify I-V characteristics
-- Compare with analytical thermionic emission
-
-### Validation Checks:
-1. Matrix diagonal for Schottky > 0
-2. RHS contribution proportional to n0B
-3. Current conservation at steady state
-4. Proper rectification behavior
-
----
-
-## NEXT SESSION PRIORITIES
-
-1. **Complete Stencil Fix**: Implement contact-type-specific stencils
-2. **Edge Assembly**: Include Schottky-interior edges
-3. **Direct FV Implementation**: Replace Dirichlet with boundary flux
-4. **Test Compilation**: Ensure no syntax errors
-5. **Run Simple Test**: Low barrier Schottky diode
-6. **Debug Convergence**: Monitor Newton iterations
-
----
-
-## NOTES FOR FUTURE ENHANCEMENTS
-
-### Image Force Barrier Lowering:
-```fortran
-E_normal = calculate_field_at_interface()
-delta_phi = sqrt(q * abs(E_normal) / (4 * pi * eps))
-phi_B_eff = phi_B - delta_phi
+Expected:
+- Pure TE: Linear (slope = -qφ_b/k)
+- With TFE: Curved (reduced slope at low T)
+- Pure FE: Temperature independent
 ```
 
-### Thermionic-Field Emission:
-- Add for high doping (>10¹⁸ cm⁻³)
-- Implement WKB tunneling probability
-- Modify S to include tunneling component
+### 4. **Field Dependence**
+```
+Plot: ln(J/E²) vs 1/E (Fowler-Nordheim plot)
 
-### Potential Coupling (if needed):
-- Add for SG-consistent boundary
-- Include for field-dependent barrier
-- Required for advanced physics models
+Expected:
+- High field: Linear region (slope ∝ φ_b^(3/2))
+- Low field: Deviation from linearity
+```
 
----
+### 5. **Benchmark Cases**
 
-## KEY REFERENCES FROM DISCUSSION
+| Device Type | Test Case | Parameters | Expected J (A/cm²) |
+|-------------|-----------|------------|-------------------|
+| **Silicon** | n-type TE | N_D=1e16, φ_b=0.7V, T=300K | ~10⁻⁶ |
+| **Silicon** | n-type TFE | N_D=1e19, φ_b=0.7V, T=300K | ~10⁻² |
+| **Silicon** | Field emission | N_D=1e19, φ_b=0.7V, T=77K, E=1e6 V/cm | ~10¹ |
+| **Si Nanowire** | GAA FET | d=5nm, φ_b=0.5V, T=300K | ~10⁻⁴ |
+| **MoS₂ FET** | Monolayer | N_D=1e12/cm², φ_b=0.2V, T=300K | ~10⁻⁵ |
+| **WSe₂ FET** | Bilayer | N_D=1e13/cm², φ_b=0.3V, T=300K | ~10⁻⁴ |
+| **Perovskite** | Vertical FET | N_D=1e18, φ_b=0.4V, T=300K | ~10⁻³ |
 
-1. **Direct FV = Robin BC**: Mathematically equivalent
-2. **Reference consistency**: Critical for correct physics
-3. **Don't modify phims**: Barrier only in continuity BC
-4. **Use ADD not SET**: Preserve interior contributions
-5. **Start simple**: No potential coupling initially
-
----
-
-## SESSION SUMMARY (2025-08-29)
-
-### Major Accomplishments:
-1. **Successfully implemented Robin BC for Schottky contacts** ✅
-   - Clean separation of concerns with schottky.f90 module
-   - Proper finite volume discretization
-   - Correct stencil architecture for mixed BC types
-
-2. **Fixed critical implementation details** ✅
-   - Configuration parameter names (phi_b, A_richardson)
-   - Stencil setup for contact-specific patterns
-   - Edge assembly to include Schottky-interior edges
-   - Proper n0b calculation (constant, not voltage-dependent)
-
-3. **Achieved working simulation** ✅
-   - Code compiles and runs
-   - Newton convergence for all voltage points
-   - Current flows in correct direction
-
-### Key Learning:
-- Robin BC: J = q*v*(n - n0b) where n0b is constant equilibrium density
-- Voltage dependence comes from n (solved), not n0b (fixed)
-- Matrix assembly: Diagonal += A*v, RHS += A*v*n0b (positive sign correct)
-- Current sign: Negative is correct for n-type forward bias
-
-### Outstanding Issue:
-- Current magnitude ~7 orders of magnitude too small
-- Need to investigate carrier density response to voltage
-- May need to examine numerical parameters or physics models
-
-### Next Priority:
-Debug why current doesn't show proper exponential increase with voltage.
-
+### 6. **Comparison with Sentaurus Device**
+```
+Run identical structure in Sentaurus with:
+- Thermionic emission model
+- Nonlocal tunneling model
+- Compare I-V curves within 20%
+```
 
 ---
 
----
+## Code Quality Checklist
 
-## SESSION SUMMARY (2025-09-01) - FIXED SCHOTTKY IMPLEMENTATION
-
-### Critical Bugs Fixed:
-
-1. **Jacobian Stencil Bug** ✅
-   - **Problem**: `jaco_dens` used wrong stencils for contacts
-   - **Root cause**: Schottky contacts got `st_dir` but Ohmic/Gate got `st_em` (empty)
-   - **Fix**: ALL contacts need `st_dir` for steady-state to allow setting diagonal entries
-   ```fortran
-   ! continuity.f90 - separate stencils for steady-state vs time-dependent
-   allocate(st_dens_ct(par%nct), st_dens_t_ct(par%nct))
-   
-   ! Steady-state: ALL contacts need st_dir
-   do ict = 1, par%nct
-     st_dens_ct(ict) = this%st_dir%get_ptr()
-   end do
-   
-   ! Time-dependent: differentiate by type
-   do ict = 1, par%nct
-     if (par%contacts(ict)%type == CT_SCHOTTKY) then
-       st_dens_t_ct(ict) = this%st_dir%get_ptr()
-     else
-       st_dens_t_ct(ict) = this%st_em%get_ptr()
-     end if
-   end do
-   ```
-
-2. **Richardson Velocity Calculation** ✅
-   - **Problem**: Mixed physical and normalized units incorrectly
-   - **Wrong**: Used physical T with normalized Nc, wrong variable names
-   - **Fix**: Proper normalization with clean code
-   ```fortran
-   ! schottky.f90 - correct velocity calculation
-   s = par%contacts(ict)%A_richardson * norm(par%T, "K") * norm(par%T, "K") / par%smc%edos(ci)
-   ```
-   - Key insights:
-     - `par%T` is in physical Kelvin
-     - `par%smc%edos(ci)` is already normalized
-     - `par%contacts(ict)%A_richardson` is in physical A/cm²/K²
-     - Result `s` is in normalized units
-
-### Results:
-- **Current magnitudes now correct**: ~10^-8 to 10^-3 A over 0.7V range
-- **Proper exponential I-V characteristics**: ~5 orders of magnitude increase
-- **Robin BC working**: Matrix assembly allows boundary flux terms
-
-### Key Learnings:
-1. **Stencil architecture is critical** - Wrong stencil prevents matrix operations
-2. **Normalization must be consistent** - All terms in equation must use same unit system
-3. **Code hygiene matters** - Don't define unused variables, use clear naming
-
-### Implementation Status:
-✅ Schottky contact infrastructure
-✅ Robin boundary conditions
-✅ Richardson velocity calculation
-✅ Correct exponential I-V behavior
+- [ ] Remove all debug print statements
+- [ ] Add proper error handling for edge cases
+- [ ] Implement unit tests for each function
+- [ ] Add convergence monitoring for iterative solvers
+- [ ] Document all physical assumptions
+- [ ] Validate normalization consistency
+- [ ] Profile performance bottlenecks
+- [ ] Add configuration validation
 
 ---
 
-End of Progress Report
+## Historical Development
+
+### Previous Implementation Milestones
+
+1. **Step 1: Contact Type Infrastructure** (2025-08-29)
+   - Added CT_SCHOTTKY constant
+   - Integrated phi_b and A_richardson parameters
+   - Updated region parsing and device initialization
+
+2. **Step 2: Robin BC Implementation** (2025-08-29)
+   - Created schottky.f90 module
+   - Implemented thermionic emission model
+   - Fixed stencil architecture for mixed BC types
+   - Achieved proper I-V characteristics
+
+3. **Step 3: Electric Field Integration** (2025-09-01)
+   - Added electric field calculation
+   - Implemented image force barrier lowering
+   - Created field-dependent injection model
+   - Added calc_schottky_injection equation
+
+4. **Step 4: Material Parameter Fixes** (2025-10-06)
+   - Fixed permittivity retrieval from edges
+   - Removed hardcoded material parameters
+   - Improved error handling and fallbacks
 
 ---
 
-## SESSION SUMMARY (2025-01-09) - Finite Volume & Electric Field Implementation
+## Next Steps
 
-### Work Completed
+1. **Immediate** (This Week):
+   - [ ] Add E₀₀ calculation function
+   - [ ] Implement basic TFE model
+   - [ ] Add tunneling parameters to device_params
+   - [ ] Create tunneling unit tests
 
-#### 1. Finite Volume Method Analysis
-- **Understanding tr_vol and tr_surf**:
-  - `tr_vol`: Control/adjoint volume around vertices (area in 2D [nm²], volume in 3D [nm³])
-  - `tr_surf`: Surface area of edges connecting vertices (length in 2D [nm], area in 3D [nm²])
-  - Vertex-centered finite volume approach with adjoint volumes from Voronoi tessellation
-  - Contact vertices at transport boundaries DO have tr_vol values (they're transport vertices that also belong to contacts)
+2. **Short Term** (Next 2 Weeks):
+   - [ ] Full WKB implementation
+   - [ ] Field emission for perforated contacts
+   - [ ] Benchmark against Sentaurus Device
+   - [ ] Performance optimization
 
-#### 2. Contact Surface Area Implementation
-- **Implemented `get_ct_surf` function** in `device_params.f90`:
-  - 1D: Returns normalized cross-sectional area
-  - 2D: Sums half of edge lengths to neighboring contact vertices
-  - 3D: (Placeholder for future implementation)
-  - Formula for 2D: `ct_surf = Σ(0.5 * edge_length)` for edges connecting to same-contact neighbors
-
-#### 3. 2D Electric Field Test Development
-- **Created 2D test files**:
-  - `src/efield_test_2d.f90`: 2D electric field verification program
-  - `test/efield_test_device_2D.ini`: 100nm × 50nm device configuration
-  - Displays control volumes (tr_vol) and contact surfaces (ct_surf) for all grid points
-  - Verifies uniform electric field in x-direction
-
-#### 4. Key Discoveries
-- **Contact vertex categorization**:
-  - Vertices at transport boundaries are BOTH transport AND contact vertices
-  - They have tr_vol values because they're in the transport region
-  - During initialization, they're moved from `transport_vct(0)` to `transport_vct(ict)`
-  - Example: In 1D with LEFT contact at x=0, vertex 1 has tr_vol = 0.5nm (half control volume)
-
-- **Removed `get_ct_vol` function**:
-  - Was redundant - just returned tr_vol without modification
-  - Electric field calculation now directly uses `par%tr_vol%get(idx_k)` for all vertices
-
-### Issues Resolved
-1. Grid iteration in 2D using tensor grid dimensions (`g1D(1)%n`, `g1D(2)%n`)
-2. Format string errors in print statements
-3. Understanding that tr_surf is defined on edges, not vertices
-4. Clarified that contact vertices have tr_vol values when at transport boundaries
+3. **Long Term**:
+   - [ ] Band-to-band tunneling
+   - [ ] Trap-assisted tunneling
+   - [ ] Hot carrier effects
+   - [ ] Full perovskite physics
 
 ---
 
-## TODO: Image Force Barrier Lowering Implementation
+## References
 
-### Overview
-Implement Schottky barrier lowering due to image force effect: Δφ_b = √(q|E_n|/(4πε))
+1. **Padovani-Stratton TFE Model**:
+   F.A. Padovani and R. Stratton, "Field and thermionic-field emission in Schottky barriers," Solid-State Electronics, vol. 9, pp. 695-707, 1966.
 
-### Key Decisions
-1. **WHERE**: Image force lowering belongs in **continuity equation boundary conditions**, NOT Poisson
-   - It's a local effect at the metal-semiconductor interface
-   - Modifies the effective barrier height for thermionic emission
-   - Poisson equation remains unchanged
+2. **WKB Approximation**:
+   S.M. Sze and K.K. Ng, "Physics of Semiconductor Devices," 3rd ed., Wiley, 2007, Ch. 3.
 
-2. **WHICH FIELD**: Use the **normal component** of electric field at interface
-   - Need |E·n| where n is the outward normal
-   - Must manually determine which component based on contact geometry
-   - No automatic routing of E components to boundary conditions
+3. **Fowler-Nordheim Tunneling**:
+   R.H. Fowler and L. Nordheim, "Electron emission in intense electric fields," Proc. R. Soc. Lond. A, vol. 119, pp. 173-181, 1928.
 
-### Implementation Plan
+4. **Perovskite FETs**:
+   Project A07 internal documentation, RWTH Aachen University.
 
-#### 1. Detect Contact Orientation and Normal Direction
-**File**: `src/device_params.f90`
-- Add function to determine contact normal direction:
-  ```fortran
-  function get_contact_normal_dir(this, ict) result(normal_dir)
-    ! Returns: 
-    !   +1 for x-normal contacts at x_min (LEFT)
-    !   -1 for x-normal contacts at x_max (RIGHT)
-    !   +2 for y-normal contacts at y_min (BOTTOM)
-    !   -2 for y-normal contacts at y_max (TOP)
-    !   +3 for z-normal contacts at z_min (FRONT)
-    !   -3 for z-normal contacts at z_max (BACK)
-  ```
-- Detection logic for tensor grids:
-  - Check if all contact vertices have same coordinate in one direction
-  - Compare with grid bounds to determine orientation
-  - Store result for efficiency
+5. **Sentaurus Device**:
+   Synopsys Sentaurus Device User Guide, Version O-2018.06.
 
-#### 2. Extract Normal Electric Field Component
-**File**: `src/continuity.f90` (lines 332-336)
-- Replace `E_field = 0.0` with actual field extraction:
-  ```fortran
-  ! Get normal E field component at contact
-  normal_dir = par%get_contact_normal_dir(ict)
-  idx_dir = abs(normal_dir)
-  sign_dir = sign(1, normal_dir)
-  
-  ! Get field component and apply sign for outward normal
-  E_normal = sign_dir * efield(idx_dir)%get(idx1)
-  
-  ! Use absolute value for barrier lowering
-  E_field_mag = abs(E_normal)
-  ```
+---
 
-#### 3. Implement Barrier Lowering Physics
-**File**: `src/schottky.f90`
-- Complete `schottky_barrier_lowering` function (lines 91-107):
-  ```fortran
-  subroutine schottky_barrier_lowering(par, E_field, delta_phi_b, d_delta_phi_dE)
-    type(device_params), intent(in)  :: par
-    real,                intent(in)  :: E_field       ! Normal E field (normalized)
-    real,                intent(out) :: delta_phi_b   ! Barrier lowering (normalized)
-    real,                intent(out) :: d_delta_phi_dE ! Derivative d(Δφ_b)/dE
-    
-    real :: E_abs, eps_r
-    
-    E_abs = abs(E_field)
-    
-    if (E_abs > 1e-10) then
-      ! Get relative permittivity (need to add to device_params)
-      eps_r = 11.7  ! Silicon, should get from par
-      
-      ! Image force barrier lowering: Δφ_b = sqrt(q*|E|/(4π*ε0*εr))
-      ! In normalized units with proper constants
-      delta_phi_b = sqrt(E_abs / (4.0 * PI * eps_r))
-      
-      ! Derivative for Jacobian (w.r.t signed E field)
-      d_delta_phi_dE = 0.5 * delta_phi_b / E_abs * sign(1.0, E_field)
-    else
-      delta_phi_b = 0.0
-      d_delta_phi_dE = 0.0
-    end if
-  end subroutine
-  ```
-
-- Update `schottky_injection_mb_bias` (lines 70-89):
-  ```fortran
-  subroutine schottky_injection_mb_bias(par, ci, ict, E_field, ninj, dninj_dE)
-    type(device_params), intent(in)  :: par
-    integer,             intent(in)  :: ci
-    integer,             intent(in)  :: ict
-    real,                intent(in)  :: E_field
-    real,                intent(out) :: ninj
-    real,                intent(out) :: dninj_dE
-    
-    real :: ninj_base, delta_phi_b, d_delta_phi_dE
-    
-    ! Get base injection without field
-    call schottky_injection_mb(par, ci, ict, ninj_base)
-    
-    ! Calculate barrier lowering
-    call schottky_barrier_lowering(par, E_field, delta_phi_b, d_delta_phi_dE)
-    
-    ! Modify injection with lowered barrier
-    if (ci == CR_ELEC) then
-      ! Electrons: lower barrier increases injection
-      ninj = ninj_base * exp(delta_phi_b)
-      dninj_dE = ninj * d_delta_phi_dE
-    else  ! CR_HOLE
-      ! Holes: opposite effect
-      ninj = ninj_base * exp(-delta_phi_b)
-      dninj_dE = -ninj * d_delta_phi_dE
-    end if
-  end subroutine
-  ```
-
-#### 4. Update Continuity Equation with E-field Dependency
-**File**: `src/continuity.f90`
-- Modify Robin BC assembly (lines 390-414) to include E-field contribution:
-  ```fortran
-  ! Get electric field dependency
-  if (par%contacts(ict)%type == CT_SCHOTTKY) then
-    ! Get normal field direction
-    normal_dir = par%get_contact_normal_dir(ict)
-    idx_dir = abs(normal_dir)
-    
-    ! Add E-field contribution to Jacobian
-    ! ∂R/∂φ includes ∂n0b/∂E * ∂E/∂φ term
-    ! This requires adding dependency on efield variables
-  end if
-  ```
-
-#### 5. Testing and Validation
-- Create test with known E field at contacts
-- Verify barrier lowering magnitude: typical ~0.01-0.1 eV for E~10^5 V/cm
-- Check I-V characteristics show enhanced current with barrier lowering
-- Ensure Newton convergence with field-dependent BC
-
-### Physical Constants and Considerations
-- Silicon permittivity: εr = 11.7
-- Formula in SI: Δφ = √(qE/(4πε0εr))
-- Typical lowering: 0.05 eV at E = 10^5 V/cm
-- Effect more pronounced at higher fields/reverse bias
-- Sign convention: E field positive pointing from metal into semiconductor
-
-### Implementation Notes
-1. **Normalization**: Ensure all quantities properly normalized
-2. **Sign conventions**: Careful with field direction vs normal direction
-3. **Jacobian**: Need derivatives w.r.t both n and φ (through E field)
-4. **Convergence**: May need damping for strong field dependence
-5. **Physical limits**: Cap barrier lowering at reasonable values
-
-### References
-- Sze & Ng, "Physics of Semiconductor Devices", 3rd Ed., Section 3.2
-- Standard formula: Δφ_b = √(qE/(4πε))
+**Last Updated**: 2025-10-06
+**Status**: In Active Development
+**Priority**: HIGH - Critical for accurate ultrathin device simulation

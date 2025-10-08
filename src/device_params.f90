@@ -267,6 +267,13 @@ contains
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
 
+    ! Debug: Show band edge positions (Ec0 and Ev0) relative to intrinsic level
+    print "(A)", "DEBUG: Band edge positions relative to Ei = 0:"
+    print "(A,ES12.5,A,ES12.5,A)", "  Ec0 = ", denorm(this%smc%band_edge(CR_ELEC), "eV"), &
+                                    " eV (normalized: ", this%smc%band_edge(CR_ELEC), ")"
+    print "(A,ES12.5,A,ES12.5,A)", "  Ev0 = ", denorm(this%smc%band_edge(CR_HOLE), "eV"), &
+                                    " eV (normalized: ", this%smc%band_edge(CR_HOLE), ")"
+
     ! density of states
     call file%get(sid, "dos", dos, status)
     if (.not. status) then
@@ -1211,6 +1218,7 @@ contains
             this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
             this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
             this%contacts(ict)%ifbl = this%reg_ct(ri)%ifbl
+            print "(A,L1)", "DEBUG: Contact " // name%s // " ifbl = ", this%contacts(ict)%ifbl
           end if
 
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)

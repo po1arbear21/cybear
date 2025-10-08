@@ -3,10 +3,10 @@ module schottky_m
   use device_params_m,  only: device_params
   use normalization_m,  only: norm, denorm
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, CR_NAME
-  use grid_m,           only: IDX_VERTEX
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_CELL
   use variable_m,       only: variable_real
   use equation_m,       only: equation
-  use jacobian_m,       only: jacobian
+  use jacobian_m,       only: jacobian, jacobian_ptr
   use electric_field_m, only: electric_field
   use grid_data_m,      only: grid_data1_real, grid_data2_real, grid_data3_real
   use vselector_m,      only: vselector
@@ -49,8 +49,8 @@ module schottky_m
     integer :: ci
       !! carrier index
 
-    type(vselector) :: efield_normal
-      !! electric field component normal to contacts (combined selector)
+    type(electric_field), pointer :: efield(:) => null()
+      !! electric field components (array of size dim)
     type(vselector) :: n0b
       !! injection density variable
 
@@ -62,8 +62,8 @@ module schottky_m
     type(empty_stencil) :: st_em
       !! empty stencil
 
-    type(jacobian), pointer :: jaco_efield => null()
-      !! jacobian for normal E-field dependency
+    type(jacobian_ptr), allocatable :: jaco_efield(:)
+      !! jacobian for E-field dependencies (one per direction)
   contains
     procedure :: init => calc_schottky_injection_init
     procedure :: eval => calc_schottky_injection_eval
@@ -156,7 +156,6 @@ contains
     if (ci == CR_ELEC) then
       ! Electrons: n0 = Nc * exp(-phi_Bn)
       ninj = par%smc%edos(CR_ELEC) * exp(-phi_Bn)
-      print "(A,ES12.5)", "DEBUG: ninj = ", denorm(ninj,"cm^-3")
     else  ! CR_HOLE
       ! Holes: barrier from valence band
       phi_Bp = par%smc%band_gap - phi_Bn
@@ -186,19 +185,21 @@ contains
     end if
   end function
 
-  subroutine schottky_injection_mb_bias(par, ci, ict, E_field, ninj, dninj_dE)
+  subroutine schottky_injection_mb_bias(par, ci, ict, E_field, eps_r, ninj, dninj_dE)
     !! Calculate bias-dependent equilibrium density and derivative for Schottky contact
     !! Includes image force barrier lowering effect
+    !! NOTE: This is a legacy function, not currently used in main flow.
+    !! The field-dependent barrier lowering is handled in calc_schottky_injection_eval
 
     type(device_params), intent(in)  :: par
     integer,             intent(in)  :: ci      ! Carrier index (CR_ELEC or CR_HOLE)
     integer,             intent(in)  :: ict     ! Contact index
     real,                intent(in)  :: E_field ! Electric field at interface (normalized)
+    real,                intent(in)  :: eps_r   ! Relative permittivity
     real,                intent(out) :: ninj    ! Injection density (normalized)
     real,                intent(out) :: dninj_dE ! Derivative d(ninj)/dE (normalized)
 
     real :: ninj_base, delta_phi_b, d_delta_phi_dE
-    real :: eps_r = 11.7  ! Silicon relative permittivity (TODO: get from par)
 
     ! Get base injection without field
     call schottky_injection_mb(par, ci, ict, ninj_base)
@@ -240,6 +241,7 @@ contains
       delta_phi_b = 0.0
       d_delta_phi_dE = 0.0
       return
+    else
     end if
 
     ! Smoothing parameter to avoid kink at E=0
@@ -258,6 +260,12 @@ contains
     ! Barrier lowering: Δφ_b = γ*sqrt(|E|)
     delta_phi_b = gamma * sqrt(E_smooth)
 
+    ! Debug: print barrier lowering
+    print "(A,I2,A)", "IFBL for contact ", ict, ":"
+    print "(A,ES12.5,A)", "  E_field = ", denorm(abs(E_field), "V/cm"), " V/cm"
+    print "(A,ES12.5,A)", "  delta_phi_b = ", denorm(delta_phi_b, "eV"), " eV"
+    print "(A,F8.3,A)", "  delta_phi_b = ", denorm(delta_phi_b, "eV") * 1000.0, " meV"
+
     ! Derivative: d(Δφ_b)/dE = γ * 0.5 * E / (|E| * sqrt(|E|))
     ! Using smoothed version to avoid division by zero
     if (E_smooth > eps_smooth) then
@@ -266,20 +274,6 @@ contains
       d_delta_phi_dE = 0.0
     end if
 
-    ! Debug output for first few calls
-    if (par%contacts(1)%type == 3) then  ! Only debug if first contact is Schottky
-      if (debug_count < 3) then
-        debug_count = debug_count + 1
-        print *, "DEBUG schottky_barrier_lowering:"
-        print *, "  E_field (normalized) = ", E_field
-        print *, "  E_field (V/cm) = ", denorm(abs(E_field), "V/cm")
-        print *, "  eps_r = ", eps_r
-        print *, "  gamma = ", gamma
-        print *, "  delta_phi_b (normalized) = ", delta_phi_b
-        print *, "  delta_phi_b (eV) = ", denorm(delta_phi_b, "eV")
-        print *, "  d_delta_phi_dE = ", d_delta_phi_dE
-      end if
-    end if
   end subroutine
 
   subroutine schottky_injection_init(this, par, ci)
@@ -371,6 +365,9 @@ contains
       end if
     end do
 
+    ! Store reference to electric field components
+    this%efield => efield
+
     ! Create n0b selector for all Schottky contact vertices
     ! We'll include all contacts but only Schottky ones will have non-zero values
     call this%n0b%init(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
@@ -378,28 +375,24 @@ contains
     ! Provide n0B at Schottky contact vertices (provide for all, but only Schottky will be set)
     iprov = this%provide(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
 
-    ! Create a combined selector for normal E-field components
-    ! For each contact, we need the E-field component in its normal direction
-    ! This is tricky - we need to combine different E-field components based on contact normal
+    ! Set up dependencies and Jacobians for each E-field direction that's needed
+    allocate(this%jaco_efield(par%g%dim))
 
-    ! For simplicity, let's start with just the first valid normal direction
-    ! TODO: This needs refinement for multiple contacts with different normals
+    ! Create dependencies for each E-field component that Schottky contacts need
     do dir = 1, par%g%dim
       if (any(this%contact_normal == dir)) then
-        ! Use this direction's E-field for all Schottky contacts
-        ! Simplified: use all contact vertices, framework will handle zero contributions
-        call this%efield_normal%init(efield(dir), [(par%transport_vct(ict)%get_ptr(), &
-                                                    ict = 1, par%nct)])
+        ! This direction is used by at least one Schottky contact
+        print *, "  Setting up E-field dependency for direction ", dir
 
-        ! Create dependency and Jacobian
+        ! Create dependency for this E-field component at all contact vertices
+        ! Only Schottky contacts with this normal will actually use it
         idep = this%depend(efield(dir), [(par%transport_vct(ict)%get_ptr(), &
                                          ict = 1, par%nct)])
 
-        this%jaco_efield => this%init_jaco(iprov, idep, &
+        ! Create Jacobian for this E-field component
+        this%jaco_efield(dir)%p => this%init_jaco(iprov, idep, &
           st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
           const = .false.)
-
-        exit  ! For now, handle only one direction
       end if
     end do
 
@@ -411,43 +404,69 @@ contains
     !! Evaluate n0B = n0B_base * exp(±delta_phi_b(E))
     class(calc_schottky_injection), intent(inout) :: this
 
-    integer :: ict, i, j, idx(this%par%g%idx_dim)
+    integer :: ict, i, j, idx(this%par%g%idx_dim), normal_dir
+    integer :: edge_idx(this%par%g%idx_dim)
+    logical :: edge_status
     real :: E_field, n0b_base, n0b_val, delta_phi_b, d_delta_phi_dE
     real :: eps_r
-    real, allocatable :: tmp(:), E_field_arr(:)
+    real, allocatable :: tmp(:)
 
     ! Check if properly initialized
     if (.not. allocated(this%contact_normal)) return
-    if (.not. associated(this%jaco_efield)) return
+    if (.not. allocated(this%jaco_efield)) return
+    if (.not. associated(this%efield)) return
 
     allocate(tmp(this%n0b%n))
     tmp = 0.0
 
+    ! Clear all Jacobians first
+    do normal_dir = 1, this%par%g%dim
+      if (associated(this%jaco_efield(normal_dir)%p)) then
+        call this%jaco_efield(normal_dir)%p%reset()
+      end if
+    end do
+
     ! Counter for position in n0b array
     j = 0
 
-    ! Loop over Schottky contacts
+    ! Loop over all contacts (n0b includes all, but we only set Schottky ones)
     do ict = 1, this%par%nct
-      if (this%par%contacts(ict)%type /= CT_SCHOTTKY) cycle
-
-      ! Skip if no valid normal direction
-      if (this%contact_normal(ict) <= 0) cycle
-
-      ! Get permittivity (TODO: make this material-dependent)
-      eps_r = 11.7  ! Silicon
 
       ! Process each vertex of this contact
       do i = 1, this%par%transport_vct(ict)%n
         idx = this%par%transport_vct(ict)%get_idx(i)
         j = j + 1  ! Increment position in n0b array
 
-        ! Get normal E-field at this vertex
-        E_field_arr = this%efield_normal%get(idx)
-        if (size(E_field_arr) > 0) then
-          E_field = E_field_arr(1)  ! Extract scalar value
-        else
-          E_field = 0.0  ! No field if not properly set
+        ! Check if this is a Schottky contact with valid normal
+        if (this%par%contacts(ict)%type /= CT_SCHOTTKY) then
+          tmp(j) = 0.0  ! Non-Schottky contacts have zero injection
+          cycle
         end if
+
+        normal_dir = this%contact_normal(ict)
+        if (normal_dir <= 0 .or. normal_dir > this%par%g%dim) then
+          tmp(j) = 0.0  ! Invalid normal direction
+          cycle
+        end if
+
+        ! Get permittivity from the edge connected to this vertex in the normal direction
+        ! First find the edge connected to this vertex in the normal direction
+        call this%par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, normal_dir, idx, 1, edge_idx, edge_status)
+
+        if (edge_status) then
+          ! Successfully found the edge, get permittivity from it
+          eps_r = this%par%eps(IDX_EDGE, normal_dir)%get(edge_idx)
+        else
+          ! Fallback: use material default (should ideally get from semiconductor parameters)
+          ! For now, use Silicon default
+          eps_r = 11.7
+          print "(A,I2,A)", "WARNING: Could not find edge for vertex at contact ", ict, &
+                           ", using default eps_r = 11.7"
+        end if
+
+        ! Get the E-field component in the normal direction for this contact
+        E_field = this%efield(normal_dir)%get(idx)
+
 
         ! Get base injection density (without field)
         call schottky_injection_mb(this%par, this%ci, ict, n0b_base)
@@ -458,12 +477,16 @@ contains
         ! Apply barrier lowering to get n0B
         if (this%ci == CR_ELEC) then
           n0b_val = n0b_base * exp(delta_phi_b)
-          ! Set Jacobian entry
-          call this%jaco_efield%set(idx, idx, n0b_val * d_delta_phi_dE)
+          ! Set Jacobian entry for the correct E-field component
+          if (associated(this%jaco_efield(normal_dir)%p)) then
+            call this%jaco_efield(normal_dir)%p%set(idx, idx, n0b_val * d_delta_phi_dE)
+          end if
         else  ! CR_HOLE
           n0b_val = n0b_base * exp(-delta_phi_b)
-          ! Set Jacobian entry
-          call this%jaco_efield%set(idx, idx, -n0b_val * d_delta_phi_dE)
+          ! Set Jacobian entry for the correct E-field component
+          if (associated(this%jaco_efield(normal_dir)%p)) then
+            call this%jaco_efield(normal_dir)%p%set(idx, idx, -n0b_val * d_delta_phi_dE)
+          end if
         end if
 
         ! Store in temporary array at position j
@@ -471,14 +494,17 @@ contains
       end do
     end do
 
-    ! Materialize Jacobian
-    call this%jaco_efield%set_matr(const = .false., nonconst = .true.)
+    ! Materialize all Jacobians
+    do normal_dir = 1, this%par%g%dim
+      if (associated(this%jaco_efield(normal_dir)%p)) then
+        call this%jaco_efield(normal_dir)%p%set_matr(const = .false., nonconst = .true.)
+      end if
+    end do
 
     ! Set the n0B values
     call this%n0b%set(tmp)
 
     deallocate(tmp)
-    if (allocated(E_field_arr)) deallocate(E_field_arr)
   end subroutine
 
 end module

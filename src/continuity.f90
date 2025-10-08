@@ -296,7 +296,6 @@ contains
           if (present(n0b)) then
             ! Field-dependent n0B: set Jacobian entry, no RHS
             call this%jaco_n0b%set(idx1, idx1, -A_ct * v_surf)
-            print "(A,ES12.5)", "DEBUG: n0b_val = ", n0b_val
             this%b(j) = 0.0  ! No constant term when n0B is variable
           else
             ! Constant n0B: set RHS

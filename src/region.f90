@@ -163,6 +163,7 @@ contains
         if (.not. st) this%A_richardson = norm(112.0, "A/cm^2/K^2")  ! Default for Si (normalize default only)
         call file%get(sid, "ifbl", this%ifbl, status = st)
         if (.not. st) this%ifbl = .false.  ! Default disabled
+        print "(A,L1)", "DEBUG: Region ifbl parsed as = ", this%ifbl
       else
         call program_error("unknown contact type "//type%s)
       end if
