@@ -163,7 +163,7 @@ contains
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch / dens)
       else
-        call this%par%smc%get_idist(dens / this%par%smc%edos(ci), eta, detadF)
+        call this%par%smc%get_inv_dist(dens / this%par%smc%edos(ci), eta, detadF)
         iref = pot - this%par%smc%band_edge(ci) + ch * eta
         call this%iref%set(idx, iref)
         call this%jaco_dens%set(idx, idx, ch * detadF / this%par%smc%edos(ci))

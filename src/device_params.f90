@@ -17,8 +17,11 @@ module device_params_m
   use input_m,          only: input_file
   use map_m,            only: map_string_int
   use normalization_m,  only: norm, denorm
-  use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, region_contact
-  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor
+  use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, &
+    &                         region_contact
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, &
+    &                         DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor, &
+    &                         STAB_SG, STAB_ED, STAB_MED, STAB_EXACT
   use string_m,         only: string
   use tensor_grid_m,    only: tensor_grid
   use triang_grid_m,    only: triang_grid
@@ -251,7 +254,7 @@ contains
 
     integer      :: sid
     logical      :: elec, hole, status
-    type(string) :: dos, dist
+    type(string) :: dos, dist, tabledir, stab
 
     ! find transport parameters section id
     call file%get_section("transport parameters", sid)
@@ -292,7 +295,7 @@ contains
       call file%get(sid, "dos_sigma", this%smc%dos_params(1))
     end if
 
-    ! distribution
+    ! distribution and stabilization method
     call file%get(sid, "dist", dist, status)
     if (.not. status) then
       dist%s = "maxwell"
@@ -312,6 +315,21 @@ contains
       call file%get(sid, "reg_A", this%smc%dist_params(1))
       call file%get(sid, "reg_B", this%smc%dist_params(2))
     end if
+    call file%get(sid, "tabledir", tabledir)
+    call file%get(sid, "stab", stab)
+    select case (stab%s)
+    case ("SG")
+      this%smc%stab = STAB_SG
+    case ("ED")
+      this%smc%stab = STAB_ED
+    case ("MED")
+      this%smc%stab = STAB_MED
+    case ("EXACT")
+      this%smc%stab = STAB_EXACT
+    case default
+      call program_error("unknown stabilization scheme '" // stab%s // "'")
+    end select
+    call this%smc%init_dist(tabledir%s)
 
     ! mobility
     call file%get(sid, "mob",        this%smc%mob)

@@ -4,6 +4,7 @@ module current_integral_m
   !! get edge-current by solving integral equation
 
   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_next_after
+  use, intrinsic :: iso_fortran_env, only: real128
 
   use error_m, only: program_error
   use math_m,  only: expm1
@@ -13,7 +14,7 @@ module current_integral_m
   implicit none
 
   private
-  public :: CURRENT_INTEGRAL_DEBUG, current_integral_get, integrate_dist
+  public :: CURRENT_INTEGRAL_DEBUG, current_integral_get
 
   logical :: CURRENT_INTEGRAL_DEBUG = .false.
 
@@ -39,6 +40,19 @@ module current_integral_m
       real, intent(out) :: detadF
         !! output derivative of eta wrt F
     end subroutine
+
+    subroutine int_distribution(eta, k, I, dIdeta)
+      !! integrate cumulative distribution function
+      real,       intent(in)  :: eta(2)
+        !! integration bounds
+      integer,    intent(in)  :: k
+        !! exponent
+      real,       intent(out) :: I
+        !! output integral over dist^k
+      real,       intent(out) :: dIdeta(2)
+        !! output derivatives of I wrt eta
+    end subroutine
+
   end interface
 
   integer,      parameter :: CASE0A  = 1
@@ -58,12 +72,14 @@ module current_integral_m
 
 contains
 
-  recursive subroutine current_integral_get(dist, idist, n, dpot, j, djdn, djddpot)
+  recursive subroutine current_integral_get(dist, inv_dist, int_dist, n, dpot, j, djdn, djddpot)
     !! get edge current
     procedure(distribution)     :: dist
       !! cumulative distribution function
-    procedure(inv_distribution) :: idist
+    procedure(inv_distribution) :: inv_dist
       !! inverse of cumulative distribution function
+    procedure(int_distribution) :: int_dist
+      !! integral over cumulative distribution function
     real,           intent(in)  :: n(2)
       !! normalized densities at left/right edge end-point
     real,           intent(in)  :: dpot
@@ -83,17 +99,17 @@ contains
 
     ! flip edge direction if potential drop is negative
     if (dpot < 0) then
-      call current_integral_get(dist, idist, [n(2), n(1)], - dpot, j, djdn, djddpot)
+      call current_integral_get(dist, inv_dist, int_dist, [n(2), n(1)], - dpot, j, djdn, djddpot)
 
       ! flip current (dj/ddpot = d(-j)/d(-dpot) unchanged)
-      j      = - j
+      j    = - j
       djdn = - djdn(2:1:-1)
       return
     end if
 
     ! get eta
-    call idist(n(1), eta(1), detadn(1))
-    call idist(n(2), eta(2), detadn(2))
+    call inv_dist(n(1), eta(1), detadn(1))
+    call inv_dist(n(2), eta(2), detadn(2))
     deta = eta(2) - eta(1)
 
     ! get case
@@ -146,7 +162,7 @@ contains
       if (cs == CASE0A) then
         block
           real :: I, dI(2)
-          call integrate_dist(dist, [eta(2) - dpot, eta(2)], -1, I, dI)
+          call int_dist([eta(2) - dpot, eta(2)], -1, I, dI)
           jjmin = max(jjmin, (dpot - deta) / I)
         end block
       elseif (cs == CASE0B) then
@@ -281,11 +297,11 @@ contains
 
       integer       :: k
       real          :: I(-5:0), dI(2,-5:0), jc(1:5), djc(2,1:5)
-      real(kind=16) :: I_16(-5:0), jc_16(1:5), djc_16(2,1:5), tmp_16, dtmp_16(2), j_16
+      real(real128) :: I_16(-5:0), jc_16(1:5), djc_16(2,1:5), tmp_16, dtmp_16(2), j_16
 
       ! get I_k = integral_eta1^eta2 F(eta)^k deta for k = -5 to 0
       do k = -5, -1
-        call integrate_dist(dist, eta, k, I(k), dI(:,k))
+        call int_dist(eta, k, I(k), dI(:,k))
       end do
       I(0)    = deta
       dI(:,0) = [-1.0, 1.0]
@@ -480,7 +496,7 @@ contains
 
       ! get I_k = integral_eta1^eta2 F(eta)^k deta for k = 0 to 5
       do k = 1, 5
-        call integrate_dist(dist, eta, k, I(k), dI(:,k))
+        call int_dist(eta, k, I(k), dI(:,k))
       end do
 
       ! normalize I_{2..5} wrt I_1 to improve numerical stability (avoid underflows etc.)
@@ -608,51 +624,51 @@ contains
 
   end subroutine
 
-  subroutine integrate_dist(dist, eta, k, I, dIdeta)
-    !! integral_eta1^eta2 dist(eta)^k deta
-    procedure(distribution) :: dist
-      !! cumulative distribution function
-    real,       intent(in)  :: eta(2)
-      !! integration bounds
-    integer,    intent(in)  :: k
-      !! exponent
-    real,       intent(out) :: I
-      !! output integral over dist^k
-    real,       intent(out) :: dIdeta(2)
-      !! output derivatives of I wrt eta
+  ! subroutine integrate_dist(dist, eta, k, I, dIdeta)
+  !   !! integral_eta1^eta2 dist(eta)^k deta
+  !   procedure(distribution) :: dist
+  !     !! cumulative distribution function
+  !   real,       intent(in)  :: eta(2)
+  !     !! integration bounds
+  !   integer,    intent(in)  :: k
+  !     !! exponent
+  !   real,       intent(out) :: I
+  !     !! output integral over dist^k
+  !   real,       intent(out) :: dIdeta(2)
+  !     !! output derivatives of I wrt eta
 
-    real :: dum(0), dum2(0)
+  !   real :: dum(0), dum2(0)
 
-    if (k == 0) then
-      ! I = integral_eta1^eta2 deta = eta2 - eta1
-      I = eta(2) - eta(1)
-      dIdeta = [-1.0, 1.0]
-    else
-      ! integrate using tanh-sinh
-      call quad(dist_k, eta(1), eta(2), dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8)
-    end if
+  !   if (k == 0) then
+  !     ! I = integral_eta1^eta2 deta = eta2 - eta1
+  !     I = eta(2) - eta(1)
+  !     dIdeta = [-1.0, 1.0]
+  !   else
+  !     ! integrate using tanh-sinh
+  !     call quad(dist_k, eta(1), eta(2), dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8)
+  !   end if
 
-  contains
+  ! contains
 
-    subroutine dist_k(eta, p, F, dFdeta, dFdp)
-      real, intent(in)  :: eta
-      real, intent(in)  :: p(:)
-      real, intent(out) :: F
-      real, intent(out) :: dFdeta
-      real, intent(out) :: dFdp(:)
+  !   subroutine dist_k(eta, p, F, dFdeta, dFdp)
+  !     real, intent(in)  :: eta
+  !     real, intent(in)  :: p(:)
+  !     real, intent(out) :: F
+  !     real, intent(out) :: dFdeta
+  !     real, intent(out) :: dFdp(:)
 
-      m4_ignore(p)
-      m4_ignore(dFdp)
+  !     m4_ignore(p)
+  !     m4_ignore(dFdp)
 
-      call dist(eta, 0, F, dFdeta)
+  !     call dist(eta, 0, F, dFdeta)
 
-      if (k /= 1) then
-        dFdeta = k * F**(k-1) * dFdeta
-        F      = F**k
-      end if
-    end subroutine
+  !     if (k /= 1) then
+  !       dFdeta = k * F**(k-1) * dFdeta
+  !       F      = F**k
+  !     end if
+  !   end subroutine
 
-  end subroutine
+  ! end subroutine
 
 
 end module
