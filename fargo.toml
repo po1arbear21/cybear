@@ -1,33 +1,11 @@
 [defaults]
-intsize = 32                        # integer size in bits (32 or 64)
-idxsize = 32                        # integer size of sparse matrix row pointers (32 or 64, >= intsize)
-compiler = "gfortran"               # "gfortran", "ifort", "ifx"
-mode = "debug"                      # "debug", "release", "profile"
-march = "broadwell"                 # cpu architecture, broadwell should work on all nodes
-m4flags = ["-P", "-s"]              # do not change
-libraries = ["BLAS95", "LAPACK95"]  # list of libraries to link with
-single = false                      # single or multiple jobs in section?
-workers = 0                         # builder number of workers (0 = number of cpu cores)
-timeout = 60.0                      # builder timeout
 sources = ["lib/fortran-basic/src"]
-
-# runner      = "..."              # runner: "local" or "node"
-# runner_args = {...}              # runner arguments
-# task_name   = "..."              # task sub-directory name template (default: automatic)
-# m4flags     = [...]              # additional flags for M4 ("-P" and "-s" are implicit)
-# m4vars      = {...}              # additional variables for M4
-# args        = "..."              # arguments passed to target
-# wanted      = [...]              # list of additional targets
-# variables   = [{...}]            # variables
-# templates   = [{...}]            # template files
-# postprocess = [{...}]            # postprocessing
+libraries = ["BLAS95", "LAPACK95", "ILUPACK", "MPFR", "TRIANGLE", "ZLIB"]  # list of libraries to link with
 
 
 [release]
 mode = "release"
-single = true
 target = "dd"
-libraries = ["MPFR", "TRIANGLE", "ZLIB"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 
 templates = [
@@ -41,9 +19,7 @@ templates = [
 
 [nw_3D]
 mode = "debug"
-single = true
 target = "nw_test"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "faster"
@@ -60,9 +36,7 @@ templates = [
 
 [nw_2D]
 mode = "debug"
-single = true
 target = "nw_2d"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "faster"
@@ -79,9 +53,7 @@ templates = [
 
 [vfet_test]
 mode = "debug"
-single = true
 target = "nw_2d"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "faster"
@@ -97,12 +69,10 @@ templates = [
 
 [schottky_test]
 mode = "debug"
-single = true
 target = "schottky_test"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
-partition = "faster"
+partition = "fast"
 
 templates = [
   { files = [
@@ -115,7 +85,6 @@ templates = [
 
 [galene_converter]
 mode = "debug"
-single = true
 target = "galene_converter"
 libraries = ["MPFR", "ZLIB"]
 args = ""
@@ -124,12 +93,10 @@ templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
 
 [efield_test]
 mode = "debug"
-single = true
 target = "efield_test_2d"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
-partition = "faster"
+partition = "fast"
 sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
@@ -143,9 +110,7 @@ templates = [
 
 [test_contact_normal]
 mode = "debug"
-single = true
 target = "test_contact_normal"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "{files[0]}"
 
 templates = [
@@ -156,9 +121,7 @@ templates = [
 
 [sbmosfet_test]
 mode = "debug"
-single = true
 target = "test_sbmosfet"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "faster"
@@ -169,6 +132,23 @@ templates = [
     "test/run_sbmosfet.ini",
   ] },
   { files = [
-    "test/sbmosfet_2d.ini",
+    "test/sb_mosfet_2d_vertical.ini",
+  ], action = "expand" },
+]
+
+[schottky_diode_2D]
+mode = "debug"
+target = "test_schottky_diode"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "test/run_schottky_2d.ini",
+  ] },
+  { files = [
+    "test/schottky_diode_2d.ini",
   ], action = "expand" },
 ]

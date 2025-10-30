@@ -9,7 +9,6 @@ module continuity_m
   use imref_m,           only: imref
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
-  use potential_m,       only: potential
   use res_equation_m,    only: res_equation
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
   use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
@@ -39,8 +38,6 @@ module continuity_m
       !! dependencies: current densities in 2 directions
     type(vselector)              :: genrec
       !! generation - recombination
-    type(vselector)              :: pot
-      !! dependency: potential (for bias-dependent Schottky BC)
     type(electric_field), pointer :: efield(:) => null()
       !! electric field components (for Schottky barrier lowering)
     type(vselector)              :: n0b_inj
@@ -57,8 +54,6 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
     type(jacobian),     pointer     :: jaco_genrec   => null()
-    type(jacobian),     pointer     :: jaco_pot      => null()
-      !! jacobian for potential dependency (Schottky BC)
     type(jacobian),     pointer     :: jaco_n0b      => null()
       !! jacobian for n0B dependency (field-dependent Schottky BC)
   contains
@@ -68,7 +63,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, pot, efield, n0b)
+  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, n0b)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -83,14 +78,12 @@ contains
       !! electron/hole current density
     type(generation_recombination), intent(in)  :: genrec
       !! generation-recombination rate
-    type(potential), optional,      intent(in)  :: pot
-      !! potential (optional, for bias-dependent Schottky BC)
     type(electric_field), optional, target, intent(in) :: efield(:)
       !! electric field components (optional, for Schottky barrier lowering)
     type(schottky_injection), optional, intent(in) :: n0b
       !! Schottky injection density (optional, for field-dependent BC)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, ipot, in0b
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, in0b
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
     real                 :: surf, F, dF
@@ -120,11 +113,6 @@ contains
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
-
-    ! init potential selector if provided (for bias-dependent Schottky BC)
-    if (present(pot)) then
-      call this%pot%init(pot, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
-    end if
 
     ! store electric field reference if provided (for Schottky barrier lowering)
     if (present(efield)) then
@@ -172,7 +160,6 @@ contains
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
     if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
-    if (present(pot)) ipot = this%depend(this%pot)
 
     ! n0b dependency
     if (present(n0b)) then
@@ -206,19 +193,6 @@ contains
       this%jaco_genrec => this%init_jaco_f(igenrec, &
         & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
-    end if
-
-    ! init potential jacobian for bias-dependent Schottky BC
-    if (present(pot)) then
-      ! Check if any contacts are Schottky type
-      if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)) then
-        ! For now, use empty stencil for interior and dir stencil for Schottky contacts
-        ! This will be refined when we implement the actual bias dependency
-        this%jaco_pot => this%init_jaco_f(ipot, &
-          & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
-          & par%contacts(ict)%type == CT_SCHOTTKY), ict = 1, par%nct)], &
-          & const = .false., dtime = .false.)
-      end if
     end if
 
     ! init n0b jacobian for field-dependent Schottky BC
@@ -288,7 +262,6 @@ contains
           ! Robin BC for Schottky: Add boundary flux terms
           v_surf = schottky_velocity(par, ci, ict)
           A_ct = par%get_ct_surf(ict, idx1)
-          print "(A,ES12.5)", "DEBUG: A_ct = ", A_ct
 
           ! Add Robin BC terms (use SET not ADD for contact vertices)
           call this%jaco_dens%set(idx1, idx1, A_ct * v_surf)
@@ -301,13 +274,19 @@ contains
             ! Constant n0B: set RHS
             call schottky_injection_mb(par, ci, ict, n0b_val)
             this%b(j) = A_ct * v_surf * n0b_val
-            print "(A,ES12.5)", "DEBUG: n0b_val = ", denorm(n0b_val,"cm^-3")
-          end if
 
-          ! Add potential derivative for bias-dependent BC (legacy, may remove)
-          if (associated(this%jaco_pot)) then
-            ! Placeholder: zero derivative for now (will be updated in eval)
-            call this%jaco_pot%set(idx1, idx1, 0.0)
+            ! Debug output for Schottky BC (only print for first vertex at each contact)
+            if (i == 1) then
+              print "(A,A,A,I2,A)", "DEBUG_BC_INIT: Schottky BC at contact ", trim(par%contacts(ict)%name), &
+                                    " (", ict, "):"
+              print "(A,ES14.6,A)", "  A_ct           = ", A_ct, " (normalized)"
+              print "(A,ES14.6,A)", "  A_ct (denorm)  = ", denorm(A_ct, "nm"), " nm"
+              print "(A,ES14.6,A)", "  v_surf         = ", v_surf, " (normalized)"
+              print "(A,ES14.6,A)", "  v_surf (denorm)= ", denorm(v_surf, "cm/s"), " cm/s"
+              print "(A,ES14.6,A)", "  n0B (denorm)   = ", denorm(n0b_val, "cm^-3"), " cm^-3"
+              print "(A,ES14.6)",   "  A*v*n0B (norm) = ", A_ct * v_surf * n0b_val
+              print "(A,ES14.6,A)", "  RHS term       = ", denorm(A_ct * v_surf * n0b_val, "1/s"), " 1/s"
+            end if
           end if
         else
           ! Dirichlet BC for Ohmic/Gate contacts
@@ -331,6 +310,7 @@ contains
     class(continuity), intent(inout) :: this
 
     integer              :: idx_dir
+    integer              :: idx1(this%par%g%idx_dim)
     real, allocatable    :: tmp(:)
 
     allocate (tmp(this%f%n))
@@ -341,14 +321,17 @@ contains
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
 
-    ! ! Add potential contribution for bias-dependent Schottky BC
-    ! if (associated(this%jaco_pot)) then
-    !   call this%jaco_pot%matr%mul_vec(this%pot%get(), tmp, fact_y = 1.0)
-    ! end if
-
     ! Add n0b contribution for field-dependent Schottky BC
     if (associated(this%jaco_n0b)) then
       call this%jaco_n0b%matr%mul_vec(this%n0b_inj%get(), tmp, fact_y = 1.0)
+      ! DEBUG_SCHOTTKY: Print carrier density and field-dependent injection density at first Schottky contact vertex
+      if (this%par%nct > 0 .and. this%par%contacts(1)%type == CT_SCHOTTKY) then
+        if (this%par%transport_vct(1)%n > 0) then
+          idx1 = this%par%transport_vct(1)%get_idx(1)
+          print "(A,2ES14.6)", "DEBUG_SCHOTTKY: n, n0B(E) = ", &
+            denorm(this%dens%get(idx1), "cm^-3"), denorm(this%n0b_inj%get(idx1), "cm^-3")
+        end if
+      end if
     end if
 
     call this%f%set(tmp - this%b)

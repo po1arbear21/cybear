@@ -181,7 +181,8 @@ contains
       call ss%input_newton_params(runfile, "full newton params")
       call ss%input_var_params(runfile, "full newton params")
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("pdens"), new_string("ionD"), &
-                         & new_string("ionA"), new_string("V_GAT"), new_string("I_DRN")], name%s // ".fbs")
+                         & new_string("ionA"), new_string("V_GAT"), new_string("I_DRN"), &
+                         & new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
   end subroutine

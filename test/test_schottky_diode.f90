@@ -1,4 +1,4 @@
-program schottky_test
+program test_schottky_diode
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
@@ -161,9 +161,9 @@ contains
       call ss%input_var_params(runfile, "full newton params")
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
-      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"),  &
+      call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"),  new_string("Ey"),&
               & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC"), &
-        & new_string("delta_phi_b"), new_string("nn0b"), new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
+        & new_string("delta_phi_b"), new_string("nn0b"),new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
 

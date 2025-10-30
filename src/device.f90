@@ -9,7 +9,7 @@ module device_m
   use device_params_m,   only: device_params
   use electric_field_m,  only: electric_field, calc_efield
   use esystem_m,         only: esystem
-  use grid_m,            only: IDX_VERTEX
+  use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use imref_m,           only: imref, calc_imref, calc_density
   use input_m,           only: input_file
   use ionization_m,      only: ionization, calc_ionization, ion_continuity, generation_recombination, calc_generation_recombination
@@ -17,7 +17,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
-  use schottky_m,        only: schottky_injection, calc_schottky_injection
+  use schottky_m,        only: schottky_injection, calc_schottky_injection, barrier_lowering
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -50,6 +50,8 @@ module device_m
       !! electric field components at vertices (direction)
     type(schottky_injection)           :: n0b(2)
       !! Schottky injection density at contacts (carrier index)
+    type(barrier_lowering)             :: delta_phi_b
+      !! Barrier lowering at vertices (scalar field)
     type(charge_density)               :: rho
       !! charge density
     type(voltage),         allocatable :: volt(:)
@@ -143,6 +145,7 @@ contains
     do ci = this%par%ci0, this%par%ci1
       call this%n0b(ci)%init(this%par, ci)
     end do
+    call this%delta_phi_b%init(this%par)
     call this%rho%init(this%par)
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
@@ -162,11 +165,11 @@ contains
       ! Only pass n0b if any Schottky contact has IFBL enabled
       if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
               this%par%contacts(1:this%par%nct)%ifbl)) then
-        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield, this%n0b(ci))
-        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield, this%n0b(ci))
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci))
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci))
       else
-        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield)
-        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%pot, this%efield)
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
       end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
@@ -184,11 +187,11 @@ contains
     do dir = 1, this%par%g%dim
       call this%calc_efield(dir)%init(this%par, this%pot, this%efield(dir))
     end do
-    ! Only initialize calc_n0b if there are Schottky contacts with IFBL enabled
+    ! Initialize calc_n0b if there are Schottky contacts with IFBL enabled
     if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
             this%par%contacts(1:this%par%nct)%ifbl)) then
       do ci = this%par%ci0, this%par%ci1
-        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci))
+        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci), this%delta_phi_b)
       end do
     end if
 
@@ -234,6 +237,8 @@ contains
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       ! Provide n0b variable for Schottky boundary conditions
       call this%sys_dd(ci)%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
+      ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
+      call this%sys_dd(ci)%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
       call this%sys_dd(ci)%g%output(CR_NAME(ci)//"dd")
     end do
@@ -273,6 +278,8 @@ contains
     do ci = this%par%ci0, this%par%ci1
       call this%sys_full_stat%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
     end do
+    ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
+    call this%sys_full_stat%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
     call this%sys_full_stat%init_final()
     call this%sys_full_stat%g%output("full_stat")
 
@@ -311,6 +318,8 @@ contains
     do ci = this%par%ci0, this%par%ci1
       call this%sys_full%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
     end do
+    ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
+    call this%sys_full%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
     call this%sys_full%init_final()
     call this%sys_full%g%output("full")
   end subroutine

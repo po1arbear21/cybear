@@ -21,6 +21,13 @@ module schottky_m
   public :: schottky_injection_mb_bias, schottky_barrier_lowering
   public :: get_schottky_contact_normal_dir
   public :: schottky_injection, calc_schottky_injection
+  public :: barrier_lowering
+
+  type, extends(variable_real) :: barrier_lowering
+    !! Barrier lowering delta_phi_b scalar field at vertices
+  contains
+    procedure :: init => barrier_lowering_init
+  end type
 
   type, extends(variable_real) :: schottky_injection
     !! Bias-dependent injection density n0B at Schottky contacts
@@ -64,6 +71,9 @@ module schottky_m
 
     type(jacobian_ptr), allocatable :: jaco_efield(:)
       !! jacobian for E-field dependencies (one per direction)
+
+    type(barrier_lowering), pointer :: delta_phi_b_var => null()
+      !! barrier lowering variable (for output)
   contains
     procedure :: init => calc_schottky_injection_init
     procedure :: eval => calc_schottky_injection_eval
@@ -149,6 +159,8 @@ contains
     real,                intent(out) :: ninj    ! Equilibrium density n0 (normalized)
 
     real :: phi_Bn, phi_Bp
+    logical, save :: first_call = .true.
+    integer, save :: call_count = 0
 
     ! Get normalized barrier height (already converted in device_params)
     phi_Bn = par%contacts(ict)%phi_b
@@ -156,6 +168,21 @@ contains
     if (ci == CR_ELEC) then
       ! Electrons: n0 = Nc * exp(-phi_Bn)
       ninj = par%smc%edos(CR_ELEC) * exp(-phi_Bn)
+
+      ! Debug output - only print first few calls and then periodically
+      call_count = call_count + 1
+      if (first_call .or. mod(call_count, 100) == 0) then
+        print "(A,A,A,I2,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
+                              " (", ict, ") n0B calculation:"
+        print "(A,ES14.6,A)", "  phi_b (denorm) = ", denorm(phi_Bn, "eV"), " eV"
+        print "(A,ES14.6,A)", "  phi_b (norm)   = ", phi_Bn, " (normalized)"
+        print "(A,ES14.6,A)", "  Nc (denorm)    = ", denorm(par%smc%edos(CR_ELEC), "cm^-3"), " cm^-3"
+        print "(A,ES14.6,A)", "  Nc (norm)      = ", par%smc%edos(CR_ELEC), " (normalized)"
+        print "(A,ES14.6)",   "  exp(-phi_Bn)   = ", exp(-phi_Bn)
+        print "(A,ES14.6,A)", "  n0B (denorm)   = ", denorm(ninj, "cm^-3"), " cm^-3"
+        print "(A,ES14.6,A)", "  n0B (norm)     = ", ninj, " (normalized)"
+        first_call = .false.
+      end if
     else  ! CR_HOLE
       ! Holes: barrier from valence band
       phi_Bp = par%smc%band_gap - phi_Bn
@@ -171,6 +198,7 @@ contains
     integer,             intent(in) :: ci   ! Carrier index
     integer,             intent(in) :: ict  ! Contact index
     real                            :: s
+    logical, save :: first_call_v = .true.
 
     ! Check if Richardson constant is provided and > 0
     if (par%contacts(ict)%A_richardson > 0.0) then
@@ -178,10 +206,23 @@ contains
       ! v_surf = A*T^2/(q*Nc) where q is handled by normalization
       ! T must be normalized, Nc is already normalized
       s = par%contacts(ict)%A_richardson * norm(par%T, "K") * norm(par%T, "K") / par%smc%edos(ci)
-      print "(A,ES12.5)", "DEBUG: s = ", denorm(s,"cm/s")
+
+      if (first_call_v) then
+        print "(A,A,A,I2,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
+                              " (", ict, ") surface velocity:"
+        print "(A,ES14.6,A)", "  A_richardson  = ", par%contacts(ict)%A_richardson, " A/cm^2/K^2"
+        print "(A,ES14.6,A)", "  Temperature    = ", par%T, " K"
+        print "(A,ES14.6,A)", "  v_surf (denorm)= ", denorm(s,"cm/s"), " cm/s"
+        print "(A,ES14.6,A)", "  v_surf (norm)  = ", s, " (normalized)"
+        first_call_v = .false.
+      end if
     else
       ! Default thermal velocity estimate (v_th/4)
       s = 0.25  ! v_th/4 in normalized units
+      if (first_call_v) then
+        print "(A,A)", "DEBUG_SCHOTTKY: Using default v_surf = ", "0.25 (v_th/4)"
+        first_call_v = .false.
+      end if
     end if
   end function
 
@@ -260,12 +301,6 @@ contains
     ! Barrier lowering: Δφ_b = γ*sqrt(|E|)
     delta_phi_b = gamma * sqrt(E_smooth)
 
-    ! Debug: print barrier lowering
-    print "(A,I2,A)", "IFBL for contact ", ict, ":"
-    print "(A,ES12.5,A)", "  E_field = ", denorm(abs(E_field), "V/cm"), " V/cm"
-    print "(A,ES12.5,A)", "  delta_phi_b = ", denorm(delta_phi_b, "eV"), " eV"
-    print "(A,F8.3,A)", "  delta_phi_b = ", denorm(delta_phi_b, "eV") * 1000.0, " meV"
-
     ! Derivative: d(Δφ_b)/dE = γ * 0.5 * E / (|E| * sqrt(|E|))
     ! Using smoothed version to avoid division by zero
     if (E_smooth > eps_smooth) then
@@ -274,6 +309,13 @@ contains
       d_delta_phi_dE = 0.0
     end if
 
+  end subroutine
+
+  subroutine barrier_lowering_init(this, par)
+    !! Initialize barrier_lowering variable
+    class(barrier_lowering), intent(out) :: this
+    type(device_params),     intent(in)  :: par
+    call this%variable_init("delta_phi_b", "eV", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
   end subroutine
 
   subroutine schottky_injection_init(this, par, ci)
@@ -308,7 +350,7 @@ contains
     end select
   end subroutine
 
-  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b)
+  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b)
     !! Initialize equation for calculating n0B from electric field
     class(calc_schottky_injection), intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -319,8 +361,10 @@ contains
       !! electric field components
     type(schottky_injection), target, intent(in) :: n0b
       !! injection density variable
+    type(barrier_lowering), target, intent(in) :: delta_phi_b
+      !! barrier lowering variable for output
 
-    integer :: ict, i, iprov, idx(par%g%idx_dim), dir, idep
+    integer :: ict, i, iprov, iprov_delta, idx(par%g%idx_dim), dir, idep
     integer :: normal_dir
     logical :: has_schottky
     integer, allocatable :: iprov_array(:), idep_array(:,:)
@@ -365,8 +409,9 @@ contains
       end if
     end do
 
-    ! Store reference to electric field components
+    ! Store reference to electric field components and delta_phi_b variable
     this%efield => efield
+    this%delta_phi_b_var => delta_phi_b
 
     ! Create n0b selector for all Schottky contact vertices
     ! We'll include all contacts but only Schottky ones will have non-zero values
@@ -374,6 +419,9 @@ contains
 
     ! Provide n0B at Schottky contact vertices (provide for all, but only Schottky will be set)
     iprov = this%provide(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
+
+    ! Provide delta_phi_b at all transport vertices for output
+    iprov_delta = this%provide(delta_phi_b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
 
     ! Set up dependencies and Jacobians for each E-field direction that's needed
     allocate(this%jaco_efield(par%g%dim))
@@ -473,6 +521,11 @@ contains
 
         ! Calculate barrier lowering
         call schottky_barrier_lowering(this%par, ict, E_field, eps_r, delta_phi_b, d_delta_phi_dE)
+
+        ! Store delta_phi_b in output variable
+        if (associated(this%delta_phi_b_var)) then
+          call this%delta_phi_b_var%set(idx, delta_phi_b)
+        end if
 
         ! Apply barrier lowering to get n0B
         if (this%ci == CR_ELEC) then

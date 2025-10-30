@@ -5,6 +5,7 @@ program test_sbmosfet
 
   use approx_m,           only: approx_imref, approx_potential
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
+  use contact_m,          only: CT_SCHOTTKY
   use device_m,           only: dev
   use error_m,            only: program_error
   use grid_m,             only: IDX_VERTEX
@@ -167,7 +168,8 @@ contains
       print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
       ! Use SRC, GAT, DRN contact variables for SB-MOSFET
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), new_string("Ey"), &
-        & new_string("V_GAT"), new_string("I_SRC"), new_string("I_DRN")], name%s // ".fbs")
+        & new_string("V_GAT"), new_string("I_SRC"), new_string("I_DRN"), new_string("I_GAT"), &
+        & new_string("delta_phi_b"), new_string("nn0b"), new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
     end do
@@ -176,7 +178,7 @@ contains
   subroutine gummel()
     !! gummel iteration
 
-    integer            :: it, ci, dir, min_it, max_it
+    integer            :: it, ci, dir, min_it, max_it, i
     logical            :: log
     real               :: error, err_pot, err_iref(2), atol
     real, allocatable  :: pot0(:), iref0(:,:)
@@ -241,6 +243,11 @@ contains
       ! log
       if (log) then
         print "(A,I6,ES25.16E3)", "Gummel: ", it, denorm(error, "V")
+
+        ! Debug output for Schottky contacts (print once per Gummel call)
+        if (it == 1) then
+          print *, "Applied voltages: ", (denorm(dev%volt(i)%x, "V"), i=1,dev%par%nct)
+        end if
       end if
     end do
 
