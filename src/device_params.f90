@@ -1219,6 +1219,11 @@ contains
             this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
             this%contacts(ict)%ifbl = this%reg_ct(ri)%ifbl
             print "(A,L1)", "DEBUG: Contact " // name%s // " ifbl = ", this%contacts(ict)%ifbl
+            ! Transfer tunneling parameters
+            this%contacts(ict)%tunneling = this%reg_ct(ri)%tunneling
+            this%contacts(ict)%m_tunnel = this%reg_ct(ri)%m_tunnel
+            print "(A,L1)", "DEBUG: Contact " // name%s // " tunneling = ", this%contacts(ict)%tunneling
+            print "(A,F6.3)", "DEBUG: Contact " // name%s // " m_tunnel = ", this%contacts(ict)%m_tunnel
           end if
 
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)

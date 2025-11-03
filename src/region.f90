@@ -53,6 +53,10 @@ module region_m
       !! Richardson constant (A/cm²/K²)
     logical      :: ifbl
       !! Image force barrier lowering flag
+    logical      :: tunneling
+      !! Enable Tsu-Esaki tunneling model
+    real         :: m_tunnel
+      !! Tunneling effective mass ratio (m*/m0)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -164,6 +168,13 @@ contains
         call file%get(sid, "ifbl", this%ifbl, status = st)
         if (.not. st) this%ifbl = .false.  ! Default disabled
         print "(A,L1)", "DEBUG: Region ifbl parsed as = ", this%ifbl
+        ! Parse tunneling parameters
+        call file%get(sid, "tunneling", this%tunneling, status = st)
+        if (.not. st) this%tunneling = .false.  ! Default disabled
+        call file%get(sid, "m_tunnel", this%m_tunnel, status = st)
+        if (.not. st) this%m_tunnel = 1.0  ! Default to m0
+        print "(A,L1)", "DEBUG: Region tunneling parsed as = ", this%tunneling
+        print "(A,F6.3)", "DEBUG: Region m_tunnel parsed as = ", this%m_tunnel
       else
         call program_error("unknown contact type "//type%s)
       end if

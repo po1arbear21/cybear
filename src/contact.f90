@@ -36,6 +36,10 @@ module contact_m
       !! Richardson constant (normalized, A/cm²/K² physical)
     logical                   :: ifbl = .false.
       !! Image force barrier lowering for Schottky contacts
+    logical                   :: tunneling = .false.
+      !! Enable Tsu-Esaki tunneling model for Schottky contacts
+    real                      :: m_tunnel = 1.0
+      !! Tunneling effective mass ratio (m*/m0)
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
     procedure :: set_phims_schottky => contact_set_phims_schottky
