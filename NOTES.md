@@ -955,23 +955,196 @@ Expected behavior:
    - Specified tanh-sinh quadrature integration
    - Performance optimization strategies
 
+6. **Step 6: Tunneling Infrastructure Implementation** (2025-11-03)
+   - ✅ Added `tunneling` and `m_tunnel` fields to `contact` type
+   - ✅ Extended `region_contact` type with tunneling parameters
+   - ✅ Implemented parameter parsing in `region.f90` with debug output
+   - ✅ Added parameter transfer in `device_params.f90`
+   - ✅ Verified compilation and parsing functionality
+   - Decision: Skip E00/TFE approximate method, go directly to Tsu-Esaki
+   - Rationale: Tsu-Esaki naturally includes TE→TFE→FE transitions via WKB
+
 ---
+
+## Implementation Progress
+
+### ✅ Completed (2025-11-03)
+1. **Infrastructure for tunneling parameters**:
+   - Added `tunneling` (boolean) and `m_tunnel` (real) fields to `contact` type
+   - Extended `region_contact` type with same fields
+   - Implemented parsing from .ini files with debug output
+   - Added parameter transfer from regions to device contacts
+   - **Tested**: Compiles successfully, ready for physics implementation
+
+### 🚧 Current Implementation Plan
+
+#### **Direct Tsu-Esaki Approach** (Revised - skipping E00/TFE)
+**Rationale**: The Tsu-Esaki model with WKB transmission naturally captures all transport regimes:
+- Low field/high T → T(E) ≈ 0 except near barrier top → Pure TE
+- Medium field/T → Partial tunneling → TFE behavior
+- High field/low T → T(E) ≈ 1 for all energies → Pure FE
+
+No need for artificial regime switching based on E00!
 
 ## Next Steps
 
-1. **Immediate** (This Week):
-   - [ ] Implement Tsu-Esaki tunneling module (schottky_tunneling_tsu_esaki_m)
-   - [ ] Add m_tunnel and tunneling flag to contact type
-   - [ ] Integrate with existing schottky.f90
-   - [ ] Verify sign convention for current density
-   - [ ] Create unit tests for Tsu-Esaki integration
-   - [ ] Compare with MATLAB reference implementation
+1. **Immediate** (Today):
+   - [x] ~~Add m_tunnel and tunneling flag to contact type~~ ✅ DONE
+   - [x] ~~Parse parameters from .ini files~~ ✅ DONE
+   - [ ] Add Tsu-Esaki functions directly to `schottky.f90`:
+     - `calc_wkb_transmission()` for triangular barrier
+     - `tsu_esaki_integrand()` for quad interface
+     - Use `quad` from quad_m for integration
+   - [ ] Integrate into `schottky.f90`:
+     - Modify `schottky_injection_mb` to check `tunneling` flag
+     - If true: calculate injection from Tsu-Esaki current
+     - If false: use existing TE+IFBL
+   - [ ] Test with `schottky_diode_tunnel.ini`
+
+### 🔍 Implementation Foundation - Codebase Integration Details
+
+#### 1. **Mathematical Constants Location**
+- **Module**: `lib/fortran-basic/src/util/math.f90` (line 29)
+- **Import statement**: `use math_m, only: PI`
+- **Definition**: `real, parameter :: PI = 4 * atan(1.0)`
+- Also available: `PI_16` for quadruple precision if needed
+
+#### 2. **Quadrature Integration Function (quad_m)**
+- **Module**: `lib/fortran-basic/src/util/quad.f90`
+- **Import statement**: `use quad_m, only: quad`
+- **Function signature**:
+  ```fortran
+  subroutine quad(func, a, b, p, I, dIda, dIdb, dIdp, rtol, err, min_levels, max_levels, ncalls)
+    procedure(integrand) :: func        ! Integrand function
+    real, intent(in)  :: a, b           ! Integration bounds [a,b]
+    real, intent(in)  :: p(:)           ! Parameters passed to integrand
+    real, intent(out) :: I              ! Integral result
+    real, intent(out) :: dIda, dIdb    ! Derivatives wrt bounds
+    real, intent(out) :: dIdp(:)        ! Derivatives wrt parameters
+    real, optional, intent(in)  :: rtol ! Relative tolerance (default 1e-13)
+    real, optional, intent(out) :: err  ! Error estimate
+    integer, optional, intent(in)  :: min_levels  ! Min recursion (default 2)
+    integer, optional, intent(in)  :: max_levels  ! Max recursion (default 16)
+    integer, optional, intent(out) :: ncalls      ! Function evaluations
+  end subroutine
+  ```
+- **Required integrand interface**:
+  ```fortran
+  subroutine integrand(x, p, f, dfdx, dfdp)
+    real, intent(in)  :: x       ! Integration variable (energy in our case)
+    real, intent(in)  :: p(:)    ! Parameters [phi_b, F_field, m_tunnel, V_bias]
+    real, intent(out) :: f       ! Function value: T(E) * [f_s(E) - f_m(E)]
+    real, intent(out) :: dfdx    ! df/dE (derivative wrt energy)
+    real, intent(out) :: dfdp(:) ! df/dp (derivatives wrt parameters)
+  end subroutine
+  ```
+- **Example usage** from `src/current_integral.f90` (line 570):
+  ```fortran
+  call quad(integrand, eta(1), eta(2), [jj], res, dresdeta(1), dresdeta(2), &
+            dresdjj1, max_levels = 8)
+  ```
+
+#### 3. **Integration Points in schottky.f90**
+- **Line 10-15**: Add imports for `math_m` and `quad_m`
+- **Line 150-191**: `schottky_injection_mb()` - Add tunneling check here
+- **Line 267**: Insert Tsu-Esaki functions after `schottky_barrier_lowering`
+- **Line 451-561**: `calc_schottky_injection_eval()` - E-field already available via `this%efield(normal_dir)%get(idx)`
+- **Key available variables**:
+  - `par%contacts(ict)%tunneling` - Enable flag (already parsed)
+  - `par%contacts(ict)%m_tunnel` - Effective mass ratio (already parsed)
+  - `par%contacts(ict)%phi_b` - Barrier height (normalized)
+  - `E_field = this%efield(normal_dir)%get(idx)` - Electric field at contact
+
+#### 4. **Minimal Implementation Strategy**
+- **NO new files** - Add functions directly to `schottky.f90`
+- **Two core functions needed**:
+  1. `calc_wkb_transmission(E, phi_b, F, m_tunnel)` - Pure function for WKB
+  2. `tsu_esaki_integrand` - Subroutine matching quad interface
+  3. `tsu_esaki_current(phi_b, F, V_bias, m_tunnel)` - Wrapper calling quad
+- **Use existing infrastructure**:
+  - Contact fields `tunneling` and `m_tunnel` already present (Nov 3, 2025)
+  - Richardson constant and normalization already handled
+  - Sign convention already established (negative for injection)
+- **Total code addition**: ~100-150 lines
+
+#### 5. **Available Normalization Functions**
+- **Module**: `lib/fortran-basic/src/util/normalization.f90`
+- `norm(value, unit_string)` - Convert physical to normalized
+- `denorm(value, unit_string)` - Convert normalized to physical
+- Energy normalized by `kT/q`, field by `L₀/V_T`
+
+#### 6. **Existing Physical Constants in par object**
+- `par%T` - Temperature in Kelvin
+- `par%smc%edos(CR_ELEC)` - Effective DOS for electrons (Nc)
+- `par%smc%band_gap` - Bandgap (normalized)
+- `par%g` - Grid object
+- `par%eps()` - Permittivity array
+
+### 📋 Detailed Next Step: Minimal Tsu-Esaki Implementation in schottky.f90
+
+**File**: `src/schottky.f90` (MODIFY EXISTING - No new files!)
+
+**Add to imports section** (around line 10-15):
+```fortran
+use math_m, only: PI
+use quad_m, only: quad
+```
+
+**Add functions** (after line 267, following `schottky_barrier_lowering`):
+```fortran
+! Tsu-Esaki tunneling functions (minimal implementation)
+
+pure function calc_wkb_transmission(E, phi_b, F, m_tunnel) result(T_wkb)
+  real, intent(in) :: E, phi_b, F, m_tunnel
+  real :: T_wkb
+  ! WKB transmission for triangular barrier
+  ! T(E) = exp[-4√(2m*)/(3ℏq) * (φb-E)^(3/2) / F]
+  if (E >= phi_b) then
+    T_wkb = 1.0
+  elseif (abs(F) < 1e-10) then
+    T_wkb = 0.0
+  else
+    T_wkb = exp(-(4.0/3.0) * sqrt(2.0*m_tunnel) * (phi_b - E)**1.5 / abs(F))
+  endif
+end function
+
+! Integrand for quad - matches required interface
+subroutine tsu_esaki_integrand(E, p, f, dfdE, dfdp)
+  real, intent(in) :: E         ! Energy
+  real, intent(in) :: p(:)      ! [phi_b, F, m_tunnel, V_bias]
+  real, intent(out) :: f, dfdE
+  real, intent(out) :: dfdp(:)
+  real :: T_wkb, f_s, f_m
+
+  T_wkb = calc_wkb_transmission(E, p(1), p(2), p(3))
+  f_s = 1.0/(1.0 + exp(E))               ! Fermi-Dirac semiconductor
+  f_m = 1.0/(1.0 + exp(E + p(4)))        ! Fermi-Dirac metal
+  f = T_wkb * (f_s - f_m)
+
+  ! Derivatives (simplified - set to 0 for basic implementation)
+  dfdE = 0.0
+  dfdp = 0.0
+end subroutine
+```
+
+**Integration Point**: `src/schottky.f90`
+
+Modify `schottky_injection_mb` (lines 150-191):
+- Check `par%contacts(ict)%tunneling`
+- If true: Use Tsu-Esaki to calculate injection
+- If false: Use existing TE calculation
+
+**Key Implementation Decisions**:
+1. **Interface doping**: Use existing semiconductor doping at contact (no new parameter needed yet)
+2. **Electric field**: Initially use zero-field approximation, later get from `calc_schottky_injection_eval`
+3. **Energy grid**: Start with 100 points, increase if needed for convergence
+4. **Temperature**: Always normalized to 1.0 in Cybear's units
 
 2. **Short Term** (Next 2 Weeks):
-   - [ ] Full WKB implementation
-   - [ ] Field emission for perforated contacts
+   - [ ] Add field-dependence to Tsu-Esaki integration
+   - [ ] Optimize integration (adaptive grid, caching)
    - [ ] Benchmark against Sentaurus Device
-   - [ ] Performance optimization
+   - [ ] Validate sign convention
 
 3. **Long Term**:
    - [ ] Band-to-band tunneling
@@ -1000,6 +1173,26 @@ Expected behavior:
 
 ---
 
-**Last Updated**: 2025-10-30
-**Status**: In Active Development - Tsu-Esaki Tunneling Specified
+## Current Status Summary (2025-11-03)
+
+### ✅ What's Working
+- **Parameter Infrastructure**: `tunneling` and `m_tunnel` fields are parsed from .ini files
+- **Compilation**: All changes compile successfully
+- **Debug Output**: Can verify parameters are being read correctly
+
+### 🚧 What's Next
+**Create Tsu-Esaki physics module** (`schottky_tunneling_tsu_esaki.f90`):
+1. WKB transmission probability function
+2. Energy integration with Fermi-Dirac occupancy
+3. Hook into existing `schottky.f90` infrastructure
+
+### 🎯 Success Criteria
+- When `tunneling = true`: Should see higher current than pure TE
+- When `tunneling = false`: Should match existing behavior exactly
+- Physical validation: Current enhancement should scale with doping and field
+
+---
+
+**Last Updated**: 2025-11-03
+**Status**: In Active Development - Infrastructure Ready, Physics Implementation Next
 **Priority**: HIGH - Critical for accurate ultrathin device simulation
