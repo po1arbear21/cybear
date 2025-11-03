@@ -163,7 +163,7 @@ contains
       ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"),  &
               & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC"), &
-        & new_string("delta_phi_b"), new_string("nn0b"), new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
+        & new_string("delta_phi_b"), new_string("nn0b")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
 

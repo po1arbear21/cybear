@@ -164,6 +164,63 @@ J_FE = (A*q³E²/8πhφ_b) × exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
 J_DT = (q³m₀V²/8πℏ²m*d³) × exp(-4√(2m*q)φ_b × d/(3ℏ))
 ```
 
+#### 5. **Tsu-Esaki Unified Tunneling Model**
+
+**Comprehensive tunneling formulation with WKB transmission**:
+
+The Tsu-Esaki model provides a unified framework for all tunneling regimes (TE/TFE/FE) through a single integral:
+
+```
+J = (4πqm*kT/h³) ∫₀^φb T(E) [ln(1+exp((EF-E)/kT)) - ln(1+exp((EF-qV-E)/kT))] dE
+```
+
+**Key features**:
+- Integration limits from **0 to φ_b** (not to infinity)
+- T(E) is the WKB transmission coefficient
+- Naturally interpolates between all transport regimes
+- Temperature-independent transmission probability
+
+**Triangular barrier WKB transmission**:
+```
+T(E) = exp[-4√(2m*)(φb-E)^(3/2)/(3ℏqE)]
+```
+
+**Advantages over split TE/TFE models**:
+1. **Physically consistent** - Single framework for all transport
+2. **No artificial transitions** - Smooth interpolation between regimes
+3. **Accurate at all biases** - Valid from equilibrium to high field
+4. **Better for research** - More rigorous for publications
+
+**Disadvantages**:
+1. **Computationally intensive** - Requires numerical integration
+2. **Convergence challenges** - Nested integrals (WKB + energy)
+3. **Harder to debug** - Single integral masks individual physics
+
+**Reference implementation (MATLAB)**:
+```matlab
+function J = tsu_esaki_J(E_V_per_cm, phi_b_eV, mstar, T, V_contact)
+    % Physical constants
+    q = 1.602e-19; kB = 1.381e-23; h = 6.626e-34; hbar = h/(2*pi);
+
+    % Energy grid (0 to phi_b)
+    Ez_eV = linspace(0, phi_b_eV, 1200);
+    Ez_J = Ez_eV * q;
+
+    % Occupancy difference
+    arg1 = (EF - Ez_J)/(kB*T);
+    arg2 = (EF - q*V_contact - Ez_J)/(kB*T);
+    Nlog = log1p(exp(arg1)) - log1p(exp(arg2));
+
+    % WKB transmission
+    coeff = 4*sqrt(2*mstar)/(3*q*hbar);
+    T_wkb = exp(-coeff * (phi_b_J - Ez_J).^(3/2) / E_SI);
+
+    % Integration
+    pref = 4*pi*q*mstar*kB*T/h^3;
+    J = pref * trapz(Ez_J, T_wkb .* Nlog);
+end
+```
+
 ---
 
 ## Implementation Roadmap
@@ -348,6 +405,263 @@ end if
   smooth_factor = 1e-10            # Field smoothing parameter
 ```
 
+### Phase 5: Tsu-Esaki Tunneling Implementation
+
+```fortran
+module schottky_tunneling_tsu_esaki_m
+  use device_params_m
+  use normalization_m
+  use quad_m  ! For tanh-sinh quadrature
+
+  implicit none
+
+contains
+
+  function tsu_esaki_current_norm(E_field_norm, phi_b_norm, m_star, V_norm) result(J_norm)
+    !! Normalized Tsu-Esaki current density
+    !! All inputs/outputs in normalized units (kT/q normalization)
+
+    real(dp), intent(in) :: E_field_norm  ! Normalized electric field
+    real(dp), intent(in) :: phi_b_norm    ! Normalized barrier height
+    real(dp), intent(in) :: m_star        ! Effective mass ratio (m*/m0)
+    real(dp), intent(in) :: V_norm        ! Normalized voltage drop
+    real(dp) :: J_norm                    ! Normalized current density
+
+    ! Perform integration using adaptive quadrature
+    call integrate_tsu_esaki_tanh_sinh(E_field_norm, phi_b_norm, m_star, V_norm, J_norm)
+
+  end function
+
+  subroutine integrate_tsu_esaki_tanh_sinh(E_field, phi_b, m_star, V, result)
+    !! Core integration using tanh-sinh quadrature (recommended)
+    use quad_m, only: quad_tanhsinh
+
+    real(dp), intent(in) :: E_field, phi_b, m_star, V
+    real(dp), intent(out) :: result
+    real(dp) :: prefactor
+
+    ! Normalization-aware prefactor
+    ! In normalized units: J = (prefactor) * integral
+    prefactor = 4.0_dp * PI * m_star  ! Simplified in normalized units
+
+    ! Use tanh-sinh for smooth exponential integrands
+    call quad_tanhsinh(integrand_func, 0.0_dp, phi_b, result, &
+                      rtol=1e-6_dp, atol=1e-10_dp)
+
+    result = prefactor * result
+
+  contains
+
+    function integrand_func(E) result(f)
+      real(dp), intent(in) :: E
+      real(dp) :: f
+      real(dp) :: T_wkb, N_diff
+      real(dp) :: E_smooth, coeff
+
+      ! Smooth E_field to avoid division by zero
+      E_smooth = sqrt(E_field**2 + 1e-10_dp)
+
+      if (E < phi_b .and. E_smooth > 1e-20_dp) then
+        ! Triangular barrier WKB transmission
+        ! T = exp[-4√(2m*)/(3ℏq) * (φb-E)^(3/2) / E]
+        ! In normalized units with proper scaling
+        coeff = (4.0_dp/3.0_dp) * sqrt(2.0_dp * m_star * PI)
+        T_wkb = exp(-coeff * (phi_b - E)**(1.5_dp) / E_smooth)
+      else
+        T_wkb = 1.0_dp  ! Above barrier or E→0 limit
+      end if
+
+      ! Occupancy difference using log1p for numerical stability
+      ! N(E) = ln(1 + exp((EF-E)/kT)) - ln(1 + exp((EF-qV-E)/kT))
+      ! In normalized units (kT=1):
+      N_diff = log1p(exp(-E)) - log1p(exp(-E - V))
+
+      f = T_wkb * N_diff
+
+    end function
+
+  end subroutine
+
+  ! Alternative: Gauss-Legendre quadrature for comparison
+  subroutine integrate_tsu_esaki_gauss(E_field, phi_b, m_star, V, result)
+    !! Integration using Gauss-Legendre quadrature
+    use gauss_m, only: gauss_legendre_nodes_weights
+
+    real(dp), intent(in) :: E_field, phi_b, m_star, V
+    real(dp), intent(out) :: result
+    real(dp), allocatable :: nodes(:), weights(:)
+    real(dp) :: E, T_wkb, N_diff, sum_integral
+    integer :: n_points, i
+
+    n_points = 100  ! Can be adaptive
+    allocate(nodes(n_points), weights(n_points))
+
+    ! Get Gauss-Legendre nodes and weights for [0, phi_b]
+    call gauss_legendre_nodes_weights(n_points, 0.0_dp, phi_b, nodes, weights)
+
+    sum_integral = 0.0_dp
+    do i = 1, n_points
+      E = nodes(i)
+      ! Calculate T_wkb and N_diff (same as above)
+      ! ... (code omitted for brevity)
+      sum_integral = sum_integral + weights(i) * T_wkb * N_diff
+    end do
+
+    result = 4.0_dp * PI * m_star * sum_integral
+
+    deallocate(nodes, weights)
+  end subroutine
+
+end module
+```
+
+#### Integration with Existing Schottky Module
+
+```fortran
+! Modified schottky.f90
+subroutine schottky_injection_with_tunneling(par, ci, ict, E_field, ninj, dninj_dE)
+  use schottky_tunneling_tsu_esaki_m
+
+  type(device_params), intent(in) :: par
+  integer, intent(in) :: ci, ict
+  real, intent(in) :: E_field  ! Field magnitude at contact
+  real, intent(out) :: ninj
+  real, intent(out), optional :: dninj_dE
+
+  real :: J_tunnel, v_surf, delta_J
+  real :: E_perturb
+
+  if (par%contacts(ict)%tunneling) then
+    ! Tsu-Esaki tunneling current
+    J_tunnel = tsu_esaki_current_norm( &
+      E_field, &
+      par%contacts(ict)%phi_b, &
+      par%contacts(ict)%m_tunnel, &
+      0.0_dp)  ! V_contact from BC
+
+    ! Convert to injection density: n = J/(q*v)
+    v_surf = calculate_surface_velocity(par, ict)
+    ninj = J_tunnel / v_surf
+
+    ! Calculate derivative for Jacobian (finite difference)
+    if (present(dninj_dE)) then
+      E_perturb = E_field * 1.001_dp
+      delta_J = tsu_esaki_current_norm( &
+        E_perturb, par%contacts(ict)%phi_b, &
+        par%contacts(ict)%m_tunnel, 0.0_dp) - J_tunnel
+      dninj_dE = delta_J / (v_surf * 0.001_dp * E_field)
+    end if
+
+  else
+    ! Pure thermionic emission (existing code)
+    call schottky_injection_mb(par, ci, ict, ninj)
+
+    ! Apply IFBL if enabled
+    if (par%contacts(ict)%ifbl) then
+      call schottky_barrier_lowering(par, ict, E_field, eps_r, &
+                                    delta_phi_b, d_delta_phi_dE)
+      ninj = ninj * exp(delta_phi_b)
+      if (present(dninj_dE)) then
+        dninj_dE = ninj * d_delta_phi_dE
+      end if
+    end if
+  end if
+
+end subroutine
+```
+
+#### Configuration Parameters
+
+```fortran
+! In contact.f90, extend contact type
+type contact
+  ! ... existing fields ...
+
+  ! Tunneling parameters
+  logical :: tunneling = .false.     ! Enable Tsu-Esaki tunneling
+  real :: m_tunnel = 1.0              ! Tunneling effective mass ratio (m*/m0)
+
+  ! Can combine with existing IFBL
+  logical :: ifbl = .false.          ! Image force barrier lowering
+end type
+```
+
+```ini
+[contact]
+  name            = "SCHOTTKY"
+  type            = "schottky"
+  phi_b           = 0.7           : eV
+  A_richardson    = 112           : A/cm^2/K^2
+
+  # Tunneling configuration
+  tunneling       = true           : Enable Tsu-Esaki tunneling
+  m_tunnel        = 0.4            : Tunneling effective mass ratio
+
+  # Can combine with IFBL (applied to TE component)
+  ifbl            = false          : Image force barrier lowering
+```
+
+#### Critical Implementation Notes
+
+1. **Normalization**: Cybear uses kT/q energy normalization
+   - 1 energy unit = kT/q (thermal voltage)
+   - Electric field normalized by L₀/V_T
+   - Current density needs proper denormalization factor
+
+2. **Integration Method**: Tanh-sinh recommended because:
+   - Handles exponential decay at E→φb smoothly
+   - Adaptive refinement for varying scales
+   - Works well with log1p occupancy terms
+
+3. **Numerical Stability**:
+   - Use log1p for occupancy to avoid overflow
+   - Smooth E_field with small epsilon (1e-10)
+   - Cache integration results when E_field unchanged
+
+4. **Performance Optimization**:
+```fortran
+type :: tsu_esaki_cache
+  real :: last_E_field = -1.0
+  real :: last_phi_b = -1.0
+  real :: last_J = 0.0
+  logical :: valid = .false.
+end type
+
+! Check cache before recalculating
+if (abs(E_field - cache%last_E_field)/E_field < 1e-4) then
+  J = cache%last_J
+else
+  J = tsu_esaki_current_norm(...)
+  cache%last_E_field = E_field
+  cache%last_J = J
+end if
+```
+
+#### ⚠️ **CRITICAL: Current Density Sign Convention**
+
+**Atlas Manual Convention**: The Atlas manual uses a **negative sign** for electron tunneling current density J_tn.
+
+When applying boundary conditions in Cybear:
+- If the interface normal **n̂ points OUT of the semiconductor**
+- And the BC expects **current LEAVING the semiconductor as positive**
+- Then use: **`J_tn_signed = -J_tn_magnitude`**
+
+```fortran
+! Sign convention check
+normal_dir = get_schottky_contact_normal_dir(par, ict)
+if (contact_normal_points_out) then
+  ! Electrons flowing out → negative current by convention
+  J_boundary = -J_tunnel
+else
+  J_boundary = J_tunnel
+end if
+```
+
+This sign convention is critical for:
+- Proper current continuity at interfaces
+- Correct I-V characteristics (forward vs reverse bias)
+- Convergence of the Newton solver
+
 ---
 
 ## Device-Specific Tunneling Considerations
@@ -520,6 +834,76 @@ Run identical structure in Sentaurus with:
 - Compare I-V curves within 20%
 ```
 
+### 7. **Tsu-Esaki Model Validation**
+
+#### Unit Tests for Tsu-Esaki Implementation
+```fortran
+! Test 1: Zero field limit → pure thermionic emission
+E_field = 1e-10  ! Essentially zero
+J_tsu = tsu_esaki_current_norm(E_field, phi_b, m_star, V)
+J_te = thermionic_current_norm(phi_b, V)
+assert(abs(J_tsu - J_te)/J_te < 0.01)  ! < 1% difference
+
+! Test 2: High field limit → Fowler-Nordheim
+E_field = 1e8  ! Very high field (normalized)
+J_tsu = tsu_esaki_current_norm(E_field, phi_b, m_star, V)
+J_fn = fowler_nordheim_current(E_field, phi_b, m_star)
+assert(abs(J_tsu - J_fn)/J_fn < 0.1)  ! < 10% difference
+
+! Test 3: Integration limits (0 to φb)
+! Verify energy grid spans correct range
+assert(E_min == 0.0)
+assert(E_max == phi_b)
+
+! Test 4: Sign convention check
+J_magnitude = abs(J_tsu)
+J_signed = apply_sign_convention(J_magnitude, normal_dir)
+assert(J_signed < 0 if electrons_leaving_semiconductor)
+```
+
+#### Comparison with MATLAB Reference
+```matlab
+% Test configuration
+E_field = 1e5;      % V/cm
+phi_b = 0.7;        % eV
+m_star = 0.4;       % Effective mass ratio
+T = 300;            % K
+
+% Run both implementations
+J_matlab = tsu_esaki_J(E_field, phi_b, m_star*9.1e-31, T, 0);
+J_fortran = denorm(tsu_esaki_current_norm(...), "A/cm^2");
+
+% Should match within numerical tolerance
+relative_error = abs(J_matlab - J_fortran)/J_matlab;
+assert(relative_error < 1e-3);  % 0.1% tolerance
+```
+
+#### Field-Dependent I-V Curves
+```python
+# Generate validation plots
+fields = [1e4, 1e5, 1e6]  # V/cm
+for E in fields:
+    V = np.linspace(0, 1.0, 100)
+    J_te = [thermionic_only(v, E) for v in V]
+    J_tsu = [tsu_esaki(v, E) for v in V]
+
+    plt.semilogy(V, J_te, '--', label=f'TE only, E={E:.0e}')
+    plt.semilogy(V, J_tsu, '-', label=f'Tsu-Esaki, E={E:.0e}')
+
+# Expected: Tsu-Esaki shows higher current at high fields
+```
+
+#### Temperature Dependence Validation
+```
+Test: Arrhenius plot ln(J/T²) vs 1000/T
+
+Temperature range: 77K to 400K
+Expected behavior:
+- Pure TE: Linear with slope = -qφb/k
+- Tsu-Esaki: Deviation from linearity at low T (tunneling contribution)
+- At T→0: Tsu-Esaki approaches finite value (pure tunneling)
+```
+
 ---
 
 ## Code Quality Checklist
@@ -561,15 +945,27 @@ Run identical structure in Sentaurus with:
    - Removed hardcoded material parameters
    - Improved error handling and fallbacks
 
+5. **Step 5: Tsu-Esaki Tunneling Specification** (2025-10-30)
+   - Comprehensive Tsu-Esaki unified model theory
+   - Detailed implementation specification for Cybear
+   - Integration with existing TE and IFBL infrastructure
+   - Critical sign convention documentation
+   - Comparison with split TE/TFE approaches
+   - Added MATLAB reference implementation
+   - Specified tanh-sinh quadrature integration
+   - Performance optimization strategies
+
 ---
 
 ## Next Steps
 
 1. **Immediate** (This Week):
-   - [ ] Add E₀₀ calculation function
-   - [ ] Implement basic TFE model
-   - [ ] Add tunneling parameters to device_params
-   - [ ] Create tunneling unit tests
+   - [ ] Implement Tsu-Esaki tunneling module (schottky_tunneling_tsu_esaki_m)
+   - [ ] Add m_tunnel and tunneling flag to contact type
+   - [ ] Integrate with existing schottky.f90
+   - [ ] Verify sign convention for current density
+   - [ ] Create unit tests for Tsu-Esaki integration
+   - [ ] Compare with MATLAB reference implementation
 
 2. **Short Term** (Next 2 Weeks):
    - [ ] Full WKB implementation
@@ -604,6 +1000,6 @@ Run identical structure in Sentaurus with:
 
 ---
 
-**Last Updated**: 2025-10-06
-**Status**: In Active Development
+**Last Updated**: 2025-10-30
+**Status**: In Active Development - Tsu-Esaki Tunneling Specified
 **Priority**: HIGH - Critical for accurate ultrathin device simulation
