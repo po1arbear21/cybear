@@ -111,29 +111,7 @@ The current pure thermionic emission model is **insufficient** for modern nanosc
 
 ### Required Transport Mechanisms
 
-#### 1. **Thermionic-Field Emission (TFE)**
-
-**Characteristic tunneling energy**:
-```
-E₀₀ = (qℏ/2) × √(N_D/(m*×ε_s))
-```
-
-**Regime determination**:
-- kT/E₀₀ >> 1: Thermionic emission dominates
-- kT/E₀₀ ≈ 1: Thermionic-field emission
-- kT/E₀₀ << 1: Field emission dominates
-
-**Padovani-Stratton TFE model**:
-```
-J_TFE = A*T² × exp(-qφ_eff/kT)
-φ_eff = φ_b - ξ
-
-where:
-ξ = E₀₀ × coth(E₀₀/kT)  (energy position of tunneling maximum)
-E₀ = E₀₀ × coth(E₀₀/kT)  (characteristic energy)
-```
-
-#### 2. **WKB Transmission Probability**
+#### 1. **WKB Transmission Probability**
 
 **General WKB formula**:
 ```
@@ -150,21 +128,21 @@ T_FN = exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
 T_DT = exp(-4√(2m*q)φ_b × t_ox/(3ℏ(1+V/φ_b)))
 ```
 
-#### 3. **Field Emission (FE)**
+#### 2. **Field Emission (FE)**
 
 **Pure field emission current (T→0)**:
 ```
 J_FE = (A*q³E²/8πhφ_b) × exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
 ```
 
-#### 4. **Direct Tunneling (DT)**
+#### 3. **Direct Tunneling (DT)**
 
 **For ultrathin barriers (< 3 nm)**:
 ```
 J_DT = (q³m₀V²/8πℏ²m*d³) × exp(-4√(2m*q)φ_b × d/(3ℏ))
 ```
 
-#### 5. **Tsu-Esaki Unified Tunneling Model**
+#### 4. **Tsu-Esaki Unified Tunneling Model**
 
 **Comprehensive tunneling formulation with WKB transmission**:
 
@@ -184,6 +162,9 @@ J = (4πqm*kT/h³) ∫₀^φb T(E) [ln(1+exp((EF-E)/kT)) - ln(1+exp((EF-qV-E)/kT
 ```
 T(E) = exp[-4√(2m*)(φb-E)^(3/2)/(3ℏqE)]
 ```
+
+**IMPORTANT - Normalization Note**:
+The simulator's normalization module uses `2*PI/h` which equals `1/ℏ`, so the normalization implicitly uses ℏ (h-bar), not h directly. Therefore, the coefficient remains **(4/3)** in the WKB formula, not (8/3).
 
 **Advantages over split TE/TFE models**:
 1. **Physically consistent** - Single framework for all transport
@@ -225,39 +206,20 @@ end
 
 ## Implementation Roadmap
 
-### Phase 1: Essential TFE Model (IMMEDIATE PRIORITY)
+### Tsu-Esaki Direct Implementation
+
+**Note**: We are skipping the Padovani-Stratton E00-based TFE model and going directly to the Tsu-Esaki unified approach. This provides:
+- Single framework for all tunneling regimes (TE/TFE/FE)
+- No artificial transitions between regimes
+- Physically rigorous approach using WKB transmission
+
+The Tsu-Esaki model naturally captures all transport through energy integration:
+```
+
+### WKB Implementation for Tsu-Esaki
 
 ```fortran
-module schottky_tunneling_m
-  use normalization_m, only: norm, denorm
-  use math_m, only: PI
-
-  implicit none
-
-  type schottky_tunneling_params
-    real :: E00           ! Characteristic energy (normalized)
-    real :: m_tunnel      ! Tunneling effective mass ratio
-    real :: N_interface   ! Interface doping concentration
-    logical :: enable_tfe ! Enable TFE model
-    logical :: enable_dt  ! Enable direct tunneling
-    logical :: enable_fe  ! Enable field emission
-  end type
-
-contains
-
-  function calc_E00(N_D, eps_r, m_eff) result(E00)
-    !! Calculate characteristic tunneling energy
-    real, intent(in) :: N_D    ! Doping concentration (normalized)
-    real, intent(in) :: eps_r  ! Relative permittivity
-    real, intent(in) :: m_eff  ! Effective mass ratio
-    real :: E00
-
-    ! E00 = (q*hbar/2) * sqrt(N_D/(m_eff*eps_0*eps_r))
-    ! In normalized units:
-    E00 = 0.5 * sqrt(N_D/(m_eff*eps_r))
-  end function
-
-  function calc_tfe_enhancement(E00, T, phi_b, E_field) result(f_tfe)
+  function calc_wkb_transmission(E, phi_b, E_field, m_eff) result(T_wkb)
     !! Calculate TFE enhancement factor over pure TE
     real, intent(in) :: E00, T, phi_b, E_field
     real :: f_tfe

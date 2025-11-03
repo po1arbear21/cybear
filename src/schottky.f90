@@ -13,6 +13,8 @@ module schottky_m
   use stencil_m,        only: dirichlet_stencil, empty_stencil
   use error_m,          only: program_error
   use contact_m,        only: CT_SCHOTTKY
+  use math_m,           only: PI
+  use quad_m,           only: quad
 
   implicit none
 
@@ -263,8 +265,6 @@ contains
   subroutine schottky_barrier_lowering(par, ict, E_field, eps_r, delta_phi_b, d_delta_phi_dE)
     !! Calculate image force barrier lowering (Schottky effect)
     !! Implements Δφ_b = sqrt(q*|E|/(4π*ε))
-
-    use math_m, only: PI
 
     type(device_params), intent(in)  :: par
     integer,             intent(in)  :: ict           ! Contact index
