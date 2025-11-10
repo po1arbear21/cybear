@@ -324,7 +324,6 @@ contains
     ! Add n0b contribution for field-dependent Schottky BC
     if (associated(this%jaco_n0b)) then
       call this%jaco_n0b%matr%mul_vec(this%n0b_inj%get(), tmp, fact_y = 1.0)
-      ! DEBUG_SCHOTTKY: Print carrier density and field-dependent injection density at first Schottky contact vertex
       if (this%par%nct > 0 .and. this%par%contacts(1)%type == CT_SCHOTTKY) then
         if (this%par%transport_vct(1)%n > 0) then
           idx1 = this%par%transport_vct(1)%get_idx(1)

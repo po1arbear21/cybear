@@ -142,25 +142,35 @@ J_FE = (A*q³E²/8πhφ_b) × exp(-4√(2m*)φ_b^(3/2)/(3qℏE))
 J_DT = (q³m₀V²/8πℏ²m*d³) × exp(-4√(2m*q)φ_b × d/(3ℏ))
 ```
 
-#### 4. **Tsu-Esaki Unified Tunneling Model**
+#### 4. **Tsu-Esaki Tunneling Model (ATLAS-Compatible)**
 
-**Comprehensive tunneling formulation with WKB transmission**:
+**Split model formulation following ATLAS convention**:
 
-The Tsu-Esaki model provides a unified framework for all tunneling regimes (TE/TFE/FE) through a single integral:
+The total current density at a Schottky contact is:
+```
+J_contact = J_TE + J_tn
+```
+
+where the Tsu-Esaki tunneling current J_tn integrates under-barrier transport:
 
 ```
-J = (4πqm*kT/h³) ∫₀^φb T(E) [ln(1+exp((EF-E)/kT)) - ln(1+exp((EF-qV-E)/kT))] dE
+J_tn = (4πq·m_tn·m₀·kT/h³) ∫₀^{φ_bn^eff} T_wkb(Ez) N(Ez) dEz
 ```
 
 **Key features**:
-- Integration limits from **0 to φ_b** (not to infinity)
-- T(E) is the WKB transmission coefficient
-- Naturally interpolates between all transport regimes
-- Temperature-independent transmission probability
+- Integration limits from **0 to φ_bn^eff** (effective barrier with IFBL)
+- T_wkb(Ez) is the WKB transmission probability
+- N(Ez) is the Fermi-Dirac occupancy difference
+- Split model avoids double-counting (TE over barrier, tunneling through barrier)
 
 **Triangular barrier WKB transmission**:
 ```
-T(E) = exp[-4√(2m*)(φb-E)^(3/2)/(3ℏqE)]
+T_wkb(Ez) = exp[-(4/3)√(2m_tn)(φ_bn^eff-Ez)^(3/2)/(ℏq|E_field|)]
+```
+
+**Occupancy difference function**:
+```
+N(Ez) = ln[(1+exp((E_Fn-Ez)/kT))/(1+exp((E_Fn-Ez-qV)/kT))]
 ```
 
 **IMPORTANT - Normalization Note**:
@@ -206,115 +216,42 @@ end
 
 ## Implementation Roadmap
 
-### Tsu-Esaki Direct Implementation
+### ATLAS-Compatible Tsu-Esaki Implementation
 
-**Note**: We are skipping the Padovani-Stratton E00-based TFE model and going directly to the Tsu-Esaki unified approach. This provides:
-- Single framework for all tunneling regimes (TE/TFE/FE)
-- No artificial transitions between regimes
-- Physically rigorous approach using WKB transmission
-
-The Tsu-Esaki model naturally captures all transport through energy integration:
+**IMPORTANT**: This specification follows ATLAS-style split model convention:
 ```
+J_contact = J_TE + J_tn
+```
+where:
+- `J_TE`: Thermionic emission over the barrier (existing Cybear implementation)
+- `J_tn`: Tsu-Esaki tunneling current through the barrier (new addition)
 
-### WKB Implementation for Tsu-Esaki
+**Critical**: Do NOT mix this with Padovani-Stratton enhancement factors (E00/f_tfe). The Tsu-Esaki model provides a unified framework without artificial regime transitions.
+
+### Phase 2: Clean WKB Implementation
 
 ```fortran
-  function calc_wkb_transmission(E, phi_b, E_field, m_eff) result(T_wkb)
-    !! Calculate TFE enhancement factor over pure TE
-    real, intent(in) :: E00, T, phi_b, E_field
-    real :: f_tfe
-    real :: E0, xi, kT_E00
+function calc_wkb_transmission(Ez, phi_bn, E_field, m_tn) result(T_wkb)
+  !! WKB transmission probability through triangular barrier
+  !! Following ATLAS Eq. 3-174 formulation
+  real, intent(in) :: Ez         ! Longitudinal kinetic energy (normalized)
+  real, intent(in) :: phi_bn     ! Schottky barrier height for electrons (normalized)
+  real, intent(in) :: E_field    ! Electric field magnitude (normalized)
+  real, intent(in) :: m_tn       ! Tunneling effective mass ratio (m*/m0)
+  real :: T_wkb                  ! Transmission probability
 
-    kT_E00 = T/E00  ! Temperature ratio
-
-    if (kT_E00 > 10.0) then
-      ! Pure thermionic regime
-      f_tfe = 1.0
-    elseif (kT_E00 < 0.1) then
-      ! Pure field emission
-      f_tfe = exp(4.0*sqrt(2.0*phi_b**3)/(3.0*sqrt(E_field)))
-    else
-      ! TFE regime
-      E0 = E00/tanh(E00/T)
-      xi = E00*coth(E00/T)
-      f_tfe = (E0/T)/sin(PI*T/E0) * exp((phi_b - xi)/T)
-    end if
-  end function
-
-  subroutine calc_schottky_current_total(params, phi_b, E_field, T, V_bias, &
-                                         J_total, dJ_dV, dJ_dE)
-    !! Calculate total Schottky current including all mechanisms
-    type(schottky_tunneling_params), intent(in) :: params
-    real, intent(in)  :: phi_b, E_field, T, V_bias
-    real, intent(out) :: J_total, dJ_dV, dJ_dE
-
-    real :: J_TE, J_TFE, J_DT, J_FE
-    real :: f_tfe, T_wkb
-
-    ! Base thermionic emission
-    J_TE = calc_thermionic_current(phi_b, T)
-
-    ! TFE enhancement
-    if (params%enable_tfe .and. params%E00 > 0.01*T) then
-      f_tfe = calc_tfe_enhancement(params%E00, T, phi_b, E_field)
-      J_TFE = J_TE * f_tfe
-    else
-      J_TFE = J_TE
-    end if
-
-    ! Direct tunneling (ultrathin barriers)
-    if (params%enable_dt .and. phi_b < 0.1) then  ! < 100 meV
-      J_DT = calc_direct_tunneling(phi_b, E_field, V_bias)
-    else
-      J_DT = 0.0
-    end if
-
-    ! Field emission (high field, low temp)
-    if (params%enable_fe .and. E_field > 1e6 .and. T < 100) then
-      J_FE = calc_field_emission(phi_b, E_field, params%m_tunnel)
-    else
-      J_FE = 0.0
-    end if
-
-    ! Total current
-    J_total = J_TFE + J_DT + J_FE
-
-    ! Derivatives for Newton solver
-    call calc_current_derivatives(J_total, V_bias, E_field, dJ_dV, dJ_dE)
-  end subroutine
-
-end module
-```
-
-### Phase 2: WKB Implementation
-
-```fortran
-function calc_wkb_transmission(E, phi_b, E_field, d_barrier) result(T_wkb)
-  !! WKB transmission through arbitrary barrier
-  real, intent(in) :: E         ! Carrier energy
-  real, intent(in) :: phi_b     ! Barrier height
-  real, intent(in) :: E_field   ! Electric field
-  real, intent(in) :: d_barrier ! Barrier width
-  real :: T_wkb
-
-  real :: x_tp  ! Classical turning point
   real :: gamma ! Tunneling exponent
 
-  ! Find turning point where E = V(x)
-  x_tp = min((phi_b - E)/(q*E_field), d_barrier)
-
-  if (E > phi_b) then
+  if (Ez >= phi_bn) then
     ! Over-barrier transport
     T_wkb = 1.0
-  elseif (x_tp < d_barrier) then
-    ! Triangular barrier
-    gamma = 4.0*sqrt(2.0*m_eff)*(phi_b - E)**1.5/(3.0*hbar*q*E_field)
-    T_wkb = exp(-gamma)
+  elseif (abs(E_field) < 1e-10) then
+    ! Zero field limit - no tunneling
+    T_wkb = 0.0
   else
-    ! Trapezoidal barrier
-    gamma = 4.0*sqrt(2.0*m_eff*q)/(3.0*hbar) * &
-            (phi_b - E)**1.5 * (1.0 - (1.0 - q*E_field*d_barrier/(phi_b-E))**1.5) / &
-            (q*E_field)
+    ! Triangular barrier WKB transmission
+    ! Coefficient (4/3) assumes ℏ normalization in Cybear
+    gamma = (4.0/3.0) * sqrt(2.0*m_tn) * (phi_bn - Ez)**1.5 / abs(E_field)
     T_wkb = exp(-gamma)
   end if
 end function
@@ -347,23 +284,15 @@ end if
 
 ```ini
 [schottky parameters]
-  # Material parameters
-  m_tunnel    = 0.3      : m0      # Tunneling effective mass
-  m_dos       = 0.5      : m0      # DOS effective mass
+  # Material parameters (ATLAS-compatible)
+  m_tunnel    = 0.3      : m0      # Tunneling effective mass (m_tn, equivalent to ATLAS ME.TUNNEL)
 
   # Model selection
-  enable_tfe  = true               # Thermionic-field emission
-  enable_dt   = true               # Direct tunneling
-  enable_fe   = true               # Field emission
-  enable_btbt = false              # Band-to-band tunneling
-
-  # Interface parameters
-  N_interface = 1e19     : 1/cm^3  # Doping at interface
-  d_barrier   = 2        : nm      # Effective barrier width
-  trap_density = 1e12    : 1/cm^2  # Interface trap density
+  tunneling   = true               # Enable Tsu-Esaki tunneling (J_tn term)
+  ifbl        = true               # Image force barrier lowering (affects φ_bn^eff)
 
   # Numerical parameters
-  E_mesh      = 100                # Energy grid points
+  E_mesh      = 100                # Energy grid points for integration
   smooth_factor = 1e-10            # Field smoothing parameter
 ```
 
@@ -379,66 +308,68 @@ module schottky_tunneling_tsu_esaki_m
 
 contains
 
-  function tsu_esaki_current_norm(E_field_norm, phi_b_norm, m_star, V_norm) result(J_norm)
-    !! Normalized Tsu-Esaki current density
+  function tsu_esaki_current_norm(E_field_norm, phi_bn_norm, m_tn, V_norm) result(J_tn_norm)
+    !! Normalized Tsu-Esaki tunneling current density (J_tn term only)
     !! All inputs/outputs in normalized units (kT/q normalization)
+    !! Note: This calculates only the tunneling component; J_TE is handled separately
 
     real(dp), intent(in) :: E_field_norm  ! Normalized electric field
-    real(dp), intent(in) :: phi_b_norm    ! Normalized barrier height
-    real(dp), intent(in) :: m_star        ! Effective mass ratio (m*/m0)
+    real(dp), intent(in) :: phi_bn_norm   ! Normalized barrier height (with IFBL if applied)
+    real(dp), intent(in) :: m_tn          ! Tunneling effective mass ratio (m*/m0)
     real(dp), intent(in) :: V_norm        ! Normalized voltage drop
-    real(dp) :: J_norm                    ! Normalized current density
+    real(dp) :: J_tn_norm                 ! Normalized tunneling current density
 
     ! Perform integration using adaptive quadrature
-    call integrate_tsu_esaki_tanh_sinh(E_field_norm, phi_b_norm, m_star, V_norm, J_norm)
+    call integrate_tsu_esaki_tanh_sinh(E_field_norm, phi_bn_norm, m_tn, V_norm, J_tn_norm)
 
   end function
 
-  subroutine integrate_tsu_esaki_tanh_sinh(E_field, phi_b, m_star, V, result)
+  subroutine integrate_tsu_esaki_tanh_sinh(E_field, phi_bn, m_tn, V, result)
     !! Core integration using tanh-sinh quadrature (recommended)
+    !! Integrates from 0 to phi_bn^eff (under-barrier transport only)
     use quad_m, only: quad_tanhsinh
 
-    real(dp), intent(in) :: E_field, phi_b, m_star, V
+    real(dp), intent(in) :: E_field, phi_bn, m_tn, V
     real(dp), intent(out) :: result
     real(dp) :: prefactor
 
     ! Normalization-aware prefactor
-    ! In normalized units: J = (prefactor) * integral
-    prefactor = 4.0_dp * PI * m_star  ! Simplified in normalized units
+    ! In normalized units: J_tn = (prefactor) * integral
+    prefactor = 4.0_dp * PI * m_tn  ! Simplified in normalized units
 
     ! Use tanh-sinh for smooth exponential integrands
-    call quad_tanhsinh(integrand_func, 0.0_dp, phi_b, result, &
+    call quad_tanhsinh(integrand_func, 0.0_dp, phi_bn, result, &
                       rtol=1e-6_dp, atol=1e-10_dp)
 
     result = prefactor * result
 
   contains
 
-    function integrand_func(E) result(f)
-      real(dp), intent(in) :: E
+    function integrand_func(Ez) result(f)
+      real(dp), intent(in) :: Ez
       real(dp) :: f
-      real(dp) :: T_wkb, N_diff
+      real(dp) :: T_wkb, N_Ez
       real(dp) :: E_smooth, coeff
 
       ! Smooth E_field to avoid division by zero
       E_smooth = sqrt(E_field**2 + 1e-10_dp)
 
-      if (E < phi_b .and. E_smooth > 1e-20_dp) then
+      if (Ez < phi_bn .and. E_smooth > 1e-20_dp) then
         ! Triangular barrier WKB transmission
-        ! T = exp[-4√(2m*)/(3ℏq) * (φb-E)^(3/2) / E]
-        ! In normalized units with proper scaling
-        coeff = (4.0_dp/3.0_dp) * sqrt(2.0_dp * m_star * PI)
-        T_wkb = exp(-coeff * (phi_b - E)**(1.5_dp) / E_smooth)
+        ! T_wkb = exp[-(4/3)√(2m_tn) * (φ_bn-Ez)^(3/2) / |E_field|]
+        ! In normalized units with ℏ normalization
+        coeff = (4.0_dp/3.0_dp) * sqrt(2.0_dp * m_tn * PI)
+        T_wkb = exp(-coeff * (phi_bn - Ez)**(1.5_dp) / E_smooth)
       else
-        T_wkb = 1.0_dp  ! Above barrier or E→0 limit
+        T_wkb = 1.0_dp  ! Above barrier (though integration stops at phi_bn)
       end if
 
-      ! Occupancy difference using log1p for numerical stability
-      ! N(E) = ln(1 + exp((EF-E)/kT)) - ln(1 + exp((EF-qV-E)/kT))
-      ! In normalized units (kT=1):
-      N_diff = log1p(exp(-E)) - log1p(exp(-E - V))
+      ! Fermi-Dirac occupancy difference using log1p for numerical stability
+      ! N(Ez) = ln(1 + exp((E_Fn-Ez)/kT)) - ln(1 + exp((E_Fn-Ez-qV)/kT))
+      ! In normalized units (kT=1, E_Fn=0 reference):
+      N_Ez = log1p(exp(-Ez)) - log1p(exp(-Ez - V))
 
-      f = T_wkb * N_diff
+      f = T_wkb * N_Ez
 
     end function
 
@@ -480,7 +411,7 @@ end module
 #### Integration with Existing Schottky Module
 
 ```fortran
-! Modified schottky.f90
+! Modified schottky.f90 - ATLAS-style split model
 subroutine schottky_injection_with_tunneling(par, ci, ict, E_field, ninj, dninj_dE)
   use schottky_tunneling_tsu_esaki_m
 
@@ -490,43 +421,46 @@ subroutine schottky_injection_with_tunneling(par, ci, ict, E_field, ninj, dninj_
   real, intent(out) :: ninj
   real, intent(out), optional :: dninj_dE
 
-  real :: J_tunnel, v_surf, delta_J
-  real :: E_perturb
+  real :: J_TE, J_tn, J_total
+  real :: phi_bn_eff, delta_phi_IFBL
+  real :: v_surf, E_perturb, delta_J
 
+  ! Step 1: Calculate effective barrier with IFBL if enabled
+  phi_bn_eff = par%contacts(ict)%phi_b
+  if (par%contacts(ict)%ifbl .and. E_field > 1e-10) then
+    call schottky_barrier_lowering(par, ict, E_field, eps_r, &
+                                  delta_phi_IFBL, d_delta_phi_dE)
+    phi_bn_eff = phi_bn_eff - delta_phi_IFBL
+  end if
+
+  ! Step 2: Calculate J_TE (thermionic emission over barrier)
+  J_TE = calculate_thermionic_current(phi_bn_eff, par%T)
+
+  ! Step 3: Calculate J_tn if tunneling is enabled
   if (par%contacts(ict)%tunneling) then
-    ! Tsu-Esaki tunneling current
-    J_tunnel = tsu_esaki_current_norm( &
+    ! Tsu-Esaki tunneling current (under-barrier transport)
+    J_tn = tsu_esaki_current_norm( &
       E_field, &
-      par%contacts(ict)%phi_b, &
+      phi_bn_eff,  ! Use effective barrier with IFBL
       par%contacts(ict)%m_tunnel, &
       0.0_dp)  ! V_contact from BC
-
-    ! Convert to injection density: n = J/(q*v)
-    v_surf = calculate_surface_velocity(par, ict)
-    ninj = J_tunnel / v_surf
-
-    ! Calculate derivative for Jacobian (finite difference)
-    if (present(dninj_dE)) then
-      E_perturb = E_field * 1.001_dp
-      delta_J = tsu_esaki_current_norm( &
-        E_perturb, par%contacts(ict)%phi_b, &
-        par%contacts(ict)%m_tunnel, 0.0_dp) - J_tunnel
-      dninj_dE = delta_J / (v_surf * 0.001_dp * E_field)
-    end if
-
   else
-    ! Pure thermionic emission (existing code)
-    call schottky_injection_mb(par, ci, ict, ninj)
+    J_tn = 0.0_dp
+  end if
 
-    ! Apply IFBL if enabled
-    if (par%contacts(ict)%ifbl) then
-      call schottky_barrier_lowering(par, ict, E_field, eps_r, &
-                                    delta_phi_b, d_delta_phi_dE)
-      ninj = ninj * exp(delta_phi_b)
-      if (present(dninj_dE)) then
-        dninj_dE = ninj * d_delta_phi_dE
-      end if
-    end if
+  ! Step 4: Total current = J_TE + J_tn (ATLAS split model)
+  J_total = J_TE + J_tn
+
+  ! Step 5: Convert to injection density
+  v_surf = calculate_surface_velocity(par, ict)
+  ninj = J_total / v_surf
+
+  ! Step 6: Calculate derivative for Jacobian
+  if (present(dninj_dE)) then
+    E_perturb = E_field + 1e-8_dp  ! Absolute perturbation
+    ! Recalculate with perturbed field...
+    delta_J = calculate_perturbed_current(...) - J_total
+    dninj_dE = delta_J / (v_surf * 1e-8_dp)
   end if
 
 end subroutine
@@ -730,16 +664,25 @@ With transitions:
 
 ### 1. **Unit Tests**
 ```fortran
-! Test E00 calculation
+! Test Tsu-Esaki limits
 N_D = norm(1e18, "1/cm^3")
-E00_expected = norm(4.5e-3, "eV")  ! For Si at 1e18
-E00_calc = calc_E00(N_D, 11.7, 0.26)
-assert(abs(E00_calc - E00_expected) < 0.001)
+phi_bn = norm(0.7, "eV")
+m_tn = 0.4  ! Tunneling effective mass ratio
 
-! Test regime transitions
-assert(is_thermionic(kT=0.026, E00=0.001))     ! kT/E00 = 26
-assert(is_tfe(kT=0.026, E00=0.026))            ! kT/E00 = 1
-assert(is_field_emission(kT=0.026, E00=0.26))  ! kT/E00 = 0.1
+! Test 1: Zero field limit → J_tn ≈ 0 (no tunneling)
+E_field = 1e-10  ! Essentially zero
+J_tn = tsu_esaki_current_norm(E_field, phi_bn, m_tn, 0.0)
+assert(J_tn < 1e-20)  ! Tunneling negligible
+
+! Test 2: Split model consistency
+J_TE = calculate_thermionic_current(phi_bn, T=1.0)  ! Normalized T
+J_total = J_TE + J_tn
+assert(abs(J_total - J_TE)/J_TE < 0.01)  ! < 1% difference at zero field
+
+! Test 3: High field enhancement
+E_field_high = norm(1e6, "V/cm")
+J_tn_high = tsu_esaki_current_norm(E_field_high, phi_bn, m_tn, 0.0)
+assert(J_tn_high/J_TE > 10.0)  ! Tunneling dominates at high field
 ```
 
 ### 2. **I-V Characteristic Tests**
@@ -923,8 +866,8 @@ Expected behavior:
    - ✅ Implemented parameter parsing in `region.f90` with debug output
    - ✅ Added parameter transfer in `device_params.f90`
    - ✅ Verified compilation and parsing functionality
-   - Decision: Skip E00/TFE approximate method, go directly to Tsu-Esaki
-   - Rationale: Tsu-Esaki naturally includes TE→TFE→FE transitions via WKB
+   - Decision: Use ATLAS-style split model (J_TE + J_tn) with Tsu-Esaki for tunneling
+   - Rationale: Clean separation of over-barrier (TE) and through-barrier (tunneling) transport
 
 ---
 
@@ -940,13 +883,13 @@ Expected behavior:
 
 ### 🚧 Current Implementation Plan
 
-#### **Direct Tsu-Esaki Approach** (Revised - skipping E00/TFE)
-**Rationale**: The Tsu-Esaki model with WKB transmission naturally captures all transport regimes:
-- Low field/high T → T(E) ≈ 0 except near barrier top → Pure TE
-- Medium field/T → Partial tunneling → TFE behavior
-- High field/low T → T(E) ≈ 1 for all energies → Pure FE
-
-No need for artificial regime switching based on E00!
+#### **ATLAS-Compatible Split Model Approach**
+**Implementation**: Following ATLAS convention with clean separation:
+- J_total = J_TE + J_tn (additive split model)
+- J_TE: Thermionic emission over barrier (existing Cybear implementation)
+- J_tn: Tsu-Esaki tunneling through barrier (integrate from 0 to φ_bn^eff)
+- Both use same effective barrier height (φ_bn^eff with IFBL)
+- No enhancement factors, no regime switching, no E00 calculations
 
 ## Next Steps
 
@@ -1113,6 +1056,77 @@ Modify `schottky_injection_mb` (lines 150-191):
    - [ ] Trap-assisted tunneling
    - [ ] Hot carrier effects
    - [ ] Full perovskite physics
+
+---
+
+## Production-Ready Implementation Checklist
+
+### ✅ **ATLAS-Compatible Split Model**
+This specification implements the ATLAS-style split model for Schottky contacts:
+```
+J_total = J_TE + J_tn
+```
+where:
+- **J_TE**: Thermionic emission OVER the barrier (existing Cybear code)
+- **J_tn**: Tsu-Esaki tunneling THROUGH the barrier (new implementation)
+
+### ⚠️ **Critical Implementation Guidelines**
+
+1. **DO NOT Mix Enhancement Factors**
+   - Never use Padovani-Stratton E00 or f_tfe enhancement factors
+   - The Tsu-Esaki integral already captures all transport regimes
+   - Mixing approaches will cause double-counting
+
+2. **IFBL Application**
+   - Apply IFBL to get φ_bn^eff BEFORE calculating both J_TE and J_tn
+   - Both components use the same effective barrier height
+   - This ensures physical consistency
+
+3. **Integration Limits**
+   - Always integrate from 0 to φ_bn^eff (not to infinity)
+   - This captures only under-barrier transport for J_tn
+   - Over-barrier transport is handled by J_TE
+
+4. **Sign Convention (ATLAS-Compatible)**
+   - Electron current leaving semiconductor: NEGATIVE
+   - Verify Robin BC in continuity equation expects this convention
+   - Check normal vector direction at each contact
+
+5. **Parameter Naming**
+   - Use `m_tunnel` or `m_tn` for tunneling mass (equivalent to ATLAS ME.TUNNEL)
+   - Use `phi_bn` for n-type barriers, `phi_bp` for p-type
+   - Keep existing `tunneling` boolean flag
+
+### 📋 **Implementation Steps**
+
+1. **Check Prerequisites**
+   - [ ] Verify normalization uses ℏ (coefficient 4/3 in WKB)
+   - [ ] Confirm quad integration module available
+   - [ ] Check electric field calculation at contacts
+
+2. **Implement Core Functions**
+   - [ ] `calc_wkb_transmission()` with proper coefficient
+   - [ ] `tsu_esaki_current_norm()` returning J_tn only
+   - [ ] Integration with proper limits (0 to φ_bn^eff)
+
+3. **Modify Existing Code**
+   - [ ] Update `schottky_injection_mb()` to add J_tn when tunneling=true
+   - [ ] Apply IFBL before both J_TE and J_tn calculations
+   - [ ] Add proper Jacobian derivatives (dJ/dE and dJ/dV)
+
+4. **Validate Implementation**
+   - [ ] Zero field: J_tn → 0
+   - [ ] High field: J_tn >> J_TE
+   - [ ] Temperature sweep shows correct behavior
+   - [ ] Sign convention produces correct I-V polarity
+
+### 🚫 **Common Mistakes to Avoid**
+
+1. **Double-counting**: Adding J_TFE (=J_TE×f_tfe) with J_tn
+2. **Wrong limits**: Integrating to infinity instead of φ_bn
+3. **IFBL error**: Applying barrier lowering only to J_TE
+4. **Sign error**: Wrong current direction convention
+5. **Normalization**: Using wrong WKB coefficient (8/3 vs 4/3)
 
 ---
 

@@ -152,3 +152,20 @@ templates = [
     "test/schottky_diode_2d.ini",
   ], action = "expand" },
 ]
+
+[sin_trap_test]
+mode = "debug"
+target = "test_sbmosfet"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "run_sin_trap.ini",
+  ] },
+  { files = [
+    "sin_trap_sbmosfet.ini",
+  ], action = "expand" },
+]
