@@ -311,6 +311,83 @@ contains
 
   end subroutine
 
+  pure subroutine calc_wkb_transmission(E, phi_b, F, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
+    !! Calculate WKB transmission probability through triangular Schottky barrier
+    !! Implements: T_wkb = exp[-(4/3) * sqrt(2*m_tn) * (phi_b - E)^(3/2) / |F|]
+    !!
+    !! Following ATLAS Tsu-Esaki model (Eq. 3-174) with triangular barrier approximation
+    !! Coefficient (4/3) assumes h-bar normalization (not h directly)
+    !!
+    !! All inputs/outputs in normalized units (kT/q normalization)
+
+    real, intent(in)  :: E         !! Longitudinal kinetic energy (normalized)
+    real, intent(in)  :: phi_b     !! Schottky barrier height (normalized)
+    real, intent(in)  :: F         !! Electric field magnitude (normalized)
+    real, intent(in)  :: m_tn      !! Tunneling effective mass ratio (m*/m0)
+    real, intent(out) :: T_wkb     !! Transmission probability [0,1]
+    real, intent(out) :: dT_dE     !! Derivative dT/dE
+    real, intent(out) :: dT_dphi   !! Derivative dT/d(phi_b)
+    real, intent(out) :: dT_dF     !! Derivative dT/dF
+
+    real :: gamma               ! Tunneling exponent
+    real :: F_smooth           ! Smoothed field magnitude
+    real :: eps_smooth         ! Smoothing parameter
+    real :: delta_E            ! Barrier height relative to energy: (phi_b - E)
+    real :: coeff              ! WKB coefficient: (4/3) * sqrt(2*m_tn*PI)
+    real :: dgamma_dE, dgamma_dphi, dgamma_dF  ! Exponent derivatives
+
+    ! Smoothing parameter to avoid F=0 singularity
+    eps_smooth = 1e-10
+
+    ! Case 1: Above barrier - classical transmission
+    if (E >= phi_b) then
+      T_wkb = 1.0
+      dT_dE = 0.0
+      dT_dphi = 0.0
+      dT_dF = 0.0
+      return
+    end if
+
+    ! Case 2: Zero or very small field - no tunneling possible
+    if (abs(F) < eps_smooth) then
+      T_wkb = 0.0
+      dT_dE = 0.0
+      dT_dphi = 0.0
+      dT_dF = 0.0
+      return
+    end if
+
+    ! Case 3: Under-barrier tunneling
+    delta_E = phi_b - E
+    F_smooth = sqrt(F**2 + eps_smooth**2)
+
+    ! WKB coefficient with h-bar normalization
+    coeff = (4.0 / 3.0) * sqrt(2.0 * m_tn)
+
+    ! Tunneling exponent: gamma = coeff * (phi_b - E)^(3/2) / |F|
+    gamma = coeff * delta_E**1.5 / F_smooth
+
+    ! Transmission probability
+    T_wkb = exp(-gamma)
+
+    ! Derivatives of gamma
+    ! dgamma/dE = -coeff * (3/2) * (phi_b - E)^(1/2) / |F|
+    dgamma_dE = -coeff * 1.5 * sqrt(delta_E) / F_smooth
+
+    ! dgamma/d(phi_b) = coeff * (3/2) * (phi_b - E)^(1/2) / |F|
+    dgamma_dphi = coeff * 1.5 * sqrt(delta_E) / F_smooth
+
+    ! dgamma/dF = -coeff * (phi_b - E)^(3/2) * F / (|F|^3)
+    ! Using F_smooth for numerical stability
+    dgamma_dF = -coeff * delta_E**1.5 * F / (F_smooth**3)
+
+    ! Transmission derivatives using chain rule: dT/dx = T * (-dgamma/dx)
+    dT_dE = T_wkb * (-dgamma_dE)
+    dT_dphi = T_wkb * (-dgamma_dphi)
+    dT_dF = T_wkb * (-dgamma_dF)
+
+  end subroutine
+
   subroutine barrier_lowering_init(this, par)
     !! Initialize barrier_lowering variable
     class(barrier_lowering), intent(out) :: this
