@@ -2,14 +2,46 @@
 ## Cybear General-Purpose Drift-Diffusion Simulator
 
 **Author**: Chenyang Yu
-**Date**: 2025-10-06
+**Date**: 2025-10-06 (Updated: 2025-11-12)
 **Simulator**: Cybear DD - Supporting multiple device architectures
 
 ---
 
 > **Note**: This document covers Schottky contact implementation for the Cybear general-purpose DD simulator. While examples include various device types (nanowires, 2D materials, perovskites), the physics and implementation are universally applicable to all semiconductor devices with metal-semiconductor junctions.
 
+## 🚨 CRITICAL: Tunneling Current Boundary Condition (2025-11-12)
 
+**Problem Identified**: Folding J_tn into n0b_val gives incorrect terminal current!
+
+**Wrong Approach** (initial implementation):
+```fortran
+J_total = J_TE + J_tn
+n0b_val = J_total / v_surf  ! WRONG!
+```
+Then Robin BC: `J = v_surf * (n - n0b_val) = v_surf*n - J_total`
+This is physically incorrect!
+
+**Correct Approach**:
+The boundary condition must separate TE and tunneling components:
+- **J_TE**: Handled via Robin BC with `n0b_val = n0_base * exp(delta_phi)`
+- **J_tn**: Added as **direct boundary flux** in continuity equation
+
+**Physics**:
+```
+J_contact = v_surf*(n - n0_base*exp(delta_phi)) + J_tn
+          = [Robin BC for TE] + [Direct tunneling injection]
+```
+
+**Implementation Required**:
+1. Keep `n0b_val = n0_base * exp(delta_phi)` (thermionic only)
+2. Store `J_tn` separately in a new variable (e.g., `schottky_tunnel_current`)
+3. In continuity.f90, modify Schottky BC to add J_tn as boundary source term
+
+**Validation**: With this fix, terminal current should match the computed J_total values (~1e4-1e5 A/cm²)
+
+---
+
+## Implementation Checklist
 
   1. V_bias calculation: use electrostatic potential at contact, not zero
     - Need type(potential), pointer in calc_schottky_injection
@@ -26,6 +58,7 @@
   5. PI factor verification: Need to check against normalization module
     - Is it (4*PI/3) * sqrt(2*m)  ?
   6. Initialization condition: Include both ifbl and tunneling flags
+  7. **CRITICAL**: Tunneling current must be separate boundary flux, not folded into n0b
 
 
 
@@ -355,7 +388,8 @@ contains
 
     ! Normalization-aware prefactor
     ! In normalized units: J_tn = (prefactor) * integral
-    prefactor = 4.0_dp * PI * m_tn  ! Simplified in normalized units
+    ! Original: (4πq m* m₀ kT/h³) → (m*/(2π²)) after normalization
+    prefactor = m_tn / (2.0_dp * PI**2)  ! Correct normalized prefactor
 
     ! Use tanh-sinh for smooth exponential integrands
     call quad_tanhsinh(integrand_func, 0.0_dp, phi_bn, result, &
@@ -420,7 +454,7 @@ contains
       sum_integral = sum_integral + weights(i) * T_wkb * N_diff
     end do
 
-    result = 4.0_dp * PI * m_star * sum_integral
+    result = m_star / (2.0_dp * PI**2) * sum_integral  ! Correct normalized prefactor
 
     deallocate(nodes, weights)
   end subroutine
@@ -945,7 +979,7 @@ Expected behavior:
 
    **C. Critical Corrections Made**:
    - ❌ Initial WKB coefficient: `sqrt(2*m_tn*PI)` → ✅ Fixed to `sqrt(2*m_tn)` (user correction)
-   - ❌ Initial integrand: used direct Fermi difference `(f_s - f_m)` → ✅ Fixed to logarithmic form `log1p(exp(-E)) - log1p(exp(-E-phi_k))`
+   - ❌ Initial integrand: used direct Fermi difference `(f_s - f_m)` → ✅ Fixed to logarithmic form `log(1+exp(-E)) - log(1+exp(-E-phi_k))`
    - ❌ Initial parameter: `V_bias = V_contact - V_semiconductor` → ✅ Fixed to `phi_k = pot%get(idx)` (local potential)
    - ❌ Initial declaration order: variables declared after executable code → ✅ Fixed (Fortran 90 requirement)
 
@@ -966,19 +1000,22 @@ Expected behavior:
    - [x] ~~Parse parameters from .ini files~~ ✅ DONE (2025-11-03)
    - [x] ~~`calc_wkb_transmission()` for triangular barrier~~ ✅ DONE (2025-11-12)
    - [x] ~~`tsu_esaki_integrand()` for quad interface~~ ✅ DONE (2025-11-12)
-   - [ ] **Integration wrapper** `tsu_esaki_current()`:
+   - [x] **Integration wrapper** `tsu_esaki_current()`:
      - Call `quad` with integrand
-     - Apply prefactor: `4π·m_tn` (in normalized units)
+     - Apply prefactor: `m_tn/(2π²)` (correct normalized prefactor)
      - Return `J_tn` and `dJ_tn/dF` for Jacobian
-   - [ ] **Add potential access** to `calc_schottky_injection`:
+     - ✅ DONE (2025-11-12)
+   - [x] **Add potential access** to `calc_schottky_injection`:
      - Add `type(potential), pointer :: pot` to type definition
      - Modify init to accept and store potential pointer
      - Update call in `device.f90`
-   - [ ] **Integrate into** `calc_schottky_injection_eval`:
+     - ✅ DONE (2025-11-12)
+   - [x] **Integrate into** `calc_schottky_injection_eval`:
      - Get `phi_k = pot%get(idx)` at contact vertex
      - If `tunneling = true`: call wrapper to get `J_tn`
      - Combine: `J_total = J_TE + J_tn` (ATLAS split model)
      - Update Jacobian with tunneling field derivative
+     - ✅ DONE (2025-11-12)
    - [ ] Test with `schottky_diode_tunnel.ini`
 
 ### 🔍 Implementation Foundation - Codebase Integration Details

@@ -1,6 +1,7 @@
 module schottky_m
 
   use device_params_m,  only: device_params
+  use potential_m,      only: potential
   use normalization_m,  only: norm, denorm
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, CR_NAME
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_CELL
@@ -58,6 +59,8 @@ module schottky_m
     integer :: ci
       !! carrier index
 
+    type(potential), pointer :: pot => null()
+      !! pointer to electrostatic potential variable
     type(electric_field), pointer :: efield(:) => null()
       !! electric field components (array of size dim)
     type(vselector) :: n0b
@@ -426,14 +429,14 @@ contains
     ! Calculate occupancy difference using logarithmic form (ATLAS/NOTES.md convention)
     ! N(E) = ln(1 + exp((E_F-E)/kT)) - ln(1 + exp((E_F-E-qφ_k)/kT))
     ! In normalized units (kT=1, E_F=0):
-    ! N(E) = log1p(exp(-E)) - log1p(exp(-E - phi_k))
+    ! N(E) = log(1 + exp(-E)) - log(1 + exp(-E - phi_k))
     !
     ! where phi_k is the local electrostatic potential at the contact interface
     ! This form has better numerical stability than direct Fermi difference
     ! and matches the ATLAS Tsu-Esaki formulation
 
     ! Occupancy difference (logarithmic form)
-    N_E = log1p(exp(-E)) - log1p(exp(-E - phi_k))
+    N_E = log(1.0 + exp(-E)) - log(1.0 + exp(-E - phi_k))
 
     ! For derivatives, we need Fermi functions:
     ! f(x) = 1/(1 + exp(x)) = exp(-x)/(1 + exp(-x))
@@ -441,13 +444,13 @@ contains
     f_m = 1.0 / (1.0 + exp(E + phi_k))
 
     ! Derivative of N wrt energy:
-    ! dN/dE = d/dE[log1p(exp(-E))] - d/dE[log1p(exp(-E-phi_k))]
+    ! dN/dE = d/dE[log(1+exp(-E))] - d/dE[log(1+exp(-E-phi_k))]
     !       = -exp(-E)/(1+exp(-E)) + exp(-E-phi_k)/(1+exp(-E-phi_k))
     !       = -f_s + f_m = f_m - f_s
     dN_dE = f_m - f_s
 
     ! Derivative of N wrt contact potential:
-    ! dN/d(phi_k) = 0 - d/d(phi_k)[log1p(exp(-E-phi_k))]
+    ! dN/d(phi_k) = 0 - d/d(phi_k)[log(1+exp(-E-phi_k))]
     !             = -(-exp(-E-phi_k)/(1+exp(-E-phi_k)))
     !             = f_m
     dN_dphi = f_m
@@ -471,6 +474,71 @@ contains
 
     ! df/d(phi_k) = T_wkb * dN/d(phi_k)
     dfdp(4) = T_wkb * dN_dphi
+
+  end subroutine
+
+  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, J_tn, dJ_tn_dF)
+    !! Calculate Tsu-Esaki tunneling current density through Schottky barrier
+    !! Implements: J_tn = (m*/(2π²)) ∫₀^φb T_wkb(E) N(E) dE
+    !!
+    !! This is the tunneling component only (under-barrier transport)
+    !! Total current: J_total = J_TE + J_tn (ATLAS split model)
+    !!
+    !! All inputs/outputs in normalized units (kT/q normalization)
+
+    real, intent(in)  :: phi_b     !! Effective barrier height (with IFBL if applied)
+    real, intent(in)  :: efield    !! Electric field magnitude (normalized)
+    real, intent(in)  :: m_tn      !! Tunneling effective mass ratio (m*/m0)
+    real, intent(in)  :: phi_k     !! Electrostatic potential at contact (from Poisson)
+    real, intent(out) :: J_tn      !! Tunneling current density (normalized)
+    real, intent(out) :: dJ_tn_dF  !! Derivative dJ_tn/dF for Jacobian
+
+    real :: p(4)                   ! Parameter array for integrand
+    real :: I                      ! Integration result
+    real :: dIda, dIdb            ! Derivatives wrt bounds (not used)
+    real :: dIdp(4)               ! Derivatives wrt parameters
+    real :: err                   ! Integration error estimate
+    integer :: ncalls             ! Number of function evaluations
+    real :: prefactor             ! Normalization prefactor: m*/(2π²)
+
+    ! Check for degenerate cases
+    if (phi_b <= 0.0) then
+      ! No barrier - no tunneling calculation needed
+      J_tn = 0.0
+      dJ_tn_dF = 0.0
+      return
+    end if
+
+    if (abs(efield) < 1e-10) then
+      ! Zero field - no tunneling possible
+      J_tn = 0.0
+      dJ_tn_dF = 0.0
+      return
+    end if
+
+    ! Set up parameter array for integrand
+    ! p(1) = phi_b  : barrier height
+    ! p(2) = efield : electric field
+    ! p(3) = m_tn   : tunneling mass
+    ! p(4) = phi_k  : contact potential
+    p(1) = phi_b
+    p(2) = efield
+    p(3) = m_tn
+    p(4) = phi_k
+
+    ! Perform integration from 0 to phi_b (under-barrier only)
+    ! Using adaptive quadrature with relative tolerance 1e-6
+    call quad(tsu_esaki_integrand, 0.0, phi_b, p, I, dIda, dIdb, dIdp, &
+              rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
+
+    ! Apply normalization prefactor: J_tn = (m*/(2π²)) × integral
+    ! In normalized units: kT=1, ℏ=1, m₀=1, q=1
+    ! Original: J_tn = (4πq m* m₀ kT/h³) × ∫ → (m*/(2π²)) × ∫
+    prefactor = m_tn / (2.0 * PI**2)
+
+    ! Calculate tunneling current and field derivative
+    J_tn = prefactor * I
+    dJ_tn_dF = prefactor * dIdp(2)  ! dI/d(efield)
 
   end subroutine
 
@@ -513,7 +581,7 @@ contains
     end select
   end subroutine
 
-  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b)
+  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b, pot)
     !! Initialize equation for calculating n0B from electric field
     class(calc_schottky_injection), intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -526,6 +594,8 @@ contains
       !! injection density variable
     type(barrier_lowering), target, intent(in) :: delta_phi_b
       !! barrier lowering variable for output
+    type(potential), target, intent(in) :: pot
+      !! electrostatic potential variable
 
     integer :: ict, i, iprov, iprov_delta, idx(par%g%idx_dim), dir, idep
     integer :: normal_dir
@@ -572,9 +642,10 @@ contains
       end if
     end do
 
-    ! Store reference to electric field components and delta_phi_b variable
+    ! Store reference to electric field components, delta_phi_b variable, and potential
     this%efield => efield
     this%delta_phi_b_var => delta_phi_b
+    this%pot => pot
 
     ! Create n0b selector for all Schottky contact vertices
     ! We'll include all contacts but only Schottky ones will have non-zero values
@@ -620,6 +691,8 @@ contains
     logical :: edge_status
     real :: E_field, n0b_base, n0b_val, delta_phi_b, d_delta_phi_dE
     real :: eps_r
+    real :: phi_k, phi_bn_eff, v_surf
+    real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_total_dF
     real, allocatable :: tmp(:)
 
     ! Check if properly initialized
@@ -682,7 +755,7 @@ contains
         ! Get base injection density (without field)
         call schottky_injection_mb(this%par, this%ci, ict, n0b_base)
 
-        ! Calculate barrier lowering
+        ! Calculate barrier lowering (IFBL)
         call schottky_barrier_lowering(this%par, ict, E_field, eps_r, delta_phi_b, d_delta_phi_dE)
 
         ! Store delta_phi_b in output variable
@@ -690,19 +763,67 @@ contains
           call this%delta_phi_b_var%set(idx, delta_phi_b)
         end if
 
-        ! Apply barrier lowering to get n0B
+        ! Get effective barrier height (including IFBL if enabled)
+        phi_bn_eff = this%par%contacts(ict)%phi_b - delta_phi_b
+
+        ! Get contact potential from Poisson solution
+        if (associated(this%pot)) then
+          phi_k = this%pot%get(idx)
+        else
+          phi_k = 0.0  ! Fallback if potential not available
+        end if
+
+        ! Calculate surface velocity (thermionic emission velocity)
+        v_surf = schottky_velocity(this%par, this%ci, ict)
+
+        ! Calculate thermionic emission current (over-barrier transport)
         if (this%ci == CR_ELEC) then
-          n0b_val = n0b_base * exp(delta_phi_b)
-          ! Set Jacobian entry for the correct E-field component
-          if (associated(this%jaco_efield(normal_dir)%p)) then
-            call this%jaco_efield(normal_dir)%p%set(idx, idx, n0b_val * d_delta_phi_dE)
-          end if
+          J_TE = n0b_base * exp(delta_phi_b) * v_surf
         else  ! CR_HOLE
-          n0b_val = n0b_base * exp(-delta_phi_b)
-          ! Set Jacobian entry for the correct E-field component
-          if (associated(this%jaco_efield(normal_dir)%p)) then
-            call this%jaco_efield(normal_dir)%p%set(idx, idx, -n0b_val * d_delta_phi_dE)
+          J_TE = n0b_base * exp(-delta_phi_b) * v_surf
+        end if
+
+        ! Calculate tunneling current if enabled (under-barrier transport)
+        if (this%par%contacts(ict)%tunneling) then
+          call tsu_esaki_current(phi_bn_eff, E_field, this%par%contacts(ict)%m_tunnel, &
+                                 phi_k, J_tn, dJ_tn_dF)
+        else
+          J_tn = 0.0
+          dJ_tn_dF = 0.0
+        end if
+
+        ! Combine: J_total = J_TE + J_tn (ATLAS split model)
+        J_total = J_TE + J_tn
+
+        ! Debug output for tunneling current analysis
+        if (this%par%contacts(ict)%tunneling .and. mod(i, 10) == 1) then
+          print "(A,I3,A,I4,A)", "  Contact ", ict, " vertex ", i, ":"
+          print "(A,ES12.4,A)", "    J_TE  = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
+          print "(A,ES12.4,A)", "    J_tn  = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
+          print "(A,ES12.4,A)", "    J_tot = ", denorm(J_total, "A/cm^2"), " A/cm^2"
+          if (abs(J_TE) > 1e-30) then
+            print "(A,ES12.4)",   "    J_tn/J_TE ratio = ", J_tn/J_TE
           end if
+          print "(A,ES12.4,A)", "    E_field = ", denorm(E_field, "V/cm"), " V/cm"
+          print "(A,ES12.4,A)", "    phi_k   = ", denorm(phi_k, "V"), " V"
+        end if
+
+        ! Convert back to injection density
+        n0b_val = J_total / v_surf
+
+        ! Calculate total field derivative for Jacobian
+        ! dJ_total/dF = dJ_TE/dF + dJ_tn/dF
+        if (this%ci == CR_ELEC) then
+          ! dJ_TE/dF = J_TE * d_delta_phi_dE (from IFBL)
+          dJ_total_dF = J_TE * d_delta_phi_dE + dJ_tn_dF
+        else  ! CR_HOLE
+          ! Holes have opposite sign for IFBL effect
+          dJ_total_dF = -J_TE * d_delta_phi_dE + dJ_tn_dF
+        end if
+
+        ! Set Jacobian entry: dn0b/dF = (dJ_total/dF) / v_surf
+        if (associated(this%jaco_efield(normal_dir)%p)) then
+          call this%jaco_efield(normal_dir)%p%set(idx, idx, dJ_total_dF / v_surf)
         end if
 
         ! Store in temporary array at position j

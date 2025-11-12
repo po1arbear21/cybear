@@ -187,11 +187,13 @@ contains
     do dir = 1, this%par%g%dim
       call this%calc_efield(dir)%init(this%par, this%pot, this%efield(dir))
     end do
-    ! Initialize calc_n0b if there are Schottky contacts with IFBL enabled
+    ! Initialize calc_n0b if there are Schottky contacts with IFBL or tunneling enabled
     if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-            this%par%contacts(1:this%par%nct)%ifbl)) then
+            (this%par%contacts(1:this%par%nct)%ifbl .or. &
+             this%par%contacts(1:this%par%nct)%tunneling))) then
       do ci = this%par%ci0, this%par%ci1
-        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci), this%delta_phi_b)
+        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci), &
+                                     this%delta_phi_b, this%pot)
       end do
     end if
 
