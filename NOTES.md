@@ -9,6 +9,26 @@
 
 > **Note**: This document covers Schottky contact implementation for the Cybear general-purpose DD simulator. While examples include various device types (nanowires, 2D materials, perovskites), the physics and implementation are universally applicable to all semiconductor devices with metal-semiconductor junctions.
 
+
+
+  1. V_bias calculation: use electrostatic potential at contact, not zero
+    - Need type(potential), pointer in calc_schottky_injection
+    - Pass to init and access via this%pot%get(idx)
+  2. Surface velocity: Must use schottky_velocity() for consistency
+    - Same Richardson formula as thermionic emission
+    - Pass v_surf parameter to tunneling function
+  3. Jacobian derivatives: Must compute and include tunneling contribution
+    - Need dn_tunnel/dE from chain rule using dI_dp(2) from quad
+    - Total: dn_total/dE = dn_TE/dE + dn_tunnel/dE
+  4. Integrand derivatives: Should implement for better convergence
+    - At minimum: dfdp(2) = df/dF_field for Jacobian
+    - Full set improves quad efficiency
+  5. PI factor verification: Need to check against normalization module
+    - Is it (4*PI/3) * sqrt(2*m)  ?
+  6. Initialization condition: Include both ifbl and tunneling flags
+
+
+
 ## Table of Contents
 1. [Current Implementation Status](#current-implementation-status)
 2. [Material Parameter Handling Issues](#material-parameter-handling-issues)
@@ -881,6 +901,54 @@ Expected behavior:
    - Added parameter transfer from regions to device contacts
    - **Tested**: Compiles successfully, ready for physics implementation
 
+### ✅ Completed (2025-11-12)
+2. **Core Tsu-Esaki Physics Functions** (Location: `src/schottky.f90`):
+
+   **A. WKB Transmission Function** (lines 314-390)
+   - `calc_wkb_transmission(E, phi_b, F, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)`
+   - Pure subroutine computing triangular barrier transmission
+   - Formula: `T = exp[-(4/3)√(2m_tn) * (φ_b-E)^(3/2) / |F|]`
+   - **Coefficient**: Uses `(4/3) * sqrt(2*m_tn)` (ℏ normalization, NOT `sqrt(2*m_tn*PI)`)
+   - Returns all derivatives for Jacobian: `dT/dE`, `dT/d(phi_b)`, `dT/dF`
+   - Handles edge cases: E ≥ φ_b → T=1, F→0 → T=0
+   - Field smoothing parameter: `eps_smooth = 1e-10`
+
+   **B. Tsu-Esaki Integrand** (lines 391-475)
+   - `tsu_esaki_integrand(E, p, f, dfdE, dfdp)`
+   - Matches `quad_m` interface exactly (all outputs REQUIRED)
+   - **Parameter array structure**:
+     - `p(1) = phi_b`  : Effective barrier height (with IFBL if applicable)
+     - `p(2) = efield` : Electric field magnitude
+     - `p(3) = m_tn`   : Tunneling effective mass ratio
+     - `p(4) = phi_k`  : **Electrostatic potential at contact** (from `pot%get(idx)`)
+
+   - **Critical Physics Formula** (ATLAS/NOTES convention):
+     - Uses **logarithmic occupancy form**: `N(E) = log1p(exp(-E)) - log1p(exp(-E - phi_k))`
+     - **NOT** direct Fermi difference `(f_s - f_m)` → better numerical stability
+     - Matches MATLAB reference implementation (lines 220-224)
+
+   - **Integrand**: `f = T_wkb(E) * N(E)`
+
+   - **Key Insight on phi_k** (user clarification):
+     - `phi_k` is the **local electrostatic potential** at contact interface
+     - Obtained from Poisson solution: `pot%get(idx)`
+     - **NOT** `(V_contact - V_semiconductor)` difference
+     - Already encodes barrier bias, depletion, IFBL effects
+     - With `E_F,semi = 0` reference, this is physically correct
+
+   - **All derivatives computed** via chain rule:
+     - `dfdE = dT/dE * N + T * dN/dE` where `dN/dE = f_m - f_s`
+     - `dfdp(1) = dT/d(phi_b) * N` (barrier derivative)
+     - `dfdp(2) = dT/dF * N` (field derivative)
+     - `dfdp(3) = 0` (mass derivative not needed yet)
+     - `dfdp(4) = T * dN/d(phi_k) = T * f_m` (potential derivative)
+
+   **C. Critical Corrections Made**:
+   - ❌ Initial WKB coefficient: `sqrt(2*m_tn*PI)` → ✅ Fixed to `sqrt(2*m_tn)` (user correction)
+   - ❌ Initial integrand: used direct Fermi difference `(f_s - f_m)` → ✅ Fixed to logarithmic form `log1p(exp(-E)) - log1p(exp(-E-phi_k))`
+   - ❌ Initial parameter: `V_bias = V_contact - V_semiconductor` → ✅ Fixed to `phi_k = pot%get(idx)` (local potential)
+   - ❌ Initial declaration order: variables declared after executable code → ✅ Fixed (Fortran 90 requirement)
+
 ### 🚧 Current Implementation Plan
 
 #### **ATLAS-Compatible Split Model Approach**
@@ -893,17 +961,24 @@ Expected behavior:
 
 ## Next Steps
 
-1. **Immediate** (Today):
-   - [x] ~~Add m_tunnel and tunneling flag to contact type~~ ✅ DONE
-   - [x] ~~Parse parameters from .ini files~~ ✅ DONE
-   - [ ] Add Tsu-Esaki functions directly to `schottky.f90`:
-     - `calc_wkb_transmission()` for triangular barrier
-     - `tsu_esaki_integrand()` for quad interface
-     - Use `quad` from quad_m for integration
-   - [ ] Integrate into `schottky.f90`:
-     - Modify `schottky_injection_mb` to check `tunneling` flag
-     - If true: calculate injection from Tsu-Esaki current
-     - If false: use existing TE+IFBL
+1. **Immediate** (Next):
+   - [x] ~~Add m_tunnel and tunneling flag to contact type~~ ✅ DONE (2025-11-03)
+   - [x] ~~Parse parameters from .ini files~~ ✅ DONE (2025-11-03)
+   - [x] ~~`calc_wkb_transmission()` for triangular barrier~~ ✅ DONE (2025-11-12)
+   - [x] ~~`tsu_esaki_integrand()` for quad interface~~ ✅ DONE (2025-11-12)
+   - [ ] **Integration wrapper** `tsu_esaki_current()`:
+     - Call `quad` with integrand
+     - Apply prefactor: `4π·m_tn` (in normalized units)
+     - Return `J_tn` and `dJ_tn/dF` for Jacobian
+   - [ ] **Add potential access** to `calc_schottky_injection`:
+     - Add `type(potential), pointer :: pot` to type definition
+     - Modify init to accept and store potential pointer
+     - Update call in `device.f90`
+   - [ ] **Integrate into** `calc_schottky_injection_eval`:
+     - Get `phi_k = pot%get(idx)` at contact vertex
+     - If `tunneling = true`: call wrapper to get `J_tn`
+     - Combine: `J_total = J_TE + J_tn` (ATLAS split model)
+     - Update Jacobian with tunneling field derivative
    - [ ] Test with `schottky_diode_tunnel.ini`
 
 ### 🔍 Implementation Foundation - Codebase Integration Details

@@ -388,6 +388,92 @@ contains
 
   end subroutine
 
+  subroutine tsu_esaki_integrand(E, p, f, dfdE, dfdp)
+    !! Integrand for Tsu-Esaki tunneling current integration
+    !! Implements: f(E) = T_wkb(E) * N(E)
+    !! where N(E) = ln[(1+exp((E_F-E)/kT)) / (1+exp((E_F-E-qV)/kT))]
+    !!
+    !! This function matches the interface required by quad_m
+    !! All outputs are REQUIRED (cannot be omitted)
+    !!
+    !! Parameter array structure:
+    !!   p(1) = phi_b  : Effective barrier height (with IFBL if applicable)
+    !!   p(2) = efield : Electric field magnitude
+    !!   p(3) = m_tn   : Tunneling effective mass ratio
+    !!   p(4) = phi_k  : Electrostatic potential at contact interface (from Poisson)
+    !!                   This is the LOCAL potential that determines Fermi level alignment
+
+    real, intent(in)  :: E       !! Energy (integration variable, normalized)
+    real, intent(in)  :: p(:)    !! Parameter array [phi_b, efield, m_tn, phi_k]
+    real, intent(out) :: f       !! Integrand value
+    real, intent(out) :: dfdE    !! Derivative wrt energy
+    real, intent(out) :: dfdp(:) !! Derivatives wrt parameters
+
+    real :: phi_b, efield, m_tn, phi_k
+    real :: T_wkb, dT_dE, dT_dphi, dT_dF
+    real :: N_E, dN_dE, dN_dphi  ! Occupancy difference (logarithmic form) and derivatives
+    real :: f_s, f_m             ! Fermi-Dirac functions (for derivative calculation)
+
+    ! Extract parameters from array
+    phi_b   = p(1)
+    efield  = p(2)
+    m_tn    = p(3)
+    phi_k   = p(4)
+
+    ! Get WKB transmission probability and its derivatives
+    call calc_wkb_transmission(E, phi_b, efield, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
+
+    ! Calculate occupancy difference using logarithmic form (ATLAS/NOTES.md convention)
+    ! N(E) = ln(1 + exp((E_F-E)/kT)) - ln(1 + exp((E_F-E-qφ_k)/kT))
+    ! In normalized units (kT=1, E_F=0):
+    ! N(E) = log1p(exp(-E)) - log1p(exp(-E - phi_k))
+    !
+    ! where phi_k is the local electrostatic potential at the contact interface
+    ! This form has better numerical stability than direct Fermi difference
+    ! and matches the ATLAS Tsu-Esaki formulation
+
+    ! Occupancy difference (logarithmic form)
+    N_E = log1p(exp(-E)) - log1p(exp(-E - phi_k))
+
+    ! For derivatives, we need Fermi functions:
+    ! f(x) = 1/(1 + exp(x)) = exp(-x)/(1 + exp(-x))
+    f_s = 1.0 / (1.0 + exp(E))
+    f_m = 1.0 / (1.0 + exp(E + phi_k))
+
+    ! Derivative of N wrt energy:
+    ! dN/dE = d/dE[log1p(exp(-E))] - d/dE[log1p(exp(-E-phi_k))]
+    !       = -exp(-E)/(1+exp(-E)) + exp(-E-phi_k)/(1+exp(-E-phi_k))
+    !       = -f_s + f_m = f_m - f_s
+    dN_dE = f_m - f_s
+
+    ! Derivative of N wrt contact potential:
+    ! dN/d(phi_k) = 0 - d/d(phi_k)[log1p(exp(-E-phi_k))]
+    !             = -(-exp(-E-phi_k)/(1+exp(-E-phi_k)))
+    !             = f_m
+    dN_dphi = f_m
+
+    ! Integrand: f = T_wkb * N(E)
+    f = T_wkb * N_E
+
+    ! Derivative wrt energy (chain rule)
+    ! df/dE = dT/dE * N + T_wkb * dN/dE
+    dfdE = dT_dE * N_E + T_wkb * dN_dE
+
+    ! Derivatives wrt parameters
+    ! df/d(phi_b) = dT/d(phi_b) * N
+    dfdp(1) = dT_dphi * N_E
+
+    ! df/dF = dT/dF * N
+    dfdp(2) = dT_dF * N_E
+
+    ! df/d(m_tn): Set to zero (WKB doesn't return dT/dm)
+    dfdp(3) = 0.0
+
+    ! df/d(phi_k) = T_wkb * dN/d(phi_k)
+    dfdp(4) = T_wkb * dN_dphi
+
+  end subroutine
+
   subroutine barrier_lowering_init(this, par)
     !! Initialize barrier_lowering variable
     class(barrier_lowering), intent(out) :: this
