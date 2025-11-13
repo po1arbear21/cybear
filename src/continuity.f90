@@ -15,7 +15,7 @@ module continuity_m
   use normalization_m,   only: norm, denorm
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil, stencil_ptr
   use vselector_m,       only: vselector
-  use schottky_m,        only: schottky_injection_mb, schottky_velocity, schottky_injection_mb_bias, schottky_injection
+  use schottky_m,        only: schottky_injection_mb, schottky_velocity, schottky_injection_mb_bias, schottky_injection, schottky_tunnel_current
 
   implicit none
 
@@ -42,6 +42,8 @@ module continuity_m
       !! electric field components (for Schottky barrier lowering)
     type(vselector)              :: n0b_inj
       !! dependency: Schottky injection density (field-dependent)
+    type(vselector)              :: jtn_inj
+      !! dependency: Schottky tunneling current density (field-dependent)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -63,7 +65,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, n0b)
+  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, n0b, jtn_current)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -82,8 +84,10 @@ contains
       !! electric field components (optional, for Schottky barrier lowering)
     type(schottky_injection), optional, intent(in) :: n0b
       !! Schottky injection density (optional, for field-dependent BC)
+    type(schottky_tunnel_current), optional, intent(in) :: jtn_current
+      !! Tunneling current density (optional, for Schottky contacts with tunneling)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, in0b
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, in0b, ijtn
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
     real                 :: surf, F, dF
@@ -126,6 +130,12 @@ contains
       call this%n0b_inj%init(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
     end if
 
+    ! init jtn selector if provided (for tunneling current at Schottky contacts)
+    if (present(jtn_current)) then
+      ! Only initialize for Schottky contact vertices with tunneling enabled
+      call this%jtn_inj%init(jtn_current, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    end if
+
     ! init residuals using this%dens or this%iref as main variable
     if (stat) then
       call this%iref%init(iref, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
@@ -164,6 +174,11 @@ contains
     ! n0b dependency
     if (present(n0b)) then
       in0b = this%depend(this%n0b_inj)
+    end if
+
+    ! jtn dependency
+    if (present(jtn_current)) then
+      ijtn = this%depend(this%jtn_inj)
     end if
 
     ! init jacobians
@@ -267,9 +282,10 @@ contains
           call this%jaco_dens%set(idx1, idx1, A_ct * v_surf)
 
           if (present(n0b)) then
-            ! Field-dependent n0B: set Jacobian entry, no RHS
+            ! Field-dependent n0B: set Jacobian entry
             call this%jaco_n0b%set(idx1, idx1, -A_ct * v_surf)
-            this%b(j) = 0.0  ! No constant term when n0B is variable
+            ! RHS is set to 0 here, tunneling current added in eval()
+            this%b(j) = 0.0
           else
             ! Constant n0B: set RHS
             call schottky_injection_mb(par, ci, ict, n0b_val)
@@ -285,7 +301,7 @@ contains
               print "(A,ES14.6,A)", "  v_surf (denorm)= ", denorm(v_surf, "cm/s"), " cm/s"
               print "(A,ES14.6,A)", "  n0B (denorm)   = ", denorm(n0b_val, "cm^-3"), " cm^-3"
               print "(A,ES14.6)",   "  A*v*n0B (norm) = ", A_ct * v_surf * n0b_val
-              print "(A,ES14.6,A)", "  RHS term       = ", denorm(A_ct * v_surf * n0b_val, "1/s"), " 1/s"
+              print "(A,ES14.6,A)", "  RHS term       = ", denorm(this%b(j), "1/s"), " 1/s"
             end if
           end if
         else
@@ -303,6 +319,48 @@ contains
 
     ! finish initialization
     call this%init_final()
+  end subroutine
+
+  subroutine add_tunneling_contribution(this, tmp)
+    !! Add tunneling current contribution to residual for Schottky contacts
+    class(continuity), intent(in)    :: this
+    real,              intent(inout) :: tmp(:)
+
+    integer :: ict, i, j
+    integer :: idx(this%par%g%idx_dim)
+    real :: A_ct, J_tn_contrib
+    real, allocatable :: jtn_vec(:)
+
+    ! Get the full tunneling current vector
+    jtn_vec = this%jtn_inj%get()
+
+    ! Loop over all contacts
+    j = this%par%transport_vct(0)%n
+    do ict = 1, this%par%nct
+      ! Only process Schottky contacts with tunneling enabled
+      if (this%par%contacts(ict)%type == CT_SCHOTTKY .and. &
+          this%par%contacts(ict)%tunneling) then
+
+        do i = 1, this%par%transport_vct(ict)%n
+          j = j + 1
+          idx = this%par%transport_vct(ict)%get_idx(i)
+
+          ! Get contact surface area
+          A_ct = this%par%get_ct_surf(ict, idx)
+
+          ! Add tunneling current as boundary flux
+          ! J_tn is current leaving semiconductor (positive for electrons leaving)
+          ! Robin BC convention: J = A_ct * v_surf * (n - n0b) + A_ct * J_tn
+          J_tn_contrib = A_ct * jtn_vec(j)
+          tmp(j) = tmp(j) + J_tn_contrib
+        end do
+      else
+        ! Skip non-Schottky or non-tunneling contacts
+        j = j + this%par%transport_vct(ict)%n
+      end if
+    end do
+
+    deallocate(jtn_vec)
   end subroutine
 
   subroutine continuity_eval(this)
@@ -331,6 +389,11 @@ contains
             denorm(this%dens%get(idx1), "cm^-3"), denorm(this%n0b_inj%get(idx1), "cm^-3")
         end if
       end if
+    end if
+
+    ! Add tunneling current contribution for Schottky contacts with tunneling enabled
+    if (this%jtn_inj%n > 0) then
+      call add_tunneling_contribution(this, tmp)
     end if
 
     call this%f%set(tmp - this%b)

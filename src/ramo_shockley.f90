@@ -15,6 +15,7 @@ module ramo_shockley_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
+  use schottky_m,        only: schottky_tunnel_current
   use semiconductor_m,   only: CR_CHARGE
   use stencil_m,         only: dirichlet_stencil
   use voltage_m,         only: voltage
@@ -43,6 +44,8 @@ module ramo_shockley_m
 
     type(vselector), allocatable :: cdens(:,:)
       !! electron/hole current density (edge direction, carrier index)
+    type(vselector), allocatable :: jtn_current(:)
+      !! tunneling current density at contacts (carrier index) - OPTIONAL
     type(vselector)              :: volt
       !! terminal voltage
     type(vselector)              :: curr
@@ -170,7 +173,7 @@ contains
     end do
   end subroutine
 
-  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr)
+  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr, jtn_current)
     !! initialize Ramo-Shockley current equation
     class(ramo_shockley_current), intent(out) :: this
     type(device_params), target,  intent(in)  :: par
@@ -183,6 +186,8 @@ contains
       !! terminal voltages
     type(current),                intent(in)  :: curr(:)
       !! terminal currents
+    type(schottky_tunnel_current), optional, intent(in) :: jtn_current(:)
+      !! tunneling current density at contacts (carrier index) - OPTIONAL
 
     integer               :: i, idx_dir, ci, ict, dum(0)
     real, allocatable     :: d(:,:)
@@ -204,6 +209,15 @@ contains
     end do
     call this%volt%init([(volt(ict)%get_ptr(), ict = 1, par%nct)], "voltages")
     call this%curr%init([(curr(ict)%get_ptr(), ict = 1, par%nct)], "currents")
+
+    ! init jtn_current selectors if provided (for Schottky contacts with tunneling)
+    if (present(jtn_current)) then
+      allocate(this%jtn_current(2))
+      do ci = par%ci0, par%ci1
+        call this%jtn_current(ci)%init(jtn_current(ci), [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+      end do
+      print "(A)", "  Tunneling current will be added to terminal current"
+    end if
 
     ! init residuals using this%curr as main variable
     call this%init_f(this%curr)
@@ -257,19 +271,50 @@ contains
     !! evaluate Ramo-Shockley current equation
     class(ramo_shockley_current), intent(inout) :: this
 
-    integer           :: idx_dir, ci
-    real, allocatable :: tmp(:)
+    integer           :: idx_dir, ci, ict, i, j
+    integer,allocatable :: idx(:)
+    real, allocatable :: tmp(:), jtn_vec(:)
+    real              :: A_ct
 
     allocate (tmp(this%curr%n))
+    allocate (idx(this%par%g%idx_dim))
 
-    ! calculate residuals
+    ! calculate residuals from drift-diffusion current density
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
     do ci = this%par%ci0, this%par%ci1
       do idx_dir = 1, this%par%g%idx_dim
         call this%jaco_cdens(idx_dir,ci)%p%matr%mul_vec(this%cdens(idx_dir,ci)%get(), tmp, fact_y = 1.0)
       end do
     end do
+
+    ! Add tunneling current contribution for Schottky contacts
+    if (allocated(this%jtn_current)) then
+      do ci = this%par%ci0, this%par%ci1
+        ! Get tunneling current vector for this carrier
+        jtn_vec = this%jtn_current(ci)%get()
+
+        ! Integrate J_tn over each contact
+        j = this%par%transport_vct(0)%n  ! Skip interior vertices
+        do ict = 1, this%par%nct
+          do i = 1, this%par%transport_vct(ict)%n
+            j = j + 1
+            idx = this%par%transport_vct(ict)%get_idx(i)
+
+            ! Get contact surface area
+            A_ct = this%par%get_ct_surf(ict, idx)
+
+            ! Add tunneling contribution: I_terminal += A_ct * J_tn
+            ! Note: tmp(ict) accumulates current for contact ict
+            tmp(ict) = tmp(ict) + A_ct * jtn_vec(j)
+          end do
+        end do
+
+        deallocate(jtn_vec)
+      end do
+    end if
+
     call this%f%set(tmp)
+    deallocate(tmp, idx)
   end subroutine
 
 end module

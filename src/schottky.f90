@@ -23,7 +23,7 @@ module schottky_m
   public :: schottky_injection_mb, schottky_velocity
   public :: schottky_injection_mb_bias, schottky_barrier_lowering
   public :: get_schottky_contact_normal_dir
-  public :: schottky_injection, calc_schottky_injection
+  public :: schottky_injection, schottky_tunnel_current, calc_schottky_injection
   public :: barrier_lowering
 
   type, extends(variable_real) :: barrier_lowering
@@ -49,6 +49,23 @@ module schottky_m
     procedure :: init => schottky_injection_init
   end type
 
+  type, extends(variable_real) :: schottky_tunnel_current
+    !! Tunneling current density J_tn at Schottky contacts
+    !! Only exists at Schottky contact vertices with tunneling enabled
+
+    integer :: ci
+      !! carrier index (CR_ELEC, CR_HOLE)
+
+    real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
+    real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
+    real, pointer :: x3(:,:,:) => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
+  contains
+    procedure :: init => schottky_tunnel_current_init
+  end type
+
   type, extends(equation) :: calc_schottky_injection
     !! Calculate bias-dependent injection density n0B from electric field
     !! n0B = n0B_base * exp(delta_phi_b(E)) for electrons
@@ -65,6 +82,8 @@ module schottky_m
       !! electric field components (array of size dim)
     type(vselector) :: n0b
       !! injection density variable
+    type(vselector) :: jtn
+      !! tunneling current density variable (J_tn at contact vertices)
 
     integer, allocatable :: contact_normal(:)
       !! normal direction for each contact (0 if not Schottky)
@@ -534,7 +553,7 @@ contains
     ! Apply normalization prefactor: J_tn = (m*/(2π²)) × integral
     ! In normalized units: kT=1, ℏ=1, m₀=1, q=1
     ! Original: J_tn = (4πq m* m₀ kT/h³) × ∫ → (m*/(2π²)) × ∫
-    prefactor = m_tn / (2.0 * PI**2)
+    prefactor = -m_tn / (2.0 * PI**2)
 
     ! Calculate tunneling current and field derivative
     J_tn = prefactor * I
@@ -581,7 +600,39 @@ contains
     end select
   end subroutine
 
-  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b, pot)
+  subroutine schottky_tunnel_current_init(this, par, ci)
+    !! Initialize schottky_tunnel_current variable for storing J_tn
+    class(schottky_tunnel_current), intent(out) :: this
+    type(device_params),            intent(in)  :: par
+      !! device parameters
+    integer,                        intent(in)  :: ci
+      !! carrier index (CR_ELEC, CR_HOLE)
+
+    type(grid_data1_real), pointer :: p1
+    type(grid_data2_real), pointer :: p2
+    type(grid_data3_real), pointer :: p3
+
+    ! init base - only exists at vertices, units are A/cm^2
+    call this%variable_init(CR_NAME(ci)//"jtn", "A/cm^2", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
+    this%ci = ci
+
+    ! get pointer to data
+    select case (par%g%idx_dim)
+    case (1)
+      p1 => this%data%get_ptr1()
+      this%x1 => p1%data
+    case (2)
+      p2 => this%data%get_ptr2()
+      this%x2 => p2%data
+    case (3)
+      p3 => this%data%get_ptr3()
+      this%x3 => p3%data
+    case default
+      call program_error("Maximal 3 dimensions allowed")
+    end select
+  end subroutine
+
+  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b, pot, jtn_current)
     !! Initialize equation for calculating n0B from electric field
     class(calc_schottky_injection), intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -596,8 +647,10 @@ contains
       !! barrier lowering variable for output
     type(potential), target, intent(in) :: pot
       !! electrostatic potential variable
+    type(schottky_tunnel_current), target, intent(in) :: jtn_current
+      !! tunneling current density variable
 
-    integer :: ict, i, iprov, iprov_delta, idx(par%g%idx_dim), dir, idep
+    integer :: ict, i, iprov, iprov_delta, iprov_jtn, idx(par%g%idx_dim), dir, idep
     integer :: normal_dir
     logical :: has_schottky
     integer, allocatable :: iprov_array(:), idep_array(:,:)
@@ -651,8 +704,14 @@ contains
     ! We'll include all contacts but only Schottky ones will have non-zero values
     call this%n0b%init(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
 
+    ! Create jtn selector for all Schottky contact vertices with tunneling enabled
+    call this%jtn%init(jtn_current, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
+
     ! Provide n0B at Schottky contact vertices (provide for all, but only Schottky will be set)
     iprov = this%provide(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
+
+    ! Provide J_tn at Schottky contact vertices with tunneling enabled
+    iprov_jtn = this%provide(jtn_current, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
 
     ! Provide delta_phi_b at all transport vertices for output
     iprov_delta = this%provide(delta_phi_b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
@@ -693,15 +752,17 @@ contains
     real :: eps_r
     real :: phi_k, phi_bn_eff, v_surf
     real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_total_dF
-    real, allocatable :: tmp(:)
+    real, allocatable :: tmp_n0b(:), tmp_jtn(:)
 
     ! Check if properly initialized
     if (.not. allocated(this%contact_normal)) return
     if (.not. allocated(this%jaco_efield)) return
     if (.not. associated(this%efield)) return
 
-    allocate(tmp(this%n0b%n))
-    tmp = 0.0
+    allocate(tmp_n0b(this%n0b%n))
+    allocate(tmp_jtn(this%jtn%n))
+    tmp_n0b = 0.0
+    tmp_jtn = 0.0
 
     ! Clear all Jacobians first
     do normal_dir = 1, this%par%g%dim
@@ -723,13 +784,15 @@ contains
 
         ! Check if this is a Schottky contact with valid normal
         if (this%par%contacts(ict)%type /= CT_SCHOTTKY) then
-          tmp(j) = 0.0  ! Non-Schottky contacts have zero injection
+          tmp_n0b(j) = 0.0  ! Non-Schottky contacts have zero injection
+          tmp_jtn(j) = 0.0
           cycle
         end if
 
         normal_dir = this%contact_normal(ict)
         if (normal_dir <= 0 .or. normal_dir > this%par%g%dim) then
-          tmp(j) = 0.0  ! Invalid normal direction
+          tmp_n0b(j) = 0.0  ! Invalid normal direction
+          tmp_jtn(j) = 0.0
           cycle
         end if
 
@@ -792,11 +855,9 @@ contains
           dJ_tn_dF = 0.0
         end if
 
-        ! Combine: J_total = J_TE + J_tn (ATLAS split model)
-        J_total = J_TE + J_tn
-
         ! Debug output for tunneling current analysis
         if (this%par%contacts(ict)%tunneling .and. mod(i, 10) == 1) then
+          J_total = J_TE + J_tn  ! For debug only
           print "(A,I3,A,I4,A)", "  Contact ", ict, " vertex ", i, ":"
           print "(A,ES12.4,A)", "    J_TE  = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
           print "(A,ES12.4,A)", "    J_tn  = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
@@ -808,26 +869,35 @@ contains
           print "(A,ES12.4,A)", "    phi_k   = ", denorm(phi_k, "V"), " V"
         end if
 
-        ! Convert back to injection density
-        n0b_val = J_total / v_surf
-
-        ! Calculate total field derivative for Jacobian
-        ! dJ_total/dF = dJ_TE/dF + dJ_tn/dF
+        ! CRITICAL FIX: Keep n0b_val for thermionic emission ONLY
+        ! n0B is used in Robin BC: J_TE = v_surf * (n - n0B)
+        ! Tunneling current J_tn is added separately in continuity equation
         if (this%ci == CR_ELEC) then
-          ! dJ_TE/dF = J_TE * d_delta_phi_dE (from IFBL)
-          dJ_total_dF = J_TE * d_delta_phi_dE + dJ_tn_dF
+          n0b_val = n0b_base * exp(delta_phi_b)
         else  ! CR_HOLE
-          ! Holes have opposite sign for IFBL effect
-          dJ_total_dF = -J_TE * d_delta_phi_dE + dJ_tn_dF
+          n0b_val = n0b_base * exp(-delta_phi_b)
         end if
 
-        ! Set Jacobian entry: dn0b/dF = (dJ_total/dF) / v_surf
+        ! Calculate total field derivative for Jacobian (IFBL + tunneling)
+        if (this%ci == CR_ELEC) then
+          ! dn0B/dF = n0B * d_delta_phi_dE (from IFBL)
+          ! Add tunneling derivative: dJ_tn/dF
+          dJ_total_dF = n0b_val * v_surf * d_delta_phi_dE + dJ_tn_dF
+        else  ! CR_HOLE
+          ! Holes have opposite sign for IFBL effect
+          ! Add tunneling derivative (sign handled by dJ_tn_dF)
+          dJ_total_dF = -n0b_val * v_surf * d_delta_phi_dE + dJ_tn_dF
+        end if
+
+        ! Set Jacobian entry for both thermionic and tunneling components
+        ! The factor 1/v_surf converts current derivative to equivalent n0b derivative
         if (associated(this%jaco_efield(normal_dir)%p)) then
           call this%jaco_efield(normal_dir)%p%set(idx, idx, dJ_total_dF / v_surf)
         end if
 
-        ! Store in temporary array at position j
-        tmp(j) = n0b_val
+        ! Store in temporary arrays at position j
+        tmp_n0b(j) = n0b_val
+        tmp_jtn(j) = J_tn  ! Store tunneling current separately
       end do
     end do
 
@@ -838,10 +908,13 @@ contains
       end if
     end do
 
-    ! Set the n0B values
-    call this%n0b%set(tmp)
+    ! Set the n0B values (thermionic only)
+    call this%n0b%set(tmp_n0b)
 
-    deallocate(tmp)
+    ! Set the J_tn values (tunneling current)
+    call this%jtn%set(tmp_jtn)
+
+    deallocate(tmp_n0b, tmp_jtn)
   end subroutine
 
 end module

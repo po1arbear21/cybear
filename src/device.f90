@@ -17,7 +17,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
-  use schottky_m,        only: schottky_injection, calc_schottky_injection, barrier_lowering
+  use schottky_m,        only: schottky_injection, schottky_tunnel_current, calc_schottky_injection, barrier_lowering
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -50,6 +50,8 @@ module device_m
       !! electric field components at vertices (direction)
     type(schottky_injection)           :: n0b(2)
       !! Schottky injection density at contacts (carrier index)
+    type(schottky_tunnel_current)      :: jtn_current(2)
+      !! Tunneling current density at contacts (carrier index)
     type(barrier_lowering)             :: delta_phi_b
       !! Barrier lowering at vertices (scalar field)
     type(charge_density)               :: rho
@@ -144,6 +146,7 @@ contains
     end do
     do ci = this%par%ci0, this%par%ci1
       call this%n0b(ci)%init(this%par, ci)
+      call this%jtn_current(ci)%init(this%par, ci)
     end do
     call this%delta_phi_b%init(this%par)
     call this%rho%init(this%par)
@@ -160,13 +163,20 @@ contains
     if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
-    call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+    ! Pass jtn_current if any Schottky contact has tunneling enabled
+    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
+            this%par%contacts(1:this%par%nct)%tunneling)) then
+      call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr, this%jtn_current)
+    else
+      call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+    end if
     do ci = this%par%ci0, this%par%ci1
-      ! Only pass n0b if any Schottky contact has IFBL enabled
+      ! Pass n0b and jtn_current if any Schottky contact has IFBL or tunneling enabled
       if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-              this%par%contacts(1:this%par%nct)%ifbl)) then
-        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci))
-        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci))
+              (this%par%contacts(1:this%par%nct)%ifbl .or. &
+               this%par%contacts(1:this%par%nct)%tunneling))) then
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci), this%jtn_current(ci))
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci), this%jtn_current(ci))
       else
         call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
         call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
@@ -193,7 +203,7 @@ contains
              this%par%contacts(1:this%par%nct)%tunneling))) then
       do ci = this%par%ci0, this%par%ci1
         call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci), &
-                                     this%delta_phi_b, this%pot)
+                                     this%delta_phi_b, this%pot, this%jtn_current(ci))
       end do
     end if
 

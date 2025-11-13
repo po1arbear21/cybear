@@ -41,6 +41,78 @@ J_contact = v_surf*(n - n0_base*exp(delta_phi)) + J_tn
 
 ---
 
+## 🔧 Implementation Fixes (2025-11-13)
+
+### Critical Bugs Fixed
+
+**1. Tunneling Current Not Applied to Residual**
+- **Problem**: `add_tunneling_contribution()` calculated surface area but never added `A_ct * J_tn` to residual
+- **Fix**: Added `tmp(j) = tmp(j) + A_ct * jtn_vec(j)` in continuity.f90:355
+- **Impact**: Without this, tunneling had zero effect on solution
+
+**2. Missing Tunneling Derivative in Jacobian**
+- **Problem**: `dJ_tn_dF` computed but not included in Jacobian (schottky.f90:884)
+- **Fix**: Changed `dJ_total_dF = n0b*v_surf*d_delta_phi_dE` to include `+ dJ_tn_dF`
+- **Impact**: Poor/no convergence without tunneling derivative in Newton solver
+
+**3. Sign Convention in Prefactor**
+- **Problem**: Missing minus sign in `prefactor = m_tn / (2.0 * PI**2)` (schottky.f90:556)
+- **Fix**: Added minus sign: `prefactor = -m_tn / (2.0 * PI**2)`
+- **Physics**: Electron tunneling flux (positive outward) → negative electric current
+- **Impact**: Without correct sign, tunneling provides destabilizing feedback → divergence
+
+### Two Equivalent Implementation Approaches
+
+**Current Implementation (Explicit):**
+```fortran
+! Continuity BC:
+Robin: J_dd·n̂ = v_s(n - n0B_IFBL)
+Source: +A_ct * J_tn
+
+! Ramo-Shockley:
+I_terminal = ∫ J_dd·∇φ_ramo dV + ∫ A_ct*J_tn dS
+```
+- Tunneling is explicit separate source term
+- J_dd only carries thermionic emission component
+- Must add J_tn to terminal current calculation
+- **Advantage**: Modular, physically clear, easy to toggle
+
+**Alternative (Implicit Folding):**
+```fortran
+! Continuity BC:
+Robin: J_dd·n̂ = v_s(n - n0B_eff)
+where n0B_eff = n0B_IFBL - J_tn/v_s  ← Note MINUS sign!
+
+! Ramo-Shockley:
+I_terminal = ∫ J_dd·∇φ_ramo dV  (no extra term!)
+```
+- Tunneling folded into effective n0B
+- J_dd carries **both** TE and tunneling components
+- No separate Ramo-Shockley addition needed
+- **Advantage**: Mathematically elegant, single framework
+
+**Key Insight**: With correct sign (minus), the drift-diffusion current field carries the full flux:
+```
+J_dd·n̂ = v_s(n - n0B + J_tn/v_s) = v_s(n - n0B) + J_tn
+```
+
+Both approaches are **mathematically equivalent** if implemented with correct algebra and Jacobians.
+
+### Why Tunneling Differs from IFBL
+
+**IFBL (Image Force Barrier Lowering):**
+- Modifies Robin BC parameter: n0B → n0B_eff(E)
+- All flux still carried by drift-diffusion: J = q μ n E - q D ∇n
+- Ramo-Shockley automatically captures it (no modification needed)
+
+**Tunneling (Current Explicit Implementation):**
+- Separate quantum flux channel outside drift-diffusion framework
+- Not represented in J = q μ n E - q D ∇n
+- Must be added explicitly to both continuity residual AND Ramo-Shockley
+- Could alternatively be folded into n0B_eff with correct sign (see above)
+
+---
+
 ## Implementation Checklist
 
   1. V_bias calculation: use electrostatic potential at contact, not zero
