@@ -2,6 +2,7 @@ module schottky_m
 
   use device_params_m,  only: device_params
   use potential_m,      only: potential
+  use density_m,        only: density
   use normalization_m,  only: norm, denorm
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, CR_NAME
   use grid_m,           only: IDX_VERTEX, IDX_EDGE, IDX_CELL
@@ -25,6 +26,7 @@ module schottky_m
   public :: get_schottky_contact_normal_dir
   public :: schottky_injection, schottky_tunnel_current, calc_schottky_injection
   public :: barrier_lowering
+  public :: test_tsuesaki_vs_te_comparison
 
   type, extends(variable_real) :: barrier_lowering
     !! Barrier lowering delta_phi_b scalar field at vertices
@@ -84,6 +86,8 @@ module schottky_m
       !! injection density variable
     type(vselector) :: jtn
       !! tunneling current density variable (J_tn at contact vertices)
+    type(density), pointer :: dens => null()
+      !! carrier density variable (for diagnostics/validation)
 
     integer, allocatable :: contact_normal(:)
       !! normal direction for each contact (0 if not Schottky)
@@ -93,8 +97,12 @@ module schottky_m
     type(empty_stencil) :: st_em
       !! empty stencil
 
-    type(jacobian_ptr), allocatable :: jaco_efield(:)
-      !! jacobian for E-field dependencies (one per direction)
+    type(jacobian_ptr), allocatable :: jaco_efield_n0b(:)
+      !! jacobian for n0B E-field dependencies: ∂n0B/∂E (IFBL only, one per direction)
+    type(jacobian_ptr), allocatable :: jaco_efield_jtn(:)
+      !! jacobian for J_tn E-field dependencies: ∂J_tn/∂E (tunneling, one per direction)
+    type(jacobian_ptr) :: jaco_pot_jtn
+      !! jacobian for J_tn potential coupling: ∂J_tn/∂phi_k (tunneling)
 
     type(barrier_lowering), pointer :: delta_phi_b_var => null()
       !! barrier lowering variable (for output)
@@ -496,7 +504,7 @@ contains
 
   end subroutine
 
-  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, J_tn, dJ_tn_dF)
+  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, J_tn, dJ_tn_dF, dJ_tn_dpot)
     !! Calculate Tsu-Esaki tunneling current density through Schottky barrier
     !! Implements: J_tn = (m*/(2π²)) ∫₀^φb T_wkb(E) N(E) dE
     !!
@@ -511,6 +519,7 @@ contains
     real, intent(in)  :: phi_k     !! Electrostatic potential at contact (from Poisson)
     real, intent(out) :: J_tn      !! Tunneling current density (normalized)
     real, intent(out) :: dJ_tn_dF  !! Derivative dJ_tn/dF for Jacobian
+    real, intent(out), optional :: dJ_tn_dpot  !! Derivative dJ_tn/d(phi_k) for potential coupling
 
     real :: p(4)                   ! Parameter array for integrand
     real :: I                      ! Integration result
@@ -553,11 +562,148 @@ contains
     ! Apply normalization prefactor: J_tn = (m*/(2π²)) × integral
     ! In normalized units: kT=1, ℏ=1, m₀=1, q=1
     ! Original: J_tn = (4πq m* m₀ kT/h³) × ∫ → (m*/(2π²)) × ∫
-    prefactor = -m_tn / (2.0 * PI**2)
+    prefactor = m_tn / (2.0 * PI**2)
 
     ! Calculate tunneling current and field derivative
     J_tn = prefactor * I
     dJ_tn_dF = prefactor * dIdp(2)  ! dI/d(efield)
+
+    ! Calculate potential derivative if requested
+    if (present(dJ_tn_dpot)) then
+      dJ_tn_dpot = prefactor * dIdp(4)  ! dI/d(phi_k)
+    end if
+
+  end subroutine
+
+  subroutine test_tsuesaki_vs_te_comparison(phi_b, efield, m_tn, phi_k, v_surf, n0b_base, delta_phi_b, n_actual)
+    !! DEVICE VALIDATION: Tsu-Esaki Integral vs Robin BC Thermionic Current
+    !!
+    !! Test if Tsu-Esaki integral from phi_b → ∞ equals Robin BC thermionic current
+    !! using the actual solved carrier density from the device.
+    !!
+    !! Physics hypothesis:
+    !! Since T_wkb(E) → 1 for E > phi_b (over-barrier regime),
+    !! the integral ∫_{phi_b}^∞ T_wkb(E) * N(E) dE
+    !! should match J_TE = v_surf × (n - n0B_IFBL)
+    !!
+    !! This tests self-consistency between:
+    !! - Tsu-Esaki integral formulation (with Fermi-Dirac occupancy N(E))
+    !! - Robin BC formulation (with actual device carrier density)
+
+    real, intent(in) :: phi_b         !! Effective barrier height (normalized)
+    real, intent(in) :: efield        !! Electric field magnitude (normalized)
+    real, intent(in) :: m_tn          !! Tunneling effective mass ratio
+    real, intent(in) :: phi_k         !! Contact potential (normalized)
+    real, intent(in) :: v_surf        !! Surface velocity (normalized)
+    real, intent(in) :: n0b_base      !! Base injection density (normalized)
+    real, intent(in) :: delta_phi_b   !! Barrier lowering from IFBL (normalized)
+    real, intent(in) :: n_actual      !! Actual carrier density at contact (normalized)
+
+    real :: p(4)                   ! Parameter array for integrand
+    real :: I_overbarrier          ! Integration result for over-barrier regime
+    real :: dIda, dIdb            ! Derivatives wrt bounds (not used)
+    real :: dIdp(4)               ! Derivatives wrt parameters (not used)
+    real :: err                   ! Integration error estimate
+    integer :: ncalls             ! Number of function evaluations
+    real :: prefactor             ! Normalization prefactor: m*/(2π²)
+    real :: J_tn_overbarrier      ! Tsu-Esaki current in over-barrier regime
+    real :: J_TE_net              ! Net thermionic emission current from Robin BC
+    real :: n0B_IFBL              ! Field-enhanced injection density
+    real :: upper_limit           ! Upper integration limit
+    real :: relative_diff         ! Relative difference between methods
+    real :: phi_bn_eff            ! Effective barrier
+
+    print *
+    print "(A)", "========================================================"
+    print "(A)", "DEVICE VALIDATION"
+    print "(A)", "Tsu-Esaki Integral vs Robin BC TE Current"
+    print "(A)", "========================================================"
+    print *
+
+    ! Calculate effective barrier and field-enhanced n0B
+    phi_bn_eff = phi_b - delta_phi_b
+    n0B_IFBL = n0b_base * exp(delta_phi_b)
+
+    ! Print input parameters
+    print "(A)", "Input Parameters:"
+    print "(A,ES14.6,A)", "  phi_b (effective)   = ", denorm(phi_bn_eff, "eV"), " eV"
+    print "(A,ES14.6,A)", "  E_field             = ", denorm(efield, "V/cm"), " V/cm"
+    print "(A,ES14.6)",   "  m_tn                = ", m_tn
+    print "(A,ES14.6,A)", "  phi_k (potential)   = ", denorm(phi_k, "V"), " V"
+    print "(A,ES14.6,A)", "  v_surf              = ", denorm(v_surf, "cm/s"), " cm/s"
+    print "(A,ES14.6,A)", "  n (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
+    print "(A,ES14.6,A)", "  n0B_IFBL            = ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
+    print "(A,ES14.6,A)", "  delta_phi_b (IFBL)  = ", denorm(delta_phi_b, "eV"), " eV"
+    print *
+
+    ! Method 1: Robin BC thermionic current (using actual device carrier density)
+    ! J_TE_net = v_surf × (n - n0B_IFBL)
+    ! This is the NET current at the boundary condition
+    J_TE_net = v_surf * (n_actual - n0B_IFBL)
+
+    print "(A)", "METHOD 1: Robin BC Thermionic Current"
+    print "(A)", "  J_TE_net = v_surf × (n_actual - n0B_IFBL)"
+    print "(A,ES14.6,A)", "  J_TE_net = ", denorm(J_TE_net, "A/cm^2"), " A/cm^2"
+    print *
+
+    ! Method 2: Tsu-Esaki integral from phi_bn_eff → ∞ (over-barrier regime)
+    ! For E > phi_b, T_wkb = 1.0, so integral is ∫_{phi_b}^∞ N(E) dE
+
+    ! Choose upper limit: large enough to capture all current
+    ! Use 20*kT or phi_b + 20, whichever is larger
+    upper_limit = max(phi_bn_eff + 20.0, 20.0)
+
+    ! Set up parameter array
+    p(1) = phi_bn_eff  ! barrier height
+    p(2) = efield      ! electric field
+    p(3) = m_tn        ! tunneling mass
+    p(4) = phi_k       ! contact potential
+
+    ! Perform integration from phi_bn_eff to upper_limit (over-barrier regime)
+    ! In this regime, T_wkb(E) → 1.0 for E > phi_b
+    call quad(tsu_esaki_integrand, phi_bn_eff, upper_limit, p, I_overbarrier, &
+              dIda, dIdb, dIdp, rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
+
+    ! Apply normalization prefactor (same as under-barrier calculation)
+    prefactor = m_tn / (2.0 * PI**2)
+    J_tn_overbarrier = prefactor * I_overbarrier
+
+    print "(A)", "METHOD 2: Tsu-Esaki Integral (Over-Barrier)"
+    print "(A)", "  J = (m*/(2π²)) * ∫_{phi_b}^∞ T_wkb(E) * N(E) dE"
+    print "(A)", "  For E > phi_b: T_wkb ≈ 1.0 (perfect transmission)"
+    print "(A,ES14.6,A,ES14.6,A)", "  Integration limits  = ", denorm(phi_bn_eff, "eV"), " to ", denorm(upper_limit, "eV"), " eV"
+    print "(A,I8)",       "  Function calls      = ", ncalls
+    print "(A,ES14.6)",   "  Integration error   = ", err
+    print "(A,ES14.6,A)", "  J_overbarrier       = ", denorm(J_tn_overbarrier, "A/cm^2"), " A/cm^2"
+    print *
+
+    ! Compare the two methods
+    if (abs(J_TE_net) > 1e-30) then
+      relative_diff = abs(J_tn_overbarrier - J_TE_net) / abs(J_TE_net)
+      print "(A)", "COMPARISON:"
+      print "(A,ES14.6,A)", "  J_Robin_BC (Method 1)   = ", denorm(J_TE_net, "A/cm^2"), " A/cm^2"
+      print "(A,ES14.6,A)", "  J_integral (Method 2)   = ", denorm(J_tn_overbarrier, "A/cm^2"), " A/cm^2"
+      print "(A,ES14.6)",   "  Relative difference     = ", relative_diff * 100.0, " %"
+      print *
+
+      if (relative_diff < 0.01) then
+        print "(A)", "  ✓ EXCELLENT AGREEMENT (< 1%)"
+      else if (relative_diff < 0.1) then
+        print "(A)", "  ✓ GOOD AGREEMENT (< 10%)"
+      else if (relative_diff < 0.5) then
+        print "(A)", "  ~ MODERATE AGREEMENT (< 50%)"
+      else
+        print "(A)", "  ✗ POOR AGREEMENT (> 50%)"
+        print "(A)", "  → Models may be inconsistent or integration limits insufficient"
+      end if
+    else
+      print "(A)", "COMPARISON:"
+      print "(A)", "  J_TE_net too small for meaningful comparison"
+    end if
+
+    print *
+    print "(A)", "========================================================"
+    print *
 
   end subroutine
 
@@ -632,7 +778,7 @@ contains
     end select
   end subroutine
 
-  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b, pot, jtn_current)
+  subroutine calc_schottky_injection_init(this, par, ci, efield, n0b, delta_phi_b, pot, jtn_current, dens)
     !! Initialize equation for calculating n0B from electric field
     class(calc_schottky_injection), intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -649,6 +795,8 @@ contains
       !! electrostatic potential variable
     type(schottky_tunnel_current), target, intent(in) :: jtn_current
       !! tunneling current density variable
+    type(density), target, intent(in) :: dens
+      !! carrier density variable (for diagnostics)
 
     integer :: ict, i, iprov, iprov_delta, iprov_jtn, idx(par%g%idx_dim), dir, idep
     integer :: normal_dir
@@ -695,10 +843,11 @@ contains
       end if
     end do
 
-    ! Store reference to electric field components, delta_phi_b variable, and potential
+    ! Store reference to electric field components, delta_phi_b variable, potential, and density
     this%efield => efield
     this%delta_phi_b_var => delta_phi_b
     this%pot => pot
+    this%dens => dens
 
     ! Create n0b selector for all Schottky contact vertices
     ! We'll include all contacts but only Schottky ones will have non-zero values
@@ -716,8 +865,10 @@ contains
     ! Provide delta_phi_b at all transport vertices for output
     iprov_delta = this%provide(delta_phi_b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
 
-    ! Set up dependencies and Jacobians for each E-field direction that's needed
-    allocate(this%jaco_efield(par%g%dim))
+    ! Set up dependencies and Jacobians for each E-field direction
+    ! Separate Jacobians for n0B (thermionic/IFBL) and J_tn (tunneling)
+    allocate(this%jaco_efield_n0b(par%g%dim))
+    allocate(this%jaco_efield_jtn(par%g%dim))
 
     ! Create dependencies for each E-field component that Schottky contacts need
     do dir = 1, par%g%dim
@@ -726,16 +877,32 @@ contains
         print *, "  Setting up E-field dependency for direction ", dir
 
         ! Create dependency for this E-field component at all contact vertices
-        ! Only Schottky contacts with this normal will actually use it
         idep = this%depend(efield(dir), [(par%transport_vct(ict)%get_ptr(), &
                                          ict = 1, par%nct)])
 
-        ! Create Jacobian for this E-field component
-        this%jaco_efield(dir)%p => this%init_jaco(iprov, idep, &
+        ! Create Jacobian for n0B: ∂n0B/∂E (IFBL only, attached to iprov)
+        this%jaco_efield_n0b(dir)%p => this%init_jaco(iprov, idep, &
+          st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
+          const = .false.)
+
+        ! Create Jacobian for J_tn: ∂J_tn/∂E (tunneling, attached to iprov_jtn)
+        this%jaco_efield_jtn(dir)%p => this%init_jaco(iprov_jtn, idep, &
           st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
           const = .false.)
       end if
     end do
+
+    ! Set up potential dependency and Jacobian for J_tn coupling
+    ! ∂J_tn/∂phi_k (tunneling only, attached to iprov_jtn)
+    print *, "  Setting up potential dependency for tunneling coupling"
+
+    ! Create dependency on potential at all contact vertices
+    idep = this%depend(pot, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
+
+    ! Create Jacobian for J_tn: ∂J_tn/∂phi_k (attached to iprov_jtn)
+    this%jaco_pot_jtn%p => this%init_jaco(iprov_jtn, idep, &
+      st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
+      const = .false.)
 
     ! finish initialization
     call this%init_final()
@@ -751,12 +918,14 @@ contains
     real :: E_field, n0b_base, n0b_val, delta_phi_b, d_delta_phi_dE
     real :: eps_r
     real :: phi_k, phi_bn_eff, v_surf
-    real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_total_dF
+    real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_tn_dpot
+    real :: n0B_IFBL, dn0B_eff_dE, dn0B_eff_dpot
+    real :: n_actual_val
     real, allocatable :: tmp_n0b(:), tmp_jtn(:)
 
     ! Check if properly initialized
     if (.not. allocated(this%contact_normal)) return
-    if (.not. allocated(this%jaco_efield)) return
+    if (.not. allocated(this%jaco_efield_n0b)) return
     if (.not. associated(this%efield)) return
 
     allocate(tmp_n0b(this%n0b%n))
@@ -766,10 +935,20 @@ contains
 
     ! Clear all Jacobians first
     do normal_dir = 1, this%par%g%dim
-      if (associated(this%jaco_efield(normal_dir)%p)) then
-        call this%jaco_efield(normal_dir)%p%reset()
+      ! Reset n0B Jacobians (thermionic/IFBL)
+      if (associated(this%jaco_efield_n0b(normal_dir)%p)) then
+        call this%jaco_efield_n0b(normal_dir)%p%reset()
+      end if
+      ! Reset J_tn Jacobians (tunneling)
+      if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
+        call this%jaco_efield_jtn(normal_dir)%p%reset()
       end if
     end do
+
+    ! Reset J_tn potential Jacobian
+    if (associated(this%jaco_pot_jtn%p)) then
+      call this%jaco_pot_jtn%p%reset()
+    end if
 
     ! Counter for position in n0b array
     j = 0
@@ -832,8 +1011,22 @@ contains
         ! Get contact potential from Poisson solution
         if (associated(this%pot)) then
           phi_k = this%pot%get(idx)
+          ! Debug: print potential information
+          if (i == 1 .and. this%ci == CR_ELEC) then
+            print "(A,I2,A,A,A)", "  Contact ", ict, " (", trim(this%par%contacts(ict)%name), ") potential fetch:"
+            print "(A,3I5)", "    idx = ", idx
+            print "(A,ES14.6,A)", "    phi_k (Poisson) = ", phi_k, " (normalized)"
+            print "(A,ES14.6,A)", "    phi_k (denorm)  = ", denorm(phi_k, "V"), " V"
+            print "(A,ES14.6,A)", "    phims (stored)  = ", this%par%contacts(ict)%phims, " (normalized)"
+            print "(A,ES14.6,A)", "    phims (denorm)  = ", denorm(this%par%contacts(ict)%phims, "V"), " V"
+            print "(A,ES14.6,A)", "    phi_b (barrier) = ", denorm(this%par%contacts(ict)%phi_b, "eV"), " eV"
+            print "(A)", "    Expected: phi_k should equal phims at equilibrium"
+          end if
         else
           phi_k = 0.0  ! Fallback if potential not available
+          if (i == 1 .and. this%ci == CR_ELEC) then
+            print "(A)", "  WARNING: Potential not associated, using phi_k = 0"
+          end if
         end if
 
         ! Calculate surface velocity (thermionic emission velocity)
@@ -849,69 +1042,95 @@ contains
         ! Calculate tunneling current if enabled (under-barrier transport)
         if (this%par%contacts(ict)%tunneling) then
           call tsu_esaki_current(phi_bn_eff, E_field, this%par%contacts(ict)%m_tunnel, &
-                                 phi_k, J_tn, dJ_tn_dF)
+                                 phi_k, J_tn, dJ_tn_dF, dJ_tn_dpot)
         else
           J_tn = 0.0
           dJ_tn_dF = 0.0
+          dJ_tn_dpot = 0.0
+        end if
+
+        ! NO FOLDING: Keep n0B as thermionic emission only (n0B_IFBL)
+        ! Tunneling J_tn will be added as explicit boundary source in continuity equation
+        ! This keeps n0B always positive and makes physics transparent
+
+        if (this%ci == CR_ELEC) then
+          ! Electrons: n0B_IFBL = n0B * exp(delta_phi_b) from IFBL
+          n0B_IFBL = n0b_base * exp(delta_phi_b)
+          n0b_val = n0B_IFBL  ! No folding - just thermionic
+
+          ! Jacobian: d(n0B_IFBL)/dE (thermionic only, no tunneling term here)
+          dn0B_eff_dE = n0B_IFBL * d_delta_phi_dE
+
+        else  ! CR_HOLE
+          ! Holes: n0B_IFBL = n0B * exp(-delta_phi_b)
+          n0B_IFBL = n0b_base * exp(-delta_phi_b)
+          n0b_val = n0B_IFBL  ! No folding
+
+          ! Jacobian: d(n0B_IFBL)/dE (negative sign for holes)
+          dn0B_eff_dE = -n0B_IFBL * d_delta_phi_dE
         end if
 
         ! Debug output for tunneling current analysis
         if (this%par%contacts(ict)%tunneling .and. mod(i, 10) == 1) then
-          J_total = J_TE + J_tn  ! For debug only
-          print "(A,I3,A,I4,A)", "  Contact ", ict, " vertex ", i, ":"
-          print "(A,ES12.4,A)", "    J_TE  = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
-          print "(A,ES12.4,A)", "    J_tn  = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
-          print "(A,ES12.4,A)", "    J_tot = ", denorm(J_total, "A/cm^2"), " A/cm^2"
-          if (abs(J_TE) > 1e-30) then
-            print "(A,ES12.4)",   "    J_tn/J_TE ratio = ", J_tn/J_TE
+          ! Run comparison test (only for first vertex of first contact)
+          if (i == 1 .and. ict == 1) then
+            ! Fetch actual carrier density at this vertex (same way as pot)
+            if (associated(this%dens)) then
+              n_actual_val = this%dens%get(idx)
+            else
+              n_actual_val = 0.0
+            end if
+            call test_tsuesaki_vs_te_comparison(this%par%contacts(ict)%phi_b, E_field, &
+                 this%par%contacts(ict)%m_tunnel, phi_k, v_surf, n0b_base, delta_phi_b, n_actual_val)
           end if
-          print "(A,ES12.4,A)", "    E_field = ", denorm(E_field, "V/cm"), " V/cm"
-          print "(A,ES12.4,A)", "    phi_k   = ", denorm(phi_k, "V"), " V"
         end if
 
-        ! CRITICAL FIX: Keep n0b_val for thermionic emission ONLY
-        ! n0B is used in Robin BC: J_TE = v_surf * (n - n0B)
-        ! Tunneling current J_tn is added separately in continuity equation
-        if (this%ci == CR_ELEC) then
-          n0b_val = n0b_base * exp(delta_phi_b)
-        else  ! CR_HOLE
-          n0b_val = n0b_base * exp(-delta_phi_b)
+        ! Set Jacobian entry for n0B: ∂n0B_IFBL/∂E (thermionic/IFBL only)
+        if (associated(this%jaco_efield_n0b(normal_dir)%p)) then
+          call this%jaco_efield_n0b(normal_dir)%p%set(idx, idx, dn0B_eff_dE)
         end if
 
-        ! Calculate total field derivative for Jacobian (IFBL + tunneling)
-        if (this%ci == CR_ELEC) then
-          ! dn0B/dF = n0B * d_delta_phi_dE (from IFBL)
-          ! Add tunneling derivative: dJ_tn/dF
-          dJ_total_dF = n0b_val * v_surf * d_delta_phi_dE + dJ_tn_dF
-        else  ! CR_HOLE
-          ! Holes have opposite sign for IFBL effect
-          ! Add tunneling derivative (sign handled by dJ_tn_dF)
-          dJ_total_dF = -n0b_val * v_surf * d_delta_phi_dE + dJ_tn_dF
-        end if
-
-        ! Set Jacobian entry for both thermionic and tunneling components
-        ! The factor 1/v_surf converts current derivative to equivalent n0b derivative
-        if (associated(this%jaco_efield(normal_dir)%p)) then
-          call this%jaco_efield(normal_dir)%p%set(idx, idx, dJ_total_dF / v_surf)
+        ! Set Jacobian entries for tunneling current J_tn
+        ! These are attached to iprov_jtn, so chain rule works correctly:
+        ! ∂F/∂E += ∂F/∂J_tn × ∂J_tn/∂E  and  ∂F/∂phi += ∂F/∂J_tn × ∂J_tn/∂phi
+        if (this%ci == CR_ELEC .and. this%par%contacts(ict)%tunneling) then
+          ! ∂J_tn/∂E for field coupling
+          if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
+            call this%jaco_efield_jtn(normal_dir)%p%set(idx, idx, dJ_tn_dF)
+          end if
+          ! ∂J_tn/∂phi_k for potential coupling
+          if (associated(this%jaco_pot_jtn%p)) then
+            call this%jaco_pot_jtn%p%set(idx, idx, dJ_tn_dpot)
+          end if
         end if
 
         ! Store in temporary arrays at position j
-        tmp_n0b(j) = n0b_val
-        tmp_jtn(j) = J_tn  ! Store tunneling current separately
+        tmp_n0b(j) = n0b_val  ! Thermionic only
+        tmp_jtn(j) = J_tn      ! Store tunneling current for continuity to use
       end do
     end do
 
     ! Materialize all Jacobians
     do normal_dir = 1, this%par%g%dim
-      if (associated(this%jaco_efield(normal_dir)%p)) then
-        call this%jaco_efield(normal_dir)%p%set_matr(const = .false., nonconst = .true.)
+      ! Materialize n0B Jacobians (thermionic/IFBL)
+      if (associated(this%jaco_efield_n0b(normal_dir)%p)) then
+        call this%jaco_efield_n0b(normal_dir)%p%set_matr(const = .false., nonconst = .true.)
+      end if
+      ! Materialize J_tn Jacobians (tunneling)
+      if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
+        call this%jaco_efield_jtn(normal_dir)%p%set_matr(const = .false., nonconst = .true.)
       end if
     end do
+
+    ! Materialize J_tn potential Jacobian
+    if (associated(this%jaco_pot_jtn%p)) then
+      call this%jaco_pot_jtn%p%set_matr(const = .false., nonconst = .true.)
+    end if
 
     ! Set the n0B values (thermionic only)
     call this%n0b%set(tmp_n0b)
 
-    ! Set the J_tn values (tunneling current)
+    ! Set the J_tn values (tunneling current for continuity to use)
     call this%jtn%set(tmp_jtn)
 
     deallocate(tmp_n0b, tmp_jtn)

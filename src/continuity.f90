@@ -58,6 +58,8 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_genrec   => null()
     type(jacobian),     pointer     :: jaco_n0b      => null()
       !! jacobian for n0B dependency (field-dependent Schottky BC)
+    type(jacobian),     pointer     :: jaco_jtn      => null()
+      !! jacobian for J_tn dependency (tunneling current): ∂F/∂J_tn = A_ct
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -176,7 +178,7 @@ contains
       in0b = this%depend(this%n0b_inj)
     end if
 
-    ! jtn dependency
+    ! jtn dependency (tunneling current with proper Jacobian coupling)
     if (present(jtn_current)) then
       ijtn = this%depend(this%jtn_inj)
     end if
@@ -218,6 +220,18 @@ contains
         this%jaco_n0b => this%init_jaco_f(in0b, &
           & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
           & par%contacts(ict)%type == CT_SCHOTTKY), ict = 1, par%nct)], &
+          & const = .true., dtime = .false.)
+      end if
+    end if
+
+    ! init jtn jacobian for tunneling current coupling
+    if (present(jtn_current)) then
+      ! Check if any contacts have tunneling enabled
+      if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY .and. par%contacts(1:par%nct)%tunneling)) then
+        ! J_tn dependency only at Schottky contact vertices with tunneling
+        this%jaco_jtn => this%init_jaco_f(ijtn, &
+          & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
+          & par%contacts(ict)%type == CT_SCHOTTKY .and. par%contacts(ict)%tunneling), ict = 1, par%nct)], &
           & const = .true., dtime = .false.)
       end if
     end if
@@ -284,7 +298,7 @@ contains
           if (present(n0b)) then
             ! Field-dependent n0B: set Jacobian entry
             call this%jaco_n0b%set(idx1, idx1, -A_ct * v_surf)
-            ! RHS is set to 0 here, tunneling current added in eval()
+            ! RHS is set to 0 here, additional sources added in eval()
             this%b(j) = 0.0
           else
             ! Constant n0B: set RHS
@@ -304,6 +318,11 @@ contains
               print "(A,ES14.6,A)", "  RHS term       = ", denorm(this%b(j), "1/s"), " 1/s"
             end if
           end if
+
+          ! Set tunneling current Jacobian: ∂F/∂J_tn = A_ct
+          if (present(jtn_current) .and. par%contacts(ict)%tunneling) then
+            call this%jaco_jtn%set(idx1, idx1, A_ct)
+          end if
         else
           ! Dirichlet BC for Ohmic/Gate contacts
           call this%jaco_dens%set(idx1, idx1, 1.0)
@@ -319,48 +338,6 @@ contains
 
     ! finish initialization
     call this%init_final()
-  end subroutine
-
-  subroutine add_tunneling_contribution(this, tmp)
-    !! Add tunneling current contribution to residual for Schottky contacts
-    class(continuity), intent(in)    :: this
-    real,              intent(inout) :: tmp(:)
-
-    integer :: ict, i, j
-    integer :: idx(this%par%g%idx_dim)
-    real :: A_ct, J_tn_contrib
-    real, allocatable :: jtn_vec(:)
-
-    ! Get the full tunneling current vector
-    jtn_vec = this%jtn_inj%get()
-
-    ! Loop over all contacts
-    j = this%par%transport_vct(0)%n
-    do ict = 1, this%par%nct
-      ! Only process Schottky contacts with tunneling enabled
-      if (this%par%contacts(ict)%type == CT_SCHOTTKY .and. &
-          this%par%contacts(ict)%tunneling) then
-
-        do i = 1, this%par%transport_vct(ict)%n
-          j = j + 1
-          idx = this%par%transport_vct(ict)%get_idx(i)
-
-          ! Get contact surface area
-          A_ct = this%par%get_ct_surf(ict, idx)
-
-          ! Add tunneling current as boundary flux
-          ! J_tn is current leaving semiconductor (positive for electrons leaving)
-          ! Robin BC convention: J = A_ct * v_surf * (n - n0b) + A_ct * J_tn
-          J_tn_contrib = A_ct * jtn_vec(j)
-          tmp(j) = tmp(j) + J_tn_contrib
-        end do
-      else
-        ! Skip non-Schottky or non-tunneling contacts
-        j = j + this%par%transport_vct(ict)%n
-      end if
-    end do
-
-    deallocate(jtn_vec)
   end subroutine
 
   subroutine continuity_eval(this)
@@ -391,9 +368,11 @@ contains
       end if
     end if
 
-    ! Add tunneling current contribution for Schottky contacts with tunneling enabled
-    if (this%jtn_inj%n > 0) then
-      call add_tunneling_contribution(this, tmp)
+    ! Add tunneling current Jacobian coupling: R += A_ct * J_tn with proper derivatives
+    ! This replaces the previous explicit lagged source approach and provides Newton
+    ! with ∂F/∂J_tn derivatives so it can see dJ_tn/dE and dJ_tn/dφ from calc_schottky_injection
+    if (associated(this%jaco_jtn)) then
+      call this%jaco_jtn%matr%mul_vec(this%jtn_inj%get(), tmp, fact_y = 1.0)
     end if
 
     call this%f%set(tmp - this%b)
