@@ -427,59 +427,70 @@ contains
     !! All outputs are REQUIRED (cannot be omitted)
     !!
     !! Parameter array structure:
-    !!   p(1) = phi_b  : Effective barrier height (with IFBL if applicable)
+    !!   p(1) = phi_eff: Effective barrier height (phi_bn for e-, E_g-phi_bn for h+)
     !!   p(2) = efield : Electric field magnitude
     !!   p(3) = m_tn   : Tunneling effective mass ratio
     !!   p(4) = phi_k  : Electrostatic potential at contact interface (from Poisson)
-    !!                   This is the LOCAL potential that determines Fermi level alignment
+    !!   p(5) = ci     : Carrier index (1=electron, 2=hole)
+    !!   p(6) = E_g    : Band gap (normalized)
 
     real, intent(in)  :: E       !! Energy (integration variable, normalized)
-    real, intent(in)  :: p(:)    !! Parameter array [phi_b, efield, m_tn, phi_k]
+    real, intent(in)  :: p(:)    !! Parameter array [phi_eff, efield, m_tn, phi_k, ci, E_g]
     real, intent(out) :: f       !! Integrand value
     real, intent(out) :: dfdE    !! Derivative wrt energy
     real, intent(out) :: dfdp(:) !! Derivatives wrt parameters
 
-    real :: phi_b, efield, m_tn, phi_k
+    real :: phi_eff, efield, m_tn, phi_k, E_g
+    integer :: ci
     real :: T_wkb, dT_dE, dT_dphi, dT_dF
     real :: N_E, dN_dE, dN_dphi  ! Occupancy difference (logarithmic form) and derivatives
     real :: f_s, f_m             ! Fermi-Dirac functions (for derivative calculation)
+    real :: phi_semi             ! Semiconductor potential for occupancy
 
     ! Extract parameters from array
-    phi_b   = p(1)
+    phi_eff = p(1)
     efield  = p(2)
     m_tn    = p(3)
     phi_k   = p(4)
+    ci      = int(p(5))
+    E_g     = p(6)
 
     ! Get WKB transmission probability and its derivatives
-    call calc_wkb_transmission(E, phi_b, efield, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
+    call calc_wkb_transmission(E, phi_eff, efield, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
 
-    ! Calculate occupancy difference using logarithmic form (ATLAS/NOTES.md convention)
-    ! N(E) = ln(1 + exp((E_F-E)/kT)) - ln(1 + exp((E_F-E-qφ_k)/kT))
-    ! In normalized units (kT=1, E_F=0):
-    ! N(E) = log(1 + exp(-E)) - log(1 + exp(-E - phi_k))
+    ! Calculate occupancy difference using logarithmic form
+    ! Energy reference: Metal Fermi level (E_F = 0)
     !
-    ! where phi_k is the local electrostatic potential at the contact interface
-    ! This form has better numerical stability than direct Fermi difference
-    ! and matches the ATLAS Tsu-Esaki formulation
+    ! Electrons (CB): phi_semi = phi_k (CB edge relative to metal EF)
+    ! Holes (VB):     phi_semi = -E_g + phi_k (VB edge relative to metal EF)
+    !
+    ! N(E) = log(1 + exp(-E)) - log(1 + exp(-E - phi_semi))
 
-    ! Occupancy difference (logarithmic form)
-    N_E = log(1.0 + exp(-E)) - log(1.0 + exp(-E - phi_k))
+    if (ci == CR_ELEC) then
+      phi_semi = phi_k                 ! Electrons: CB at phi_k
+    else  ! CR_HOLE
+      phi_semi = -E_g + phi_k          ! Holes: VB at -E_g + phi_k
+    end if
+
+    ! Occupancy difference (logarithmic form - same for both carriers)
+    N_E = log(1.0 + exp(-E)) - log(1.0 + exp(-E - phi_semi))
 
     ! For derivatives, we need Fermi functions:
     ! f(x) = 1/(1 + exp(x)) = exp(-x)/(1 + exp(-x))
     f_s = 1.0 / (1.0 + exp(E))
-    f_m = 1.0 / (1.0 + exp(E + phi_k))
+    f_m = 1.0 / (1.0 + exp(E + phi_semi))
 
     ! Derivative of N wrt energy:
-    ! dN/dE = d/dE[log(1+exp(-E))] - d/dE[log(1+exp(-E-phi_k))]
-    !       = -exp(-E)/(1+exp(-E)) + exp(-E-phi_k)/(1+exp(-E-phi_k))
+    ! dN/dE = d/dE[log(1+exp(-E))] - d/dE[log(1+exp(-E-phi_semi))]
+    !       = -exp(-E)/(1+exp(-E)) + exp(-E-phi_semi)/(1+exp(-E-phi_semi))
     !       = -f_s + f_m = f_m - f_s
     dN_dE = f_m - f_s
 
     ! Derivative of N wrt contact potential:
-    ! dN/d(phi_k) = 0 - d/d(phi_k)[log(1+exp(-E-phi_k))]
-    !             = -(-exp(-E-phi_k)/(1+exp(-E-phi_k)))
+    ! dN/d(phi_k) = 0 - d/d(phi_k)[log(1+exp(-E-phi_semi))]
+    !             = -(-exp(-E-phi_semi)/(1+exp(-E-phi_semi)))
     !             = f_m
+    ! Note: Same form for both carriers (derivative chain works through phi_semi)
     dN_dphi = f_m
 
     ! Integrand: f = T_wkb * N(E)
@@ -490,7 +501,7 @@ contains
     dfdE = dT_dE * N_E + T_wkb * dN_dE
 
     ! Derivatives wrt parameters
-    ! df/d(phi_b) = dT/d(phi_b) * N
+    ! df/d(phi_eff) = dT/d(phi_eff) * N
     dfdp(1) = dT_dphi * N_E
 
     ! df/dF = dT/dF * N
@@ -502,38 +513,63 @@ contains
     ! df/d(phi_k) = T_wkb * dN/d(phi_k)
     dfdp(4) = T_wkb * dN_dphi
 
+    ! df/d(ci): Set to zero (carrier index is discrete)
+    dfdp(5) = 0.0
+
+    ! df/d(E_g): Set to zero (not computing this derivative)
+    dfdp(6) = 0.0
+
   end subroutine
 
-  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, J_tn, dJ_tn_dF, dJ_tn_dpot)
+  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, ci, E_g, J_tn, dJ_tn_dF, dJ_tn_dpot)
     !! Calculate Tsu-Esaki tunneling current density through Schottky barrier
-    !! Implements: J_tn = (m*/(2π²)) ∫₀^φb T_wkb(E) N(E) dE
+    !! Implements: J_tn = ±(m*/(2π²)) ∫₀^φ_eff T_wkb(E) N(E) dE
+    !!
+    !! Sign convention:
+    !!   Electrons (ci=CR_ELEC): Negative prefactor (injection current)
+    !!   Holes (ci=CR_HOLE):     Positive prefactor (extraction current)
+    !!
+    !! Barrier heights:
+    !!   Electrons: phi_eff = phi_b (electron barrier to CB)
+    !!   Holes:     phi_eff = E_g - phi_b (hole barrier to VB)
     !!
     !! This is the tunneling component only (under-barrier transport)
     !! Total current: J_total = J_TE + J_tn (ATLAS split model)
     !!
     !! All inputs/outputs in normalized units (kT/q normalization)
 
-    real, intent(in)  :: phi_b     !! Effective barrier height (with IFBL if applied)
+    real, intent(in)  :: phi_b     !! Schottky barrier height for electrons (with IFBL if applied)
     real, intent(in)  :: efield    !! Electric field magnitude (normalized)
     real, intent(in)  :: m_tn      !! Tunneling effective mass ratio (m*/m0)
     real, intent(in)  :: phi_k     !! Electrostatic potential at contact (from Poisson)
+    integer, intent(in) :: ci      !! Carrier index (CR_ELEC or CR_HOLE)
+    real, intent(in)  :: E_g       !! Band gap (normalized)
     real, intent(out) :: J_tn      !! Tunneling current density (normalized)
     real, intent(out) :: dJ_tn_dF  !! Derivative dJ_tn/dF for Jacobian
     real, intent(out), optional :: dJ_tn_dpot  !! Derivative dJ_tn/d(phi_k) for potential coupling
 
-    real :: p(4)                   ! Parameter array for integrand
+    real :: p(6)                   ! Parameter array for integrand
     real :: I                      ! Integration result
     real :: dIda, dIdb            ! Derivatives wrt bounds (not used)
-    real :: dIdp(4)               ! Derivatives wrt parameters
+    real :: dIdp(6)               ! Derivatives wrt parameters
     real :: err                   ! Integration error estimate
     integer :: ncalls             ! Number of function evaluations
-    real :: prefactor             ! Normalization prefactor: m*/(2π²)
+    real :: prefactor             ! Normalization prefactor: ±m*/(2π²)
+    real :: phi_eff               ! Effective barrier for this carrier
+
+    ! Calculate effective barrier based on carrier type
+    if (ci == CR_ELEC) then
+      phi_eff = phi_b              ! Electrons: phi_bn (CB barrier)
+    else  ! CR_HOLE
+      phi_eff = E_g - phi_b        ! Holes: phi_bp = E_g - phi_bn (VB barrier)
+    end if
 
     ! Check for degenerate cases
-    if (phi_b <= 0.0) then
+    if (phi_eff <= 0.0) then
       ! No barrier - no tunneling calculation needed
       J_tn = 0.0
       dJ_tn_dF = 0.0
+      if (present(dJ_tn_dpot)) dJ_tn_dpot = 0.0
       return
     end if
 
@@ -541,28 +577,37 @@ contains
       ! Zero field - no tunneling possible
       J_tn = 0.0
       dJ_tn_dF = 0.0
+      if (present(dJ_tn_dpot)) dJ_tn_dpot = 0.0
       return
     end if
 
     ! Set up parameter array for integrand
-    ! p(1) = phi_b  : barrier height
-    ! p(2) = efield : electric field
-    ! p(3) = m_tn   : tunneling mass
-    ! p(4) = phi_k  : contact potential
-    p(1) = phi_b
+    ! p(1) = phi_eff : effective barrier (carrier-dependent)
+    ! p(2) = efield  : electric field
+    ! p(3) = m_tn    : tunneling mass
+    ! p(4) = phi_k   : contact potential
+    ! p(5) = ci      : carrier index
+    ! p(6) = E_g     : band gap
+    p(1) = phi_eff
     p(2) = efield
     p(3) = m_tn
     p(4) = phi_k
+    p(5) = real(ci)
+    p(6) = E_g
 
-    ! Perform integration from 0 to phi_b (under-barrier only)
+    ! Perform integration from 0 to phi_eff (under-barrier only)
     ! Using adaptive quadrature with relative tolerance 1e-6
-    call quad(tsu_esaki_integrand, 0.0, phi_b, p, I, dIda, dIdb, dIdp, &
+    call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
               rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
 
-    ! Apply normalization prefactor: J_tn = (m*/(2π²)) × integral
-    ! In normalized units: kT=1, ℏ=1, m₀=1, q=1
-    ! Original: J_tn = (4πq m* m₀ kT/h³) × ∫ → (m*/(2π²)) × ∫
-    prefactor = m_tn / (2.0 * PI**2)
+    ! Apply normalization prefactor with carrier-dependent sign
+    ! Electrons: negative (injection)
+    ! Holes: positive (extraction)
+    if (ci == CR_ELEC) then
+      prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electron injection
+    else  ! CR_HOLE
+      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for hole extraction
+      end if
 
     ! Calculate tunneling current and field derivative
     J_tn = prefactor * I
@@ -575,7 +620,7 @@ contains
 
   end subroutine
 
-  subroutine test_tsuesaki_vs_te_comparison(phi_b, efield, m_tn, phi_k, v_surf, n0b_base, delta_phi_b, n_actual)
+  subroutine test_tsuesaki_vs_te_comparison(phi_b, efield, m_tn, phi_k, ci, E_g, v_surf, n0b_base, delta_phi_b, n_actual)
     !! DEVICE VALIDATION: Tsu-Esaki Integral vs Robin BC Thermionic Current
     !!
     !! Test if Tsu-Esaki integral from phi_b → ∞ equals Robin BC thermionic current
@@ -590,48 +635,65 @@ contains
     !! - Tsu-Esaki integral formulation (with Fermi-Dirac occupancy N(E))
     !! - Robin BC formulation (with actual device carrier density)
 
-    real, intent(in) :: phi_b         !! Effective barrier height (normalized)
+    real, intent(in) :: phi_b         !! Schottky barrier height for electrons (normalized)
     real, intent(in) :: efield        !! Electric field magnitude (normalized)
     real, intent(in) :: m_tn          !! Tunneling effective mass ratio
     real, intent(in) :: phi_k         !! Contact potential (normalized)
+    integer, intent(in) :: ci         !! Carrier index (CR_ELEC or CR_HOLE)
+    real, intent(in) :: E_g           !! Band gap (normalized)
     real, intent(in) :: v_surf        !! Surface velocity (normalized)
     real, intent(in) :: n0b_base      !! Base injection density (normalized)
     real, intent(in) :: delta_phi_b   !! Barrier lowering from IFBL (normalized)
     real, intent(in) :: n_actual      !! Actual carrier density at contact (normalized)
 
-    real :: p(4)                   ! Parameter array for integrand
+    real :: p(6)                   ! Parameter array for integrand
     real :: I_overbarrier          ! Integration result for over-barrier regime
     real :: dIda, dIdb            ! Derivatives wrt bounds (not used)
-    real :: dIdp(4)               ! Derivatives wrt parameters (not used)
+    real :: dIdp(6)               ! Derivatives wrt parameters (not used)
     real :: err                   ! Integration error estimate
     integer :: ncalls             ! Number of function evaluations
-    real :: prefactor             ! Normalization prefactor: m*/(2π²)
+    real :: prefactor             ! Normalization prefactor: ±m*/(2π²)
     real :: J_tn_overbarrier      ! Tsu-Esaki current in over-barrier regime
     real :: J_TE_net              ! Net thermionic emission current from Robin BC
     real :: n0B_IFBL              ! Field-enhanced injection density
     real :: upper_limit           ! Upper integration limit
     real :: relative_diff         ! Relative difference between methods
     real :: phi_bn_eff            ! Effective barrier
+    real :: phi_eff               ! Carrier-dependent effective barrier
 
     print *
     print "(A)", "========================================================"
     print "(A)", "DEVICE VALIDATION"
     print "(A)", "Tsu-Esaki Integral vs Robin BC TE Current"
+    print "(A,A,A)", "Carrier: ", CR_NAME(ci), ""
     print "(A)", "========================================================"
     print *
 
     ! Calculate effective barrier and field-enhanced n0B
     phi_bn_eff = phi_b - delta_phi_b
-    n0B_IFBL = n0b_base * exp(delta_phi_b)
+
+    ! Calculate carrier-dependent effective barrier
+    if (ci == CR_ELEC) then
+      phi_eff = phi_bn_eff              ! Electrons: phi_bn
+      n0B_IFBL = n0b_base * exp(delta_phi_b)
+    else  ! CR_HOLE
+      phi_eff = E_g - phi_bn_eff        ! Holes: phi_bp = E_g - phi_bn
+      n0B_IFBL = n0b_base * exp(-delta_phi_b)
+    end if
 
     ! Print input parameters
     print "(A)", "Input Parameters:"
-    print "(A,ES14.6,A)", "  phi_b (effective)   = ", denorm(phi_bn_eff, "eV"), " eV"
+    print "(A,ES14.6,A)", "  phi_bn (e- barrier) = ", denorm(phi_bn_eff, "eV"), " eV"
+    if (ci == CR_HOLE) then
+      print "(A,ES14.6,A)", "  phi_bp (h+ barrier) = ", denorm(phi_eff, "eV"), " eV"
+      print "(A,ES14.6,A)", "  E_g (band gap)      = ", denorm(E_g, "eV"), " eV"
+    end if
     print "(A,ES14.6,A)", "  E_field             = ", denorm(efield, "V/cm"), " V/cm"
     print "(A,ES14.6)",   "  m_tn                = ", m_tn
     print "(A,ES14.6,A)", "  phi_k (potential)   = ", denorm(phi_k, "V"), " V"
     print "(A,ES14.6,A)", "  v_surf              = ", denorm(v_surf, "cm/s"), " cm/s"
     print "(A,ES14.6,A)", "  n (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
+    print "(A,ES14.6,A)", "  n0B_base            = ", denorm(n0b_base, "cm^-3"), " cm^-3"
     print "(A,ES14.6,A)", "  n0B_IFBL            = ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
     print "(A,ES14.6,A)", "  delta_phi_b (IFBL)  = ", denorm(delta_phi_b, "eV"), " eV"
     print *
@@ -646,32 +708,38 @@ contains
     print "(A,ES14.6,A)", "  J_TE_net = ", denorm(J_TE_net, "A/cm^2"), " A/cm^2"
     print *
 
-    ! Method 2: Tsu-Esaki integral from phi_bn_eff → ∞ (over-barrier regime)
-    ! For E > phi_b, T_wkb = 1.0, so integral is ∫_{phi_b}^∞ N(E) dE
+    ! Method 2: Tsu-Esaki integral from phi_eff → ∞ (over-barrier regime)
+    ! For E > phi_eff, T_wkb = 1.0, so integral is ∫_{phi_eff}^∞ N(E) dE
 
     ! Choose upper limit: large enough to capture all current
-    ! Use 20*kT or phi_b + 20, whichever is larger
-    upper_limit = max(phi_bn_eff + 20.0, 20.0)
+    ! Use 20*kT or phi_eff + 20, whichever is larger
+    upper_limit = max(phi_eff + 20.0, 20.0)
 
-    ! Set up parameter array
-    p(1) = phi_bn_eff  ! barrier height
+    ! Set up parameter array (now 6 elements for new integrand)
+    p(1) = phi_eff     ! effective barrier (carrier-dependent)
     p(2) = efield      ! electric field
     p(3) = m_tn        ! tunneling mass
     p(4) = phi_k       ! contact potential
+    p(5) = real(ci)    ! carrier index
+    p(6) = E_g         ! band gap
 
-    ! Perform integration from phi_bn_eff to upper_limit (over-barrier regime)
-    ! In this regime, T_wkb(E) → 1.0 for E > phi_b
-    call quad(tsu_esaki_integrand, phi_bn_eff, upper_limit, p, I_overbarrier, &
+    ! Perform integration from phi_eff to upper_limit (over-barrier regime)
+    ! In this regime, T_wkb(E) → 1.0 for E > phi_eff
+    call quad(tsu_esaki_integrand, phi_eff, upper_limit, p, I_overbarrier, &
               dIda, dIdb, dIdp, rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
 
-    ! Apply normalization prefactor (same as under-barrier calculation)
-    prefactor = m_tn / (2.0 * PI**2)
+    ! Apply normalization prefactor with carrier-dependent sign
+    if (ci == CR_ELEC) then
+      prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electrons
+    else
+      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for holes
+    end if
     J_tn_overbarrier = prefactor * I_overbarrier
 
     print "(A)", "METHOD 2: Tsu-Esaki Integral (Over-Barrier)"
-    print "(A)", "  J = (m*/(2π²)) * ∫_{phi_b}^∞ T_wkb(E) * N(E) dE"
-    print "(A)", "  For E > phi_b: T_wkb ≈ 1.0 (perfect transmission)"
-    print "(A,ES14.6,A,ES14.6,A)", "  Integration limits  = ", denorm(phi_bn_eff, "eV"), " to ", denorm(upper_limit, "eV"), " eV"
+    print "(A)", "  J = ±(m*/(2π²)) * ∫_{phi_eff}^∞ T_wkb(E) * N(E) dE"
+    print "(A)", "  For E > phi_eff: T_wkb ≈ 1.0 (perfect transmission)"
+    print "(A,ES14.6,A,ES14.6,A)", "  Integration limits  = ", denorm(phi_eff, "eV"), " to ", denorm(upper_limit, "eV"), " eV"
     print "(A,I8)",       "  Function calls      = ", ncalls
     print "(A,ES14.6)",   "  Integration error   = ", err
     print "(A,ES14.6,A)", "  J_overbarrier       = ", denorm(J_tn_overbarrier, "A/cm^2"), " A/cm^2"
@@ -862,8 +930,11 @@ contains
     ! Provide J_tn at Schottky contact vertices with tunneling enabled
     iprov_jtn = this%provide(jtn_current, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
 
-    ! Provide delta_phi_b at all transport vertices for output
-    iprov_delta = this%provide(delta_phi_b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    ! Provide delta_phi_b at all transport vertices for output (only for electrons to avoid duplicate)
+    ! Barrier lowering is carrier-independent, so we only need to compute it once
+    if (this%ci == CR_ELEC) then
+      iprov_delta = this%provide(delta_phi_b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    end if
 
     ! Set up dependencies and Jacobians for each E-field direction
     ! Separate Jacobians for n0B (thermionic/IFBL) and J_tn (tunneling)
@@ -1000,8 +1071,8 @@ contains
         ! Calculate barrier lowering (IFBL)
         call schottky_barrier_lowering(this%par, ict, E_field, eps_r, delta_phi_b, d_delta_phi_dE)
 
-        ! Store delta_phi_b in output variable
-        if (associated(this%delta_phi_b_var)) then
+        ! Store delta_phi_b in output variable (only electrons provide this variable)
+        if (this%ci == CR_ELEC .and. associated(this%delta_phi_b_var)) then
           call this%delta_phi_b_var%set(idx, delta_phi_b)
         end if
 
@@ -1042,7 +1113,8 @@ contains
         ! Calculate tunneling current if enabled (under-barrier transport)
         if (this%par%contacts(ict)%tunneling) then
           call tsu_esaki_current(phi_bn_eff, E_field, this%par%contacts(ict)%m_tunnel, &
-                                 phi_k, J_tn, dJ_tn_dF, dJ_tn_dpot)
+                                 phi_k, this%ci, this%par%smc%band_gap, &
+                                 J_tn, dJ_tn_dF, dJ_tn_dpot)
         else
           J_tn = 0.0
           dJ_tn_dF = 0.0
@@ -1072,6 +1144,24 @@ contains
 
         ! Debug output for tunneling current analysis
         if (this%par%contacts(ict)%tunneling .and. mod(i, 10) == 1) then
+          ! Enhanced debug for carrier-specific barriers
+          if (i == 1) then
+            print "(A,I2,A,A,A,A,A)", "Contact ", ict, " (", trim(this%par%contacts(ict)%name), &
+                                      ") ", CR_NAME(this%ci), " tunneling:"
+            print "(A,ES14.6,A)", "  phi_bn (e- barrier) = ", denorm(phi_bn_eff, "eV"), " eV"
+            if (this%ci == CR_HOLE) then
+              print "(A,ES14.6,A)", "  phi_bp (h+ barrier) = ", &
+                    denorm(this%par%smc%band_gap - phi_bn_eff, "eV"), " eV"
+              print "(A,ES14.6,A)", "  E_g (band gap)      = ", denorm(this%par%smc%band_gap, "eV"), " eV"
+            end if
+            print "(A,ES14.6,A)", "  E_field             = ", denorm(E_field, "V/cm"), " V/cm"
+            print "(A,ES14.6,A)", "  J_tn                = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
+            print "(A,ES14.6,A)", "  J_TE                = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
+            print "(A,ES14.6)",   "  J_tn/J_TE ratio     = ", abs(J_tn / (J_TE + 1e-30))
+            print "(A,A)",         "  Current sign        = ", merge("NEGATIVE (injection) ", &
+                                                                     "POSITIVE (extraction)", this%ci == CR_ELEC)
+          end if
+
           ! Run comparison test (only for first vertex of first contact)
           if (i == 1 .and. ict == 1) then
             ! Fetch actual carrier density at this vertex (same way as pot)
@@ -1081,7 +1171,8 @@ contains
               n_actual_val = 0.0
             end if
             call test_tsuesaki_vs_te_comparison(this%par%contacts(ict)%phi_b, E_field, &
-                 this%par%contacts(ict)%m_tunnel, phi_k, v_surf, n0b_base, delta_phi_b, n_actual_val)
+                 this%par%contacts(ict)%m_tunnel, phi_k, this%ci, this%par%smc%band_gap, &
+                 v_surf, n0b_base, delta_phi_b, n_actual_val)
           end if
         end if
 
@@ -1093,7 +1184,8 @@ contains
         ! Set Jacobian entries for tunneling current J_tn
         ! These are attached to iprov_jtn, so chain rule works correctly:
         ! ∂F/∂E += ∂F/∂J_tn × ∂J_tn/∂E  and  ∂F/∂phi += ∂F/∂J_tn × ∂J_tn/∂phi
-        if (this%ci == CR_ELEC .and. this%par%contacts(ict)%tunneling) then
+        ! Works for both electrons and holes
+        if (this%par%contacts(ict)%tunneling) then
           ! ∂J_tn/∂E for field coupling
           if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
             call this%jaco_efield_jtn(normal_dir)%p%set(idx, idx, dJ_tn_dF)

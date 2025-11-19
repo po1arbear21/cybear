@@ -1,4 +1,4 @@
-claudm4_include(util/macro.f90.inc)
+m4_include(util/macro.f90.inc)
 
 module semiconductor_m
 
