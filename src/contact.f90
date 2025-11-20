@@ -32,14 +32,18 @@ module contact_m
       !! metal-semiconductor workfunction difference
     real                      :: phi_b
       !! Schottky barrier height (normalized, eV physical)
-    real                      :: A_richardson
-      !! Richardson constant (normalized, A/cm²/K² physical)
+    real                      :: A_richardson_n = 112.0
+      !! Richardson constant for electrons (normalized, A/cm²/K² physical)
+    real                      :: A_richardson_p = 112.0
+      !! Richardson constant for holes (normalized, A/cm²/K² physical)
     logical                   :: ifbl = .false.
       !! Image force barrier lowering for Schottky contacts
     logical                   :: tunneling = .false.
       !! Enable Tsu-Esaki tunneling model for Schottky contacts
-    real                      :: m_tunnel = 1.0
-      !! Tunneling effective mass ratio (m*/m0)
+    real                      :: m_tunnel_n = 1.0
+      !! Tunneling effective mass ratio for electrons (m*/m0)
+    real                      :: m_tunnel_p = 1.0
+      !! Tunneling effective mass ratio for holes (m*/m0)
   contains
     procedure :: set_phims_ohmic => contact_set_phims_ohmic
     procedure :: set_phims_schottky => contact_set_phims_schottky

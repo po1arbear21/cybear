@@ -1216,14 +1216,17 @@ contains
           ! Transfer Schottky-specific parameters if applicable
           if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
             this%contacts(ict)%phi_b = this%reg_ct(ri)%phi_b
-            this%contacts(ict)%A_richardson = this%reg_ct(ri)%A_richardson
+            this%contacts(ict)%A_richardson_n = this%reg_ct(ri)%A_richardson_n
+            this%contacts(ict)%A_richardson_p = this%reg_ct(ri)%A_richardson_p
             this%contacts(ict)%ifbl = this%reg_ct(ri)%ifbl
             print "(A,L1)", "DEBUG: Contact " // name%s // " ifbl = ", this%contacts(ict)%ifbl
             ! Transfer tunneling parameters
             this%contacts(ict)%tunneling = this%reg_ct(ri)%tunneling
-            this%contacts(ict)%m_tunnel = this%reg_ct(ri)%m_tunnel
+            this%contacts(ict)%m_tunnel_n = this%reg_ct(ri)%m_tunnel_n
+            this%contacts(ict)%m_tunnel_p = this%reg_ct(ri)%m_tunnel_p
             print "(A,L1)", "DEBUG: Contact " // name%s // " tunneling = ", this%contacts(ict)%tunneling
-            print "(A,F6.3)", "DEBUG: Contact " // name%s // " m_tunnel = ", this%contacts(ict)%m_tunnel
+            print "(A,F6.3,A,F6.3)", "DEBUG: Contact " // name%s // " m_tunnel_n = ", this%contacts(ict)%m_tunnel_n, &
+                                     ", m_tunnel_p = ", this%contacts(ict)%m_tunnel_p
           end if
 
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)

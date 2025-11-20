@@ -231,18 +231,26 @@ contains
     integer,             intent(in) :: ict  ! Contact index
     real                            :: s
     logical, save :: first_call_v = .true.
+    real :: A_rich
 
     ! Check if Richardson constant is provided and > 0
-    if (par%contacts(ict)%A_richardson > 0.0) then
+
+    if (ci == CR_ELEC) then
+      A_rich = par%contacts(ict)%A_richardson_n
+    else
+      A_rich = par%contacts(ict)%A_richardson_p
+    end if
+
+    if (A_rich > 0.0) then
       ! Calculate normalized surface velocity
       ! v_surf = A*T^2/(q*Nc) where q is handled by normalization
       ! T must be normalized, Nc is already normalized
-      s = par%contacts(ict)%A_richardson * norm(par%T, "K") * norm(par%T, "K") / par%smc%edos(ci)
+      s = A_rich * norm(par%T, "K") * norm(par%T, "K") / par%smc%edos(ci)
 
       if (first_call_v) then
-        print "(A,A,A,I2,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
-                              " (", ict, ") surface velocity:"
-        print "(A,ES14.6,A)", "  A_richardson  = ", par%contacts(ict)%A_richardson, " A/cm^2/K^2"
+        print "(A,A,A,I2,A,A,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
+                              " (", ict, ") ", CR_NAME(ci), " surface velocity:"
+        print "(A,ES14.6,A)", "  A_richardson  = ", A_rich, " A/cm^2/K^2"
         print "(A,ES14.6,A)", "  Temperature    = ", par%T, " K"
         print "(A,ES14.6,A)", "  v_surf (denorm)= ", denorm(s,"cm/s"), " cm/s"
         print "(A,ES14.6,A)", "  v_surf (norm)  = ", s, " (normalized)"
@@ -341,6 +349,31 @@ contains
 
   end subroutine
 
+  pure function log1p_exp(x) result(y)
+    !! Numerically stable computation of log(1 + exp(x))
+    !!
+    !! For large positive x:  log(1 + exp(x)) ≈ x
+    !! For large negative x:  log(1 + exp(x)) ≈ exp(x)
+    !! For moderate x:        Use direct formula
+    !!
+    !! This avoids overflow when exp(x) → ∞ and maintains accuracy
+
+    real, intent(in) :: x
+    real :: y
+
+    if (x > 30.0) then
+      ! For x > 30, exp(x) >> 1, so log(1 + exp(x)) ≈ log(exp(x)) = x
+      y = x
+    else if (x < -30.0) then
+      ! For x < -30, exp(x) << 1, so log(1 + exp(x)) ≈ exp(x)
+      y = exp(x)
+    else
+      ! For moderate x, use direct computation
+      y = log(1.0 + exp(x))
+    end if
+
+  end function log1p_exp
+
   pure subroutine calc_wkb_transmission(E, phi_b, F, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
     !! Calculate WKB transmission probability through triangular Schottky barrier
     !! Implements: T_wkb = exp[-(4/3) * sqrt(2*m_tn) * (phi_b - E)^(3/2) / |F|]
@@ -391,7 +424,18 @@ contains
     delta_E = phi_b - E
     F_smooth = sqrt(F**2 + eps_smooth**2)
 
-    ! WKB coefficient with h-bar normalization
+    ! WKB coefficient for triangular barrier
+    !
+    ! Standard formula: γ = (4/3) * (√(2m*)/ℏ) * (φ - E)^(3/2) / |F|
+    !
+    ! In normalized units (kT/q for energy, device-specific for field):
+    !   coeff = (4/3) * √(2 m*/m₀)
+    !
+    ! where m_tn = m*/m₀ is the tunneling effective mass ratio.
+    !
+    ! Note: Full normalization includes additional factors from the normalization
+    ! scheme (e.g., √(m₀ kT / ℏ²) * ε₀εᵣ / q) which should be absorbed into the
+    ! electric field normalization. Verify against experimental data or TCAD tools.
     coeff = (4.0 / 3.0) * sqrt(2.0 * m_tn)
 
     ! Tunneling exponent: gamma = coeff * (phi_b - E)^(3/2) / |F|
@@ -455,7 +499,7 @@ contains
     ci      = int(p(5))
     E_g     = p(6)
 
-    ! Get WKB transmission probability and its derivatives
+
     call calc_wkb_transmission(E, phi_eff, efield, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
 
     ! Calculate occupancy difference using logarithmic form
@@ -464,34 +508,36 @@ contains
     ! Electrons (CB): phi_semi = phi_k (CB edge relative to metal EF)
     ! Holes (VB):     phi_semi = -E_g + phi_k (VB edge relative to metal EF)
     !
-    ! N(E) = log(1 + exp(-E)) - log(1 + exp(-E - phi_semi))
+    ! N(E) for electrons: log(1 + exp(-E)) - log(1 + exp(-E - phi_semi))
+    ! N(E) for holes:     log(1 + exp(E)) - log(1 + exp(E + phi_semi))
 
     if (ci == CR_ELEC) then
-      phi_semi = phi_k                 ! Electrons: CB at phi_k
+      ! ELECTRONS
+      ! Electron occupancy difference
+      N_E = log1p_exp(-E) - log1p_exp(-E - phi_k)
+
+      ! Fermi functions for electrons
+      f_s = 1.0 / (1.0 + exp(E))              ! f(E) in metal
+      f_m = 1.0 / (1.0 + exp(E + phi_k))   ! f(E) in semiconductor
+
+      ! Derivatives for electrons
+      dN_dE = f_m - f_s
+      dN_dphi = f_m
+
     else  ! CR_HOLE
-      phi_semi = -E_g + phi_k          ! Holes: VB at -E_g + phi_k
+      ! HOLES
+
+      ! Hole occupancy difference
+      N_E = log1p_exp(E) - log1p_exp(E + phi_k)
+
+      ! Fermi functions for holes (note different signs)
+      f_s = 1.0 / (1.0 + exp(-E))             ! 1-f(E) in metal = hole occupancy
+      f_m = 1.0 / (1.0 + exp(-E - phi_k))  ! 1-f(E) in semiconductor = hole occupancy
+      ! Derivatives for holes
+      dN_dE = f_s - f_m     ! Opposite sign from electrons
+      dN_dphi = -f_m        ! Opposite sign from electrons
+
     end if
-
-    ! Occupancy difference (logarithmic form - same for both carriers)
-    N_E = log(1.0 + exp(-E)) - log(1.0 + exp(-E - phi_semi))
-
-    ! For derivatives, we need Fermi functions:
-    ! f(x) = 1/(1 + exp(x)) = exp(-x)/(1 + exp(-x))
-    f_s = 1.0 / (1.0 + exp(E))
-    f_m = 1.0 / (1.0 + exp(E + phi_semi))
-
-    ! Derivative of N wrt energy:
-    ! dN/dE = d/dE[log(1+exp(-E))] - d/dE[log(1+exp(-E-phi_semi))]
-    !       = -exp(-E)/(1+exp(-E)) + exp(-E-phi_semi)/(1+exp(-E-phi_semi))
-    !       = -f_s + f_m = f_m - f_s
-    dN_dE = f_m - f_s
-
-    ! Derivative of N wrt contact potential:
-    ! dN/d(phi_k) = 0 - d/d(phi_k)[log(1+exp(-E-phi_semi))]
-    !             = -(-exp(-E-phi_semi)/(1+exp(-E-phi_semi)))
-    !             = f_m
-    ! Note: Same form for both carriers (derivative chain works through phi_semi)
-    dN_dphi = f_m
 
     ! Integrand: f = T_wkb * N(E)
     f = T_wkb * N_E
@@ -595,19 +641,20 @@ contains
     p(5) = real(ci)
     p(6) = E_g
 
-    ! Perform integration from 0 to phi_eff (under-barrier only)
+    ! Perform integration (under-barrier only)
     ! Using adaptive quadrature with relative tolerance 1e-6
-    call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
-              rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
+    !
+      call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
+                rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
 
     ! Apply normalization prefactor with carrier-dependent sign
     ! Electrons: negative (injection)
     ! Holes: positive (extraction)
     if (ci == CR_ELEC) then
-      prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electron injection
+      prefactor = m_tn / (2.0 * PI**2)  ! Negative for electron injection
     else  ! CR_HOLE
-      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for hole extraction
-      end if
+      prefactor = -m_tn / (2.0 * PI**2)  ! Positive for hole extraction
+    end if
 
     ! Calculate tunneling current and field derivative
     J_tn = prefactor * I
@@ -681,7 +728,7 @@ contains
       n0B_IFBL = n0b_base * exp(-delta_phi_b)
     end if
 
-    ! Print input parameters
+    ! Print input parameters with carrier-aware labeling
     print "(A)", "Input Parameters:"
     print "(A,ES14.6,A)", "  phi_bn (e- barrier) = ", denorm(phi_bn_eff, "eV"), " eV"
     if (ci == CR_HOLE) then
@@ -692,20 +739,33 @@ contains
     print "(A,ES14.6)",   "  m_tn                = ", m_tn
     print "(A,ES14.6,A)", "  phi_k (potential)   = ", denorm(phi_k, "V"), " V"
     print "(A,ES14.6,A)", "  v_surf              = ", denorm(v_surf, "cm/s"), " cm/s"
-    print "(A,ES14.6,A)", "  n (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
-    print "(A,ES14.6,A)", "  n0B_base            = ", denorm(n0b_base, "cm^-3"), " cm^-3"
-    print "(A,ES14.6,A)", "  n0B_IFBL            = ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
+    if (ci == CR_ELEC) then
+      print "(A,ES14.6,A)", "  n (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
+      print "(A,ES14.6,A)", "  n0B_base            = ", denorm(n0b_base, "cm^-3"), " cm^-3"
+      print "(A,ES14.6,A)", "  n0B_IFBL            = ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
+    else
+      print "(A,ES14.6,A)", "  p (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
+      print "(A,ES14.6,A)", "  p0B_base            = ", denorm(n0b_base, "cm^-3"), " cm^-3"
+      print "(A,ES14.6,A)", "  p0B_IFBL            = ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
+    end if
     print "(A,ES14.6,A)", "  delta_phi_b (IFBL)  = ", denorm(delta_phi_b, "eV"), " eV"
     print *
 
     ! Method 1: Robin BC thermionic current (using actual device carrier density)
-    ! J_TE_net = v_surf × (n - n0B_IFBL)
-    ! This is the NET current at the boundary condition
+    ! Electrons: J_TE_net = v_surf × (n - n0B_IFBL)
+    ! Holes:     J_TE_net = v_surf × (p - p0B_IFBL)
     J_TE_net = v_surf * (n_actual - n0B_IFBL)
 
     print "(A)", "METHOD 1: Robin BC Thermionic Current"
-    print "(A)", "  J_TE_net = v_surf × (n_actual - n0B_IFBL)"
-    print "(A,ES14.6,A)", "  J_TE_net = ", denorm(J_TE_net, "A/cm^2"), " A/cm^2"
+    if (ci == CR_ELEC) then
+      print "(A)", "  J_TE_net = v_surf × (n - n0B_IFBL)"
+    else
+      print "(A)", "  J_TE_net = v_surf × (p - p0B_IFBL)"
+    end if
+    print "(A,ES14.6,A,ES14.6)", "    v_surf              = ", v_surf, " (norm), ", denorm(v_surf, "cm/s"), " cm/s"
+    print "(A,ES14.6,A,ES14.6)", "    carrier_actual      = ", n_actual, " (norm), ", denorm(n_actual, "cm^-3"), " cm^-3"
+    print "(A,ES14.6,A,ES14.6)", "    carrier_0B_IFBL     = ", n0B_IFBL, " (norm), ", denorm(n0B_IFBL, "cm^-3"), " cm^-3"
+    print "(A,ES14.6,A,ES14.6)", "    J_TE_net            = ", J_TE_net, " (norm), ", denorm(J_TE_net, "A/cm^2"), " A/cm^2"
     print *
 
     ! Method 2: Tsu-Esaki integral from phi_eff → ∞ (over-barrier regime)
@@ -732,17 +792,22 @@ contains
     if (ci == CR_ELEC) then
       prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electrons
     else
-      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for holes
+      prefactor = -m_tn / (2.0 * PI**2)  ! Positive for holes
     end if
     J_tn_overbarrier = prefactor * I_overbarrier
 
     print "(A)", "METHOD 2: Tsu-Esaki Integral (Over-Barrier)"
-    print "(A)", "  J = ±(m*/(2π²)) * ∫_{phi_eff}^∞ T_wkb(E) * N(E) dE"
+    print "(A)", "  J = prefactor × ∫_{phi_eff}^∞ T_wkb(E) * N(E) dE"
     print "(A)", "  For E > phi_eff: T_wkb ≈ 1.0 (perfect transmission)"
     print "(A,ES14.6,A,ES14.6,A)", "  Integration limits  = ", denorm(phi_eff, "eV"), " to ", denorm(upper_limit, "eV"), " eV"
     print "(A,I8)",       "  Function calls      = ", ncalls
     print "(A,ES14.6)",   "  Integration error   = ", err
-    print "(A,ES14.6,A)", "  J_overbarrier       = ", denorm(J_tn_overbarrier, "A/cm^2"), " A/cm^2"
+    print *
+    print "(A)", "  Integration breakdown:"
+    print "(A,ES14.6)",   "    Prefactor (m*/(2π²)) = ", prefactor
+    print "(A,ES14.6)",   "    Prefactor (denorm)    = ", denorm(prefactor, "C*s/kg^-1/m^4"), " C·s/kg·m⁴"
+    print "(A,ES14.6)",   "    Supply function I    = ", I_overbarrier
+    print "(A,ES14.6,A)", "    J = prefactor × I    = ", denorm(J_tn_overbarrier, "A/cm^2"), " A/cm^2"
     print *
 
     ! Compare the two methods
@@ -993,6 +1058,8 @@ contains
     real :: n0B_IFBL, dn0B_eff_dE, dn0B_eff_dpot
     real :: n_actual_val
     real, allocatable :: tmp_n0b(:), tmp_jtn(:)
+    real :: m_tun , m_tun_debug, m_tun_test
+
 
     ! Check if properly initialized
     if (.not. allocated(this%contact_normal)) return
@@ -1112,7 +1179,13 @@ contains
 
         ! Calculate tunneling current if enabled (under-barrier transport)
         if (this%par%contacts(ict)%tunneling) then
-          call tsu_esaki_current(phi_bn_eff, E_field, this%par%contacts(ict)%m_tunnel, &
+
+          if (this%ci == CR_ELEC) then
+            m_tun = this%par%contacts(ict)%m_tunnel_n
+          else
+            m_tun = this%par%contacts(ict)%m_tunnel_p
+          end if
+          call tsu_esaki_current(phi_bn_eff, E_field, m_tun, &
                                  phi_k, this%ci, this%par%smc%band_gap, &
                                  J_tn, dJ_tn_dF, dJ_tn_dpot)
         else
@@ -1146,8 +1219,15 @@ contains
         if (this%par%contacts(ict)%tunneling .and. mod(i, 10) == 1) then
           ! Enhanced debug for carrier-specific barriers
           if (i == 1) then
+
+            if (this%ci == CR_ELEC) then
+              m_tun_debug = this%par%contacts(ict)%m_tunnel_n
+            else
+              m_tun_debug = this%par%contacts(ict)%m_tunnel_p
+            end if
             print "(A,I2,A,A,A,A,A)", "Contact ", ict, " (", trim(this%par%contacts(ict)%name), &
                                       ") ", CR_NAME(this%ci), " tunneling:"
+            print "(A,F6.3,A)", "  m_tunnel = ", m_tun_debug, " m0 (carrier-specific)"
             print "(A,ES14.6,A)", "  phi_bn (e- barrier) = ", denorm(phi_bn_eff, "eV"), " eV"
             if (this%ci == CR_HOLE) then
               print "(A,ES14.6,A)", "  phi_bp (h+ barrier) = ", &
@@ -1170,8 +1250,13 @@ contains
             else
               n_actual_val = 0.0
             end if
+            if (this%ci == CR_ELEC) then
+              m_tun_test = this%par%contacts(ict)%m_tunnel_n
+            else
+              m_tun_test = this%par%contacts(ict)%m_tunnel_p
+            end if
             call test_tsuesaki_vs_te_comparison(this%par%contacts(ict)%phi_b, E_field, &
-                 this%par%contacts(ict)%m_tunnel, phi_k, this%ci, this%par%smc%band_gap, &
+                 m_tun_test, phi_k, this%ci, this%par%smc%band_gap, &
                  v_surf, n0b_base, delta_phi_b, n_actual_val)
           end if
         end if

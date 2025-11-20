@@ -49,14 +49,18 @@ module region_m
       !! metal-semiconductor workfunction difference (one value per contact)
     real         :: phi_b
       !! Schottky barrier height (eV)
-    real         :: A_richardson
-      !! Richardson constant (A/cm²/K²)
+    real         :: A_richardson_n
+      !! Richardson constant for electrons (A/cm²/K²)
+    real         :: A_richardson_p
+      !! Richardson constant for holes (A/cm²/K²)
     logical      :: ifbl
       !! Image force barrier lowering flag
     logical      :: tunneling
       !! Enable Tsu-Esaki tunneling model
-    real         :: m_tunnel
-      !! Tunneling effective mass ratio (m*/m0)
+    real         :: m_tunnel_n
+      !! Tunneling effective mass ratio for electrons (m*/m0)
+    real         :: m_tunnel_p
+      !! Tunneling effective mass ratio for holes (m*/m0)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -163,18 +167,22 @@ contains
         ! Note: file%get automatically normalizes when unit is specified in config file
         call file%get(sid, "phi_b", this%phi_b, status = st)
         if (.not. st) this%phi_b = norm(0.7, "eV")  ! Default 0.7 eV (normalize default only)
-        call file%get(sid, "A_richardson", this%A_richardson, status = st)
-        if (.not. st) this%A_richardson = norm(112.0, "A/cm^2/K^2")  ! Default for Si (normalize default only)
+        call file%get(sid, "A_richardson_n", this%A_richardson_n, status = st)
+        if (.not. st) this%A_richardson_n = norm(112.0, "A/cm^2/K^2")  ! Default for Si
+        call file%get(sid, "A_richardson_p", this%A_richardson_p, status = st)
+        if (.not. st) this%A_richardson_p = norm(112.0, "A/cm^2/K^2")  ! Default for Si
         call file%get(sid, "ifbl", this%ifbl, status = st)
         if (.not. st) this%ifbl = .false.  ! Default disabled
         print "(A,L1)", "DEBUG: Region ifbl parsed as = ", this%ifbl
         ! Parse tunneling parameters
         call file%get(sid, "tunneling", this%tunneling, status = st)
         if (.not. st) this%tunneling = .false.  ! Default disabled
-        call file%get(sid, "m_tunnel", this%m_tunnel, status = st)
-        if (.not. st) this%m_tunnel = 1.0  ! Default to m0
+        call file%get(sid, "m_tunnel_n", this%m_tunnel_n, status = st)
+        if (.not. st) this%m_tunnel_n = 1.0  ! Default to m0
+        call file%get(sid, "m_tunnel_p", this%m_tunnel_p, status = st)
+        if (.not. st) this%m_tunnel_p = 1.0  ! Default to m0
         print "(A,L1)", "DEBUG: Region tunneling parsed as = ", this%tunneling
-        print "(A,F6.3)", "DEBUG: Region m_tunnel parsed as = ", this%m_tunnel
+        print "(A,F6.3,A,F6.3)", "DEBUG: Region m_tunnel_n = ", this%m_tunnel_n, ", m_tunnel_p = ", this%m_tunnel_p
       else
         call program_error("unknown contact type "//type%s)
       end if
