@@ -60,6 +60,10 @@ module device_m
       !! terminal voltages
     type(current),         allocatable :: curr(:)
       !! terminal currents
+    type(current),         allocatable :: curr_TE(:)
+      !! terminal currents from thermionic emission only
+    type(current),         allocatable :: curr_TN(:)
+      !! terminal currents from tunneling only
 
     type(ramo_shockley) :: ramo
       !! Ramo-Shockley data object
@@ -152,9 +156,13 @@ contains
     call this%rho%init(this%par)
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
+    allocate (this%curr_TE(this%par%nct))
+    allocate (this%curr_TN(this%par%nct))
     do ict = 1, this%par%nct
       call this%volt(ict)%init("V_"//this%par%contacts(ict)%name)
       call this%curr(ict)%init("I_"//this%par%contacts(ict)%name)
+      call this%curr_TE(ict)%init("I_TE_"//this%par%contacts(ict)%name)
+      call this%curr_TN(ict)%init("I_TN_"//this%par%contacts(ict)%name)
     end do
 
     ! init equations
@@ -164,7 +172,8 @@ contains
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     ! Ramo-Shockley automatically captures tunneling via bulk currents (no explicit J_tn needed)
-    call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+    call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr, &
+                            this%curr_TE, this%curr_TN, this%dens, this%n0b, this%jtn_current)
     do ci = this%par%ci0, this%par%ci1
       ! Pass n0b if any Schottky contact has IFBL or tunneling enabled
       ! Tunneling is added as explicit boundary source, not folded into n0B
@@ -285,6 +294,8 @@ contains
     call this%sys_full_stat%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
+      call this%sys_full_stat%provide(this%curr_TE(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_TN(ict), input = .false.)
     end do
     ! Provide n0b variables for Schottky boundary conditions
     do ci = this%par%ci0, this%par%ci1
@@ -328,6 +339,8 @@ contains
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
+      call this%sys_full%provide(this%curr_TE(ict), input = .false.)
+      call this%sys_full%provide(this%curr_TN(ict), input = .false.)
     end do
     ! Provide n0b variables for Schottky boundary conditions
     do ci = this%par%ci0, this%par%ci1

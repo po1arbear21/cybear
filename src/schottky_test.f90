@@ -162,7 +162,9 @@ contains
       print "(A,I0)", "DEBUG: Using solver = ", ss%solver
       ! Use SCHOTTKY and OHMIC contact variables instead of GAT and DRN
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"),  &
-              & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), new_string("I_OHMIC"), &
+              & new_string("V_SCHOTTKY"), new_string("I_SCHOTTKY"), &
+              & new_string("I_TE_SCHOTTKY"), new_string("I_TN_SCHOTTKY"), &
+              & new_string("I_OHMIC"), &
         & new_string("delta_phi_b"), new_string("nn0b")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do

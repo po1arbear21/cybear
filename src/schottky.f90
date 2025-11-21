@@ -101,8 +101,6 @@ module schottky_m
       !! jacobian for n0B E-field dependencies: ∂n0B/∂E (IFBL only, one per direction)
     type(jacobian_ptr), allocatable :: jaco_efield_jtn(:)
       !! jacobian for J_tn E-field dependencies: ∂J_tn/∂E (tunneling, one per direction)
-    type(jacobian_ptr) :: jaco_pot_jtn
-      !! jacobian for J_tn potential coupling: ∂J_tn/∂phi_k (tunneling)
 
     type(barrier_lowering), pointer :: delta_phi_b_var => null()
       !! barrier lowering variable (for output)
@@ -191,8 +189,8 @@ contains
     real,                intent(out) :: ninj    ! Equilibrium density n0 (normalized)
 
     real :: phi_Bn, phi_Bp
-    logical, save :: first_call = .true.
-    integer, save :: call_count = 0
+    logical, save :: first_call(2) = [.true., .true.]  ! Separate for electrons and holes
+    integer, save :: call_count(2) = [0, 0]            ! Separate counters
 
     ! Get normalized barrier height (already converted in device_params)
     phi_Bn = par%contacts(ict)%phi_b
@@ -202,8 +200,8 @@ contains
       ninj = par%smc%edos(CR_ELEC) * exp(-phi_Bn)
 
       ! Debug output - only print first few calls and then periodically
-      call_count = call_count + 1
-      if (first_call .or. mod(call_count, 100) == 0) then
+      call_count(ci) = call_count(ci) + 1
+      if (first_call(ci) .or. mod(call_count(ci), 100) == 0) then
         print "(A,A,A,I2,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
                               " (", ict, ") n0B calculation:"
         print "(A,ES14.6,A)", "  phi_b (denorm) = ", denorm(phi_Bn, "eV"), " eV"
@@ -213,12 +211,28 @@ contains
         print "(A,ES14.6)",   "  exp(-phi_Bn)   = ", exp(-phi_Bn)
         print "(A,ES14.6,A)", "  n0B (denorm)   = ", denorm(ninj, "cm^-3"), " cm^-3"
         print "(A,ES14.6,A)", "  n0B (norm)     = ", ninj, " (normalized)"
-        first_call = .false.
+        first_call(ci) = .false.
       end if
     else  ! CR_HOLE
       ! Holes: barrier from valence band
       phi_Bp = par%smc%band_gap - phi_Bn
       ninj = par%smc%edos(CR_HOLE) * exp(-phi_Bp)
+
+      ! Debug output for holes
+      call_count(ci) = call_count(ci) + 1
+      if (first_call(ci) .or. mod(call_count(ci), 100) == 0) then
+        print "(A,A,A,I2,A)", "DEBUG_SCHOTTKY: Contact ", trim(par%contacts(ict)%name), &
+                              " (", ict, ") p0B calculation:"
+        print "(A,ES14.6,A)", "  phi_bn (e- barrier, denorm) = ", denorm(phi_Bn, "eV"), " eV"
+        print "(A,ES14.6,A)", "  phi_bp (h+ barrier, denorm) = ", denorm(phi_Bp, "eV"), " eV"
+        print "(A,ES14.6,A)", "  E_g (band gap, denorm)      = ", denorm(par%smc%band_gap, "eV"), " eV"
+        print "(A,ES14.6,A)", "  Nv (denorm)    = ", denorm(par%smc%edos(CR_HOLE), "cm^-3"), " cm^-3"
+        print "(A,ES14.6,A)", "  Nv (norm)      = ", par%smc%edos(CR_HOLE), " (normalized)"
+        print "(A,ES14.6)",   "  exp(-phi_Bp)   = ", exp(-phi_Bp)
+        print "(A,ES14.6,A)", "  p0B (denorm)   = ", denorm(ninj, "cm^-3"), " cm^-3"
+        print "(A,ES14.6,A)", "  p0B (norm)     = ", ninj, " (normalized)"
+        first_call(ci) = .false.
+      end if
     end if
   end subroutine
 
@@ -465,79 +479,62 @@ contains
   subroutine tsu_esaki_integrand(E, p, f, dfdE, dfdp)
     !! Integrand for Tsu-Esaki tunneling current integration
     !! Implements: f(E) = T_wkb(E) * N(E)
-    !! where N(E) = ln[(1+exp((E_F-E)/kT)) / (1+exp((E_F-E-qV)/kT))]
+    !! where N(E) = f_semi(E) - f_metal(E) with E measured from metal Fermi level
     !!
     !! This function matches the interface required by quad_m
     !! All outputs are REQUIRED (cannot be omitted)
     !!
     !! Parameter array structure:
-    !!   p(1) = phi_eff: Effective barrier height (phi_bn for e-, E_g-phi_bn for h+)
-    !!   p(2) = efield : Electric field magnitude
-    !!   p(3) = m_tn   : Tunneling effective mass ratio
-    !!   p(4) = phi_k  : Electrostatic potential at contact interface (from Poisson)
-    !!   p(5) = ci     : Carrier index (1=electron, 2=hole)
-    !!   p(6) = E_g    : Band gap (normalized)
+    !!   p(1) = phi_eff    : Effective barrier height (phi_bn for e-, E_g-phi_bn for h+)
+    !!   p(2) = efield     : Electric field magnitude
+    !!   p(3) = m_tn       : Tunneling effective mass ratio
+    !!   p(4) = eta_semi_m : Semiconductor quasi-Fermi relative to metal Fermi (constant)
+    !!   p(5) = ci         : Carrier index (1=electron, 2=hole)
+    !!   p(6) = E_g        : Band gap (normalized)
 
-    real, intent(in)  :: E       !! Energy (integration variable, normalized)
-    real, intent(in)  :: p(:)    !! Parameter array [phi_eff, efield, m_tn, phi_k, ci, E_g]
+    real, intent(in)  :: E       !! Energy (integration variable, normalized, from metal Fermi)
+    real, intent(in)  :: p(:)    !! Parameter array [phi_eff, efield, m_tn, eta_semi_m, ci, E_g]
     real, intent(out) :: f       !! Integrand value
     real, intent(out) :: dfdE    !! Derivative wrt energy
     real, intent(out) :: dfdp(:) !! Derivatives wrt parameters
 
-    real :: phi_eff, efield, m_tn, phi_k, E_g
+    real :: phi_eff, efield, m_tn, eta_semi_m, E_g
     integer :: ci
     real :: T_wkb, dT_dE, dT_dphi, dT_dF
-    real :: N_E, dN_dE, dN_dphi  ! Occupancy difference (logarithmic form) and derivatives
-    real :: f_s, f_m             ! Fermi-Dirac functions (for derivative calculation)
-    real :: phi_semi             ! Semiconductor potential for occupancy
+    real :: N_E, dN_dE  ! Occupancy difference and derivative
+    real :: f_metal, f_semi  ! Fermi-Dirac functions
 
     ! Extract parameters from array
-    phi_eff = p(1)
-    efield  = p(2)
-    m_tn    = p(3)
-    phi_k   = p(4)
-    ci      = int(p(5))
-    E_g     = p(6)
+    phi_eff    = p(1)
+    efield     = p(2)
+    m_tn       = p(3)
+    eta_semi_m = p(4)
+    ci         = int(p(5))
+    E_g        = p(6)
 
 
     call calc_wkb_transmission(E, phi_eff, efield, m_tn, T_wkb, dT_dE, dT_dphi, dT_dF)
 
-    ! Calculate occupancy difference using logarithmic form
-    ! Energy reference: Metal Fermi level (E_F = 0)
+    ! Calculate occupancy difference with E measured from metal Fermi level
+    ! Energy reference: Metal Fermi level at E = 0
     !
-    ! Electrons (CB): phi_semi = phi_k (CB edge relative to metal EF)
-    ! Holes (VB):     phi_semi = -E_g + phi_k (VB edge relative to metal EF)
+    ! Metal Fermi function: f_metal(E) = 1/(1 + exp(E))
+    ! Semiconductor Fermi function: f_semi(E) = 1/(1 + exp(E - eta_semi_m))
+    !   where eta_semi_m = eta_n + phi_eff (semiconductor quasi-Fermi relative to metal)
     !
-    ! N(E) for electrons: log(1 + exp(-E)) - log(1 + exp(-E - phi_semi))
-    ! N(E) for holes:     log(1 + exp(E)) - log(1 + exp(E + phi_semi))
+    ! Occupancy difference (same for both electrons and holes):
+    ! N(E) = f_semi(E) - f_metal(E)
+    !      = log(1 + exp(eta_semi_m - E)) - log(1 + exp(-E))
 
-    if (ci == CR_ELEC) then
-      ! ELECTRONS
-      ! Electron occupancy difference
-      N_E = log1p_exp(-E) - log1p_exp(-E - phi_k)
+    ! Fermi functions
+    f_metal = 1.0 / (1.0 + exp(E))                    ! Metal at E=0 reference
+    f_semi  = 1.0 / (1.0 + exp(E - eta_semi_m))       ! Semiconductor
 
-      ! Fermi functions for electrons
-      f_s = 1.0 / (1.0 + exp(E))              ! f(E) in metal
-      f_m = 1.0 / (1.0 + exp(E + phi_k))   ! f(E) in semiconductor
+    ! Occupancy difference (logarithmic form for numerical stability)
+    N_E = log1p_exp(eta_semi_m - E) - log1p_exp(-E)
 
-      ! Derivatives for electrons
-      dN_dE = f_m - f_s
-      dN_dphi = f_m
-
-    else  ! CR_HOLE
-      ! HOLES
-
-      ! Hole occupancy difference
-      N_E = log1p_exp(E) - log1p_exp(E + phi_k)
-
-      ! Fermi functions for holes (note different signs)
-      f_s = 1.0 / (1.0 + exp(-E))             ! 1-f(E) in metal = hole occupancy
-      f_m = 1.0 / (1.0 + exp(-E - phi_k))  ! 1-f(E) in semiconductor = hole occupancy
-      ! Derivatives for holes
-      dN_dE = f_s - f_m     ! Opposite sign from electrons
-      dN_dphi = -f_m        ! Opposite sign from electrons
-
-    end if
+    ! Derivative wrt energy
+    dN_dE = f_semi - f_metal
 
     ! Integrand: f = T_wkb * N(E)
     f = T_wkb * N_E
@@ -556,8 +553,8 @@ contains
     ! df/d(m_tn): Set to zero (WKB doesn't return dT/dm)
     dfdp(3) = 0.0
 
-    ! df/d(phi_k) = T_wkb * dN/d(phi_k)
-    dfdp(4) = T_wkb * dN_dphi
+    ! df/d(eta_semi_m): Set to zero (constant, not a solution variable)
+    dfdp(4) = 0.0
 
     ! df/d(ci): Set to zero (carrier index is discrete)
     dfdp(5) = 0.0
@@ -567,7 +564,7 @@ contains
 
   end subroutine
 
-  subroutine tsu_esaki_current(phi_b, efield, m_tn, phi_k, ci, E_g, J_tn, dJ_tn_dF, dJ_tn_dpot)
+  subroutine tsu_esaki_current(phi_b, efield, m_tn, eta_semi_m, ci, E_g, J_tn, dJ_tn_dF)
     !! Calculate Tsu-Esaki tunneling current density through Schottky barrier
     !! Implements: J_tn = ±(m*/(2π²)) ∫₀^φ_eff T_wkb(E) N(E) dE
     !!
@@ -584,15 +581,14 @@ contains
     !!
     !! All inputs/outputs in normalized units (kT/q normalization)
 
-    real, intent(in)  :: phi_b     !! Schottky barrier height for electrons (with IFBL if applied)
-    real, intent(in)  :: efield    !! Electric field magnitude (normalized)
-    real, intent(in)  :: m_tn      !! Tunneling effective mass ratio (m*/m0)
-    real, intent(in)  :: phi_k     !! Electrostatic potential at contact (from Poisson)
-    integer, intent(in) :: ci      !! Carrier index (CR_ELEC or CR_HOLE)
-    real, intent(in)  :: E_g       !! Band gap (normalized)
-    real, intent(out) :: J_tn      !! Tunneling current density (normalized)
-    real, intent(out) :: dJ_tn_dF  !! Derivative dJ_tn/dF for Jacobian
-    real, intent(out), optional :: dJ_tn_dpot  !! Derivative dJ_tn/d(phi_k) for potential coupling
+    real, intent(in)  :: phi_b      !! Schottky barrier height for electrons (with IFBL if applied)
+    real, intent(in)  :: efield     !! Electric field magnitude (normalized)
+    real, intent(in)  :: m_tn       !! Tunneling effective mass ratio (m*/m0)
+    real, intent(in)  :: eta_semi_m !! Semiconductor quasi-Fermi relative to metal Fermi (constant)
+    integer, intent(in) :: ci       !! Carrier index (CR_ELEC or CR_HOLE)
+    real, intent(in)  :: E_g        !! Band gap (normalized)
+    real, intent(out) :: J_tn       !! Tunneling current density (normalized)
+    real, intent(out) :: dJ_tn_dF   !! Derivative dJ_tn/dF for Jacobian
 
     real :: p(6)                   ! Parameter array for integrand
     real :: I                      ! Integration result
@@ -615,7 +611,6 @@ contains
       ! No barrier - no tunneling calculation needed
       J_tn = 0.0
       dJ_tn_dF = 0.0
-      if (present(dJ_tn_dpot)) dJ_tn_dpot = 0.0
       return
     end if
 
@@ -623,28 +618,27 @@ contains
       ! Zero field - no tunneling possible
       J_tn = 0.0
       dJ_tn_dF = 0.0
-      if (present(dJ_tn_dpot)) dJ_tn_dpot = 0.0
       return
     end if
 
     ! Set up parameter array for integrand
-    ! p(1) = phi_eff : effective barrier (carrier-dependent)
-    ! p(2) = efield  : electric field
-    ! p(3) = m_tn    : tunneling mass
-    ! p(4) = phi_k   : contact potential
-    ! p(5) = ci      : carrier index
-    ! p(6) = E_g     : band gap
+    ! p(1) = phi_eff    : effective barrier (carrier-dependent)
+    ! p(2) = efield     : electric field
+    ! p(3) = m_tn       : tunneling mass
+    ! p(4) = eta_semi_m : semiconductor quasi-Fermi relative to metal Fermi
+    ! p(5) = ci         : carrier index
+    ! p(6) = E_g        : band gap
     p(1) = phi_eff
     p(2) = efield
     p(3) = m_tn
-    p(4) = phi_k
+    p(4) = eta_semi_m
     p(5) = real(ci)
     p(6) = E_g
 
     ! Perform integration (under-barrier only)
     ! Using adaptive quadrature with relative tolerance 1e-6
-    !
-      call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
+
+    call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
                 rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
 
     ! Apply normalization prefactor with carrier-dependent sign
@@ -653,21 +647,16 @@ contains
     if (ci == CR_ELEC) then
       prefactor = m_tn / (2.0 * PI**2)  ! Negative for electron injection
     else  ! CR_HOLE
-      prefactor = -m_tn / (2.0 * PI**2)  ! Positive for hole extraction
+      prefactor = m_tn / (2.0 * PI**2)  ! Positive for hole extraction
     end if
 
     ! Calculate tunneling current and field derivative
     J_tn = prefactor * I
     dJ_tn_dF = prefactor * dIdp(2)  ! dI/d(efield)
 
-    ! Calculate potential derivative if requested
-    if (present(dJ_tn_dpot)) then
-      dJ_tn_dpot = prefactor * dIdp(4)  ! dI/d(phi_k)
-    end if
-
   end subroutine
 
-  subroutine test_tsuesaki_vs_te_comparison(phi_b, efield, m_tn, phi_k, ci, E_g, v_surf, n0b_base, delta_phi_b, n_actual)
+  subroutine test_tsuesaki_vs_te_comparison(phi_b, efield, m_tn, eta_semi_m, ci, E_g, v_surf, n0b_base, delta_phi_b, n_actual)
     !! DEVICE VALIDATION: Tsu-Esaki Integral vs Robin BC Thermionic Current
     !!
     !! Test if Tsu-Esaki integral from phi_b → ∞ equals Robin BC thermionic current
@@ -685,7 +674,7 @@ contains
     real, intent(in) :: phi_b         !! Schottky barrier height for electrons (normalized)
     real, intent(in) :: efield        !! Electric field magnitude (normalized)
     real, intent(in) :: m_tn          !! Tunneling effective mass ratio
-    real, intent(in) :: phi_k         !! Contact potential (normalized)
+    real, intent(in) :: eta_semi_m    !! Semiconductor quasi-Fermi relative to metal Fermi (normalized)
     integer, intent(in) :: ci         !! Carrier index (CR_ELEC or CR_HOLE)
     real, intent(in) :: E_g           !! Band gap (normalized)
     real, intent(in) :: v_surf        !! Surface velocity (normalized)
@@ -737,7 +726,7 @@ contains
     end if
     print "(A,ES14.6,A)", "  E_field             = ", denorm(efield, "V/cm"), " V/cm"
     print "(A,ES14.6)",   "  m_tn                = ", m_tn
-    print "(A,ES14.6,A)", "  phi_k (potential)   = ", denorm(phi_k, "V"), " V"
+    print "(A,ES14.6)",   "  eta_semi_m          = ", eta_semi_m
     print "(A,ES14.6,A)", "  v_surf              = ", denorm(v_surf, "cm/s"), " cm/s"
     if (ci == CR_ELEC) then
       print "(A,ES14.6,A)", "  n (actual)          = ", denorm(n_actual, "cm^-3"), " cm^-3"
@@ -752,15 +741,19 @@ contains
     print *
 
     ! Method 1: Robin BC thermionic current (using actual device carrier density)
-    ! Electrons: J_TE_net = v_surf × (n - n0B_IFBL)
-    ! Holes:     J_TE_net = v_surf × (p - p0B_IFBL)
-    J_TE_net = v_surf * (n_actual - n0B_IFBL)
+    ! Electrons: J_TE_net = +v_surf × (n - n0B_IFBL)  (positive prefactor)
+    ! Holes:     J_TE_net = -v_surf × (p - p0B_IFBL)  (negative prefactor to match occupancy sign)
+    if (ci == CR_ELEC) then
+      J_TE_net = v_surf * (n_actual - n0B_IFBL)      ! Positive
+    else  ! CR_HOLE
+      J_TE_net = -v_surf * (n_actual - n0B_IFBL)     ! Negative (flip sign for holes)
+    end if
 
     print "(A)", "METHOD 1: Robin BC Thermionic Current"
     if (ci == CR_ELEC) then
-      print "(A)", "  J_TE_net = v_surf × (n - n0B_IFBL)"
+      print "(A)", "  J_TE_net = +v_surf × (n - n0B_IFBL)"
     else
-      print "(A)", "  J_TE_net = v_surf × (p - p0B_IFBL)"
+      print "(A)", "  J_TE_net = -v_surf × (p - p0B_IFBL)  [negative to match N(E) sign]"
     end if
     print "(A,ES14.6,A,ES14.6)", "    v_surf              = ", v_surf, " (norm), ", denorm(v_surf, "cm/s"), " cm/s"
     print "(A,ES14.6,A,ES14.6)", "    carrier_actual      = ", n_actual, " (norm), ", denorm(n_actual, "cm^-3"), " cm^-3"
@@ -776,12 +769,12 @@ contains
     upper_limit = max(phi_eff + 20.0, 20.0)
 
     ! Set up parameter array (now 6 elements for new integrand)
-    p(1) = phi_eff     ! effective barrier (carrier-dependent)
-    p(2) = efield      ! electric field
-    p(3) = m_tn        ! tunneling mass
-    p(4) = phi_k       ! contact potential
-    p(5) = real(ci)    ! carrier index
-    p(6) = E_g         ! band gap
+    p(1) = phi_eff      ! effective barrier (carrier-dependent)
+    p(2) = efield       ! electric field
+    p(3) = m_tn         ! tunneling mass
+    p(4) = eta_semi_m   ! semiconductor quasi-Fermi relative to metal Fermi
+    p(5) = real(ci)     ! carrier index
+    p(6) = E_g          ! band gap
 
     ! Perform integration from phi_eff to upper_limit (over-barrier regime)
     ! In this regime, T_wkb(E) → 1.0 for E > phi_eff
@@ -792,7 +785,7 @@ contains
     if (ci == CR_ELEC) then
       prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electrons
     else
-      prefactor = -m_tn / (2.0 * PI**2)  ! Positive for holes
+      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for holes
     end if
     J_tn_overbarrier = prefactor * I_overbarrier
 
@@ -1028,18 +1021,6 @@ contains
       end if
     end do
 
-    ! Set up potential dependency and Jacobian for J_tn coupling
-    ! ∂J_tn/∂phi_k (tunneling only, attached to iprov_jtn)
-    print *, "  Setting up potential dependency for tunneling coupling"
-
-    ! Create dependency on potential at all contact vertices
-    idep = this%depend(pot, [(par%transport_vct(ict)%get_ptr(), ict = 1, par%nct)])
-
-    ! Create Jacobian for J_tn: ∂J_tn/∂phi_k (attached to iprov_jtn)
-    this%jaco_pot_jtn%p => this%init_jaco(iprov_jtn, idep, &
-      st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
-      const = .false.)
-
     ! finish initialization
     call this%init_final()
   end subroutine
@@ -1053,8 +1034,8 @@ contains
     logical :: edge_status
     real :: E_field, n0b_base, n0b_val, delta_phi_b, d_delta_phi_dE
     real :: eps_r
-    real :: phi_k, phi_bn_eff, v_surf
-    real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_tn_dpot
+    real :: eta_n, eta_semi_m, detadF, phi_bn_eff, v_surf
+    real :: J_TE, J_tn, J_total, dJ_tn_dF
     real :: n0B_IFBL, dn0B_eff_dE, dn0B_eff_dpot
     real :: n_actual_val
     real, allocatable :: tmp_n0b(:), tmp_jtn(:)
@@ -1082,11 +1063,6 @@ contains
         call this%jaco_efield_jtn(normal_dir)%p%reset()
       end if
     end do
-
-    ! Reset J_tn potential Jacobian
-    if (associated(this%jaco_pot_jtn%p)) then
-      call this%jaco_pot_jtn%p%reset()
-    end if
 
     ! Counter for position in n0b array
     j = 0
@@ -1146,24 +1122,78 @@ contains
         ! Get effective barrier height (including IFBL if enabled)
         phi_bn_eff = this%par%contacts(ict)%phi_b - delta_phi_b
 
-        ! Get contact potential from Poisson solution
-        if (associated(this%pot)) then
-          phi_k = this%pot%get(idx)
-          ! Debug: print potential information
-          if (i == 1 .and. this%ci == CR_ELEC) then
-            print "(A,I2,A,A,A)", "  Contact ", ict, " (", trim(this%par%contacts(ict)%name), ") potential fetch:"
-            print "(A,3I5)", "    idx = ", idx
-            print "(A,ES14.6,A)", "    phi_k (Poisson) = ", phi_k, " (normalized)"
-            print "(A,ES14.6,A)", "    phi_k (denorm)  = ", denorm(phi_k, "V"), " V"
-            print "(A,ES14.6,A)", "    phims (stored)  = ", this%par%contacts(ict)%phims, " (normalized)"
-            print "(A,ES14.6,A)", "    phims (denorm)  = ", denorm(this%par%contacts(ict)%phims, "V"), " V"
-            print "(A,ES14.6,A)", "    phi_b (barrier) = ", denorm(this%par%contacts(ict)%phi_b, "eV"), " eV"
-            print "(A)", "    Expected: phi_k should equal phims at equilibrium"
+        ! Get carrier density and convert to semiconductor quasi-Fermi level
+        if (associated(this%dens)) then
+          n_actual_val = this%dens%get(idx)
+
+          ! Check if density is large enough for get_idist (requires F > 0)
+          ! For very low densities (strong depletion), use asymptotic limit
+          if (n_actual_val > 1.0e-20 * this%par%smc%edos(this%ci)) then
+            ! Convert density to quasi-Fermi level (relative to band edge)
+            ! For electrons: eta_n = (E_Fn - E_c) / kT
+            ! For holes:     eta_p = (E_v - E_Fp) / kT  (note reversed sign!)
+            call this%par%smc%get_idist(n_actual_val / this%par%smc%edos(this%ci), eta_n, detadF)
+
+            ! Transform to metal Fermi reference (carrier-dependent!)
+            if (this%ci == CR_ELEC) then
+              ! Electrons: E_Fn = E_c + eta_n = phi_bn_eff + eta_n
+              eta_semi_m = eta_n + phi_bn_eff
+            else  ! CR_HOLE
+              ! Holes: E_Fp = E_v - eta_p = -phi_bp_eff - eta_p
+              ! where phi_bp_eff = E_g - phi_bn_eff
+              eta_semi_m = -eta_n - (this%par%smc%band_gap - phi_bn_eff)
+            end if
+
+            ! Debug: print quasi-Fermi information
+            if (i == 1) then
+              if (this%ci == CR_ELEC) then
+                print "(A,I2,A,A,A)", "  Contact ", ict, " (", trim(this%par%contacts(ict)%name), ") electron quasi-Fermi:"
+                print "(A,3I5)", "    idx = ", idx
+                print "(A,ES14.6,A)", "    n = ", n_actual_val, " (normalized)"
+                print "(A,ES14.6,A)", "    eta_n (E_Fn-E_c) = ", eta_n, " (normalized)"
+                print "(A,ES14.6,A)", "    phi_bn_eff = ", phi_bn_eff, " (normalized)"
+                print "(A,ES14.6,A)", "    eta_semi_m = ", eta_semi_m, " (normalized)"
+              else
+                print "(A,I2,A,A,A)", "  Contact ", ict, " (", trim(this%par%contacts(ict)%name), ") hole quasi-Fermi:"
+                print "(A,3I5)", "    idx = ", idx
+                print "(A,ES14.6,A)", "    p = ", n_actual_val, " (normalized)"
+                print "(A,ES14.6,A)", "    eta_p (E_v-E_Fp) = ", eta_n, " (normalized)"
+                print "(A,ES14.6,A)", "    phi_bp_eff = ", this%par%smc%band_gap - phi_bn_eff, " (normalized)"
+                print "(A,ES14.6,A)", "    eta_semi_m = ", eta_semi_m, " (normalized)"
+              end if
+            end if
+          else
+            ! Strong depletion: quasi-Fermi far from band edge
+            ! Use asymptotic limit: eta ≈ log(n/N) for small n
+            if (n_actual_val > 0.0) then
+              eta_n = log(n_actual_val / this%par%smc%edos(this%ci))
+            else
+              eta_n = -50.0  ! Very large value for n ≈ 0
+            end if
+
+            ! Transform to metal Fermi reference (carrier-dependent!)
+            if (this%ci == CR_ELEC) then
+              eta_semi_m = eta_n + phi_bn_eff
+            else  ! CR_HOLE
+              eta_semi_m = -eta_n - (this%par%smc%band_gap - phi_bn_eff)
+            end if
+
+            if (i == 1) then
+              print "(A,I2,A,A,A)", "  Contact ", ict, " (", trim(this%par%contacts(ict)%name), ") quasi-Fermi (depleted):"
+              print "(A,ES14.6,A)", "    carrier (very low) = ", n_actual_val, " (normalized)"
+              print "(A,ES14.6,A)", "    eta (asymptotic) = ", eta_n, " (normalized)"
+              print "(A,ES14.6,A)", "    eta_semi_m = ", eta_semi_m, " (normalized)"
+            end if
           end if
         else
-          phi_k = 0.0  ! Fallback if potential not available
-          if (i == 1 .and. this%ci == CR_ELEC) then
-            print "(A)", "  WARNING: Potential not associated, using phi_k = 0"
+          ! Fallback if density not associated
+          if (this%ci == CR_ELEC) then
+            eta_semi_m = phi_bn_eff  ! Assume zero quasi-Fermi at CB edge
+          else  ! CR_HOLE
+            eta_semi_m = -(this%par%smc%band_gap - phi_bn_eff)  ! At VB edge
+          end if
+          if (i == 1) then
+            print "(A)", "  WARNING: Density not associated, using band edge as quasi-Fermi"
           end if
         end if
 
@@ -1186,12 +1216,11 @@ contains
             m_tun = this%par%contacts(ict)%m_tunnel_p
           end if
           call tsu_esaki_current(phi_bn_eff, E_field, m_tun, &
-                                 phi_k, this%ci, this%par%smc%band_gap, &
-                                 J_tn, dJ_tn_dF, dJ_tn_dpot)
+                                 eta_semi_m, this%ci, this%par%smc%band_gap, &
+                                 J_tn, dJ_tn_dF)
         else
           J_tn = 0.0
           dJ_tn_dF = 0.0
-          dJ_tn_dpot = 0.0
         end if
 
         ! NO FOLDING: Keep n0B as thermionic emission only (n0B_IFBL)
@@ -1236,8 +1265,7 @@ contains
             end if
             print "(A,ES14.6,A)", "  E_field             = ", denorm(E_field, "V/cm"), " V/cm"
             print "(A,ES14.6,A)", "  J_tn                = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
-            print "(A,ES14.6,A)", "  J_TE                = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
-            print "(A,ES14.6)",   "  J_tn/J_TE ratio     = ", abs(J_tn / (J_TE + 1e-30))
+            print "(A,ES14.6,A)", "  n0b_base * exp(-delta_phi_b) * v_surf     = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
             print "(A,A)",         "  Current sign        = ", merge("NEGATIVE (injection) ", &
                                                                      "POSITIVE (extraction)", this%ci == CR_ELEC)
           end if
@@ -1256,7 +1284,7 @@ contains
               m_tun_test = this%par%contacts(ict)%m_tunnel_p
             end if
             call test_tsuesaki_vs_te_comparison(this%par%contacts(ict)%phi_b, E_field, &
-                 m_tun_test, phi_k, this%ci, this%par%smc%band_gap, &
+                 m_tun_test, eta_semi_m, this%ci, this%par%smc%band_gap, &
                  v_surf, n0b_base, delta_phi_b, n_actual_val)
           end if
         end if
@@ -1268,16 +1296,12 @@ contains
 
         ! Set Jacobian entries for tunneling current J_tn
         ! These are attached to iprov_jtn, so chain rule works correctly:
-        ! ∂F/∂E += ∂F/∂J_tn × ∂J_tn/∂E  and  ∂F/∂phi += ∂F/∂J_tn × ∂J_tn/∂phi
+        ! ∂F/∂E += ∂F/∂J_tn × ∂J_tn/∂E
         ! Works for both electrons and holes
         if (this%par%contacts(ict)%tunneling) then
           ! ∂J_tn/∂E for field coupling
           if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
             call this%jaco_efield_jtn(normal_dir)%p%set(idx, idx, dJ_tn_dF)
-          end if
-          ! ∂J_tn/∂phi_k for potential coupling
-          if (associated(this%jaco_pot_jtn%p)) then
-            call this%jaco_pot_jtn%p%set(idx, idx, dJ_tn_dpot)
           end if
         end if
 
@@ -1298,11 +1322,6 @@ contains
         call this%jaco_efield_jtn(normal_dir)%p%set_matr(const = .false., nonconst = .true.)
       end if
     end do
-
-    ! Materialize J_tn potential Jacobian
-    if (associated(this%jaco_pot_jtn%p)) then
-      call this%jaco_pot_jtn%p%set_matr(const = .false., nonconst = .true.)
-    end if
 
     ! Set the n0B values (thermionic only)
     call this%n0b%set(tmp_n0b)

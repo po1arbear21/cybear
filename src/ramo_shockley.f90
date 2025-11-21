@@ -3,6 +3,7 @@ module ramo_shockley_m
   use charge_density_m,  only: charge_density
   use current_m,         only: current
   use current_density_m, only: current_density
+  use density_m,         only: density
   use device_params_m,   only: device_params
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX, IDX_EDGE, IDX_CELL
@@ -15,8 +16,9 @@ module ramo_shockley_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
-  use schottky_m,        only: schottky_tunnel_current
+  use schottky_m,        only: schottky_tunnel_current, schottky_injection, schottky_velocity
   use semiconductor_m,   only: CR_CHARGE
+  use contact_m,         only: CT_SCHOTTKY
   use stencil_m,         only: dirichlet_stencil
   use voltage_m,         only: voltage
   use vselector_m,       only: vselector
@@ -44,10 +46,20 @@ module ramo_shockley_m
 
     type(vselector), allocatable :: cdens(:,:)
       !! electron/hole current density (edge direction, carrier index)
+    type(vselector), allocatable :: dens(:)
+      !! carrier densities (carrier index) at vertices
+    type(vselector), allocatable :: n0b(:)
+      !! Schottky injection densities (carrier index) at vertices
+    type(vselector), allocatable :: jtn(:)
+      !! Tunneling current densities (carrier index) at vertices
     type(vselector)              :: volt
       !! terminal voltage
     type(vselector)              :: curr
       !! terminal current
+    type(vselector)              :: curr_TE
+      !! terminal current from thermionic emission
+    type(vselector)              :: curr_TN
+      !! terminal current from tunneling
 
     type(dirichlet_stencil), allocatable :: st(:)
       !! coupling to cdens (edge direction)
@@ -171,7 +183,7 @@ contains
     end do
   end subroutine
 
-  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr)
+  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr, curr_TE, curr_TN, dens, n0b, jtn)
     !! initialize Ramo-Shockley current equation
     class(ramo_shockley_current), intent(out) :: this
     type(device_params), target,  intent(in)  :: par
@@ -184,6 +196,16 @@ contains
       !! terminal voltages
     type(current),                intent(in)  :: curr(:)
       !! terminal currents
+    type(current),                intent(in)  :: curr_TE(:)
+      !! terminal currents from thermionic emission
+    type(current),                intent(in)  :: curr_TN(:)
+      !! terminal currents from tunneling
+    type(density),                intent(in)  :: dens(:)
+      !! carrier densities (carrier index)
+    type(schottky_injection),     intent(in)  :: n0b(:)
+      !! Schottky injection densities (carrier index)
+    type(schottky_tunnel_current), intent(in) :: jtn(:)
+      !! Tunneling current densities (carrier index)
 
     integer               :: i, idx_dir, ci, ict, dum(0)
     real, allocatable     :: d(:,:)
@@ -203,8 +225,19 @@ contains
         call this%cdens(idx_dir,ci)%init(cdens(idx_dir,ci), par%transport(IDX_EDGE, idx_dir))
       end do
     end do
+    ! Initialize density selectors for TE/TN calculation
+    allocate (this%dens(2))
+    allocate (this%n0b(2))
+    allocate (this%jtn(2))
+    do ci = par%ci0, par%ci1
+      call this%dens(ci)%init(dens(ci), [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+      call this%n0b(ci)%init(n0b(ci), [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+      call this%jtn(ci)%init(jtn(ci), [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    end do
     call this%volt%init([(volt(ict)%get_ptr(), ict = 1, par%nct)], "voltages")
     call this%curr%init([(curr(ict)%get_ptr(), ict = 1, par%nct)], "currents")
+    call this%curr_TE%init([(curr_TE(ict)%get_ptr(), ict = 1, par%nct)], "currents_TE")
+    call this%curr_TN%init([(curr_TN(ict)%get_ptr(), ict = 1, par%nct)], "currents_TN")
 
     ! init residuals using this%curr as main variable
     call this%init_f(this%curr)
@@ -258,12 +291,16 @@ contains
     !! evaluate Ramo-Shockley current equation
     class(ramo_shockley_current), intent(inout) :: this
 
-    integer           :: idx_dir, ci
+    integer           :: idx_dir, ci, ict, i, j
     integer,allocatable :: idx(:)
-    real, allocatable :: tmp(:)
+    real, allocatable :: tmp(:), I_TE_arr(:), I_TN_arr(:)
+    real, allocatable :: n_arr(:), n0b_arr(:), jtn_arr(:)
+    real              :: v_surf, A_ct, n_val, n0b_val, jtn_val, I_TE, I_TN
 
     allocate (tmp(this%curr%n))
     allocate (idx(this%par%g%idx_dim))
+    allocate (I_TE_arr(this%par%nct))
+    allocate (I_TN_arr(this%par%nct))
 
     ! calculate residuals from drift-diffusion current density
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
@@ -274,7 +311,65 @@ contains
     end do
 
     call this%f%set(tmp)
-    deallocate(tmp, idx)
+
+    ! Calculate TE and TN current contributions separately
+    I_TE_arr = 0.0
+    I_TN_arr = 0.0
+
+    ! Loop over contacts to compute TE and TN boundary fluxes
+    do ict = 1, this%par%nct
+      ! Only compute for Schottky contacts
+      if (this%par%contacts(ict)%type /= CT_SCHOTTKY) cycle
+
+      I_TE = 0.0
+      I_TN = 0.0
+
+      ! Loop over carriers (electrons and holes)
+      do ci = this%par%ci0, this%par%ci1
+        ! Get full arrays for this carrier
+        n_arr = this%dens(ci)%get()
+        n0b_arr = this%n0b(ci)%get()
+        jtn_arr = this%jtn(ci)%get()
+
+        ! Get surface velocity for this contact and carrier
+        v_surf = schottky_velocity(this%par, ci, ict)
+
+        ! Compute linear position offset for this contact
+        ! j tracks position in the combined transport vertex array (interior + all contacts)
+        j = this%par%transport_vct(0)%n  ! Start after interior vertices
+        do i = 1, ict - 1
+          j = j + this%par%transport_vct(i)%n  ! Add vertices from previous contacts
+        end do
+
+        ! Loop over all vertices at this contact
+        do i = 1, this%par%transport_vct(ict)%n
+          j = j + 1  ! Increment position counter
+          idx = this%par%transport_vct(ict)%get_idx(i)
+
+          ! Get contact surface area
+          A_ct = this%par%get_ct_surf(ict, idx)
+
+          ! Get carrier density, injection density, and tunneling current using linear position
+          n_val = n_arr(j)
+          n0b_val = n0b_arr(j)
+          jtn_val = jtn_arr(j)
+
+          ! Accumulate TE and TN contributions (with charge sign)
+          I_TE = I_TE + CR_CHARGE(ci) * A_ct * v_surf * (n_val - n0b_val)
+          I_TN = I_TN + CR_CHARGE(ci) * A_ct * jtn_val
+        end do
+      end do
+
+      ! Store results for this contact
+      I_TE_arr(ict) = I_TE
+      I_TN_arr(ict) = I_TN
+    end do
+
+    ! Set the TE and TN current values
+    call this%curr_TE%set(I_TE_arr)
+    call this%curr_TN%set(I_TN_arr)
+
+    deallocate(tmp, idx, I_TE_arr, I_TN_arr)
   end subroutine
 
 end module
