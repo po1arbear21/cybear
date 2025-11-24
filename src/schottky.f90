@@ -101,6 +101,8 @@ module schottky_m
       !! jacobian for n0B E-field dependencies: ∂n0B/∂E (IFBL only, one per direction)
     type(jacobian_ptr), allocatable :: jaco_efield_jtn(:)
       !! jacobian for J_tn E-field dependencies: ∂J_tn/∂E (tunneling, one per direction)
+    type(jacobian_ptr), allocatable :: jaco_dens_jtn(:)
+      !! jacobian for J_tn density dependencies: ∂J_tn/∂n (tunneling via quasi-Fermi, one per direction)
 
     type(barrier_lowering), pointer :: delta_phi_b_var => null()
       !! barrier lowering variable (for output)
@@ -498,7 +500,7 @@ contains
     real, intent(out) :: dfdE    !! Derivative wrt energy
     real, intent(out) :: dfdp(:) !! Derivatives wrt parameters
 
-    real :: phi_eff, efield, m_tn, eta_semi_m, E_g
+    real :: phi_eff, efield, m_tn, eta_semi_m, E_g, E_metal
     integer :: ci
     real :: T_wkb, dT_dE, dT_dphi, dT_dF
     real :: N_E, dN_dE  ! Occupancy difference and derivative
@@ -526,6 +528,7 @@ contains
     ! N(E) = f_semi(E) - f_metal(E)
     !      = log(1 + exp(eta_semi_m - E)) - log(1 + exp(-E))
 
+
     ! Fermi functions
     f_metal = 1.0 / (1.0 + exp(E))                    ! Metal at E=0 reference
     f_semi  = 1.0 / (1.0 + exp(E - eta_semi_m))       ! Semiconductor
@@ -534,7 +537,7 @@ contains
     N_E = log1p_exp(eta_semi_m - E) - log1p_exp(-E)
 
     ! Derivative wrt energy
-    dN_dE = f_semi - f_metal
+    dN_dE = f_metal - f_semi
 
     ! Integrand: f = T_wkb * N(E)
     f = T_wkb * N_E
@@ -553,8 +556,8 @@ contains
     ! df/d(m_tn): Set to zero (WKB doesn't return dT/dm)
     dfdp(3) = 0.0
 
-    ! df/d(eta_semi_m): Set to zero (constant, not a solution variable)
-    dfdp(4) = 0.0
+    ! df/d(eta_semi_m): Derivative of N(E) wrt semiconductor quasi-Fermi level
+    dfdp(4) = T_wkb * f_semi
 
     ! df/d(ci): Set to zero (carrier index is discrete)
     dfdp(5) = 0.0
@@ -564,7 +567,7 @@ contains
 
   end subroutine
 
-  subroutine tsu_esaki_current(phi_b, efield, m_tn, eta_semi_m, ci, E_g, J_tn, dJ_tn_dF)
+  subroutine tsu_esaki_current(phi_b, efield, m_tn, eta_semi_m, ci, E_g, J_tn, dJ_tn_dF, dJ_tn_deta)
     !! Calculate Tsu-Esaki tunneling current density through Schottky barrier
     !! Implements: J_tn = ±(m*/(2π²)) ∫₀^φ_eff T_wkb(E) N(E) dE
     !!
@@ -589,6 +592,7 @@ contains
     real, intent(in)  :: E_g        !! Band gap (normalized)
     real, intent(out) :: J_tn       !! Tunneling current density (normalized)
     real, intent(out) :: dJ_tn_dF   !! Derivative dJ_tn/dF for Jacobian
+    real, intent(out) :: dJ_tn_deta !! Derivative dJ_tn/deta_semi_m for density coupling
 
     real :: p(6)                   ! Parameter array for integrand
     real :: I                      ! Integration result
@@ -611,6 +615,7 @@ contains
       ! No barrier - no tunneling calculation needed
       J_tn = 0.0
       dJ_tn_dF = 0.0
+      dJ_tn_deta = 0.0
       return
     end if
 
@@ -618,6 +623,7 @@ contains
       ! Zero field - no tunneling possible
       J_tn = 0.0
       dJ_tn_dF = 0.0
+      dJ_tn_deta = 0.0
       return
     end if
 
@@ -637,9 +643,16 @@ contains
 
     ! Perform integration (under-barrier only)
     ! Using adaptive quadrature with relative tolerance 1e-6
-
-    call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
+    if (ci == CR_ELEC) then
+       call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
                 rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
+    else  ! CR_HOLE
+       call quad(tsu_esaki_integrand, -phi_eff, 0.0, p, I, dIda, dIdb, dIdp, &
+                rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
+    end if
+
+    ! call quad(tsu_esaki_integrand, 0.0, phi_eff, p, I, dIda, dIdb, dIdp, &
+    !             rtol=1e-6, err=err, max_levels=12, ncalls=ncalls)
 
     ! Apply normalization prefactor with carrier-dependent sign
     ! Electrons: negative (injection)
@@ -650,9 +663,10 @@ contains
       prefactor = m_tn / (2.0 * PI**2)  ! Positive for hole extraction
     end if
 
-    ! Calculate tunneling current and field derivative
+    ! Calculate tunneling current and derivatives
     J_tn = prefactor * I
-    dJ_tn_dF = prefactor * dIdp(2)  ! dI/d(efield)
+    dJ_tn_dF = prefactor * dIdp(2)   ! dI/d(efield)
+    dJ_tn_deta = prefactor * dIdp(4) ! dI/d(eta_semi_m)
 
   end subroutine
 
@@ -783,9 +797,9 @@ contains
 
     ! Apply normalization prefactor with carrier-dependent sign
     if (ci == CR_ELEC) then
-      prefactor = +m_tn / (2.0 * PI**2)  ! Negative for electrons
+      prefactor = m_tn / (2.0 * PI**2)  ! Negative for electrons
     else
-      prefactor = +m_tn / (2.0 * PI**2)  ! Positive for holes
+      prefactor = m_tn / (2.0 * PI**2)  ! Positive for holes
     end if
     J_tn_overbarrier = prefactor * I_overbarrier
 
@@ -998,6 +1012,7 @@ contains
     ! Separate Jacobians for n0B (thermionic/IFBL) and J_tn (tunneling)
     allocate(this%jaco_efield_n0b(par%g%dim))
     allocate(this%jaco_efield_jtn(par%g%dim))
+    allocate(this%jaco_dens_jtn(par%g%dim))
 
     ! Create dependencies for each E-field component that Schottky contacts need
     do dir = 1, par%g%dim
@@ -1021,6 +1036,22 @@ contains
       end if
     end do
 
+    ! Create density dependency and Jacobian for J_tn density coupling
+    if (associated(this%dens)) then
+      do dir = 1, par%g%dim
+        if (any(this%contact_normal == dir)) then
+          ! Create dependency for density at contact vertices
+          idep = this%depend(this%dens, [(par%transport_vct(ict)%get_ptr(), &
+                                          ict = 1, par%nct)])
+
+          ! Create Jacobian for J_tn: ∂J_tn/∂n (via quasi-Fermi)
+          this%jaco_dens_jtn(dir)%p => this%init_jaco(iprov_jtn, idep, &
+            st = [(this%st_dir%get_ptr(), ict = 1, par%nct)], &
+            const = .false.)
+        end if
+      end do
+    end if
+
     ! finish initialization
     call this%init_final()
   end subroutine
@@ -1035,11 +1066,12 @@ contains
     real :: E_field, n0b_base, n0b_val, delta_phi_b, d_delta_phi_dE
     real :: eps_r
     real :: eta_n, eta_semi_m, detadF, phi_bn_eff, v_surf
-    real :: J_TE, J_tn, J_total, dJ_tn_dF
+    real :: J_TE, J_tn, J_total, dJ_tn_dF, dJ_tn_deta, dJ_tn_dn
     real :: n0B_IFBL, dn0B_eff_dE, dn0B_eff_dpot
     real :: n_actual_val
     real, allocatable :: tmp_n0b(:), tmp_jtn(:)
     real :: m_tun , m_tun_debug, m_tun_test
+    real :: T_wkb_test, dT_dE_test, dT_dphi_test, dT_dF_test, E_test, phi_eff_test
 
 
     ! Check if properly initialized
@@ -1167,8 +1199,11 @@ contains
             ! Use asymptotic limit: eta ≈ log(n/N) for small n
             if (n_actual_val > 0.0) then
               eta_n = log(n_actual_val / this%par%smc%edos(this%ci))
+              ! For depletion limit: d(eta)/dF = d(log(n/N))/d(n/N) = 1/(n/N) = N/n
+              detadF = this%par%smc%edos(this%ci) / n_actual_val
             else
               eta_n = -50.0  ! Very large value for n ≈ 0
+              detadF = 1.0e20  ! Large value for zero density
             end if
 
             ! Transform to metal Fermi reference (carrier-dependent!)
@@ -1192,6 +1227,7 @@ contains
           else  ! CR_HOLE
             eta_semi_m = -(this%par%smc%band_gap - phi_bn_eff)  ! At VB edge
           end if
+          detadF = 0.0  ! No density coupling possible without density variable
           if (i == 1) then
             print "(A)", "  WARNING: Density not associated, using band edge as quasi-Fermi"
           end if
@@ -1217,10 +1253,11 @@ contains
           end if
           call tsu_esaki_current(phi_bn_eff, E_field, m_tun, &
                                  eta_semi_m, this%ci, this%par%smc%band_gap, &
-                                 J_tn, dJ_tn_dF)
+                                 J_tn, dJ_tn_dF, dJ_tn_deta)
         else
           J_tn = 0.0
           dJ_tn_dF = 0.0
+          dJ_tn_deta = 0.0
         end if
 
         ! NO FOLDING: Keep n0B as thermionic emission only (n0B_IFBL)
@@ -1251,9 +1288,17 @@ contains
 
             if (this%ci == CR_ELEC) then
               m_tun_debug = this%par%contacts(ict)%m_tunnel_n
+              phi_eff_test = phi_bn_eff
             else
               m_tun_debug = this%par%contacts(ict)%m_tunnel_p
+              phi_eff_test = this%par%smc%band_gap - phi_bn_eff
             end if
+
+            ! Test WKB transmission at E = 0.5 * phi_eff (mid-barrier energy)
+            E_test = 0.5 * phi_eff_test
+            call calc_wkb_transmission(E_test, phi_eff_test, E_field, m_tun_debug, &
+                                      T_wkb_test, dT_dE_test, dT_dphi_test, dT_dF_test)
+
             print "(A,I2,A,A,A,A,A)", "Contact ", ict, " (", trim(this%par%contacts(ict)%name), &
                                       ") ", CR_NAME(this%ci), " tunneling:"
             print "(A,F6.3,A)", "  m_tunnel = ", m_tun_debug, " m0 (carrier-specific)"
@@ -1263,7 +1308,10 @@ contains
                     denorm(this%par%smc%band_gap - phi_bn_eff, "eV"), " eV"
               print "(A,ES14.6,A)", "  E_g (band gap)      = ", denorm(this%par%smc%band_gap, "eV"), " eV"
             end if
-            print "(A,ES14.6,A)", "  E_field             = ", denorm(E_field, "V/cm"), " V/cm"
+            print "(A,ES14.6,A,A)", "  E_field (signed)    = ", denorm(E_field, "V/cm"), " V/cm", &
+                                     merge(" [POSITIVE]", " [NEGATIVE]", E_field >= 0.0)
+            print "(A,ES14.6,A)", "  E_test (mid-barrier)= ", denorm(E_test, "eV"), " eV"
+            print "(A,ES14.6)",   "  T_WKB at E_test     = ", T_wkb_test
             print "(A,ES14.6,A)", "  J_tn                = ", denorm(J_tn, "A/cm^2"), " A/cm^2"
             print "(A,ES14.6,A)", "  n0b_base * exp(-delta_phi_b) * v_surf     = ", denorm(J_TE, "A/cm^2"), " A/cm^2"
             print "(A,A)",         "  Current sign        = ", merge("NEGATIVE (injection) ", &
@@ -1302,6 +1350,36 @@ contains
           ! ∂J_tn/∂E for field coupling
           if (associated(this%jaco_efield_jtn(normal_dir)%p)) then
             call this%jaco_efield_jtn(normal_dir)%p%set(idx, idx, dJ_tn_dF)
+
+            ! M-matrix check: Print derivative sign (first vertex only)
+            if (i == 1) then
+              print "(A,I2,A,A,A,A,A)", "M-MATRIX CHECK: Contact ", ict, " (", &
+                    trim(this%par%contacts(ict)%name), ") ", CR_NAME(this%ci), ":"
+              print "(A,ES14.6,A)", "  dJ_tn/dF = ", dJ_tn_dF, &
+                    merge(" [POSITIVE - field assists tunneling]", &
+                          " [NEGATIVE - field opposes tunneling]", dJ_tn_dF >= 0.0)
+            end if
+          end if
+
+          ! ∂J_tn/∂n for density coupling via quasi-Fermi level
+          ! Chain rule: dJ_tn/dn = (dJ_tn/deta) × (deta/dF) × (dF/dn)
+          ! where dF/dn = 1/N_dos for normalized density
+          if (associated(this%jaco_dens_jtn(normal_dir)%p) .and. associated(this%dens)) then
+            ! Compute full chain: Note sign depends on carrier type
+            ! For electrons: eta increases with n, so deta/dn > 0
+            ! For holes: eta increases with p (reversed reference), so deta/dp > 0
+            ! detadF already includes the correct sign from get_idist
+            dJ_tn_dn = dJ_tn_deta * detadF / this%par%smc%edos(this%ci)
+            call this%jaco_dens_jtn(normal_dir)%p%set(idx, idx, dJ_tn_dn)
+
+            ! M-matrix check: Print density coupling sign (first vertex only)
+            if (i == 1) then
+              print "(A,ES14.6,A)", "  dJ_tn/dn = ", dJ_tn_dn, &
+                    merge(" [POSITIVE - HELPS M-matrix (diagonal)]", &
+                          " [NEGATIVE - may hurt M-matrix (wrong)]", dJ_tn_dn >= 0.0)
+              print "(A,ES14.6)",   "    dJ_tn/deta = ", dJ_tn_deta
+              print "(A,ES14.6)",   "    deta/dF    = ", detadF
+            end if
           end if
         end if
 

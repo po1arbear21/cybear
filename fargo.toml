@@ -132,7 +132,7 @@ templates = [
     "test/run_sbmosfet.ini",
   ] },
   { files = [
-    "test/sb_mosfet_2d_vertical.ini",
+    "test/sb_mosfet_2d_dg_overlap.ini",
   ], action = "expand" },
 ]
 
