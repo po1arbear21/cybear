@@ -57,6 +57,10 @@ module device_m
       !! terminal currents from thermionic emission only
     type(current),         allocatable :: curr_TN(:)
       !! terminal currents from tunneling only
+    type(current),         allocatable :: curr_n(:)
+      !! terminal currents from electrons only
+    type(current),         allocatable :: curr_p(:)
+      !! terminal currents from holes only
 
     type(ramo_shockley) :: ramo
       !! Ramo-Shockley data object
@@ -71,6 +75,10 @@ module device_m
       !! ionization continuity equations (carrier index)
     type(ramo_shockley_current)             :: ramo_curr
       !! Ramo-Shockley current equation
+    type(ramo_shockley_current)             :: ramo_curr_n
+      !! Ramo-Shockley current equation (electrons only)
+    type(ramo_shockley_current)             :: ramo_curr_p
+      !! Ramo-Shockley current equation (holes only)
     type(calc_imref)                        :: calc_iref(2)
       !! calculate electron/hole imref from potential and density (carrier index)
     type(calc_density)                      :: calc_dens(2)
@@ -144,11 +152,15 @@ contains
     allocate (this%curr(this%par%nct))
     allocate (this%curr_TE(this%par%nct))
     allocate (this%curr_TN(this%par%nct))
+    allocate (this%curr_n(this%par%nct))
+    allocate (this%curr_p(this%par%nct))
     do ict = 1, this%par%nct
       call this%volt(ict)%init("V_"//this%par%contacts(ict)%name)
       call this%curr(ict)%init("I_"//this%par%contacts(ict)%name)
       call this%curr_TE(ict)%init("I_TE_"//this%par%contacts(ict)%name)
       call this%curr_TN(ict)%init("I_TN_"//this%par%contacts(ict)%name)
+      call this%curr_n(ict)%init("I_n_"//this%par%contacts(ict)%name)
+      call this%curr_p(ict)%init("I_p_"//this%par%contacts(ict)%name)
     end do
 
     ! init equations
@@ -159,6 +171,8 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     ! Ramo-Shockley for terminal currents
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+    call this%ramo_curr_n%init(this%par, this%ramo, this%cdens, this%volt, this%curr_n, ci_only=1)
+    call this%ramo_curr_p%init(this%par, this%ramo, this%cdens, this%volt, this%curr_p, ci_only=2)
     do ci = this%par%ci0, this%par%ci1
       ! Pass efield if Schottky contacts exist (for lagged J_schottky calculation)
       if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
@@ -245,10 +259,14 @@ contains
       call this%sys_full_stat%add_equation(this%calc_efield(dir))
     end do
     call this%sys_full_stat%add_equation(this%ramo_curr)
+    call this%sys_full_stat%add_equation(this%ramo_curr_n)
+    call this%sys_full_stat%add_equation(this%ramo_curr_p)
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
       call this%sys_full_stat%provide(this%curr_TE(ict), input = .false.)
       call this%sys_full_stat%provide(this%curr_TN(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_n(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_p(ict), input = .false.)
     end do
     call this%sys_full_stat%init_final()
     call this%sys_full_stat%g%output("full_stat")
@@ -274,10 +292,14 @@ contains
       call this%sys_full%add_equation(this%calc_efield(dir))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
+    call this%sys_full%add_equation(this%ramo_curr_n)
+    call this%sys_full%add_equation(this%ramo_curr_p)
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
       call this%sys_full%provide(this%curr_TE(ict), input = .false.)
       call this%sys_full%provide(this%curr_TN(ict), input = .false.)
+      call this%sys_full%provide(this%curr_n(ict), input = .false.)
+      call this%sys_full%provide(this%curr_p(ict), input = .false.)
     end do
     call this%sys_full%init_final()
     call this%sys_full%g%output("full")

@@ -40,6 +40,8 @@ module ramo_shockley_m
     !! Ramo-Shockley current equation
 
     type(device_params), pointer :: par => null()
+    integer :: ci_only = 0
+      !! if > 0, only integrate this carrier index (1=electron, 2=hole)
 
     type(vselector), allocatable :: cdens(:,:)
       !! electron/hole current density (edge direction, carrier index)
@@ -170,7 +172,7 @@ contains
     end do
   end subroutine
 
-  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr)
+  subroutine ramo_shockley_current_init(this, par, ramo, cdens, volt, curr, ci_only)
     !! initialize Ramo-Shockley current equation
     class(ramo_shockley_current), intent(out) :: this
     type(device_params), target,  intent(in)  :: par
@@ -183,8 +185,10 @@ contains
       !! terminal voltages
     type(current),                intent(in)  :: curr(:)
       !! terminal currents
+    integer, optional,            intent(in)  :: ci_only
+      !! if present, only integrate this carrier index
 
-    integer               :: i, idx_dir, ci, ict, dum(0)
+    integer               :: i, idx_dir, ci, ict, dum(0), ci0, ci1
     real, allocatable     :: d(:,:)
     integer, allocatable  :: idx1(:), idx2(:), idx(:), idx_bnd(:,:)
     logical               :: status
@@ -195,9 +199,20 @@ contains
     call this%equation_init("ramo_shockley")
     this%par => par
 
+    ! set carrier range
+    if (present(ci_only)) then
+      this%ci_only = ci_only
+      ci0 = ci_only
+      ci1 = ci_only
+    else
+      this%ci_only = 0
+      ci0 = par%ci0
+      ci1 = par%ci1
+    end if
+
     ! create variable selectors
     allocate (this%cdens(par%g%idx_dim,2))
-    do ci = par%ci0, par%ci1
+    do ci = ci0, ci1
       do idx_dir = 1, par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(cdens(idx_dir,ci), par%transport(IDX_EDGE, idx_dir))
       end do
@@ -218,7 +233,7 @@ contains
 
     ! init jacobians
     allocate (this%jaco_cdens(par%g%idx_dim,2))
-    do ci = par%ci0, par%ci1
+    do ci = ci0, ci1
       do idx_dir = 1, par%g%idx_dim
         this%jaco_cdens(idx_dir,ci)%p => this%init_jaco_f(this%depend(this%cdens(idx_dir,ci)), st = [this%st(idx_dir)%get_ptr()], const = .true.)
       end do
@@ -237,7 +252,7 @@ contains
         do ict = 1, par%nct
           d(ict,1) = par%curr_fact * par%tr_surf(idx_dir)%get(idx) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
         end do
-        do ci = par%ci0, par%ci1
+        do ci = ci0, ci1
           call this%jaco_cdens(idx_dir,ci)%p%set(dum, idx, CR_CHARGE(ci) * d)
         end do
       end do
@@ -257,14 +272,23 @@ contains
     !! evaluate Ramo-Shockley current equation
     class(ramo_shockley_current), intent(inout) :: this
 
-    integer           :: idx_dir, ci
+    integer           :: idx_dir, ci, ci0, ci1
     real, allocatable :: tmp(:)
 
     allocate (tmp(this%curr%n))
 
+    ! set carrier range
+    if (this%ci_only > 0) then
+      ci0 = this%ci_only
+      ci1 = this%ci_only
+    else
+      ci0 = this%par%ci0
+      ci1 = this%par%ci1
+    end if
+
     ! calculate residuals
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
-    do ci = this%par%ci0, this%par%ci1
+    do ci = ci0, ci1
       do idx_dir = 1, this%par%g%idx_dim
         call this%jaco_cdens(idx_dir,ci)%p%matr%mul_vec(this%cdens(idx_dir,ci)%get(), tmp, fact_y = 1.0)
       end do

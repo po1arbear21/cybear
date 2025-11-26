@@ -39,7 +39,7 @@ contains
     real, optional, intent(out) :: dJ_ddens
     real :: J
 
-    real :: phi_b, m_tunnel, eta, eta_m
+    real :: phi_b, m_tunnel, eta, eta_m, detadF
     real :: params(4), integral, dIda, dIdb, dIdp(4), err
     real :: E_min, E_max, prefactor
     real :: dens_eq  ! Equilibrium density at barrier
@@ -69,7 +69,7 @@ contains
 
     ! Compute η for current calculation
 
-    eta = log(dens / par%smc%edos(ci))
+    call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
 
     ! Quasi-Fermi relative to metal Fermi level
     if (ci == CR_ELEC) then
@@ -109,13 +109,13 @@ contains
     end if
 
     ! Compute derivative dJ/d(dens) if requested (for Jacobian)
-    ! Chain rule: dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(dens)
-    ! For electrons: d(eta_m)/dn = 1/n, dJ/d(eta_m) = -prefactor * dIdp(4)
-    ! For holes: d(eta_m)/dp = -1/p, dJ/d(eta_m) = +prefactor * dIdp(4)
-    ! Both cases: dJ/d(dens) = -prefactor * dIdp(4) / dens
-    !
+    ! Chain rule: dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(eta) * d(eta)/d(dens)
+    ! d(eta_m)/d(eta) = ±1, d(eta)/d(dens) = detadF / edos (from get_idist)
+    ! For electrons: dJ/d(eta_m) = -prefactor * dIdp(4)
+    ! For holes: dJ/d(eta_m) = +prefactor * dIdp(4)
+    ! Both cases: dJ/d(dens) = -prefactor * dIdp(4) * detadF / edos
     if (present(dJ_ddens)) then
-      dJ_ddens = -prefactor * dIdp(4) / dens
+      dJ_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
 
       print "(A)", "DEBUG_JACOBIAN:"
       print "(A,3ES14.6)", "  prefactor, dIdp(4), dens = ", prefactor, dIdp(4), dens
