@@ -17,7 +17,6 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
-  use schottky_m,        only: schottky_injection, schottky_tunnel_current, calc_schottky_injection, barrier_lowering
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -48,12 +47,6 @@ module device_m
       !! electron/hole mobility (direction, carrier index)
     type(electric_field),  allocatable :: efield(:)
       !! electric field components at vertices (direction)
-    type(schottky_injection)           :: n0b(2)
-      !! Schottky injection density at contacts (carrier index)
-    type(schottky_tunnel_current)      :: jtn_current(2)
-      !! Tunneling current density at contacts (carrier index)
-    type(barrier_lowering)             :: delta_phi_b
-      !! Barrier lowering at vertices (scalar field)
     type(charge_density)               :: rho
       !! charge density
     type(voltage),         allocatable :: volt(:)
@@ -94,8 +87,6 @@ module device_m
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
     type(calc_efield),  allocatable :: calc_efield(:)
       !! calculate electric field components from potential gradient (direction)
-    type(calc_schottky_injection)      :: calc_n0b(2)
-      !! calculate Schottky injection density from electric field (carrier index)
 
     type(esystem) :: sys_nlpe
       !! non-linear poisson equation system
@@ -148,11 +139,6 @@ contains
     do dir = 1, this%par%g%dim
       call this%efield(dir)%init(this%par, dir)
     end do
-    do ci = this%par%ci0, this%par%ci1
-      call this%n0b(ci)%init(this%par, ci)
-      call this%jtn_current(ci)%init(this%par, ci)
-    end do
-    call this%delta_phi_b%init(this%par)
     call this%rho%init(this%par)
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
@@ -171,20 +157,16 @@ contains
     if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
-    ! Ramo-Shockley automatically captures tunneling via bulk currents (no explicit J_tn needed)
-    call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr, &
-                            this%curr_TE, this%curr_TN, this%dens, this%n0b, this%jtn_current)
+    ! Ramo-Shockley for terminal currents
+    call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      ! Pass n0b if any Schottky contact has IFBL or tunneling enabled
-      ! Tunneling is added as explicit boundary source, not folded into n0B
-      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-              (this%par%contacts(1:this%par%nct)%ifbl .or. &
-               this%par%contacts(1:this%par%nct)%tunneling))) then
-        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci), this%jtn_current(ci))
-        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%n0b(ci), this%jtn_current(ci))
-      else
+      ! Pass efield if Schottky contacts exist (for lagged J_schottky calculation)
+      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
         call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
         call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
+      else
+        call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
+        call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
       end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
@@ -202,15 +184,6 @@ contains
     do dir = 1, this%par%g%dim
       call this%calc_efield(dir)%init(this%par, this%pot, this%efield(dir))
     end do
-    ! Initialize calc_n0b if there are Schottky contacts with IFBL or tunneling enabled
-    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-            (this%par%contacts(1:this%par%nct)%ifbl .or. &
-             this%par%contacts(1:this%par%nct)%tunneling))) then
-      do ci = this%par%ci0, this%par%ci1
-        call this%calc_n0b(ci)%init(this%par, ci, this%efield, this%n0b(ci), &
-                                     this%delta_phi_b, this%pot, this%jtn_current(ci), this%dens(ci))
-      end do
-    end if
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
@@ -241,24 +214,12 @@ contains
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
       end if
-      ! Add calc_n0b for field-dependent Schottky BC (if Schottky contacts with IFBL or tunneling exist)
-      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-              (this%par%contacts(1:this%par%nct)%ifbl .or. &
-               this%par%contacts(1:this%par%nct)%tunneling))) then
-        call this%sys_dd(ci)%add_equation(this%calc_n0b(ci))
-      end if
-      ! Add calc_efield equations for E-field components
+      ! Add calc_efield equations for E-field (needed for Schottky)
       do dir = 1, this%par%g%dim
         call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
       end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
-      ! Provide n0b variable for Schottky boundary conditions
-      call this%sys_dd(ci)%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
-      ! Provide jtn_current for tunneling at Schottky contacts
-      call this%sys_dd(ci)%provide(this%jtn_current(ci), this%par%transport(IDX_VERTEX,0))
-      ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
-      call this%sys_dd(ci)%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
       call this%sys_dd(ci)%g%output(CR_NAME(ci)//"dd")
     end do
@@ -283,28 +244,12 @@ contains
     do dir = 1, this%par%g%dim
       call this%sys_full_stat%add_equation(this%calc_efield(dir))
     end do
-    ! add calc_n0b for field-dependent Schottky BC (if Schottky contacts with IFBL or tunneling exist)
-    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-            (this%par%contacts(1:this%par%nct)%ifbl .or. &
-             this%par%contacts(1:this%par%nct)%tunneling))) then
-      do ci = this%par%ci0, this%par%ci1
-        call this%sys_full_stat%add_equation(this%calc_n0b(ci))
-      end do
-    end if
     call this%sys_full_stat%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
       call this%sys_full_stat%provide(this%curr_TE(ict), input = .false.)
       call this%sys_full_stat%provide(this%curr_TN(ict), input = .false.)
     end do
-    ! Provide n0b variables for Schottky boundary conditions
-    do ci = this%par%ci0, this%par%ci1
-      call this%sys_full_stat%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
-      ! Provide jtn_current for tunneling at Schottky contacts
-      call this%sys_full_stat%provide(this%jtn_current(ci), this%par%transport(IDX_VERTEX,0))
-    end do
-    ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
-    call this%sys_full_stat%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
     call this%sys_full_stat%init_final()
     call this%sys_full_stat%g%output("full_stat")
 
@@ -328,28 +273,12 @@ contains
     do dir = 1, this%par%g%dim
       call this%sys_full%add_equation(this%calc_efield(dir))
     end do
-    ! add calc_n0b for field-dependent Schottky BC (if Schottky contacts with IFBL or tunneling exist)
-    if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY .and. &
-            (this%par%contacts(1:this%par%nct)%ifbl .or. &
-             this%par%contacts(1:this%par%nct)%tunneling))) then
-      do ci = this%par%ci0, this%par%ci1
-        call this%sys_full%add_equation(this%calc_n0b(ci))
-      end do
-    end if
     call this%sys_full%add_equation(this%ramo_curr)
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
       call this%sys_full%provide(this%curr_TE(ict), input = .false.)
       call this%sys_full%provide(this%curr_TN(ict), input = .false.)
     end do
-    ! Provide n0b variables for Schottky boundary conditions
-    do ci = this%par%ci0, this%par%ci1
-      call this%sys_full%provide(this%n0b(ci), this%par%transport(IDX_VERTEX,0))
-      ! Provide jtn_current for tunneling at Schottky contacts
-      call this%sys_full%provide(this%jtn_current(ci), this%par%transport(IDX_VERTEX,0))
-    end do
-    ! Provide delta_phi_b for output (zero if IFBL off, computed if IFBL on)
-    call this%sys_full%provide(this%delta_phi_b, this%par%transport(IDX_VERTEX,0))
     call this%sys_full%init_final()
     call this%sys_full%g%output("full")
   end subroutine

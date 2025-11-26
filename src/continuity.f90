@@ -10,12 +10,12 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
+  use schottky_m,        only: schottky_current, get_normal_dir
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
   use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use normalization_m,   only: norm, denorm
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil, stencil_ptr
   use vselector_m,       only: vselector
-  use schottky_m,        only: schottky_injection_mb, schottky_velocity, schottky_injection_mb_bias, schottky_injection, schottky_tunnel_current
 
   implicit none
 
@@ -38,12 +38,12 @@ module continuity_m
       !! dependencies: current densities in 2 directions
     type(vselector)              :: genrec
       !! generation - recombination
-    type(electric_field), pointer :: efield(:) => null()
-      !! electric field components (for Schottky barrier lowering)
-    type(vselector)              :: n0b_inj
-      !! dependency: Schottky injection density (field-dependent)
-    type(vselector)              :: jtn_inj
-      !! dependency: Schottky tunneling current density (field-dependent)
+
+    ! Schottky support
+    type(vselector), allocatable :: efield(:)
+      !! electric field components (for Schottky)
+    integer, allocatable :: schottky_normal(:)
+      !! normal direction for each contact (0 if not Schottky)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -56,10 +56,8 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
     type(jacobian),     pointer     :: jaco_genrec   => null()
-    type(jacobian),     pointer     :: jaco_n0b      => null()
-      !! jacobian for n0B dependency (field-dependent Schottky BC)
-    type(jacobian),     pointer     :: jaco_jtn      => null()
-      !! jacobian for J_tn dependency (tunneling current): ∂F/∂J_tn = A_ct
+    type(jacobian),     pointer     :: jaco_iref     => null()
+      !! Direct Jacobian for iref (Schottky contacts only, bypasses chain rule)
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -67,7 +65,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, n0b, jtn_current)
+  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -82,18 +80,13 @@ contains
       !! electron/hole current density
     type(generation_recombination), intent(in)  :: genrec
       !! generation-recombination rate
-    type(electric_field), optional, target, intent(in) :: efield(:)
-      !! electric field components (optional, for Schottky barrier lowering)
-    type(schottky_injection), optional, intent(in) :: n0b
-      !! Schottky injection density (optional, for field-dependent BC)
-    type(schottky_tunnel_current), optional, intent(in) :: jtn_current
-      !! Tunneling current density (optional, for Schottky contacts with tunneling)
+    type(electric_field), optional, intent(in)  :: efield(:)
+      !! electric field components (for Schottky, optional)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, in0b, ijtn
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, dir
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
-    logical              :: status
+    logical              :: status, has_schottky
     real                 :: surf, F, dF
-    real                 :: A_ct, v_surf, n0b_val  ! Variables for Schottky BC
     type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:)
 
     print "(A)", "continuity_init"
@@ -113,30 +106,38 @@ contains
     allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim), icdens(idx_dim))
     allocate (this%cdens(idx_dim), this%st_nn(idx_dim), this%jaco_cdens(idx_dim))
 
+    ! Check for Schottky contacts early (needed for iref init)
+    has_schottky = any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)
+
+    ! Initialize Schottky support if needed
+    if (has_schottky) then
+      if (.not. present(efield)) then
+        call program_error("E-field required for Schottky contacts")
+      end if
+
+      ! Store normal directions for each contact
+      allocate(this%schottky_normal(par%nct))
+      do ict = 1, par%nct
+        if (par%contacts(ict)%type == CT_SCHOTTKY) then
+          this%schottky_normal(ict) = get_normal_dir(par, ict)
+        else
+          this%schottky_normal(ict) = 0
+        end if
+      end do
+
+      ! Store E-field selectors
+      allocate(this%efield(par%g%dim))
+      do dir = 1, par%g%dim
+        call this%efield(dir)%init(efield(dir), [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+      end do
+    end if
+
     ! init variable selectors
     call this%dens%init(dens, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
     do idx_dir = 1, idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
-
-    ! store electric field reference if provided (for Schottky barrier lowering)
-    if (present(efield)) then
-      this%efield => efield
-    end if
-
-    ! init n0b selector if provided (for field-dependent Schottky BC)
-    if (present(n0b)) then
-      ! Only initialize for Schottky contact vertices
-      ! We need all transport vertices, but only Schottky ones will use n0b
-      call this%n0b_inj%init(n0b, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
-    end if
-
-    ! init jtn selector if provided (for tunneling current at Schottky contacts)
-    if (present(jtn_current)) then
-      ! Only initialize for Schottky contact vertices with tunneling enabled
-      call this%jtn_inj%init(jtn_current, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
-    end if
 
     ! init residuals using this%dens or this%iref as main variable
     if (stat) then
@@ -156,13 +157,15 @@ contains
     ! setup contact-specific stencils
     allocate(st_cdens_ct(par%nct), st_dens_ct(par%nct), st_dens_t_ct(par%nct))
 
-    ! For time-dependent jaco_dens_t: differentiate by contact type
+    ! Setup contact-specific stencils by contact type
     do ict = 1, par%nct
-      st_dens_ct(ict) = this%st_dir%get_ptr()
       if (par%contacts(ict)%type == CT_SCHOTTKY) then
-        st_dens_t_ct(ict) = this%st_dir%get_ptr()  ! Time and genrec terms for Schottky
+        ! Schottky: use jaco_dens directly (updated each iteration)
+        st_dens_ct(ict) = this%st_dir%get_ptr()
+        st_dens_t_ct(ict) = this%st_dir%get_ptr()  ! Time derivative term for Schottky
       else
-        st_dens_t_ct(ict) = this%st_em%get_ptr()   ! No time/genrec for Ohmic/Gate
+        st_dens_ct(ict) = this%st_dir%get_ptr()    ! Dirichlet BC for Ohmic/Gate
+        st_dens_t_ct(ict) = this%st_em%get_ptr()   ! No time term for Ohmic/Gate
       end if
     end do
 
@@ -173,20 +176,12 @@ contains
     end do
     if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
 
-    ! n0b dependency
-    if (present(n0b)) then
-      in0b = this%depend(this%n0b_inj)
-    end if
-
-    ! jtn dependency (tunneling current with proper Jacobian coupling)
-    if (present(jtn_current)) then
-      ijtn = this%depend(this%jtn_inj)
-    end if
-
     ! init jacobians
-    this%jaco_dens   => this%init_jaco_f(idens, &
+    ! jaco_dens: diagonal stencil, non-constant for Schottky (updated each iteration)
+      this%jaco_dens   => this%init_jaco_f(idens, &
       & st = [this%st_em%get_ptr(), (st_dens_ct(ict), ict = 1, par%nct)], &
-      & const = .true., dtime = .false.)
+      & const = .false., dtime = .false.)
+
     if (.not. stat) then
       this%jaco_dens_t => this%init_jaco_f(idens, &
         & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
@@ -212,29 +207,6 @@ contains
         & const = .true., dtime = .false.)
     end if
 
-    ! init n0b jacobian for field-dependent Schottky BC
-    if (present(n0b)) then
-      ! Check if any contacts are Schottky type
-      if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)) then
-        ! n0B dependency only at Schottky contact vertices
-        this%jaco_n0b => this%init_jaco_f(in0b, &
-          & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
-          & par%contacts(ict)%type == CT_SCHOTTKY), ict = 1, par%nct)], &
-          & const = .true., dtime = .false.)
-      end if
-    end if
-
-    ! init jtn jacobian for tunneling current coupling
-    if (present(jtn_current)) then
-      ! Check if any contacts have tunneling enabled
-      if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY .and. par%contacts(1:par%nct)%tunneling)) then
-        ! J_tn dependency only at Schottky contact vertices with tunneling
-        this%jaco_jtn => this%init_jaco_f(ijtn, &
-          & st = [this%st_em%get_ptr(), (merge(this%st_dir%get_ptr(), this%st_em%get_ptr(), &
-          & par%contacts(ict)%type == CT_SCHOTTKY .and. par%contacts(ict)%tunneling), ict = 1, par%nct)], &
-          & const = .true., dtime = .false.)
-      end if
-    end if
 
     ! set current density jacobian entries
     do idx_dir = 1, idx_dim
@@ -247,17 +219,18 @@ contains
         ! get edge surface
         surf = par%tr_surf(idx_dir)%get(idx)
 
-        ! set values if uncontacted or Schottky
-        ! Include edge contribution if vertex is interior (0) or Schottky contact
-        if (par%ict%get(idx1) == 0) then
-          call this%jaco_cdens(idx_dir)%p%set(idx1, idx,  surf)
-        else if (par%contacts(par%ict%get(idx1))%type == CT_SCHOTTKY) then
-          call this%jaco_cdens(idx_dir)%p%set(idx1, idx,  surf)
+        ! set values for interior vertices and Schottky contacts
+        ! (Ohmic/Gate use Dirichlet BC, so no current divergence term)
+        ict = par%ict%get(idx1)
+        if (ict == 0) then
+          call this%jaco_cdens(idx_dir)%p%set(idx1, idx, surf)
+        else if (par%contacts(ict)%type == CT_SCHOTTKY) then
+          call this%jaco_cdens(idx_dir)%p%set(idx1, idx, surf)
         end if
-
-        if (par%ict%get(idx2) == 0) then
+        ict = par%ict%get(idx2)
+        if (ict == 0) then
           call this%jaco_cdens(idx_dir)%p%set(idx2, idx, -surf)
-        else if (par%contacts(par%ict%get(idx2))%type == CT_SCHOTTKY) then
+        else if (par%contacts(ict)%type == CT_SCHOTTKY) then
           call this%jaco_cdens(idx_dir)%p%set(idx2, idx, -surf)
         end if
       end do
@@ -279,7 +252,7 @@ contains
       end do
     end if
 
-    ! boundary conditions: Dirichlet for Ohmic/Gate, Robin for Schottky
+    ! boundary conditions: Dirichlet for Ohmic/Gate, handled in eval for Schottky
     allocate (this%b(this%f%n), source = 0.0)
     j = par%transport_vct(0)%n
     do ict = 1, par%nct
@@ -288,42 +261,12 @@ contains
         idx1 = par%transport_vct(ict)%get_idx(i)
 
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
-          ! Robin BC for Schottky: Add boundary flux terms
-          v_surf = schottky_velocity(par, ci, ict)
-          A_ct = par%get_ct_surf(ict, idx1)
+          call this%jaco_dens%set(idx1, idx1, 1.0)
+          ! Schottky: FVM flux BC with Jacobian via compensation
+          ! jaco_dens entry set in eval(), residual compensated to undo mul_vec effect
+          ! Equation: Σ(J_ij·A_ij) - J_sch·A_ct = 0, b=0
 
-          ! Add Robin BC terms (use SET not ADD for contact vertices)
-          call this%jaco_dens%set(idx1, idx1, A_ct * v_surf)
-
-          if (present(n0b)) then
-            ! Field-dependent n0B: set Jacobian entry
-            call this%jaco_n0b%set(idx1, idx1, -A_ct * v_surf)
-            ! RHS is set to 0 here, additional sources added in eval()
-            this%b(j) = 0.0
-          else
-            ! Constant n0B: set RHS
-            call schottky_injection_mb(par, ci, ict, n0b_val)
-            this%b(j) = A_ct * v_surf * n0b_val
-
-            ! Debug output for Schottky BC (only print for first vertex at each contact)
-            if (i == 1) then
-              print "(A,A,A,I2,A)", "DEBUG_BC_INIT: Schottky BC at contact ", trim(par%contacts(ict)%name), &
-                                    " (", ict, "):"
-              print "(A,ES14.6,A)", "  A_ct           = ", A_ct, " (normalized)"
-              print "(A,ES14.6,A)", "  A_ct (denorm)  = ", denorm(A_ct, "nm"), " nm"
-              print "(A,ES14.6,A)", "  v_surf         = ", v_surf, " (normalized)"
-              print "(A,ES14.6,A)", "  v_surf (denorm)= ", denorm(v_surf, "cm/s"), " cm/s"
-              print "(A,ES14.6,A)", "  n0B (denorm)   = ", denorm(n0b_val, "cm^-3"), " cm^-3"
-              print "(A,ES14.6)",   "  A*v*n0B (norm) = ", A_ct * v_surf * n0b_val
-              print "(A,ES14.6,A)", "  RHS term       = ", denorm(this%b(j), "1/s"), " 1/s"
-            end if
-          end if
-
-          ! Set tunneling current Jacobian: ∂F/∂J_tn = A_ct
-          if (present(jtn_current) .and. par%contacts(ict)%tunneling) then
-            call this%jaco_jtn%set(idx1, idx1, A_ct)
-          end if
-        else
+        else if (par%contacts(ict)%type == CT_OHMIC .or. par%contacts(ict)%type == CT_GATE) then
           ! Dirichlet BC for Ohmic/Gate contacts
           call this%jaco_dens%set(idx1, idx1, 1.0)
           if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
@@ -344,38 +287,96 @@ contains
     !! evaluate continuity equation
     class(continuity), intent(inout) :: this
 
-    integer              :: idx_dir
-    integer              :: idx1(this%par%g%idx_dim)
-    real, allocatable    :: tmp(:)
+    integer              :: idx_dir, ict, i, j, normal_dir
+    integer, allocatable :: idx(:)
+    real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:)
+    real                 :: J_sch, E_normal, dens, A_ct, dJ_ddens
 
     allocate (tmp(this%f%n))
+    allocate (idx(this%par%g%idx_dim))
 
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
+
+    print "(A)", "DEBUG_CONTINUITY: Node structure"
+    print "(A,I6)", "  n_interior = ", this%par%transport_vct(0)%n
+    do ict = 1, this%par%nct
+      print "(A,I3,A,I6,A,I3)", "  contact ", ict, ": n_nodes=", this%par%transport_vct(ict)%n, &
+                               ", type=", this%par%contacts(ict)%type
+    end do
+    dens_arr = this%dens%get()
+    print "(A)", "DEBUG_CONTINUITY: after jaco_dens*dens (tmp = J_dens * n)"
+    print "(A)", "  node | dens | tmp | J_diag (=tmp/dens)"
+    do i = 1, size(tmp)
+      print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(dens_arr(i), "cm^-3"), tmp(i), tmp(i)/dens_arr(i)
+    end do
+
+    ! ! Zero out jaco_dens contribution for Schottky contacts (before adding cdens)
+    ! if (allocated(this%efield)) then
+    !   j = this%par%transport_vct(0)%n
+    !   do ict = 1, this%par%nct
+    !     do i = 1, this%par%transport_vct(ict)%n
+    !       j = j + 1
+    !       if (this%par%contacts(ict)%type == CT_SCHOTTKY) tmp(j) = 0.0
+    !     end do
+    !   end do
+    ! end if
+
     do idx_dir = 1, this%par%g%idx_dim
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
 
-    ! Add n0b contribution for field-dependent Schottky BC
-    if (associated(this%jaco_n0b)) then
-      call this%jaco_n0b%matr%mul_vec(this%n0b_inj%get(), tmp, fact_y = 1.0)
-      if (this%par%nct > 0 .and. this%par%contacts(1)%type == CT_SCHOTTKY) then
-        if (this%par%transport_vct(1)%n > 0) then
-          idx1 = this%par%transport_vct(1)%get_idx(1)
-          print "(A,2ES14.6)", "DEBUG_SCHOTTKY: n, n0B(E) = ", &
-            denorm(this%dens%get(idx1), "cm^-3"), denorm(this%n0b_inj%get(idx1), "cm^-3")
-        end if
-      end if
-    end if
+    ! Add Schottky current contribution and set Jacobian
+    if (allocated(this%efield)) then
+      dens_arr = this%dens%get()
 
-    ! Add tunneling current Jacobian coupling: R += A_ct * J_tn with proper derivatives
-    ! This replaces the previous explicit lagged source approach and provides Newton
-    ! with ∂F/∂J_tn derivatives so it can see dJ_tn/dE and dJ_tn/dφ from calc_schottky_injection
-    if (associated(this%jaco_jtn)) then
-      call this%jaco_jtn%matr%mul_vec(this%jtn_inj%get(), tmp, fact_y = 1.0)
+      j = this%par%transport_vct(0)%n
+      do ict = 1, this%par%nct
+        do i = 1, this%par%transport_vct(ict)%n
+          j = j + 1
+          idx = this%par%transport_vct(ict)%get_idx(i)
+
+          if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+            normal_dir = this%schottky_normal(ict)
+            if (normal_dir > 0) then
+              ! Get E-field and density
+              efield_arr = this%efield(normal_dir)%get()
+              E_normal = efield_arr(j)
+              dens = dens_arr(j)
+
+              ! Compute Schottky current AND derivative
+              J_sch = schottky_current(this%par, ict, this%ci, E_normal, dens, dJ_ddens)
+
+              ! Get contact surface area
+              A_ct = this%par%get_ct_surf(ict, idx)
+
+              ! Debug output
+              print "(A,I3,A,I3)", "DEBUG_SCHOTTKY: contact=", ict, " vertex=", i
+              print "(A,2ES14.6)", "  dens, DOS = ", denorm(dens, "cm^-3"), denorm(this%par%smc%edos(this%ci), "cm^-3")
+              print "(A,2ES14.6)", "  E_normal, phi_b = ", denorm(E_normal, "V/cm"), denorm(this%par%contacts(ict)%phi_b, "eV")
+              print "(A,2ES14.6)", "  J_sch, A_ct = ", denorm(J_sch, "A/cm^2"), denorm(A_ct, "nm")
+              print "(A,ES14.6)", "  dJ_ddens = ", dJ_ddens
+
+              ! Set Jacobian entry: df/d(dens) = -dJ_sch/d(dens) * A_ct
+              print "(A,ES14.6)", "  Setting jaco_dens = ", -dJ_ddens * A_ct
+              call this%jaco_dens%set(idx, idx, -dJ_ddens * A_ct)
+
+              ! Add Schottky residual (jaco_dens contribution was zeroed earlier)
+              tmp(j) = tmp(j) - J_sch * A_ct
+            end if
+          else
+            ! Ohmic/Gate: Dirichlet BC, jaco_dens = 1.0
+            call this%jaco_dens%set(idx, idx, 1.0)
+          end if
+        end do
+      end do
+
+      ! Materialize the non-constant Jacobian entries
+      call this%jaco_dens%set_matr(const = .false., nonconst = .true.)
     end if
 
     call this%f%set(tmp - this%b)
+    print *, "Max residual at vertex:", maxloc(abs(tmp - this%b)), maxval(abs(tmp - this%b))
   end subroutine
 
 end module
