@@ -310,16 +310,16 @@ contains
       print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(dens_arr(i), "cm^-3"), tmp(i), tmp(i)/dens_arr(i)
     end do
 
-    ! ! Zero out jaco_dens contribution for Schottky contacts (before adding cdens)
-    ! if (allocated(this%efield)) then
-    !   j = this%par%transport_vct(0)%n
-    !   do ict = 1, this%par%nct
-    !     do i = 1, this%par%transport_vct(ict)%n
-    !       j = j + 1
-    !       if (this%par%contacts(ict)%type == CT_SCHOTTKY) tmp(j) = 0.0
-    !     end do
-    !   end do
-    ! end if
+    ! Zero out jaco_dens contribution for Schottky contacts (before adding cdens)
+    if (allocated(this%efield)) then
+      j = this%par%transport_vct(0)%n
+      do ict = 1, this%par%nct
+        do i = 1, this%par%transport_vct(ict)%n
+          j = j + 1
+          if (this%par%contacts(ict)%type == CT_SCHOTTKY) tmp(j) = 0.0
+        end do
+      end do
+    end if
 
     do idx_dir = 1, this%par%g%idx_dim
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
