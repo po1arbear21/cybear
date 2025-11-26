@@ -10,7 +10,7 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
-  use schottky_m,        only: schottky_current, get_normal_dir
+  use schottky_m,        only: schottky_current, schottky_current_eta, get_normal_dir
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
   use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use normalization_m,   only: norm, denorm
@@ -56,8 +56,10 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
     type(jacobian),     pointer     :: jaco_genrec   => null()
-    type(jacobian),     pointer     :: jaco_iref     => null()
-      !! Direct Jacobian for iref (Schottky contacts only, bypasses chain rule)
+    type(jacobian),     pointer     :: jaco_iref_sch => null()
+      !! Direct Jacobian for iref at Schottky contacts
+      !! Uses d(J_sch)/d(eta) * ch instead of d(J_sch)/d(dens) = d(J_sch)/d(eta) / dens
+      !! This avoids the 1/dens instability when minority carrier is small
   contains
     procedure :: init => continuity_init
     procedure :: eval => continuity_eval
@@ -83,11 +85,11 @@ contains
     type(electric_field), optional, intent(in)  :: efield(:)
       !! electric field components (for Schottky, optional)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, dir
+    integer              :: ci, i, ict, idx_dir, idens, iiref, idx_dim, igenrec, j, dir
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status, has_schottky
     real                 :: surf, F, dF
-    type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:)
+    type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:), st_iref_ct(:)
 
     print "(A)", "continuity_init"
 
@@ -144,6 +146,10 @@ contains
       call this%iref%init(iref, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
       call this%init_f(this%iref)
     else
+      ! For Schottky in non-stationary case, still need iref selector for eta calculation
+      if (has_schottky) then
+        call this%iref%init(iref, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+      end if
       call this%init_f(this%dens)
     end if
 
@@ -155,17 +161,20 @@ contains
     call this%st_em%init()
 
     ! setup contact-specific stencils
-    allocate(st_cdens_ct(par%nct), st_dens_ct(par%nct), st_dens_t_ct(par%nct))
+    allocate(st_cdens_ct(par%nct), st_dens_ct(par%nct), st_dens_t_ct(par%nct), st_iref_ct(par%nct))
 
     ! Setup contact-specific stencils by contact type
     do ict = 1, par%nct
       if (par%contacts(ict)%type == CT_SCHOTTKY) then
-        ! Schottky: use jaco_dens directly (updated each iteration)
-        st_dens_ct(ict) = this%st_dir%get_ptr()
+        ! Schottky: use jaco_iref_sch for eta-based Jacobian (numerically stable)
+        ! jaco_dens at Schottky is empty since we use iref directly
+        st_dens_ct(ict) = this%st_em%get_ptr()     ! No jaco_dens at Schottky
         st_dens_t_ct(ict) = this%st_dir%get_ptr()  ! Time derivative term for Schottky
+        st_iref_ct(ict) = this%st_dir%get_ptr()    ! jaco_iref_sch for Schottky
       else
         st_dens_ct(ict) = this%st_dir%get_ptr()    ! Dirichlet BC for Ohmic/Gate
         st_dens_t_ct(ict) = this%st_em%get_ptr()   ! No time term for Ohmic/Gate
+        st_iref_ct(ict) = this%st_em%get_ptr()     ! No jaco_iref for Ohmic/Gate
       end if
     end do
 
@@ -175,12 +184,14 @@ contains
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
     if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
+    ! Add iref dependency for Schottky (eta-based Jacobian)
+    if (has_schottky) iiref = this%depend(this%iref)
 
     ! init jacobians
     ! jaco_dens: diagonal stencil, non-constant for Schottky (updated each iteration)
       this%jaco_dens   => this%init_jaco_f(idens, &
       & st = [this%st_em%get_ptr(), (st_dens_ct(ict), ict = 1, par%nct)], &
-      & const = .false., dtime = .false.)
+      & const = .true., dtime = .false.)
 
     if (.not. stat) then
       this%jaco_dens_t => this%init_jaco_f(idens, &
@@ -207,6 +218,14 @@ contains
         & const = .true., dtime = .false.)
     end if
 
+    ! jaco_iref_sch: Jacobian w.r.t. iref for Schottky contacts
+    ! Uses dJ_sch/d(eta) * ch instead of dJ_sch/d(dens) = dJ_sch/d(eta) / dens
+    ! This avoids the 1/dens numerical instability for minority carriers
+    if (has_schottky) then
+      this%jaco_iref_sch => this%init_jaco_f(iiref, &
+        & st = [this%st_em%get_ptr(), (st_iref_ct(ict), ict = 1, par%nct)], &
+        & const = .false., dtime = .false.)
+    end if
 
     ! set current density jacobian entries
     do idx_dir = 1, idx_dim
@@ -261,10 +280,11 @@ contains
         idx1 = par%transport_vct(ict)%get_idx(i)
 
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
-          call this%jaco_dens%set(idx1, idx1, 1.0)
-          ! Schottky: FVM flux BC with Jacobian via compensation
-          ! jaco_dens entry set in eval(), residual compensated to undo mul_vec effect
+          ! Schottky: FVM flux BC using eta-based Jacobian (jaco_iref_sch)
+          ! Jacobian entry = -dJ_sch/d(eta) * ch * A_ct, set in eval()
+          ! This avoids 1/dens instability for minority carriers
           ! Equation: Σ(J_ij·A_ij) - J_sch·A_ct = 0, b=0
+          call this%jaco_iref_sch%set(idx1, idx1, 1.0)  ! Placeholder, updated in eval
 
         else if (par%contacts(ict)%type == CT_OHMIC .or. par%contacts(ict)%type == CT_GATE) then
           ! Dirichlet BC for Ohmic/Gate contacts
@@ -289,8 +309,8 @@ contains
 
     integer              :: idx_dir, ict, i, j, normal_dir
     integer, allocatable :: idx(:)
-    real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:)
-    real                 :: J_sch, E_normal, dens, A_ct, dJ_ddens
+    real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:), iref_arr(:)
+    real                 :: J_sch, E_normal, dens, A_ct, dJ_deta, eta_semi, ch
 
     allocate (tmp(this%f%n))
     allocate (idx(this%par%g%idx_dim))
@@ -309,6 +329,21 @@ contains
     do i = 1, size(tmp)
       print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(dens_arr(i), "cm^-3"), tmp(i), tmp(i)/dens_arr(i)
     end do
+
+    ! Debug output for iref (quasi-Fermi level)
+    if (allocated(this%efield)) then
+      block
+        real, allocatable :: iref_arr(:)
+        real :: eta_semi
+        iref_arr = this%iref%get()
+        print "(A)", "DEBUG_CONTINUITY: iref and eta values"
+        print "(A)", "  node | iref [V] | eta=log(n/DOS) | dens/DOS"
+        do i = 1, size(dens_arr)
+          eta_semi = log(dens_arr(i) / this%par%smc%edos(this%ci))
+          print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(iref_arr(i), "V"), eta_semi, dens_arr(i)/this%par%smc%edos(this%ci)
+        end do
+      end block
+    end if
 
     ! ! Zero out jaco_dens contribution for Schottky contacts (before adding cdens)
     ! if (allocated(this%efield)) then
@@ -329,6 +364,8 @@ contains
     ! Add Schottky current contribution and set Jacobian
     if (allocated(this%efield)) then
       dens_arr = this%dens%get()
+      iref_arr = this%iref%get()
+      ch = CR_CHARGE(this%ci)
 
       j = this%par%transport_vct(0)%n
       do ict = 1, this%par%nct
@@ -344,8 +381,14 @@ contains
               E_normal = efield_arr(j)
               dens = dens_arr(j)
 
-              ! Compute Schottky current AND derivative
-              J_sch = schottky_current(this%par, ict, this%ci, E_normal, dens, dJ_ddens)
+              ! Compute eta_semi = reduced quasi-Fermi level relative to band edge
+              ! η = log(dens/DOS) for Maxwell-Boltzmann
+              ! This is numerically stable even for very small dens
+              eta_semi = log(dens / this%par%smc%edos(this%ci))
+
+              ! Compute Schottky current using eta-based formulation
+              ! This gives dJ/d(eta) instead of dJ/d(dens), avoiding 1/dens instability
+              J_sch = schottky_current_eta(this%par, ict, this%ci, E_normal, eta_semi, dJ_deta)
 
               ! Get contact surface area
               A_ct = this%par%get_ct_surf(ict, idx)
@@ -353,27 +396,29 @@ contains
               ! Debug output
               print "(A,I3,A,I3)", "DEBUG_SCHOTTKY: contact=", ict, " vertex=", i
               print "(A,2ES14.6)", "  dens, DOS = ", denorm(dens, "cm^-3"), denorm(this%par%smc%edos(this%ci), "cm^-3")
+              print "(A,ES14.6)", "  eta_semi = ", eta_semi
               print "(A,2ES14.6)", "  E_normal, phi_b = ", denorm(E_normal, "V/cm"), denorm(this%par%contacts(ict)%phi_b, "eV")
               print "(A,2ES14.6)", "  J_sch, A_ct = ", denorm(J_sch, "A/cm^2"), denorm(A_ct, "nm")
-              print "(A,ES14.6)", "  dJ_ddens = ", dJ_ddens
+              print "(A,ES14.6)", "  dJ_deta = ", dJ_deta
+              print "(A,ES14.6)", "  CR = ", ch
 
-              ! Set Jacobian entry: df/d(dens) = -dJ_sch/d(dens) * A_ct
-              print "(A,ES14.6)", "  Setting jaco_dens = ", -dJ_ddens * A_ct
-              call this%jaco_dens%set(idx, idx, -dJ_ddens * A_ct)
+              ! Set Jacobian w.r.t. iref: df/d(iref) = -dJ_sch/d(eta) * d(eta)/d(iref) * A_ct
+              ! For M-B statistics: eta = ch * (iref - pot + band_edge), so d(eta)/d(iref) = ch
+              ! This avoids the 1/dens factor that causes numerical instability!
+              print "(A,ES14.6)", "  Setting jaco_iref_sch = ", -dJ_deta * ch * A_ct
+              call this%jaco_iref_sch%set(idx, idx, -dJ_deta * ch * A_ct)
 
-              ! Add Schottky residual (jaco_dens contribution was zeroed earlier)
+              ! Add Schottky residual
               tmp(j) = tmp(j) - J_sch * A_ct
             end if
-          else
-            ! Ohmic/Gate: Dirichlet BC, jaco_dens = 1.0
-            call this%jaco_dens%set(idx, idx, 1.0)
           end if
         end do
       end do
 
       ! Materialize the non-constant Jacobian entries
-      call this%jaco_dens%set_matr(const = .false., nonconst = .true.)
+      call this%jaco_iref_sch%set_matr(const = .false., nonconst = .true.)
     end if
+
 
     call this%f%set(tmp - this%b)
     print *, "Max residual at vertex:", maxloc(abs(tmp - this%b)), maxval(abs(tmp - this%b))

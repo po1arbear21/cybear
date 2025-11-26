@@ -11,6 +11,7 @@ module schottky_m
   private
 
   public :: schottky_current
+  public :: schottky_current_eta  ! New: eta-based version
   public :: get_normal_dir
 
 contains
@@ -122,6 +123,100 @@ contains
     end if
 
   end function schottky_current
+
+  !============================================================================
+  ! Schottky Current (eta-based) - Numerically stable for ambipolar devices
+  !============================================================================
+  function schottky_current_eta(par, ict, ci, E_normal, eta_semi, dJ_deta) result(J)
+    !! Calculate Schottky current density using quasi-Fermi level as input
+    !!
+    !! This version is numerically stable for ambipolar/RFET devices where
+    !! minority carrier concentrations can be extremely small. Instead of
+    !! working with p directly (which can go to 10^-80), we use η_semi
+    !! which stays in a reasonable range.
+    !!
+    !! Inputs (all normalized):
+    !!   par       - device parameters
+    !!   ict       - contact index
+    !!   ci        - carrier index (CR_ELEC/CR_HOLE)
+    !!   E_normal  - normal electric field component at contact
+    !!   eta_semi  - quasi-Fermi level relative to band edge, normalized to kT
+    !!              η_n = (E_Fn - E_c) / kT for electrons
+    !!              η_p = (E_v - E_Fp) / kT for holes
+    !!
+    !! Output:
+    !!   J        - current density (normalized, A/cm²)
+    !!             Sign convention: inward injection is positive
+    !!   dJ_deta  - (optional) derivative dJ/d(eta_semi) for Jacobian
+
+    type(device_params), intent(in) :: par
+    integer, intent(in) :: ict, ci
+    real, intent(in) :: E_normal, eta_semi
+    real, optional, intent(out) :: dJ_deta
+    real :: J
+
+    real :: phi_b, m_tunnel, eta_m
+    real :: params(4), integral, dIda, dIdb, dIdp(4), err
+    real :: E_min, E_max, prefactor
+    integer :: ncalls
+
+    ! Get barrier height (normalized to kT)
+    if (ci == CR_ELEC) then
+      phi_b = par%contacts(ict)%phi_b
+      m_tunnel = par%contacts(ict)%m_tunnel_n
+    else
+      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+      m_tunnel = par%contacts(ict)%m_tunnel_p
+    end if
+
+    ! Prefactor for current: m* / (2π²) in normalized units
+    prefactor = m_tunnel / (2.0 * PI**2)
+
+    ! Apply image force barrier lowering if enabled
+    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+      phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
+    end if
+
+    ! Quasi-Fermi relative to metal Fermi level
+    ! For electrons: E_m = E_c + phi_b, so eta_m = eta_semi + phi_b
+    ! For holes: need to account for sign convention
+    if (ci == CR_ELEC) then
+      eta_m = eta_semi + phi_b
+    else
+      eta_m = -eta_semi - phi_b
+    end if
+
+    ! Integration parameters: [phi_b, |E|, m*, eta_m]
+    params = [phi_b, E_normal, m_tunnel, eta_m]
+
+    ! Integration bounds
+    E_min = 0.0
+    E_max = phi_b + 20.0  ! Several kT above barrier
+    if (.not. par%contacts(ict)%tunneling) then
+      E_min = phi_b  ! Thermionic emission only
+    end if
+
+    ! Perform integration
+    call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+              dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+
+    ! Current density
+    if (ci == CR_ELEC) then
+      J = -prefactor * integral   ! Positive = electrons entering semiconductor
+    else
+      J = prefactor * integral    ! Positive = holes entering semiconductor
+    end if
+
+    ! Compute derivative dJ/d(eta_semi) if requested (for Jacobian)
+    ! Chain rule: dJ/d(eta_semi) = dJ/d(eta_m) * d(eta_m)/d(eta_semi)
+    ! For electrons: d(eta_m)/d(eta_semi) = 1, dJ/d(eta_m) = -prefactor * dIdp(4)
+    ! For holes: d(eta_m)/d(eta_semi) = -1, dJ/d(eta_m) = +prefactor * dIdp(4)
+    ! Both cases: dJ/d(eta_semi) = -prefactor * dIdp(4)
+    if (present(dJ_deta)) then
+      dJ_deta = -prefactor * dIdp(4)
+    end if
+
+  end function schottky_current_eta
 
   !============================================================================
   ! Get Normal Direction for a Contact
