@@ -533,3 +533,311 @@ end if
 2. **Numerical stability:** Handle small n (avoid division by zero)
 3. **Stencil structure:** jaco_schottky uses diagonal stencil (st_dir) only for Schottky contacts
 4. **const flag:** Must be `const = .false.` since entries change each iteration
+
+---
+
+## Convergence Failure Investigation & Fix Plan (2025-11-27)
+
+### Problem Summary
+
+**Observed Behavior:**
+- Reverse bias: ✓ Converges perfectly
+- Forward bias ≤0.191V: ✓ Converges
+- Forward bias ≥0.192V: ✗ Newton solver fails (max iterations exceeded)
+- **Jacobian verification results:**
+  - At V=0.192V: "Jacobian may UNDERESTIMATE derivatives" (min ||F|| at t=1.15)
+  - At V=1.0V: "Jacobian may OVERESTIMATE derivatives" (min ||F|| at t=0.35)
+- Loosening rtol to 1e-6 allows convergence with physically reasonable results
+
+### Root Cause Analysis
+
+#### Finding 1: Integration Tolerance is Too Loose
+
+**Location:** `src/schottky.f90:100`
+```fortran
+call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+          dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+```
+
+**Problem:**
+- The quadrature routine computes BOTH the integral AND parameter derivatives simultaneously
+- Parameter derivative `dIdp(4) = dI/d(eta_m)` is used directly in Jacobian computation
+- At high forward bias (V>0.19V), the integrand develops sharp features:
+  - Fermi-Dirac distributions become step-like
+  - WKB transmission varies rapidly near E=phi_b
+  - Integrand spans 10+ orders of magnitude
+
+**Impact:**
+- Integration error in dIdp(4) → error in dJ/ddens → incorrect Jacobian
+- Accumulated errors prevent Newton solver from finding quadratic convergence region
+- Error magnitude is bias-dependent, explaining regime-dependent Jacobian behavior
+
+**Evidence:**
+- Jacobian underestimates at 0.192V: derivatives too small → integration missed sharp features
+- Loosening Newton rtol works: solver tolerates inaccurate Jacobian and converges slowly
+
+#### Finding 2: WKB Discontinuity at E=phi_b
+
+**Location:** `src/schottky.f90:224-229`
+```fortran
+if (E >= phi_b) then
+  T = 1.0
+  dT_dE = 0.0    ! ← Jump discontinuity
+  dT_dphi = 0.0
+  dT_dF = 0.0
+  return
+end if
+```
+
+**Problem:**
+- Hard discontinuity in transmission derivatives at E=phi_b
+- For phi_b=0.7eV (27kT), at V=0.19V:
+  - Integration window: [0, phi_b+20] = [0, 47kT]
+  - Window straddles the discontinuity
+  - Adaptive quadrature struggles with discontinuous derivatives
+
+**Impact:**
+- Reduces integration accuracy near the discontinuity
+- Parameter derivatives (dT_dphi, dT_dF) jump discontinuously
+- Exacerbates errors in dIdp computation
+
+#### Finding 3: The 0.192V Threshold is NOT Magic
+
+**Physical interpretation:**
+- At V=0.192V (~7.5kT): Current J ∝ exp(V/kT) ≈ 1800× equilibrium
+- Jacobian dJ/ddens grows by same exponential factor
+- Integration error that was negligible at low bias becomes significant
+- Newton solver enters difficult regime where:
+  - Residuals are ~1e-18 (very small)
+  - Relative tolerance requirement is 1e-9
+  - Any Jacobian inaccuracy prevents convergence
+
+### Solution Plan
+
+#### Phase 1: Tighten Integration Tolerance (PRIMARY FIX)
+
+**Priority:** CRITICAL - Most likely root cause
+
+**Implementation:**
+
+Change `src/schottky.f90:100`:
+```fortran
+! OLD:
+call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+          dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+
+! NEW:
+call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+          dIda, dIdb, dIdp, rtol=1.0e-8, err=err, ncalls=ncalls)
+```
+
+**Rationale:**
+- 1e-8 matches Newton solver rtol=1e-9 requirement
+- Ensures parameter derivatives accurate enough for Jacobian
+- Minimal code change, easy to test and revert
+
+**Testing:**
+1. Run V_SCHOTTKY = 0.192V → should converge in <15 iterations
+2. Run Jacobian verification → min ||F|| should occur near t=1.0
+3. Check convergence across range: 0.18V, 0.19V, 0.195V, 0.2V, 0.5V, 1.0V
+4. Monitor ncalls increase (expect 2-3× computational cost)
+
+**Expected outcome:**
+- ✓ Convergence at 0.192V and above
+- ✓ Jacobian verification passes (min at t ≈ 0.95-1.05)
+- ✓ Integration error drops below 1e-9
+- ✓ J-V curve matches exp(qV/kT) behavior
+
+#### Phase 2: Smooth WKB Discontinuity (IF NEEDED)
+
+**Priority:** MEDIUM - Secondary fix if Phase 1 insufficient
+
+**Implementation:**
+
+Replace hard discontinuity with tanh smoothing in `src/schottky.f90:213-243`:
+
+```fortran
+pure subroutine wkb_transmission(E, phi_b, F, m_star, T, dT_dE, dT_dphi, dT_dF)
+  real, intent(in)  :: E, phi_b, F, m_star
+  real, intent(out) :: T, dT_dE, dT_dphi, dT_dF
+
+  real :: gamma, dE, F_safe, coeff
+  real :: smooth, dsmooth_dE, exp_gamma
+  real, parameter :: eps = 1e-10
+  real, parameter :: delta = 0.05  ! Smoothing width (kT units)
+
+  dE = phi_b - E
+  F_safe = sqrt(F**2 + eps**2)
+  coeff = (4.0/3.0) * sqrt(2.0 * m_star)
+
+  if (dE < -5.0*delta) then
+    ! Far above barrier: pure thermionic (E >> phi_b)
+    T = 1.0
+    dT_dE = 0.0
+    dT_dphi = 0.0
+    dT_dF = 0.0
+  else if (dE > 5.0*delta) then
+    ! Far below barrier: pure tunneling (E << phi_b)
+    gamma = coeff * dE**1.5 / F_safe
+    exp_gamma = exp(-gamma)
+
+    T = exp_gamma
+    dT_dE   = exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
+    dT_dphi = -dT_dE
+    dT_dF   = exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
+  else
+    ! Transition region: smooth interpolation
+    ! smooth(dE) = 1 / (1 + exp(-dE/delta))
+    smooth = 1.0 / (1.0 + exp(-dE/delta))
+    dsmooth_dE = smooth * (1.0 - smooth) / delta
+
+    gamma = coeff * max(dE, 0.0)**1.5 / F_safe
+    exp_gamma = exp(-gamma)
+
+    ! T interpolates: tunneling → thermionic
+    T = 1.0 - smooth * (1.0 - exp_gamma)
+
+    ! Derivatives with chain rule
+    if (dE > 0.0) then
+      dT_dE = -dsmooth_dE * (1.0 - exp_gamma) &
+              + smooth * exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
+      dT_dphi = -dT_dE
+      dT_dF = smooth * exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
+    else
+      dT_dE = -dsmooth_dE * (1.0 - exp_gamma)
+      dT_dphi = -dT_dE
+      dT_dF = 0.0
+    end if
+  end if
+end subroutine wkb_transmission
+```
+
+**Rationale:**
+- Eliminates derivative discontinuities
+- delta=0.05kT gives narrow transition (~0.0013eV at 300K)
+- Physically motivated: real barriers have smooth transitions
+- Improves numerical integration robustness
+
+**Testing:**
+1. Compare J-V curves: new vs old implementation
+2. Check difference is <1% for V<0.6V (should be negligible)
+3. Verify convergence across full bias range
+4. Jacobian verification should improve
+
+**Expected outcome:**
+- Robust convergence independent of bias point
+- Smoother Jacobian behavior
+- Slight change in J-V near barrier top (E≈phi_b region)
+
+#### Phase 3: Add Diagnostic Output (INFRASTRUCTURE)
+
+**Priority:** HIGH - Needed for debugging
+
+**Implementation:**
+
+Uncomment and enhance debug output in `src/schottky.f90`:
+
+```fortran
+! After line 100:
+if (err > 1.0e-9) then
+  print "(A,I2,A,ES12.4,A,I6)", &
+    "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
+end if
+
+! Uncomment lines 94-96, 120-122 for detailed diagnostics
+```
+
+Add to `src/continuity.f90` (uncomment lines 360-368):
+```fortran
+print "(A,I3,A,I3)", "DEBUG_SCHOTTKY: contact=", ict, " vertex=", i
+print "(A,2ES14.6)", "  dens, DOS = ", dens, this%par%smc%edos(this%ci)
+print "(A,2ES14.6)", "  E_normal, phi_b = ", E_normal, this%par%contacts(ict)%phi_b
+print "(A,2ES14.6)", "  J_sch, A_ct = ", J_sch, A_ct
+print "(A,ES14.6)", "  dJ_ddens = ", dJ_ddens
+```
+
+**Testing:**
+- Run with diagnostics at V=0.192V
+- Check for:
+  - Integration errors >1e-9
+  - Abnormal dJ_ddens values
+  - Vertices with problematic Jacobian entries
+
+#### Phase 4: Validation Tests
+
+**Test suite to run after each fix:**
+
+1. **Convergence test:**
+   ```ini
+   V_SCHOTTKY = 0.18, 0.185, 0.19, 0.191, 0.192, 0.195, 0.2, 0.5, 1.0 : V
+   ```
+   - All should converge in <20 iterations
+
+2. **Jacobian verification:**
+   - Run built-in test at each voltage
+   - Check: min ||F|| occurs at t ∈ [0.95, 1.05]
+
+3. **Physics validation:**
+   - Plot log(J) vs V → should be linear with slope ≈ q/kT
+   - Check current density magnitude matches expected ~A/cm² range
+
+4. **Reverse bias check:**
+   - V_SCHOTTKY = -0.5, -1.0V → ensure still works
+
+5. **Computational cost:**
+   - Compare total ncalls and wall time
+   - Acceptable if <5× increase
+
+### Critical Files
+
+1. **src/schottky.f90**
+   - Line 100: Integration tolerance (Phase 1)
+   - Lines 213-243: WKB transmission (Phase 2)
+   - Lines 94-96, 120-122: Diagnostics (Phase 3)
+
+2. **src/continuity.f90**
+   - Lines 360-368: Debug output (Phase 3)
+
+3. **run_schottky.ini**
+   - Add voltage sweep for systematic testing
+
+### Implementation Order
+
+**STEP 1:** Enable diagnostics (Phase 3) - 5 minutes
+- Uncomment debug lines
+- Run at V=0.192V
+- Confirm integration error and Jacobian behavior
+
+**STEP 2:** Apply Phase 1 fix - 2 minutes
+- Change rtol to 1e-8
+- Test convergence at 0.192V
+- Run Jacobian verification
+- **Decision point:** If converges → SUCCESS, cleanup diagnostics
+- If not → proceed to Step 3
+
+**STEP 3:** Apply Phase 2 fix (if needed) - 30 minutes
+- Implement WKB smoothing
+- Validate against low-bias reference
+- Test full bias range
+- Compare J-V curves
+
+**STEP 4:** Full validation - 15 minutes
+- Run complete test suite
+- Document results
+- Remove diagnostic output
+
+### Success Criteria
+
+**Must achieve:**
+- ✓ Convergence at V=0.192V and all higher forward bias
+- ✓ Jacobian verification passes (min at t≈1.0)
+- ✓ J-V curve follows exp(qV/kT) behavior
+
+**Should achieve:**
+- ✓ Convergence in <20 Newton iterations
+- ✓ No warnings about integration errors
+- ✓ Computational cost <3× original
+
+**Nice to have:**
+- ✓ Robust convergence for any reasonable bias
+- ✓ Clean diagnostic output (no anomalies)

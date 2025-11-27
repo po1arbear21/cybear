@@ -44,6 +44,10 @@ module continuity_m
       !! electric field components (for Schottky)
     integer, allocatable :: schottky_normal(:)
       !! normal direction for each contact (0 if not Schottky)
+    real, allocatable :: accum_TE(:)
+      !! accumulated TE current per contact (set during eval)
+    real, allocatable :: accum_TN(:)
+      !! accumulated TN current per contact (set during eval)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -117,6 +121,8 @@ contains
 
       ! Store normal directions for each contact
       allocate(this%schottky_normal(par%nct))
+      allocate(this%accum_TE(par%nct), source=0.0)
+      allocate(this%accum_TN(par%nct), source=0.0)
       do ict = 1, par%nct
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
           this%schottky_normal(ict) = get_normal_dir(par, ict)
@@ -291,24 +297,25 @@ contains
     integer, allocatable :: idx(:)
     real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:)
     real                 :: J_sch, E_normal, dens, A_ct, dJ_ddens
+    real                 :: J_TE_local, J_TN_local  ! TE/TN components
 
     allocate (tmp(this%f%n))
     allocate (idx(this%par%g%idx_dim))
 
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
 
-    print "(A)", "DEBUG_CONTINUITY: Node structure"
-    print "(A,I6)", "  n_interior = ", this%par%transport_vct(0)%n
-    do ict = 1, this%par%nct
-      print "(A,I3,A,I6,A,I3)", "  contact ", ict, ": n_nodes=", this%par%transport_vct(ict)%n, &
-                               ", type=", this%par%contacts(ict)%type
-    end do
-    dens_arr = this%dens%get()
-    print "(A)", "DEBUG_CONTINUITY: after jaco_dens*dens (tmp = J_dens * n)"
-    print "(A)", "  node | dens | tmp | J_diag (=tmp/dens)"
-    do i = 1, size(tmp)
-      print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(dens_arr(i), "cm^-3"), tmp(i), tmp(i)/dens_arr(i)
-    end do
+    ! print "(A)", "DEBUG_CONTINUITY: Node structure"
+    ! print "(A,I6)", "  n_interior = ", this%par%transport_vct(0)%n
+    ! do ict = 1, this%par%nct
+    !   print "(A,I3,A,I6,A,I3)", "  contact ", ict, ": n_nodes=", this%par%transport_vct(ict)%n, &
+    !                            ", type=", this%par%contacts(ict)%type
+    ! end do
+    ! dens_arr = this%dens%get()
+    ! print "(A)", "DEBUG_CONTINUITY: after jaco_dens*dens (tmp = J_dens * n)"
+    ! print "(A)", "  node | dens | tmp | J_diag (=tmp/dens)"
+    ! do i = 1, size(tmp)
+    !   print "(A,I6,A,3ES14.6)", "  ", i, " |", denorm(dens_arr(i), "cm^-3"), tmp(i), tmp(i)/dens_arr(i)
+    ! end do
 
     ! Zero out jaco_dens contribution for Schottky contacts (before adding cdens)
     if (allocated(this%efield)) then
@@ -359,7 +366,7 @@ contains
 
               ! Set Jacobian entry: df/d(dens) = -dJ_sch/d(dens) * A_ct
               print "(A,ES14.6)", "  Setting jaco_dens = ", -dJ_ddens * A_ct
-              call this%jaco_dens%set(idx, idx, -dJ_ddens * A_ct)
+              call this%jaco_dens%set(idx, idx, -dJ_ddens * A_ct )
 
               ! Add Schottky residual (jaco_dens contribution was zeroed earlier)
               tmp(j) = tmp(j) - J_sch * A_ct
@@ -376,7 +383,7 @@ contains
     end if
 
     call this%f%set(tmp - this%b)
-    print *, "Max residual at vertex:", maxloc(abs(tmp - this%b)), maxval(abs(tmp - this%b))
+    ! print *, "Max residual at vertex:", maxloc(abs(tmp - this%b)), maxval(abs(tmp - this%b))
   end subroutine
 
 end module

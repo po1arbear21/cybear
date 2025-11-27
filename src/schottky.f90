@@ -43,9 +43,11 @@ contains
     real :: params(4), integral, dIda, dIdb, dIdp(4), err
     real :: E_min, E_max, prefactor
     real :: dens_eq  ! Equilibrium density at barrier
-    integer :: ncalls
+    real :: integral1, integral2, err1, err2
+    real :: dIda1, dIdb1, dIdp1(4), dIda2, dIdb2, dIdp2(4)
+    integer :: ncalls, ncalls1, ncalls2
 
-    print "(A,I3,A,I3)", "DEBUG: schottky_current called, ict=", ict, " ci=", ci
+    ! print "(A,I3,A,I3)", "DEBUG: schottky_current called, ict=", ict, " ci=", ci
 
     ! Get barrier height (normalized to kT)
     if (ci == CR_ELEC) then
@@ -78,7 +80,7 @@ contains
       eta_m = -eta - phi_b
     end if
 
-    print "(A,4ES14.6)", "  eta = ", eta
+    ! print "(A,4ES14.6)", "  eta = ", eta
 
     ! Integration parameters: [phi_b, |E|, m*, eta_m]
     params = [phi_b, E_normal, m_tunnel, eta_m]
@@ -95,13 +97,39 @@ contains
     print "(A,2ES14.6)", "  E_min, E_max = ", E_min, E_max
     print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
 
-    ! Perform integration
-    call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
-              dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+    ! Perform integration - split at barrier for better accuracy
+    if (par%contacts(ict)%tunneling .and. phi_b > 5.0) then
+      ! Split integration at barrier height
+      ! Part 1: Below barrier (tunneling regime)
+      call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral1, &
+                dIda1, dIdb1, dIdp1, rtol=1.0e-10, err=err1, ncalls=ncalls1)
 
-    print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
+      ! Part 2: Above barrier (thermionic regime)
+      call quad(tsu_esaki_integrand, phi_b, E_max, params, integral2, &
+                dIda2, dIdb2, dIdp2, rtol=1.0e-10, err=err2,  ncalls=ncalls2)
 
-    ! Current density (prefactor already computed above)
+      ! Combine results
+      integral = integral1 + integral2
+      dIdp = dIdp1 + dIdp2
+      err = sqrt(err1**2 + err2**2)
+      ncalls = ncalls1 + ncalls2
+
+      print "(A,2ES14.6,A,2I6)", "  integral = ", integral1, integral2, " ncalls = ", ncalls1, ncalls2
+    else
+      ! Single integration (small barrier or no tunneling)
+      call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+                dIda, dIdb, dIdp, rtol=1.0e-10, err=err, ncalls=ncalls)
+
+      print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
+    end if
+
+    ! Check integration error
+    if (err > 1.0e-9) then
+      print "(A,I2,A,ES12.4,A,I6)", &
+        "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
+    end if
+
+    ! Current density (prefactor already computed above) ******CR_CHARGE
     if (ci == CR_ELEC) then
       J = -prefactor * integral   ! Positive = electrons entering semiconductor
     else
@@ -187,13 +215,19 @@ contains
     ! WKB transmission
     call wkb_transmission(E, phi_b, efield, m_star, T, dT_dE, dT_dphi, dT_dF)
 
-    ! Supply function: ln(1+exp(eta_m-E)) - ln(1+exp(-E))
-    N_supply = log1p_exp(eta_m - E) - log1p_exp(-E)
-
     ! Derivatives
     f_metal = 1.0 / (1.0 + exp(E))
     f_semi  = 1.0 / (1.0 + exp(E - eta_m))
     dN_dE   = f_metal - f_semi
+
+    ! Supply function: ln(1+exp(eta_m-E)) - ln(1+exp(-E))
+    ! For small eta_m, use Taylor expansion to avoid cancellation
+    if (abs(eta_m) < 0.01 .and. E > 1.0) then
+      ! Taylor expansion: N_supply ≈ eta_m * f_metal for small eta_m
+      N_supply = eta_m * f_metal
+    else
+      N_supply = log1p_exp(eta_m - E) - log1p_exp(-E)
+    end if
 
     ! Integrand
     f = T * N_supply
@@ -208,37 +242,68 @@ contains
   end subroutine tsu_esaki_integrand
 
   !============================================================================
-  ! WKB Transmission
+  ! WKB Transmission (with smooth transition at barrier)
   !============================================================================
   pure subroutine wkb_transmission(E, phi_b, F, m_star, T, dT_dE, dT_dphi, dT_dF)
-    !! T = 1 for E >= phi_b (thermionic)
-    !! T = exp(-γ) for E < phi_b (tunneling)
+    !! T with smooth transition at E = phi_b
+    !! T = exp(-γ) for E << phi_b (tunneling)
+    !! T = 1 for E >> phi_b (thermionic)
+    !! Smooth interpolation in transition region
     !! γ = (4/3) * sqrt(2m*) * (phi_b - E)^(3/2) / F
 
     real, intent(in)  :: E, phi_b, F, m_star
     real, intent(out) :: T, dT_dE, dT_dphi, dT_dF
 
-    real :: gamma, dE, F_safe, coeff
+    real :: gamma, dE, F_safe, coeff, exp_gamma
+    real :: smooth, dsmooth_dE
     real, parameter :: eps = 1e-10
-
-    if (E >= phi_b) then
-      T = 1.0
-      dT_dE = 0.0
-      dT_dphi = 0.0
-      dT_dF = 0.0
-      return
-    end if
+    real, parameter :: delta = 0.05  ! Smoothing width in kT units (~0.0013 eV at 300K)
 
     dE = phi_b - E
     F_safe = sqrt(F**2 + eps**2)
     coeff = (4.0/3.0) * sqrt(2.0 * m_star)
 
-    gamma = coeff * dE**1.5 / F_safe
-    T = exp(-gamma)
+    if (dE < -5.0*delta) then
+      ! Far above barrier: pure thermionic (E >> phi_b)
+      T = 1.0
+      dT_dE = 0.0
+      dT_dphi = 0.0
+      dT_dF = 0.0
+    else if (dE > 5.0*delta) then
+      ! Far below barrier: pure tunneling (E << phi_b)
+      gamma = coeff * dE**1.5 / F_safe
+      exp_gamma = exp(-gamma)
 
-    dT_dE   = T * coeff * 1.5 * sqrt(dE) / F_safe
-    dT_dphi = -dT_dE
-    dT_dF   = T * coeff * dE**1.5 * F / (F_safe**3)
+      T = exp_gamma
+      dT_dE   = exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
+      dT_dphi = -dT_dE
+      dT_dF   = exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
+    else
+      ! Transition region: smooth interpolation
+      ! smooth(dE) = 1 / (1 + exp(-dE/delta))
+      smooth = 1.0 / (1.0 + exp(-dE/delta))
+      dsmooth_dE = smooth * (1.0 - smooth) / delta
+
+      if (dE > 0.0) then
+        gamma = coeff * dE**1.5 / F_safe
+        exp_gamma = exp(-gamma)
+
+        ! T interpolates: exp(-gamma) → 1
+        T = 1.0 - smooth * (1.0 - exp_gamma)
+
+        ! Derivatives with chain rule
+        dT_dE = -dsmooth_dE * (1.0 - exp_gamma) &
+                + smooth * exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
+        dT_dphi = -dT_dE
+        dT_dF = smooth * exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
+      else
+        ! Smooth approach to T=1 from below
+        T = 1.0 - smooth
+        dT_dE = dsmooth_dE
+        dT_dphi = -dT_dE
+        dT_dF = 0.0
+      end if
+    end if
 
   end subroutine wkb_transmission
 
