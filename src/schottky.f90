@@ -102,12 +102,11 @@ contains
       ! Split integration at barrier height
       ! Part 1: Below barrier (tunneling regime)
       call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral1, &
-                dIda1, dIdb1, dIdp1, rtol=1.0e-10, err=err1, ncalls=ncalls1)
+                dIda1, dIdb1, dIdp1, rtol=1.0e-6, err=err1, ncalls=ncalls1)
 
       ! Part 2: Above barrier (thermionic regime)
       call quad(tsu_esaki_integrand, phi_b, E_max, params, integral2, &
-                dIda2, dIdb2, dIdp2, rtol=1.0e-10, err=err2,  ncalls=ncalls2)
-
+                dIda2, dIdb2, dIdp2, rtol=1.0e-6, err=err2,  ncalls=ncalls2)
       ! Combine results
       integral = integral1 + integral2
       dIdp = dIdp1 + dIdp2
@@ -118,7 +117,7 @@ contains
     else
       ! Single integration (small barrier or no tunneling)
       call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
-                dIda, dIdb, dIdp, rtol=1.0e-10, err=err, ncalls=ncalls)
+                dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
 
       print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
     end if
