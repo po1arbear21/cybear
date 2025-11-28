@@ -67,10 +67,10 @@ contains
     ! prefactor = m_tunnel / (2.0 * PI**2)
 
     if (ci == CR_ELEC) then
-      prefactor = 1.09 / (2.0 * PI**2)
+      prefactor = m_tunnel / (2.0 * PI**2)
 
     else
-      prefactor = 1.15 / (2.0 * PI**2)
+      prefactor = m_tunnel / (2.0 * PI**2)
     end if
 
 
@@ -365,9 +365,9 @@ contains
 
     ! Prefactor for current (same as in schottky_current)
     if (ci == CR_ELEC) then
-      prefactor = 1.09 / (2.0 * PI**2)
+      prefactor = m_tunnel / (2.0 * PI**2)
     else
-      prefactor = 1.15 / (2.0 * PI**2)
+      prefactor = m_tunnel / (2.0 * PI**2)
     end if
 
     ! Apply image force barrier lowering if enabled
