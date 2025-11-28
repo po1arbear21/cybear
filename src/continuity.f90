@@ -370,27 +370,25 @@ contains
               call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
 
               ! TE component for debugging (J_tn already computed above)
-              J_te = v_surf_ict * (dens - n0B)
+              J_te = -v_surf_ict * (dens - n0B)
 
               ! Debug output
               print "(A,I3,A,I3)", "DEBUG_SCHOTTKY_ROBIN: contact=", ict, " vertex=", i
               print "(A,2ES14.6)", "  dens, n0B = ", denorm(dens, "cm^-3"), denorm(n0B, "cm^-3")
               print "(A,ES14.6,A)", "  v_surf = ", denorm(v_surf_ict, "cm/s"), " cm/s"
-              print "(A,ES14.6,A)", "  J_TE = v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
+              print "(A,ES14.6,A)", "  J_TE = -v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
               print "(A,ES14.6,A)", "  J_TN = ", denorm(J_tn, "A/cm^2"), " A/cm²"
               print "(A,ES14.6,A)", "  J_total = ", denorm(J_te + J_tn, "A/cm^2"), " A/cm²"
+              print "(A,ES14.6,A)", "  dJ/ddens = ", v_surf_ict * A_ct - A_ct * dJ_tn_ddens
 
               ! Set Jacobian entry: df/d(dens) = -v_surf*A_ct - A_ct*dJ_tn/ddens
-              call this%jaco_dens%set(idx, idx, -v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
+              call this%jaco_dens%set(idx, idx, v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
 
               ! Add residual: F = div(J) - A_ct * [v_surf*(n - n0B) + J_tn]
               ! The div(J) is already in tmp from jaco_cdens
               ! jaco_dens contribution was zeroed earlier, so we add the full BC term:
-              tmp(j) = tmp(j) - v_surf_ict * A_ct * dens + v_surf_ict * A_ct * n0B - A_ct * J_tn
+              tmp(j) = tmp(j) + v_surf_ict * A_ct * dens - v_surf_ict * A_ct * n0B - A_ct * J_tn
 
-              ! Accumulate for output
-              this%accum_TE(ict) = this%accum_TE(ict) + J_te * A_ct
-              this%accum_TN(ict) = this%accum_TN(ict) + J_tn * A_ct
             end if
           else
             ! Ohmic/Gate: Dirichlet BC, jaco_dens = 1.0

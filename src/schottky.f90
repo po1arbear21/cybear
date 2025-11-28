@@ -223,7 +223,7 @@ contains
     integer, intent(in) :: ict  ! contact index
     real :: v_th
 
-    real :: A_star, T_phys, J_th
+    real :: A_star
 
     ! Get Richardson constant (A/cm²/K²)
     if (ci == CR_ELEC) then
@@ -232,20 +232,15 @@ contains
       A_star = par%contacts(ict)%A_richardson_p
     end if
 
-    ! Get physical temperature (stored in device_params, not semiconductor)
-    T_phys = par%T
-
-    ! Thermionic current prefactor: A* T² (in A/cm²)
-    J_th = A_star * T_phys**2
 
     ! Velocity = J_th / (q * N_c) = J_th / edos (in normalized units)
     ! First normalize J_th, then divide by edos
-    v_th = norm(J_th, "A/cm^2") / par%smc%edos(ci)
+    v_th = A_star * norm(par%T, "K")**2 / par%smc%edos(ci)
 
     print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
     print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
-    print "(A,ES14.6,A)", "  T = ", T_phys, " K"
-    print "(A,ES14.6,A)", "  A*T² = ", J_th, " A/cm²"
+    print "(A,ES14.6,A)", "  T = ", norm(par%T, "K"), " K"
+    print "(A,ES14.6,A)", "  A*T² = ", A_star * norm(par%T, "K")**2, " A/cm²"
     print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
 
   end function schottky_velocity
