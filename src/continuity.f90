@@ -10,7 +10,7 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
-  use schottky_m,        only: schottky_current, get_normal_dir
+  use schottky_m,        only: schottky_current, get_normal_dir, schottky_velocity, schottky_n0b, schottky_tunneling
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
   use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use normalization_m,   only: norm, denorm
@@ -48,6 +48,8 @@ module continuity_m
       !! accumulated TE current per contact (set during eval)
     real, allocatable :: accum_TN(:)
       !! accumulated TN current per contact (set during eval)
+    real, allocatable :: v_surf(:)
+      !! surface recombination velocity per contact (for Robin BC)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -119,13 +121,15 @@ contains
         call program_error("E-field required for Schottky contacts")
       end if
 
-      ! Store normal directions for each contact
+      ! Store normal directions and thermionic velocity for each contact
       allocate(this%schottky_normal(par%nct))
       allocate(this%accum_TE(par%nct), source=0.0)
       allocate(this%accum_TN(par%nct), source=0.0)
+      allocate(this%v_surf(par%nct), source=0.0)
       do ict = 1, par%nct
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
           this%schottky_normal(ict) = get_normal_dir(par, ict)
+          this%v_surf(ict) = schottky_velocity(par, ci, ict)
         else
           this%schottky_normal(ict) = 0
         end if
@@ -296,8 +300,8 @@ contains
     integer              :: idx_dir, ict, i, j, normal_dir
     integer, allocatable :: idx(:)
     real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:)
-    real                 :: J_sch, E_normal, dens, A_ct, dJ_ddens
-    real                 :: J_TE_local, J_TN_local  ! TE/TN components
+    real                 :: E_normal, dens, A_ct
+    real                 :: n0B, J_tn, dJ_tn_ddens, v_surf_ict, J_te
 
     allocate (tmp(this%f%n))
     allocate (idx(this%par%g%idx_dim))
@@ -351,25 +355,42 @@ contains
               E_normal = efield_arr(j)
               dens = dens_arr(j)
 
-              ! Compute Schottky current AND derivative
-              J_sch = schottky_current(this%par, ict, this%ci, E_normal, dens, dJ_ddens)
-
-              ! Get contact surface area
+              ! Get contact surface area and thermionic velocity
               A_ct = this%par%get_ct_surf(ict, idx)
+              v_surf_ict = this%v_surf(ict)
+
+              ! Robin BC + Tunneling approach:
+              ! J_schottky = v_surf*(n - n0B) + J_tn
+              ! F = div(J) - A_ct * J_schottky = 0
+
+              ! Compute equilibrium injection density n0B (with optional IFBL)
+              call schottky_n0b(this%par, this%ci, ict, E_normal, n0B)
+
+              ! Compute tunneling current and its derivative
+              call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
+
+              ! TE component for debugging (J_tn already computed above)
+              J_te = v_surf_ict * (dens - n0B)
 
               ! Debug output
-              print "(A,I3,A,I3)", "DEBUG_SCHOTTKY: contact=", ict, " vertex=", i
-              print "(A,2ES14.6)", "  dens, DOS = ", denorm(dens, "cm^-3"), denorm(this%par%smc%edos(this%ci), "cm^-3")
-              print "(A,2ES14.6)", "  E_normal, phi_b = ", denorm(E_normal, "V/cm"), denorm(this%par%contacts(ict)%phi_b, "eV")
-              print "(A,2ES14.6)", "  J_sch, A_ct = ", denorm(J_sch, "A/cm^2"), denorm(A_ct, "nm")
-              print "(A,ES14.6)", "  dJ_ddens = ", dJ_ddens
+              print "(A,I3,A,I3)", "DEBUG_SCHOTTKY_ROBIN: contact=", ict, " vertex=", i
+              print "(A,2ES14.6)", "  dens, n0B = ", denorm(dens, "cm^-3"), denorm(n0B, "cm^-3")
+              print "(A,ES14.6,A)", "  v_surf = ", denorm(v_surf_ict, "cm/s"), " cm/s"
+              print "(A,ES14.6,A)", "  J_TE = v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
+              print "(A,ES14.6,A)", "  J_TN = ", denorm(J_tn, "A/cm^2"), " A/cm²"
+              print "(A,ES14.6,A)", "  J_total = ", denorm(J_te + J_tn, "A/cm^2"), " A/cm²"
 
-              ! Set Jacobian entry: df/d(dens) = -dJ_sch/d(dens) * A_ct
-              print "(A,ES14.6)", "  Setting jaco_dens = ", -dJ_ddens * A_ct
-              call this%jaco_dens%set(idx, idx, -dJ_ddens * A_ct )
+              ! Set Jacobian entry: df/d(dens) = -v_surf*A_ct - A_ct*dJ_tn/ddens
+              call this%jaco_dens%set(idx, idx, -v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
 
-              ! Add Schottky residual (jaco_dens contribution was zeroed earlier)
-              tmp(j) = tmp(j) - J_sch * A_ct
+              ! Add residual: F = div(J) - A_ct * [v_surf*(n - n0B) + J_tn]
+              ! The div(J) is already in tmp from jaco_cdens
+              ! jaco_dens contribution was zeroed earlier, so we add the full BC term:
+              tmp(j) = tmp(j) - v_surf_ict * A_ct * dens + v_surf_ict * A_ct * n0B - A_ct * J_tn
+
+              ! Accumulate for output
+              this%accum_TE(ict) = this%accum_TE(ict) + J_te * A_ct
+              this%accum_TN(ict) = this%accum_TN(ict) + J_tn * A_ct
             end if
           else
             ! Ohmic/Gate: Dirichlet BC, jaco_dens = 1.0

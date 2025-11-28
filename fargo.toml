@@ -72,7 +72,7 @@ mode = "debug"
 target = "schottky_test"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
-partition = "fast"
+partition = "faster"
 
 templates = [
   { files = [

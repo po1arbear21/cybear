@@ -6,12 +6,16 @@ module schottky_m
   use semiconductor_m,  only: CR_ELEC, CR_HOLE
   use math_m,           only: PI
   use quad_m,           only: quad
+  use normalization_m,  only: norm, denorm
 
   implicit none
   private
 
   public :: schottky_current
   public :: get_normal_dir
+  public :: schottky_velocity
+  public :: schottky_n0b
+  public :: schottky_tunneling
 
 contains
 
@@ -58,8 +62,17 @@ contains
       m_tunnel = par%contacts(ict)%m_tunnel_p
     end if
 
+
     ! Prefactor for current: m* / (2π²) in normalized units
-    prefactor = m_tunnel / (2.0 * PI**2)
+    ! prefactor = m_tunnel / (2.0 * PI**2)
+
+    if (ci == CR_ELEC) then
+      prefactor = 1.09 / (2.0 * PI**2)
+
+    else
+      prefactor = 1.15 / (2.0 * PI**2)
+    end if
+
 
     ! Apply image force barrier lowering if enabled
     if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
@@ -193,6 +206,224 @@ contains
   end function get_normal_dir
 
   !============================================================================
+  ! Robin BC Helper: Thermionic Velocity (Richardson Velocity)
+  !============================================================================
+  function schottky_velocity(par, ci, ict) result(v_th)
+    !! Calculate thermionic velocity for Robin BC
+    !!
+    !! v_th = A* T² / (q N_c)
+    !!
+    !! This is the "surface recombination velocity" for the thermionic
+    !! emission component of Schottky BC.
+    !!
+    !! Returns: normalized velocity (cm/s in physical units)
+
+    type(device_params), intent(in) :: par
+    integer, intent(in) :: ci   ! carrier index (CR_ELEC/CR_HOLE)
+    integer, intent(in) :: ict  ! contact index
+    real :: v_th
+
+    real :: A_star, T_phys, J_th
+
+    ! Get Richardson constant (A/cm²/K²)
+    if (ci == CR_ELEC) then
+      A_star = par%contacts(ict)%A_richardson_n
+    else
+      A_star = par%contacts(ict)%A_richardson_p
+    end if
+
+    ! Get physical temperature (stored in device_params, not semiconductor)
+    T_phys = par%T
+
+    ! Thermionic current prefactor: A* T² (in A/cm²)
+    J_th = A_star * T_phys**2
+
+    ! Velocity = J_th / (q * N_c) = J_th / edos (in normalized units)
+    ! First normalize J_th, then divide by edos
+    v_th = norm(J_th, "A/cm^2") / par%smc%edos(ci)
+
+    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
+    print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
+    print "(A,ES14.6,A)", "  T = ", T_phys, " K"
+    print "(A,ES14.6,A)", "  A*T² = ", J_th, " A/cm²"
+    print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
+
+  end function schottky_velocity
+
+  !============================================================================
+  ! Robin BC Helper: Equilibrium Injection Density
+  !============================================================================
+  subroutine schottky_n0b(par, ci, ict, E_normal, n0B, dn0B_dE)
+    !! Calculate equilibrium injection density at Schottky barrier
+    !!
+    !! n0B = N_c exp(-φ_b_eff / kT)
+    !!
+    !! With optional image force barrier lowering (IFBL):
+    !! φ_b_eff = φ_b - sqrt(q|E| / (4πε))
+    !!
+    !! Inputs:
+    !!   par      - device parameters
+    !!   ci       - carrier index
+    !!   ict      - contact index
+    !!   E_normal - normal electric field (normalized)
+    !!
+    !! Outputs:
+    !!   n0B      - equilibrium density (normalized)
+    !!   dn0B_dE  - (optional) derivative w.r.t. E-field for IFBL Jacobian
+
+    type(device_params), intent(in) :: par
+    integer, intent(in) :: ci, ict
+    real, intent(in) :: E_normal
+    real, intent(out) :: n0B
+    real, optional, intent(out) :: dn0B_dE
+
+    real :: phi_b, phi_b_eff, delta_phi, ddelta_dE
+
+    ! Get barrier height (normalized to kT)
+    if (ci == CR_ELEC) then
+      phi_b = par%contacts(ict)%phi_b
+    else
+      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+    end if
+
+    phi_b_eff = phi_b
+
+    ! Apply image force barrier lowering if enabled
+    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+      delta_phi = sqrt(abs(E_normal) / (4.0 * PI))
+      phi_b_eff = phi_b - delta_phi
+
+      ! Derivative: d(delta_phi)/dE = 1/(2*sqrt(4πE)) = delta_phi/(2E)
+      if (present(dn0B_dE)) then
+        ddelta_dE = delta_phi / (2.0 * abs(E_normal))
+      end if
+    else
+      delta_phi = 0.0
+      if (present(dn0B_dE)) ddelta_dE = 0.0
+    end if
+
+    ! Equilibrium density at effective barrier
+    n0B = par%smc%edos(ci) * exp(-phi_b_eff)
+
+    ! Derivative w.r.t. E-field (for full Newton coupling)
+    ! dn0B/dE = n0B * d(phi_b_eff)/dE = n0B * (-ddelta_dE)
+    if (present(dn0B_dE)) then
+      dn0B_dE = n0B * ddelta_dE
+    end if
+
+    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_N0B: ci=", ci, " ict=", ict
+    print "(A,ES14.6)", "  phi_b = ", phi_b
+    print "(A,ES14.6)", "  delta_phi (IFBL) = ", delta_phi
+    print "(A,ES14.6)", "  phi_b_eff = ", phi_b_eff
+    print "(A,ES14.6,A)", "  n0B = ", denorm(n0B, "cm^-3"), " cm^-3"
+
+  end subroutine schottky_n0b
+
+  !============================================================================
+  ! Robin BC Helper: Tunneling Current (Below-Barrier Integral)
+  !============================================================================
+  subroutine schottky_tunneling(par, ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
+    !! Calculate tunneling current from WKB integral below barrier
+    !!
+    !! J_tn = (m*/2π²) ∫₀^{φ_b} T(E) · supply(E) dE
+    !!
+    !! This is the sub-barrier tunneling component only.
+    !! The above-barrier thermionic component is handled by Robin BC.
+    !!
+    !! Inputs:
+    !!   par      - device parameters
+    !!   ict      - contact index
+    !!   ci       - carrier index
+    !!   E_normal - normal electric field (normalized)
+    !!   dens     - carrier density at contact (normalized)
+    !!
+    !! Outputs:
+    !!   J_tn     - tunneling current density (normalized)
+    !!   dJ_tn_ddens - derivative dJ_tn/d(dens) for Jacobian
+
+    type(device_params), intent(in) :: par
+    integer, intent(in) :: ict, ci
+    real, intent(in) :: E_normal, dens
+    real, intent(out) :: J_tn
+    real, intent(out) :: dJ_tn_ddens
+
+    real :: phi_b, m_tunnel, eta, eta_m, detadF
+    real :: params(4), integral, dIda, dIdb, dIdp(4), err
+    real :: prefactor
+    integer :: ncalls
+
+    ! Skip if tunneling disabled
+    if (.not. par%contacts(ict)%tunneling) then
+      J_tn = 0.0
+      dJ_tn_ddens = 0.0
+      return
+    end if
+
+    ! Get barrier height (normalized to kT)
+    if (ci == CR_ELEC) then
+      phi_b = par%contacts(ict)%phi_b
+      m_tunnel = par%contacts(ict)%m_tunnel_n
+    else
+      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+      m_tunnel = par%contacts(ict)%m_tunnel_p
+    end if
+
+    ! Prefactor for current (same as in schottky_current)
+    if (ci == CR_ELEC) then
+      prefactor = 1.09 / (2.0 * PI**2)
+    else
+      prefactor = 1.15 / (2.0 * PI**2)
+    end if
+
+    ! Apply image force barrier lowering if enabled
+    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+      phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
+    end if
+
+    ! Skip if barrier is too small for meaningful tunneling
+    if (phi_b < 0.5) then
+      J_tn = 0.0
+      dJ_tn_ddens = 0.0
+      return
+    end if
+
+    ! Compute η for current calculation
+    call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
+
+    ! Quasi-Fermi relative to metal Fermi level
+    if (ci == CR_ELEC) then
+      eta_m = eta + phi_b
+    else
+      eta_m = -eta - phi_b
+    end if
+
+    ! Integration parameters: [phi_b, |E|, m*, eta_m]
+    params = [phi_b, E_normal, m_tunnel, eta_m]
+
+    ! Integrate from 0 to phi_b (tunneling regime only)
+    call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral, &
+              dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+
+    ! Current density
+    if (ci == CR_ELEC) then
+      J_tn = -prefactor * integral
+    else
+      J_tn = prefactor * integral
+    end if
+
+    ! Derivative dJ_tn/d(dens)
+    ! Same chain rule as in schottky_current
+    dJ_tn_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
+
+    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_TUNNELING: ci=", ci, " ict=", ict
+    print "(A,ES14.6)", "  phi_b = ", phi_b
+    print "(A,ES14.6)", "  integral = ", integral
+    print "(A,ES14.6,A)", "  J_tn = ", denorm(J_tn, "A/cm^2"), " A/cm²"
+    print "(A,ES14.6)", "  dJ_tn/ddens = ", dJ_tn_ddens
+
+  end subroutine schottky_tunneling
+
+  !============================================================================
   ! Tsu-Esaki Integrand
   !============================================================================
   subroutine tsu_esaki_integrand(E, p, f, dfdE, dfdp)
@@ -254,21 +485,22 @@ contains
     real, intent(out) :: T, dT_dE, dT_dphi, dT_dF
 
     real :: gamma, dE, F_safe, coeff, exp_gamma
-    real :: smooth, dsmooth_dE
+    real :: x, s, ds_ddE, dT_ddE
     real, parameter :: eps = 1e-10
-    real, parameter :: delta = 0.05  ! Smoothing width in kT units (~0.0013 eV at 300K)
+    real, parameter :: delta = 0.05          ! Base smoothing width in kT units (~0.0013 eV at 300K)
+    real, parameter :: trans_width = 5.0*delta  ! Blend from thermionic (T=1) to tunneling over this window
 
     dE = phi_b - E
     F_safe = sqrt(F**2 + eps**2)
     coeff = (4.0/3.0) * sqrt(2.0 * m_star)
 
-    if (dE < -5.0*delta) then
-      ! Far above barrier: pure thermionic (E >> phi_b)
+    if (dE <= 0.0) then
+      ! Above the barrier: pure thermionic (E >= phi_b)
       T = 1.0
       dT_dE = 0.0
       dT_dphi = 0.0
       dT_dF = 0.0
-    else if (dE > 5.0*delta) then
+    else if (dE >= trans_width) then
       ! Far below barrier: pure tunneling (E << phi_b)
       gamma = coeff * dE**1.5 / F_safe
       exp_gamma = exp(-gamma)
@@ -278,30 +510,22 @@ contains
       dT_dphi = -dT_dE
       dT_dF   = exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
     else
-      ! Transition region: smooth interpolation
-      ! smooth(dE) = 1 / (1 + exp(-dE/delta))
-      smooth = 1.0 / (1.0 + exp(-dE/delta))
-      dsmooth_dE = smooth * (1.0 - smooth) / delta
+      ! Transition region: blend T from 1 (at dE=0) to exp(-gamma) (at dE=trans_width)
+      gamma = coeff * dE**1.5 / F_safe
+      exp_gamma = exp(-gamma)
 
-      if (dE > 0.0) then
-        gamma = coeff * dE**1.5 / F_safe
-        exp_gamma = exp(-gamma)
+      ! Smoothstep blend factor on 0 <= dE <= trans_width
+      x = dE / trans_width          ! 0 → 1 across the window
+      s = x*x*(3.0 - 2.0*x)         ! C1 smoothstep
+      ds_ddE = 6.0*x*(1.0 - x) / trans_width
 
-        ! T interpolates: exp(-gamma) → 1
-        T = 1.0 - smooth * (1.0 - exp_gamma)
+      T = 1.0 - s * (1.0 - exp_gamma)
 
-        ! Derivatives with chain rule
-        dT_dE = -dsmooth_dE * (1.0 - exp_gamma) &
-                + smooth * exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
-        dT_dphi = -dT_dE
-        dT_dF = smooth * exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
-      else
-        ! Smooth approach to T=1 from below
-        T = 1.0 - smooth
-        dT_dE = dsmooth_dE
-        dT_dphi = -dT_dE
-        dT_dF = 0.0
-      end if
+      ! Derivatives with chain rule (work in dE, then map to E/phi)
+      dT_ddE = -ds_ddE * (1.0 - exp_gamma) - s * exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
+      dT_dE = -dT_ddE
+      dT_dphi = dT_ddE
+      dT_dF = s * exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
     end if
 
   end subroutine wkb_transmission
