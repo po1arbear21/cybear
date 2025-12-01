@@ -169,7 +169,7 @@ contains
       ! Use SRC, GAT, DRN contact variables for SB-MOSFET
       call ss%init_output([new_string("pot"), new_string("ndens"), new_string("Ex"), new_string("Ey"), &
         & new_string("V_GAT"), new_string("I_SRC"), new_string("I_DRN"), new_string("I_GAT"), &
-        & new_string("delta_phi_b"), new_string("nn0b"), new_string("ncdensx"), new_string("ncdensy")], name%s // ".fbs")
+        & new_string("I_n_DRN"), new_string("I_p_DRN")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
     end do

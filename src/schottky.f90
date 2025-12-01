@@ -4,7 +4,7 @@ module schottky_m
 
   use device_params_m,  only: device_params
   use semiconductor_m,  only: CR_ELEC, CR_HOLE
-  use math_m,           only: PI
+  use math_m,           only: PI, expm1, log1p
   use quad_m,           only: quad
   use normalization_m,  only: norm, denorm
 
@@ -86,6 +86,7 @@ contains
 
     call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
 
+
     ! Quasi-Fermi relative to metal Fermi level
     if (ci == CR_ELEC) then
       eta_m = eta + phi_b
@@ -106,40 +107,40 @@ contains
     end if
 
     ! Debug: show integration parameters
-    print "(A)", "DEBUG_SCHOTTKY_INTEGRAL:"
-    print "(A,2ES14.6)", "  E_min, E_max = ", E_min, E_max
-    print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
+    ! print "(A)", "DEBUG_SCHOTTKY_INTEGRAL:"
+    ! print "(A,2ES14.6)", "  E_min, E_max = ", E_min, E_max
+    ! print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
 
     ! Perform integration - split at barrier for better accuracy
-    if (par%contacts(ict)%tunneling .and. phi_b > 5.0) then
+    if (par%contacts(ict)%tunneling) then
       ! Split integration at barrier height
       ! Part 1: Below barrier (tunneling regime)
       call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral1, &
-                dIda1, dIdb1, dIdp1, rtol=1.0e-6, err=err1, ncalls=ncalls1)
+                dIda1, dIdb1, dIdp1, rtol=1.0e-9, err=err1, ncalls=ncalls1)
 
       ! Part 2: Above barrier (thermionic regime)
       call quad(tsu_esaki_integrand, phi_b, E_max, params, integral2, &
-                dIda2, dIdb2, dIdp2, rtol=1.0e-6, err=err2,  ncalls=ncalls2)
+                dIda2, dIdb2, dIdp2, rtol=1.0e-9, err=err2,  ncalls=ncalls2)
       ! Combine results
       integral = integral1 + integral2
       dIdp = dIdp1 + dIdp2
       err = sqrt(err1**2 + err2**2)
       ncalls = ncalls1 + ncalls2
 
-      print "(A,2ES14.6,A,2I6)", "  integral = ", integral1, integral2, " ncalls = ", ncalls1, ncalls2
+      ! print "(A,2ES14.6,A,2I6)", "  integral = ", integral1, integral2, " ncalls = ", ncalls1, ncalls2
     else
       ! Single integration (small barrier or no tunneling)
       call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
                 dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
 
-      print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
+      ! print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
     end if
 
-    ! Check integration error
-    if (err > 1.0e-9) then
-      print "(A,I2,A,ES12.4,A,I6)", &
-        "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
-    end if
+    ! ! Check integration error
+    ! if (err > 1.0e-9) then
+    !   print "(A,I2,A,ES12.4,A,I6)", &
+    !     "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
+    ! end if
 
     ! Current density (prefactor already computed above) ******CR_CHARGE
     if (ci == CR_ELEC) then
@@ -237,11 +238,11 @@ contains
     ! First normalize J_th, then divide by edos
     v_th = A_star * norm(par%T, "K")**2 / par%smc%edos(ci)
 
-    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
-    print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
-    print "(A,ES14.6,A)", "  T = ", norm(par%T, "K"), " K"
-    print "(A,ES14.6,A)", "  A*T² = ", A_star * norm(par%T, "K")**2, " A/cm²"
-    print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
+    ! print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
+    ! print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
+    ! print "(A,ES14.6,A)", "  T = ", norm(par%T, "K"), " K"
+    ! print "(A,ES14.6,A)", "  A*T² = ", A_star * norm(par%T, "K")**2, " A/cm²"
+    ! print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
 
   end function schottky_velocity
 
@@ -306,11 +307,11 @@ contains
       dn0B_dE = n0B * ddelta_dE
     end if
 
-    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_N0B: ci=", ci, " ict=", ict
-    print "(A,ES14.6)", "  phi_b = ", phi_b
-    print "(A,ES14.6)", "  delta_phi (IFBL) = ", delta_phi
-    print "(A,ES14.6)", "  phi_b_eff = ", phi_b_eff
-    print "(A,ES14.6,A)", "  n0B = ", denorm(n0B, "cm^-3"), " cm^-3"
+    ! print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_N0B: ci=", ci, " ict=", ict
+    ! print "(A,ES14.6)", "  phi_b = ", phi_b
+    ! print "(A,ES14.6)", "  delta_phi (IFBL) = ", delta_phi
+    ! print "(A,ES14.6)", "  phi_b_eff = ", phi_b_eff
+    ! print "(A,ES14.6,A)", "  n0B = ", denorm(n0B, "cm^-3"), " cm^-3"
 
   end subroutine schottky_n0b
 
@@ -371,19 +372,14 @@ contains
     end if
 
     ! Apply image force barrier lowering if enabled
-    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+    if (par%contacts(ict)%ifbl) then
       phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
-    end if
-
-    ! Skip if barrier is too small for meaningful tunneling
-    if (phi_b < 0.5) then
-      J_tn = 0.0
-      dJ_tn_ddens = 0.0
-      return
     end if
 
     ! Compute η for current calculation
     call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
+
+    ! print "(A,1ES14.6)", " eta = ", eta
 
     ! Quasi-Fermi relative to metal Fermi level
     if (ci == CR_ELEC) then
@@ -394,10 +390,12 @@ contains
 
     ! Integration parameters: [phi_b, |E|, m*, eta_m]
     params = [phi_b, E_normal, m_tunnel, eta_m]
-
+    ! print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
     ! Integrate from 0 to phi_b (tunneling regime only)
     call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral, &
-              dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+              dIda, dIdb, dIdp, rtol=1.0e-9, err=err, ncalls=ncalls)
+
+    ! print "(A,ES14.6)", "  err = ", err
 
     ! Current density
     if (ci == CR_ELEC) then
@@ -410,11 +408,11 @@ contains
     ! Same chain rule as in schottky_current
     dJ_tn_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
 
-    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_TUNNELING: ci=", ci, " ict=", ict
-    print "(A,ES14.6)", "  phi_b = ", phi_b
-    print "(A,ES14.6)", "  integral = ", integral
-    print "(A,ES14.6,A)", "  J_tn = ", denorm(J_tn, "A/cm^2"), " A/cm²"
-    print "(A,ES14.6)", "  dJ_tn/ddens = ", dJ_tn_ddens
+    ! print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_TUNNELING: ci=", ci, " ict=", ict
+    ! print "(A,ES14.6)", "  phi_b = ", phi_b
+    ! print "(A,ES14.6)", "  integral = ", integral
+    ! print "(A,ES14.6,A)", "  J_tn = ", denorm(J_tn, "A/cm^2"), " A/cm²"
+    ! print "(A,ES14.6)", "  dJ_tn/ddens = ", dJ_tn_ddens
 
   end subroutine schottky_tunneling
 
@@ -446,13 +444,9 @@ contains
     dN_dE   = f_metal - f_semi
 
     ! Supply function: ln(1+exp(eta_m-E)) - ln(1+exp(-E))
-    ! For small eta_m, use Taylor expansion to avoid cancellation
-    if (abs(eta_m) < 0.01 .and. E > 1.0) then
-      ! Taylor expansion: N_supply ≈ eta_m * f_metal for small eta_m
-      N_supply = eta_m * f_metal
-    else
-      N_supply = log1p_exp(eta_m - E) - log1p_exp(-E)
-    end if
+    ! Rewritten as log1p(expm1(eta_m) * f_metal) for numerical stability
+    ! This avoids catastrophic cancellation and eliminates branching
+    N_supply = log1p(expm1(eta_m) * f_metal)
 
     ! Integrand
     f = T * N_supply
@@ -470,33 +464,29 @@ contains
   ! WKB Transmission (with smooth transition at barrier)
   !============================================================================
   pure subroutine wkb_transmission(E, phi_b, F, m_star, T, dT_dE, dT_dphi, dT_dF)
-    !! T with smooth transition at E = phi_b
-    !! T = exp(-γ) for E << phi_b (tunneling)
-    !! T = 1 for E >> phi_b (thermionic)
-    !! Smooth interpolation in transition region
+    !! Standard WKB transmission coefficient
+    !! T = exp(-γ) for E < phi_b (tunneling)
+    !! T = 1 for E >= phi_b (thermionic)
     !! γ = (4/3) * sqrt(2m*) * (phi_b - E)^(3/2) / F
 
     real, intent(in)  :: E, phi_b, F, m_star
     real, intent(out) :: T, dT_dE, dT_dphi, dT_dF
 
     real :: gamma, dE, F_safe, coeff, exp_gamma
-    real :: x, s, ds_ddE, dT_ddE
     real, parameter :: eps = 1e-10
-    real, parameter :: delta = 0.05          ! Base smoothing width in kT units (~0.0013 eV at 300K)
-    real, parameter :: trans_width = 5.0*delta  ! Blend from thermionic (T=1) to tunneling over this window
 
     dE = phi_b - E
     F_safe = sqrt(F**2 + eps**2)
     coeff = (4.0/3.0) * sqrt(2.0 * m_star)
 
-    if (dE <= 0.0) then
-      ! Above the barrier: pure thermionic (E >= phi_b)
+    if (dE < 0.0) then
+      ! Above the barrier: thermionic (E >= phi_b)
       T = 1.0
       dT_dE = 0.0
       dT_dphi = 0.0
       dT_dF = 0.0
-    else if (dE >= trans_width) then
-      ! Far below barrier: pure tunneling (E << phi_b)
+    else
+      ! Below barrier: tunneling (E < phi_b)
       gamma = coeff * dE**1.5 / F_safe
       exp_gamma = exp(-gamma)
 
@@ -504,23 +494,6 @@ contains
       dT_dE   = exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
       dT_dphi = -dT_dE
       dT_dF   = exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
-    else
-      ! Transition region: blend T from 1 (at dE=0) to exp(-gamma) (at dE=trans_width)
-      gamma = coeff * dE**1.5 / F_safe
-      exp_gamma = exp(-gamma)
-
-      ! Smoothstep blend factor on 0 <= dE <= trans_width
-      x = dE / trans_width          ! 0 → 1 across the window
-      s = x*x*(3.0 - 2.0*x)         ! C1 smoothstep
-      ds_ddE = 6.0*x*(1.0 - x) / trans_width
-
-      T = 1.0 - s * (1.0 - exp_gamma)
-
-      ! Derivatives with chain rule (work in dE, then map to E/phi)
-      dT_ddE = -ds_ddE * (1.0 - exp_gamma) - s * exp_gamma * coeff * 1.5 * sqrt(dE) / F_safe
-      dT_dE = -dT_ddE
-      dT_dphi = dT_ddE
-      dT_dF = s * exp_gamma * coeff * dE**1.5 * F / (F_safe**3)
     end if
 
   end subroutine wkb_transmission

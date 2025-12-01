@@ -369,20 +369,59 @@ contains
               ! Compute tunneling current and its derivative
               call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
 
+              ! ! Numerical verification of dJ_tn_ddens
+              ! block
+              !   real :: J_tn_plus, J_tn_minus, dJ_numerical, eps_fd, dummy
+              !   real :: jaco_full, edge_flux_before
+              !   eps_fd = 1e-6 * max(abs(dens), 1e-12)
+              !   call schottky_tunneling(this%par, this%ci, ict, E_normal, dens + eps_fd, J_tn_plus, dummy)
+              !   call schottky_tunneling(this%par, this%ci, ict, E_normal, dens - eps_fd, J_tn_minus, dummy)
+              !   dJ_numerical = (J_tn_plus - J_tn_minus) / (2.0 * eps_fd)
+
+              !   edge_flux_before = tmp(j)  ! Edge flux contribution BEFORE Schottky term
+              !   jaco_full = v_surf_ict * A_ct - A_ct * dJ_tn_ddens
+
+              !   print "(A,I5,A,I2)", "FD_CHECK j=", j, " ci=", this%ci
+              !   print "(A,ES12.4,A,ES12.4,A,F8.4)", &
+              !     "  dJ_tn/dp: analytical=", dJ_tn_ddens, " numerical=", dJ_numerical, &
+              !     " ratio=", dJ_tn_ddens / (dJ_numerical + 1e-30)
+              !   print "(A,ES12.4,A,ES12.4,A,ES12.4)", &
+              !     "  v_surf*A_ct=", v_surf_ict * A_ct, " -A_ct*dJ_tn/dp=", -A_ct * dJ_tn_ddens, &
+              !     " jaco_set=", jaco_full
+              !   print "(A,ES12.4)", "  edge_flux_before_schottky=", edge_flux_before
+              ! end block
+
               ! TE component for debugging (J_tn already computed above)
               J_te = -v_surf_ict * (dens - n0B)
 
-              ! Debug output
-              print "(A,I3,A,I3)", "DEBUG_SCHOTTKY_ROBIN: contact=", ict, " vertex=", i
-              print "(A,2ES14.6)", "  dens, n0B = ", denorm(dens, "cm^-3"), denorm(n0B, "cm^-3")
-              print "(A,ES14.6,A)", "  v_surf = ", denorm(v_surf_ict, "cm/s"), " cm/s"
-              print "(A,ES14.6,A)", "  J_TE = -v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
-              print "(A,ES14.6,A)", "  J_TN = ", denorm(J_tn, "A/cm^2"), " A/cm²"
-              print "(A,ES14.6,A)", "  J_total = ", denorm(J_te + J_tn, "A/cm^2"), " A/cm²"
-              print "(A,ES14.6,A)", "  dJ/ddens = ", v_surf_ict * A_ct - A_ct * dJ_tn_ddens
+              ! ! Debug output
+              ! print "(A,I3,A,I3)", "DEBUG_SCHOTTKY_ROBIN: contact=", ict, " vertex=", i
+              ! print "(A,2ES14.6)", "  dens, n0B = ", denorm(dens, "cm^-3"), denorm(n0B, "cm^-3")
+              ! print "(A,ES14.6,A)", "  v_surf = ", denorm(v_surf_ict, "cm/s"), " cm/s"
+              ! print "(A,ES14.6,A)", "  J_TE = -v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
+              ! print "(A,ES14.6,A)", "  J_TN = ", denorm(J_tn, "A/cm^2"), " A/cm²"
+              ! print "(A,ES14.6,A)", "  J_total = ", denorm(J_te + J_tn, "A/cm^2"), " A/cm²"
+              ! print "(A,ES14.6,A)", "  dJ/ddens = ", v_surf_ict * A_ct - A_ct * dJ_tn_ddens
 
-              ! Set Jacobian entry: df/d(dens) = -v_surf*A_ct - A_ct*dJ_tn/ddens
+              ! Set Jacobian entry: dF/d(dens) = +v_surf*A_ct - A_ct*dJ_tn/ddens
               call this%jaco_dens%set(idx, idx, v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
+
+              ! ! Debug: print what we're setting vs what might already be there
+              ! if (j == 3365) then
+              !   block
+              !     real :: jaco_schottky, residual_F, expected_dx
+              !     jaco_schottky = v_surf_ict * A_ct - A_ct * dJ_tn_ddens
+              !     residual_F = tmp(j) + v_surf_ict * A_ct * dens - v_surf_ict * A_ct * n0B - A_ct * J_tn
+              !     expected_dx = residual_F / jaco_schottky  ! If diagonal-only
+
+              !     print "(A)", "=== JACOBIAN DEBUG j=3365 ==="
+              !     print "(A,ES12.4)", "  jaco_schottky (what we set) = ", jaco_schottky
+              !     print "(A,ES12.4)", "  Residual F = ", residual_F
+              !     print "(A,ES12.4)", "  Expected dx = F/J = ", expected_dx
+              !     print "(A,ES12.4)", "  (Jacobian test showed actual dx = -4.10E-14)"
+              !     print "(A)", "  If expected ≈ actual but still overshoots → coupling issue"
+              !   end block
+              ! end if
 
               ! Add residual: F = div(J) - A_ct * [v_surf*(n - n0B) + J_tn]
               ! The div(J) is already in tmp from jaco_cdens
