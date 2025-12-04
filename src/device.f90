@@ -171,8 +171,12 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     ! Ramo-Shockley for terminal currents
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
-    call this%ramo_curr_n%init(this%par, this%ramo, this%cdens, this%volt, this%curr_n, ci_only=1)
-    call this%ramo_curr_p%init(this%par, this%ramo, this%cdens, this%volt, this%curr_p, ci_only=2)
+    if (this%par%ci0 <= 1 .and. 1 <= this%par%ci1) then
+      call this%ramo_curr_n%init(this%par, this%ramo, this%cdens, this%volt, this%curr_n, ci_only=1)
+    end if
+    if (this%par%ci0 <= 2 .and. 2 <= this%par%ci1) then
+      call this%ramo_curr_p%init(this%par, this%ramo, this%cdens, this%volt, this%curr_p, ci_only=2)
+    end if
     do ci = this%par%ci0, this%par%ci1
       ! Pass efield if Schottky contacts exist (for lagged J_schottky calculation)
       if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
@@ -259,8 +263,12 @@ contains
       call this%sys_full_stat%add_equation(this%calc_efield(dir))
     end do
     call this%sys_full_stat%add_equation(this%ramo_curr)
-    call this%sys_full_stat%add_equation(this%ramo_curr_n)
-    call this%sys_full_stat%add_equation(this%ramo_curr_p)
+    if (this%par%ci0 <= 1 .and. 1 <= this%par%ci1) then
+      call this%sys_full_stat%add_equation(this%ramo_curr_n)
+    end if
+    if (this%par%ci0 <= 2 .and. 2 <= this%par%ci1) then
+      call this%sys_full_stat%add_equation(this%ramo_curr_p)
+    end if
     do ict = 1, this%par%nct
       call this%sys_full_stat%provide(this%volt(ict), input = .true.)
       call this%sys_full_stat%provide(this%curr_TE(ict), input = .false.)
@@ -292,8 +300,12 @@ contains
       call this%sys_full%add_equation(this%calc_efield(dir))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
-    call this%sys_full%add_equation(this%ramo_curr_n)
-    call this%sys_full%add_equation(this%ramo_curr_p)
+    if (this%par%ci0 <= 1 .and. 1 <= this%par%ci1) then
+      call this%sys_full%add_equation(this%ramo_curr_n)
+    end if
+    if (this%par%ci0 <= 2 .and. 2 <= this%par%ci1) then
+      call this%sys_full%add_equation(this%ramo_curr_p)
+    end if
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
       call this%sys_full%provide(this%curr_TE(ict), input = .false.)

@@ -96,7 +96,7 @@ mode = "debug"
 target = "efield_test_2d"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
-partition = "fast"
+partition = "faster"
 sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
@@ -167,5 +167,40 @@ templates = [
   ] },
   { files = [
     "sin_trap_sbmosfet.ini",
+  ], action = "expand" },
+]
+
+
+[rfet_soi]
+mode = "debug"
+target = "test_rfet"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "test/run_rfet_soi.ini",
+  ] },
+  { files = [
+    "test/rfet_soi.ini",
+  ], action = "expand" },
+]
+
+[rfet_2g]
+mode = "debug"
+target = "test_rfet"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "test/run_rfet_2g.ini",
+  ] },
+  { files = [
+    "test/rfet_2g.ini",
   ], action = "expand" },
 ]

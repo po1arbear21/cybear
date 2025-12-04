@@ -238,11 +238,11 @@ contains
     ! First normalize J_th, then divide by edos
     v_th = A_star * norm(par%T, "K")**2 / par%smc%edos(ci)
 
-    ! print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
-    ! print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
-    ! print "(A,ES14.6,A)", "  T = ", norm(par%T, "K"), " K"
-    ! print "(A,ES14.6,A)", "  A*T² = ", A_star * norm(par%T, "K")**2, " A/cm²"
-    ! print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
+    print "(A,I2,A,I2)", "DEBUG_SCHOTTKY_VELOCITY: ci=", ci, " ict=", ict
+    print "(A,ES14.6,A)", "  A* = ", A_star, " A/cm²/K²"
+    print "(A,ES14.6,A)", "  T = ", norm(par%T, "K"), " K"
+    print "(A,ES14.6,A)", "  A*T² = ", A_star * norm(par%T, "K")**2, " A/cm²"
+    print "(A,ES14.6,A)", "  v_th = ", denorm(v_th, "cm/s"), " cm/s"
 
   end function schottky_velocity
 
@@ -285,7 +285,7 @@ contains
     phi_b_eff = phi_b
 
     ! Apply image force barrier lowering if enabled
-    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+    if (par%contacts(ict)%ifbl) then
       delta_phi = sqrt(abs(E_normal) / (4.0 * PI))
       phi_b_eff = phi_b - delta_phi
 

@@ -166,11 +166,10 @@ contains
         ! Parse Schottky-specific parameters
         ! Note: file%get automatically normalizes when unit is specified in config file
         call file%get(sid, "phi_b", this%phi_b, status = st)
-        if (.not. st) this%phi_b = norm(0.7, "eV")  ! Default 0.7 eV (normalize default only)
         call file%get(sid, "A_richardson_n", this%A_richardson_n, status = st)
         if (.not. st) this%A_richardson_n = norm(112.0, "A/cm^2/K^2")  ! Default for Si
         call file%get(sid, "A_richardson_p", this%A_richardson_p, status = st)
-        if (.not. st) this%A_richardson_p = norm(112.0, "A/cm^2/K^2")  ! Default for Si
+        if (.not. st) this%A_richardson_p = norm(32.0, "A/cm^2/K^2")  ! Default for Si
         call file%get(sid, "ifbl", this%ifbl, status = st)
         if (.not. st) this%ifbl = .false.  ! Default disabled
         print "(A,L1)", "DEBUG: Region ifbl parsed as = ", this%ifbl
@@ -180,7 +179,7 @@ contains
         call file%get(sid, "m_tunnel_n", this%m_tunnel_n, status = st)
         if (.not. st) this%m_tunnel_n = 1.0  ! Default to m0
         call file%get(sid, "m_tunnel_p", this%m_tunnel_p, status = st)
-        if (.not. st) this%m_tunnel_p = 1.0  ! Default to m0
+        if (.not. st) this%m_tunnel_p = 1.0 ! Default to m0
         print "(A,L1)", "DEBUG: Region tunneling parsed as = ", this%tunneling
         print "(A,F6.3,A,F6.3)", "DEBUG: Region m_tunnel_n = ", this%m_tunnel_n, ", m_tunnel_p = ", this%m_tunnel_p
       else
