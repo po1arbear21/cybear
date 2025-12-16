@@ -10,7 +10,7 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
-  use schottky_m,        only: schottky_current, get_normal_dir, schottky_velocity, schottky_n0b, schottky_tunneling
+  use schottky_m,        only: get_normal_dir, schottky_velocity, schottky_n0b, schottky_tunneling
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
   use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use normalization_m,   only: norm, denorm

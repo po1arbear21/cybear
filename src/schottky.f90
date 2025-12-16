@@ -11,7 +11,7 @@ module schottky_m
   implicit none
   private
 
-  public :: schottky_current
+  ! public :: schottky_current
   public :: get_normal_dir
   public :: schottky_velocity
   public :: schottky_n0b
@@ -19,150 +19,150 @@ module schottky_m
 
 contains
 
-  !============================================================================
-  ! Main Schottky Current Function
-  !============================================================================
-  function schottky_current(par, ict, ci, E_normal, dens, dJ_ddens) result(J)
-    !! Calculate Schottky current density using Tsu-Esaki integral
-    !!
-    !! Inputs (all normalized):
-    !!   par      - device parameters
-    !!   ict      - contact index
-    !!   ci       - carrier index (CR_ELEC/CR_HOLE)
-    !!   E_normal - normal electric field component at contact
-    !!   dens     - carrier density at contact (n for electrons, p for holes)
-    !!
-    !! Output:
-    !!   J        - current density (normalized, A/cm²)
-    !!             Sign convention: inward injection is positive
-    !!   dJ_ddens - (optional) derivative dJ/d(dens) for Jacobian
+  ! !============================================================================
+  ! ! Main Schottky Current Function
+  ! !============================================================================
+  ! function schottky_current(par, ict, ci, E_normal, dens, dJ_ddens) result(J)
+  !   !! Calculate Schottky current density using Tsu-Esaki integral
+  !   !!
+  !   !! Inputs (all normalized):
+  !   !!   par      - device parameters
+  !   !!   ict      - contact index
+  !   !!   ci       - carrier index (CR_ELEC/CR_HOLE)
+  !   !!   E_normal - normal electric field component at contact
+  !   !!   dens     - carrier density at contact (n for electrons, p for holes)
+  !   !!
+  !   !! Output:
+  !   !!   J        - current density (normalized, A/cm²)
+  !   !!             Sign convention: inward injection is positive
+  !   !!   dJ_ddens - (optional) derivative dJ/d(dens) for Jacobian
 
-    type(device_params), intent(in) :: par
-    integer, intent(in) :: ict, ci
-    real, intent(in) :: E_normal, dens
-    real, optional, intent(out) :: dJ_ddens
-    real :: J
+  !   type(device_params), intent(in) :: par
+  !   integer, intent(in) :: ict, ci
+  !   real, intent(in) :: E_normal, dens
+  !   real, optional, intent(out) :: dJ_ddens
+  !   real :: J
 
-    real :: phi_b, m_tunnel, eta, eta_m, detadF
-    real :: params(4), integral, dIda, dIdb, dIdp(4), err
-    real :: E_min, E_max, prefactor
-    real :: dens_eq  ! Equilibrium density at barrier
-    real :: integral1, integral2, err1, err2
-    real :: dIda1, dIdb1, dIdp1(4), dIda2, dIdb2, dIdp2(4)
-    integer :: ncalls, ncalls1, ncalls2
+  !   real :: phi_b, m_tunnel, eta, eta_m, detadF
+  !   real :: params(4), integral, dIda, dIdb, dIdp(4), err
+  !   real :: E_min, E_max, prefactor
+  !   real :: dens_eq  ! Equilibrium density at barrier
+  !   real :: integral1, integral2, err1, err2
+  !   real :: dIda1, dIdb1, dIdp1(4), dIda2, dIdb2, dIdp2(4)
+  !   integer :: ncalls, ncalls1, ncalls2
 
-    ! print "(A,I3,A,I3)", "DEBUG: schottky_current called, ict=", ict, " ci=", ci
+  !   ! print "(A,I3,A,I3)", "DEBUG: schottky_current called, ict=", ict, " ci=", ci
 
-    ! Get barrier height (normalized to kT)
-    if (ci == CR_ELEC) then
-      phi_b = par%contacts(ict)%phi_b
-      m_tunnel = par%contacts(ict)%m_tunnel_n
-    else
-      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
-      m_tunnel = par%contacts(ict)%m_tunnel_p
-    end if
-
-
-    ! Prefactor for current: m* / (2π²) in normalized units
-    ! prefactor = m_tunnel / (2.0 * PI**2)
-
-    if (ci == CR_ELEC) then
-      prefactor = m_tunnel / (2.0 * PI**2)
-
-    else
-      prefactor = m_tunnel / (2.0 * PI**2)
-    end if
+  !   ! Get barrier height (normalized to kT)
+  !   if (ci == CR_ELEC) then
+  !     phi_b = par%contacts(ict)%phi_b
+  !     m_tunnel = par%contacts(ict)%m_tunnel_n
+  !   else
+  !     phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+  !     m_tunnel = par%contacts(ict)%m_tunnel_p
+  !   end if
 
 
-    ! Apply image force barrier lowering if enabled
-    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
-      phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
-    end if
+  !   ! Prefactor for current: m* / (2π²) in normalized units
+  !   ! prefactor = m_tunnel / (2.0 * PI**2)
 
-    ! Equilibrium density at this barrier height
-    dens_eq = par%smc%edos(ci) * exp(-phi_b)
+  !   if (ci == CR_ELEC) then
+  !     prefactor = m_tunnel / (2.0 * PI**2)
 
-    ! Compute η for current calculation
-
-    call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
+  !   else
+  !     prefactor = m_tunnel / (2.0 * PI**2)
+  !   end if
 
 
-    ! Quasi-Fermi relative to metal Fermi level
-    if (ci == CR_ELEC) then
-      eta_m = eta + phi_b
-    else
-      eta_m = -eta - phi_b
-    end if
+  !   ! Apply image force barrier lowering if enabled
+  !   if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
+  !     phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
+  !   end if
 
-    ! print "(A,4ES14.6)", "  eta = ", eta
+  !   ! Equilibrium density at this barrier height
+  !   dens_eq = par%smc%edos(ci) * exp(-phi_b)
 
-    ! Integration parameters: [phi_b, |E|, m*, eta_m]
-    params = [phi_b, E_normal, m_tunnel, eta_m]
+  !   ! Compute η for current calculation
 
-    ! Integration bounds
-    E_min = 0.0
-    E_max = phi_b + 20.0  ! Several kT above barrier
-    if (.not. par%contacts(ict)%tunneling) then
-      E_min = phi_b  ! Thermionic emission only
-    end if
+  !   call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
 
-    ! Debug: show integration parameters
-    ! print "(A)", "DEBUG_SCHOTTKY_INTEGRAL:"
-    ! print "(A,2ES14.6)", "  E_min, E_max = ", E_min, E_max
-    ! print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
 
-    ! Perform integration - split at barrier for better accuracy
-    if (par%contacts(ict)%tunneling) then
-      ! Split integration at barrier height
-      ! Part 1: Below barrier (tunneling regime)
-      call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral1, &
-                dIda1, dIdb1, dIdp1, rtol=1.0e-9, err=err1, ncalls=ncalls1)
+  !   ! Quasi-Fermi relative to metal Fermi level
+  !   if (ci == CR_ELEC) then
+  !     eta_m = eta + phi_b
+  !   else
+  !     eta_m = -eta - phi_b
+  !   end if
 
-      ! Part 2: Above barrier (thermionic regime)
-      call quad(tsu_esaki_integrand, phi_b, E_max, params, integral2, &
-                dIda2, dIdb2, dIdp2, rtol=1.0e-9, err=err2,  ncalls=ncalls2)
-      ! Combine results
-      integral = integral1 + integral2
-      dIdp = dIdp1 + dIdp2
-      err = sqrt(err1**2 + err2**2)
-      ncalls = ncalls1 + ncalls2
+  !   ! print "(A,4ES14.6)", "  eta = ", eta
 
-      ! print "(A,2ES14.6,A,2I6)", "  integral = ", integral1, integral2, " ncalls = ", ncalls1, ncalls2
-    else
-      ! Single integration (small barrier or no tunneling)
-      call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
-                dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
+  !   ! Integration parameters: [phi_b, |E|, m*, eta_m]
+  !   params = [phi_b, E_normal, m_tunnel, eta_m]
 
-      ! print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
-    end if
+  !   ! Integration bounds
+  !   E_min = 0.0
+  !   E_max = phi_b + 20.0  ! Several kT above barrier
+  !   if (.not. par%contacts(ict)%tunneling) then
+  !     E_min = phi_b  ! Thermionic emission only
+  !   end if
 
-    ! ! Check integration error
-    ! if (err > 1.0e-9) then
-    !   print "(A,I2,A,ES12.4,A,I6)", &
-    !     "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
-    ! end if
+  !   ! Debug: show integration parameters
+  !   ! print "(A)", "DEBUG_SCHOTTKY_INTEGRAL:"
+  !   ! print "(A,2ES14.6)", "  E_min, E_max = ", E_min, E_max
+  !   ! print "(A,4ES14.6)", "  params [phi_b, |E|, m*, eta_m] = ", params
 
-    ! Current density (prefactor already computed above) ******CR_CHARGE
-    if (ci == CR_ELEC) then
-      J = -prefactor * integral   ! Positive = electrons entering semiconductor
-    else
-      J = prefactor * integral  ! Positive = holes entering semiconductor
-    end if
+  !   ! Perform integration - split at barrier for better accuracy
+  !   if (par%contacts(ict)%tunneling) then
+  !     ! Split integration at barrier height
+  !     ! Part 1: Below barrier (tunneling regime)
+  !     call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral1, &
+  !               dIda1, dIdb1, dIdp1, rtol=1.0e-9, err=err1, ncalls=ncalls1)
 
-    ! Compute derivative dJ/d(dens) if requested (for Jacobian)
-    ! Chain rule: dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(eta) * d(eta)/d(dens)
-    ! d(eta_m)/d(eta) = ±1, d(eta)/d(dens) = detadF / edos (from get_idist)
-    ! For electrons: dJ/d(eta_m) = -prefactor * dIdp(4)
-    ! For holes: dJ/d(eta_m) = +prefactor * dIdp(4)
-    ! Both cases: dJ/d(dens) = -prefactor * dIdp(4) * detadF / edos
-    if (present(dJ_ddens)) then
-      dJ_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
+  !     ! Part 2: Above barrier (thermionic regime)
+  !     call quad(tsu_esaki_integrand, phi_b, E_max, params, integral2, &
+  !               dIda2, dIdb2, dIdp2, rtol=1.0e-9, err=err2,  ncalls=ncalls2)
+  !     ! Combine results
+  !     integral = integral1 + integral2
+  !     dIdp = dIdp1 + dIdp2
+  !     err = sqrt(err1**2 + err2**2)
+  !     ncalls = ncalls1 + ncalls2
 
-      print "(A)", "DEBUG_JACOBIAN:"
-      print "(A,3ES14.6)", "  prefactor, dIdp(4), dens = ", prefactor, dIdp(4), dens
-    end if
+  !     ! print "(A,2ES14.6,A,2I6)", "  integral = ", integral1, integral2, " ncalls = ", ncalls1, ncalls2
+  !   else
+  !     ! Single integration (small barrier or no tunneling)
+  !     call quad(tsu_esaki_integrand, E_min, E_max, params, integral, &
+  !               dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
 
-  end function schottky_current
+  !     ! print "(A,ES14.6,A,I6)", "  integral = ", integral, ", ncalls = ", ncalls
+  !   end if
+
+  !   ! ! Check integration error
+  !   ! if (err > 1.0e-9) then
+  !   !   print "(A,I2,A,ES12.4,A,I6)", &
+  !   !     "  [SCHOTTKY WARNING] Contact ", ict, " err=", err, " ncalls=", ncalls
+  !   ! end if
+
+  !   ! Current density (prefactor already computed above) ******CR_CHARGE
+  !   if (ci == CR_ELEC) then
+  !     J = -prefactor * integral   ! Positive = electrons entering semiconductor
+  !   else
+  !     J = prefactor * integral  ! Positive = holes entering semiconductor
+  !   end if
+
+  !   ! Compute derivative dJ/d(dens) if requested (for Jacobian)
+  !   ! Chain rule: dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(eta) * d(eta)/d(dens)
+  !   ! d(eta_m)/d(eta) = ±1, d(eta)/d(dens) = detadF / edos (from get_idist)
+  !   ! For electrons: dJ/d(eta_m) = -prefactor * dIdp(4)
+  !   ! For holes: dJ/d(eta_m) = +prefactor * dIdp(4)
+  !   ! Both cases: dJ/d(dens) = -prefactor * dIdp(4) * detadF / edos
+  !   if (present(dJ_ddens)) then
+  !     dJ_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
+
+  !     print "(A)", "DEBUG_JACOBIAN:"
+  !     print "(A,3ES14.6)", "  prefactor, dIdp(4), dens = ", prefactor, dIdp(4), dens
+  !   end if
+
+  ! end function schottky_current
 
   !============================================================================
   ! Get Normal Direction for a Contact
@@ -376,6 +376,8 @@ contains
       phi_b = phi_b - sqrt(abs(E_normal) / (4.0 * PI))
     end if
 
+    phi_b = phi_b - norm(0.2, "eV")
+
     ! Compute η for current calculation
     call par%smc%get_idist(dens / par%smc%edos(ci), eta, detadF)
 
@@ -385,7 +387,7 @@ contains
     if (ci == CR_ELEC) then
       eta_m = eta + phi_b
     else
-      eta_m = -eta - phi_b
+      eta_m = eta + phi_b
     end if
 
     ! Integration parameters: [phi_b, |E|, m*, eta_m]
@@ -401,7 +403,7 @@ contains
     if (ci == CR_ELEC) then
       J_tn = -prefactor * integral
     else
-      J_tn = prefactor * integral
+      J_tn = -prefactor * integral
     end if
 
     ! Derivative dJ_tn/d(dens)

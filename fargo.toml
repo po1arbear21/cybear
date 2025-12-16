@@ -95,9 +95,8 @@ templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
 mode = "debug"
 target = "efield_test_2d"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "slurm"
+runner = "local"
 partition = "faster"
-sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
   { files = [
@@ -115,7 +114,7 @@ args = "{files[0]}"
 
 templates = [
   { files = [
-    "/test/test_6contacts_3d.ini",
+    "test/test_6contacts_3d.ini",
   ] },
 ]
 
@@ -125,7 +124,6 @@ target = "test_sbmosfet"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "faster"
-sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
   { files = [
@@ -142,7 +140,6 @@ target = "test_schottky_diode"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
 partition = "fast"
-sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
   { files = [
@@ -192,9 +189,8 @@ templates = [
 mode = "debug"
 target = "test_rfet"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "slurm"
+runner = "local"
 partition = "faster"
-sources = ["lib/fortran-basic/src", "test"]
 
 templates = [
   { files = [
