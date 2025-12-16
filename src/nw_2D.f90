@@ -4,7 +4,6 @@ program nw_2d
   use cl_options_m,       only: cl_option_descriptor, cl_option, get_cl_options
   use device_m,           only: dev
   use error_m,            only: program_error
-  use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file
   use input_src_m,        only: polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI

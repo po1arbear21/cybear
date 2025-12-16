@@ -1,0 +1,6 @@
+{
+  "source_dirs": [
+    "src/**",
+    "lib/fortran-basic/src/**"
+  ]
+}

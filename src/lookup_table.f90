@@ -799,7 +799,7 @@ contains
 
       !$omp single
 
-      ! accummulate numbers to get start indices in global memory
+      ! accumulate numbers to get start indices in global memory
       do i = 2, nthreads
         ns(i) = ns(i-1) + ns(i)
         nt(i) = nt(i-1) + nt(i)
