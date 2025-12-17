@@ -329,7 +329,9 @@ contains
     case default
       call program_error("unknown stabilization scheme '" // stab%s // "'")
     end select
-    call this%smc%init_dist(tabledir%s)
+    if (this%smc%dist /= DIST_MAXWELL) then
+      call this%smc%init_dist(tabledir%s)
+    end if
 
     ! mobility
     call file%get(sid, "mob",        this%smc%mob)
