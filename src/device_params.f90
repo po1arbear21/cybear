@@ -138,6 +138,7 @@ module device_params_m
   contains
     procedure :: init     => device_params_init
     procedure :: destruct => device_params_destruct
+    procedure :: get_ct_surf
 
     procedure, private :: init_transport_params  => device_params_init_transport_params
     procedure, private :: init_regions           => device_params_init_regions
@@ -1360,5 +1361,98 @@ contains
       call this%ionvert(ci)%init_final()
     end do
   end subroutine
+
+
+  function get_ct_surf(this, ict, idx_vert) result(ct_surf)
+    !! Calculate boundary surface area for a contact vertex
+    !! This is the area of the metal-semiconductor interface at this vertex
+
+    class(device_params), intent(in) :: this
+    integer,              intent(in) :: ict
+    integer,              intent(in) :: idx_vert(:)
+    real                             :: ct_surf
+
+    integer :: l, m, idx_dir, n_verts
+    integer :: idx_neighb(size(idx_vert)), idx_surf(size(idx_vert)), idx_surf_vert(size(idx_vert))
+    logical :: status, surf_contacted
+    real    :: p1(3), p2(3), edge_len
+    real    :: surf_verts(3,4), vec1(3), vec2(3), surf_area
+
+    ! Initialize contact surface
+    ct_surf = 0.0
+
+    select case (this%g%dim)
+    case (1)
+      ! For 1D, use normalized cross-sectional area
+      ct_surf = 1.0
+
+    case (2)
+      ! For 2D: sum half of edge lengths to neighboring contact vertices
+      do l = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)
+        call this%g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx_vert, l, idx_neighb, status)
+        if (.not. status) exit
+
+        ! Check if neighbor is in the same contact
+        if (this%ict%get(idx_neighb) == ict) then
+          ! Get vertex positions
+          call this%g%get_vertex(idx_vert, p1(1:2))
+          call this%g%get_vertex(idx_neighb, p2(1:2))
+
+          ! Calculate edge length and add half to this vertex's surface
+          edge_len = sqrt((p2(1) - p1(1))**2 + (p2(2) - p1(2))**2)
+          ct_surf = ct_surf + 0.5 * edge_len
+        end if
+      end do
+
+    case (3)
+      ! For 3D: sum portions of adjacent surface areas that are fully contacted
+      do idx_dir = 1, 3
+        do l = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir)
+          call this%g%get_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir, idx_vert, l, idx_surf, status)
+          if (.not. status) exit
+
+          ! Check if all vertices of the surface belong to the same contact
+          surf_contacted = .true.
+          n_verts = 0
+
+          do m = 1, this%g%get_max_neighb(IDX_FACE, idx_dir, IDX_VERTEX, 0)
+            call this%g%get_neighb(IDX_FACE, idx_dir, IDX_VERTEX, 0, idx_surf, m, idx_surf_vert, status)
+            if (.not. status) exit
+
+            n_verts = n_verts + 1
+            if (n_verts > 4) exit  ! Should not happen for tensor grids
+
+            ! Check if this surface vertex is in the same contact
+            if (this%ict%get(idx_surf_vert) /= ict) then
+              surf_contacted = .false.
+              exit
+            end if
+
+            ! Store vertex coordinates for area calculation
+            call this%g%get_vertex(idx_surf_vert, surf_verts(:, n_verts))
+          end do
+
+          ! If surface is fully contacted, add its area contribution
+          if (surf_contacted .and. n_verts == 4) then
+            ! Calculate area of rectangular surface using cross product
+            ! Vectors from first vertex to second and third
+            vec1 = surf_verts(:, 2) - surf_verts(:, 1)
+            vec2 = surf_verts(:, 3) - surf_verts(:, 1)
+
+            ! Area = |vec1 x vec2| (parallelogram area)
+            surf_area = sqrt((vec1(2)*vec2(3) - vec1(3)*vec2(2))**2 + &
+                           (vec1(3)*vec2(1) - vec1(1)*vec2(3))**2 + &
+                           (vec1(1)*vec2(2) - vec1(2)*vec2(1))**2)
+
+            ! Each vertex gets 1/4 of the surface area
+            ct_surf = ct_surf + 0.25 * surf_area
+          end if
+        end do
+      end do
+
+    case default
+      call program_error("Invalid dimension for contact surface calculation")
+    end select
+  end function
 
 end module
