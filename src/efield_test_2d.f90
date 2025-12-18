@@ -8,7 +8,6 @@ program efield_test_2d
   use block_m,           only: block_real
   use cl_options_m,      only: cl_option_descriptor, cl_option, get_cl_options
   use device_m,          only: dev
-  use electric_field_m,  only: electric_field, calc_efield
   use error_m,           only: program_error
   use grid_m,            only: IDX_VERTEX
   use input_m,           only: input_file, input_section
@@ -28,18 +27,11 @@ program efield_test_2d
   real             :: temperature
   type(input_file) :: runfile
 
-  ! Electric field variables (local to test program)
-  type(electric_field), allocatable :: efield(:)
-  type(calc_efield),    allocatable :: calc_ef(:)
-
   print "(A)", "Start simulation on " // get_hostname()
   print *, "2D Electric Field Verification Test"
 
   ! parse command line arguments
   call command_line()
-
-  ! initialize electric field after device is ready
-  call init_electric_field()
 
   ! solve
   call solve_steady_state()
@@ -79,23 +71,6 @@ contains
       end select
       end do
     end do
-  end subroutine
-
-  subroutine init_electric_field()
-    !! Initialize electric field variables and equations
-    integer :: dir
-
-    ! Allocate for all spatial dimensions
-    allocate(efield(dev%par%g%dim))
-    allocate(calc_ef(dev%par%g%dim))
-
-    ! Initialize each component
-    do dir = 1, dev%par%g%dim
-      call efield(dir)%init(dev%par, dir)
-      call calc_ef(dir)%init(dev%par, dev%pot, efield(dir))
-    end do
-
-    print "(A,I0,A)", "Initialized electric field for ", dev%par%g%dim, " dimension(s)"
   end subroutine
 
   subroutine voltage_input_ss(sid, t_inp, V, t_sim)
@@ -184,14 +159,19 @@ contains
       call ss%set_params(runfile%sections%d(sj))
       print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
 
-      ! Setup output variables - include Ex, Ey for 2D
-      call ss%init_output([string("pot"), string("ndens"), string("Ex"), string("Ey"), &
-        & string("V_LEFT"), string("I_LEFT"), string("I_RIGHT")], name%s // ".fbs")
+      ! Setup output variables (Ex/Ey computed post-Newton but registered for output)
+      if (dev%par%g%dim >= 2) then
+        call ss%init_output([string("pot"), string("ndens"), string("Ex"), string("Ey"), &
+          & string("V_LEFT"), string("I_LEFT"), string("I_RIGHT")], name%s // ".fbs")
+      else
+        call ss%init_output([string("pot"), string("ndens"), string("Ex"), &
+          & string("V_LEFT"), string("I_LEFT"), string("I_RIGHT")], name%s // ".fbs")
+      end if
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! Update electric field from converged potential
       do dir = 1, dev%par%g%dim
-        call calc_ef(dir)%eval()
+        call dev%calc_efield(dir)%eval()
       end do
 
       ! Perform analytical comparison after steady-state
@@ -222,11 +202,11 @@ contains
     E_analytical = -V_applied / L_device  ! This gives normalized E-field
 
     ! Get computed electric field values in grid order
-    n_points = efield(1)%data%n
+    n_points = dev%efield(1)%data%n
     allocate(efield_x(n_points), efield_y(n_points), pot_values(n_points))
-    efield_x = efield(1)%get()  ! Ex component
+    efield_x = dev%efield(1)%get()  ! Ex component
     if (dev%par%g%dim >= 2) then
-      efield_y = efield(2)%get()  ! Ey component
+      efield_y = dev%efield(2)%get()  ! Ey component
     else
       efield_y = 0.0
     end if
@@ -404,7 +384,7 @@ contains
 
       ! update electric field from new potential
       do dir = 1, dev%par%g%dim
-        call calc_ef(dir)%eval()
+        call dev%calc_efield(dir)%eval()
       end do
 
       ! solve dd model for electrons and holes

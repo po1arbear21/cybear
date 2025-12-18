@@ -6,6 +6,7 @@ module device_m
   use current_density_m, only: current_density, calc_current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
+  use electric_field_m,  only: electric_field, calc_efield
   use esystem_m,         only: esystem
   use grid_m,            only: IDX_VERTEX
   use imref_m,           only: imref, calc_imref, calc_density
@@ -45,6 +46,8 @@ module device_m
       !! electron/hole mobility (direction, carrier index)
     type(charge_density)               :: rho
       !! charge density
+    type(electric_field),  allocatable :: efield(:)
+      !! electric field components (direction)
     type(voltage),         allocatable :: volt(:)
       !! terminal voltages
     type(current),         allocatable :: curr(:)
@@ -75,6 +78,8 @@ module device_m
       !! calculate charge density from electron/hole density and (ionized) doping concentrations
     type(calc_current_density), allocatable :: calc_cdens(:,:)
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
+    type(calc_efield),          allocatable :: calc_efield(:)
+      !! calculate electric field from potential gradient (direction)
 
     type(esystem)              :: sys_nlpe
       !! non-linear poisson equation system
@@ -100,7 +105,7 @@ contains
     real,          intent(in)  :: T
       !! temperature in K
 
-    integer          :: ci, idx_dir, ict
+    integer          :: ci, idx_dir, ict, dir
     type(input_file) :: file
 
     ! load device parameters
@@ -122,6 +127,10 @@ contains
       end do
     end do
     call this%rho%init(this%par)
+    allocate (this%efield(this%par%g%dim))
+    do idx_dir = 1, this%par%g%dim
+      call this%efield(idx_dir)%init(this%par, idx_dir)
+    end do
     allocate (this%volt(this%par%nct))
     allocate (this%curr(this%par%nct))
     do ict = 1, this%par%nct
@@ -150,6 +159,10 @@ contains
       end do
     end do
     call this%calc_rho%init(this%par, this%dens, this%ion, this%rho)
+    allocate (this%calc_efield(this%par%g%dim))
+    do idx_dir = 1, this%par%g%dim
+      call this%calc_efield(idx_dir)%init(this%par, this%pot, this%efield(idx_dir))
+    end do
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
@@ -206,6 +219,10 @@ contains
       call this%sys_full%add_equation(this%calc_iref(ci))
     end do
     call this%sys_full%add_equation(this%ramo_curr)
+    ! add electric field calculation equations
+    do dir = 1, this%par%g%dim
+      call this%sys_full%add_equation(this%calc_efield(dir))
+    end do
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)
     end do
