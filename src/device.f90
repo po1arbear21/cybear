@@ -12,6 +12,7 @@ module device_m
   use imref_m,           only: imref, calc_imref, calc_density
   use input_m,           only: input_file
   use ionization_m,      only: ionization, calc_ionization, ion_continuity, generation_recombination, calc_generation_recombination
+  use beam_generation_m, only: beam_generation, calc_beam_generation
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
@@ -72,6 +73,10 @@ module device_m
       !! calculate stationary donor/acceptor ionization ratio from potential and imref (dopant index)
     type(calc_generation_recombination)     :: calc_genrec(2)
       !! calculate generation-recombination
+    type(beam_generation)                   :: bgen(2)
+      !! external beam generation (STEM-EBIC) (carrier index)
+    type(calc_beam_generation)              :: calc_bgen(2)
+      !! calculate external beam generation
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
@@ -120,6 +125,7 @@ contains
       call this%dens(ci)%init(this%par, ci)
       call this%ion( ci)%init(this%par, ci)
       call this%genrec( ci)%init(this%par, ci)
+      if (this%par%has_beam_gen) call this%bgen(ci)%init(this%par, ci)
       call this%iref(ci)%init(this%par, ci)
       do idx_dir = 1, this%par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(this%par, ci, idx_dir)
@@ -145,13 +151,35 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
+      ! Initialize continuity equations
+      ! Pass efield if Schottky contacts exist, bgen if beam generation is enabled
+      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
+        if (this%par%has_beam_gen) then
+          call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%bgen(ci))
+          call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield, this%bgen(ci))
+        else
+          call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
+          call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
+        end if
+      else
+        if (this%par%has_beam_gen) then
+          call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci))
+          call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci))
+        else
+          call this%contin(     ci)%init(this%par, .false., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
+          call this%contin_stat(ci)%init(this%par,  .true., this%dens(ci), this%iref(ci), this%cdens(:,ci), this%genrec(ci))
+        end if
+      end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
         call this%calc_ion(ci)%init(this%par, this%pot, this%ion(ci),  this%iref(ci))
         call this%calc_genrec(ci)%init(this%par, this%par%smc%ii_tau(ci), this%genrec(ci), this%pot, this%iref(ci), this%ion(ci))
         call this%ion_contin(ci)%init(this%par, this%ion(ci), this%genrec(ci))
+      end if
+      ! Initialize beam generation calculation
+      if (this%par%has_beam_gen) then
+        call this%calc_bgen(ci)%init(this%par, this%bgen(ci))
       end if
       do idx_dir = 1, this%par%g%idx_dim
         if (this%par%smc%mob) call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
@@ -195,12 +223,61 @@ contains
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
       end if
+      ! Add beam generation equation
+      if (this%par%has_beam_gen) then
+        call this%sys_dd(ci)%add_equation(this%calc_bgen(ci))
+      end if
+      ! Add calc_efield equations for E-field (needed for Schottky)
+      do dir = 1, this%par%g%dim
+        call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
+      end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
       print "(2A,I0,A)", this%sys_dd(ci)%name, ": ", this%sys_dd(ci)%n, " variables"
       call this%sys_dd(ci)%g%output(CR_NAME(ci)//"dd")
     end do
+
+    ! init stationary full-newton equation system
+    call this%sys_full_stat%init("full newton stat")
+    call this%sys_full_stat%add_equation(this%poiss)
+    call this%sys_full_stat%add_equation(this%calc_rho)
+    do ci = this%par%ci0, this%par%ci1
+      call this%sys_full_stat%add_equation(this%contin_stat(ci))
+      call this%sys_full_stat%add_equation(this%calc_dens(ci))
+      do idx_dir = 1, this%par%g%idx_dim
+        call this%sys_full_stat%add_equation(this%calc_cdens(idx_dir,ci))
+        if (this%par%smc%mob) call this%sys_full_stat%add_equation(this%calc_mob(idx_dir,ci))
+      end do
+      if (this%par%smc%incomp_ion) then
+        call this%sys_full_stat%add_equation(this%ion_contin(ci))
+        call this%sys_full_stat%add_equation(this%calc_genrec(ci))
+      end if
+      ! Add beam generation equation
+      if (this%par%has_beam_gen) then
+        call this%sys_full_stat%add_equation(this%calc_bgen(ci))
+      end if
+    end do
+    ! add electric field calculation equations
+    do dir = 1, this%par%g%dim
+      call this%sys_full_stat%add_equation(this%calc_efield(dir))
+    end do
+    call this%sys_full_stat%add_equation(this%ramo_curr)
+    if (this%par%ci0 <= 1 .and. 1 <= this%par%ci1) then
+      call this%sys_full_stat%add_equation(this%ramo_curr_n)
+    end if
+    if (this%par%ci0 <= 2 .and. 2 <= this%par%ci1) then
+      call this%sys_full_stat%add_equation(this%ramo_curr_p)
+    end if
+    do ict = 1, this%par%nct
+      call this%sys_full_stat%provide(this%volt(ict), input = .true.)
+      call this%sys_full_stat%provide(this%curr_TE(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_TN(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_n(ict), input = .false.)
+      call this%sys_full_stat%provide(this%curr_p(ict), input = .false.)
+    end do
+    call this%sys_full_stat%init_final()
+    call this%sys_full_stat%g%output("full_stat")
 
     ! init full-newton equation system
     call this%sys_full%init("full newton")
@@ -215,6 +292,10 @@ contains
       if (this%par%smc%incomp_ion) then
         call this%sys_full%add_equation(this%ion_contin(ci))
         call this%sys_full%add_equation(this%calc_genrec(ci))
+      end if
+      ! Add beam generation equation
+      if (this%par%has_beam_gen) then
+        call this%sys_full%add_equation(this%calc_bgen(ci))
       end if
       call this%sys_full%add_equation(this%calc_iref(ci))
     end do

@@ -83,3 +83,51 @@ templates = [
 ]
 
 
+[rfet_soi]
+mode = "debug"
+target = "test_rfet"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+sources = ["lib/fortran-basic/src", "test"]
+
+templates = [
+  { files = [
+    "test/run_rfet_soi.ini",
+  ] },
+  { files = [
+    "test/rfet_soi.ini",
+  ], action = "expand" },
+]
+
+[rfet_2g]
+mode = "debug"
+target = "test_rfet"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "test/run_rfet_2g.ini",
+  ] },
+  { files = [
+    "test/rfet_2g.ini",
+  ], action = "expand" },
+]
+
+[stem_ebic]
+mode = "debug"
+target = "dd"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run/run_stem_ebic.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/run/stem_ebic.ini",
+  ], action = "expand" },
+]
