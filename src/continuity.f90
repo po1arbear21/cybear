@@ -9,6 +9,7 @@ module continuity_m
   use imref_m,           only: imref
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
+  use beam_generation_m, only: beam_generation
   use res_equation_m,    only: res_equation
   use schottky_m,        only: get_normal_dir, schottky_velocity, schottky_n0b, schottky_tunneling
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL, CR_ELEC, CR_HOLE
@@ -38,6 +39,8 @@ module continuity_m
       !! dependencies: current densities in 2 directions
     type(vselector)              :: genrec
       !! generation - recombination
+    type(vselector)              :: bgen
+      !! external beam generation (STEM-EBIC)
 
     ! Schottky support
     type(vselector), allocatable :: efield(:)
@@ -62,6 +65,8 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_dens_t   => null()
     type(jacobian_ptr), allocatable :: jaco_cdens(:)
     type(jacobian),     pointer     :: jaco_genrec   => null()
+    type(jacobian),     pointer     :: jaco_bgen     => null()
+      !! Jacobian for beam generation (constant, no dependency on solution)
     type(jacobian),     pointer     :: jaco_iref     => null()
       !! Direct Jacobian for iref (Schottky contacts only, bypasses chain rule)
   contains
@@ -71,7 +76,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield)
+  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, bgen)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -88,10 +93,12 @@ contains
       !! generation-recombination rate
     type(electric_field), optional, intent(in)  :: efield(:)
       !! electric field components (for Schottky, optional)
+    type(beam_generation), optional, intent(in) :: bgen
+      !! external beam generation (STEM-EBIC, optional)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, j, dir
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, ibgen, j, dir
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
-    logical              :: status, has_schottky
+    logical              :: status, has_schottky, has_beam
     real                 :: surf, F, dF
     type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:)
 
@@ -148,6 +155,10 @@ contains
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
+
+    ! init beam generation selector if enabled
+    has_beam = present(bgen) .and. par%has_beam_gen
+    if (has_beam) call this%bgen%init(bgen, par%transport(IDX_VERTEX, 0))
 
     ! init residuals using this%dens or this%iref as main variable
     if (stat) then
@@ -217,6 +228,13 @@ contains
         & const = .true., dtime = .false.)
     end if
 
+    ! beam generation jacobian (constant, only on interior vertices)
+    if (has_beam) then
+      ibgen = this%depend(this%bgen)
+      this%jaco_bgen => this%init_jaco_f(ibgen, &
+        & st = [this%st_dir%get_ptr()], &
+        & const = .true., dtime = .false.)
+    end if
 
     ! set current density jacobian entries
     do idx_dir = 1, idx_dim
@@ -259,6 +277,15 @@ contains
       do i = 1, par%ionvert(ci)%n
         idx1 = par%ionvert(ci)%get_idx(i)
         call this%jaco_genrec%set(idx1, idx1, - par%tr_vol%get(idx1))
+      end do
+    end if
+
+    ! beam generation (STEM-EBIC)
+    ! F = dn/dt*V + div(j)*V - G_beam*V = 0  =>  dF/dG = -V
+    if (has_beam) then
+      do i = 1, par%transport_vct(0)%n
+        idx1 = par%transport_vct(0)%get_idx(i)
+        call this%jaco_bgen%set(idx1, idx1, - par%tr_vol%get(idx1))
       end do
     end if
 
@@ -336,6 +363,9 @@ contains
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
+
+    ! Add beam generation (STEM-EBIC)
+    if (associated(this%jaco_bgen)) call this%jaco_bgen%matr%mul_vec(this%bgen%get(), tmp, fact_y = 1.0)
 
     ! Add Schottky current contribution and set Jacobian
     if (allocated(this%efield)) then

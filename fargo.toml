@@ -189,7 +189,7 @@ templates = [
 mode = "debug"
 target = "test_rfet"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "local"
+runner = "slurm"
 partition = "faster"
 
 templates = [
@@ -198,5 +198,21 @@ templates = [
   ] },
   { files = [
     "test/rfet_2g.ini",
+  ], action = "expand" },
+]
+
+[stem_ebic]
+mode = "debug"
+target = "dd"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run/run_stem_ebic.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/run/stem_ebic.ini",
   ], action = "expand" },
 ]

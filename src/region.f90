@@ -6,7 +6,7 @@ module region_m
   use math_m,          only: PI
   use normalization_m, only: norm
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
-  use string_m,        only: string
+  use string_m,        only: string, new_string
 
   implicit none
 
@@ -63,6 +63,16 @@ module region_m
       !! Tunneling effective mass ratio for holes (m*/m0)
   contains
     procedure :: point_test => region_contact_point_test
+  end type
+
+  type, extends(region) :: region_beam
+    !! Beam generation region for STEM-EBIC simulation
+    real         :: G0
+      !! Generation rate (1/cm^3/s)
+    type(string) :: shape
+      !! Shape of beam: "point", "line", or "gaussian"
+    real         :: width
+      !! Width for Gaussian profile (nm)
   end type
 
   type region_ptr
@@ -187,6 +197,14 @@ contains
       end if
       call file%get(sid, "phims", this%phims, status = st)
       if (.not. st) this%phims = 0
+
+    class is (region_beam)
+      ! get beam generation parameters
+      call file%get(sid, "G0", this%G0)
+      call file%get(sid, "shape", this%shape, status = st)
+      if (.not. st) this%shape = new_string("line")  ! Default to line
+      call file%get(sid, "width", this%width, status = st)
+      if (.not. st) this%width = 0.0  ! Default to delta function
 
     end select
 
