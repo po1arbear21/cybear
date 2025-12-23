@@ -97,6 +97,13 @@ module semiconductor_m
     real, allocatable :: ii_dop_th(:)
       !! full ionization if doping > threshold
 
+    logical :: srh = .false.
+      !! enable/disable SRH recombination
+    real    :: srh_tau_n = 0.0
+      !! SRH electron lifetime (normalized)
+    real    :: srh_tau_p = 0.0
+      !! SRH hole lifetime (normalized)
+
   contains
     procedure :: init_dist    => semiconductor_init_dist
     generic   :: get_dist     => semiconductor_get_dist, &

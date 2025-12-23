@@ -12,12 +12,13 @@ module device_m
   use imref_m,           only: imref, calc_imref, calc_density
   use input_m,           only: input_file
   use ionization_m,      only: ionization, calc_ionization, ion_continuity, generation_recombination, calc_generation_recombination
-  use beam_generation_m, only: beam_generation, beam_position, calc_beam_generation
+  use beam_generation_m,  only: beam_generation, beam_position, calc_beam_generation
+  use srh_recombination_m, only: srh_recombination, calc_srh_recombination
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
-  use semiconductor_m,   only: CR_NAME
+  use semiconductor_m,   only: CR_NAME, CR_ELEC, CR_HOLE
   use voltage_m,         only: voltage
 
   implicit none
@@ -79,6 +80,10 @@ module device_m
       !! calculate generation-recombination
     type(calc_beam_generation)               :: calc_bgen(2)
       !! calculate external beam generation rate (STEM-EBIC)
+    type(srh_recombination)                  :: srh
+      !! SRH recombination rate (single variable for both carriers)
+    type(calc_srh_recombination)             :: calc_srh
+      !! calculate SRH recombination rate
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
@@ -156,10 +161,21 @@ contains
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+    ! Initialize SRH recombination if enabled (single instance for both carriers)
+    if (this%par%smc%srh) then
+      call this%srh%init(this%par)
+      call this%calc_srh%init(this%par, this%dens(CR_ELEC), this%dens(CR_HOLE), this%srh)
+    end if
+
     do ci = this%par%ci0, this%par%ci1
-      if (this%par%has_beam_gen) then
+      if (this%par%has_beam_gen .and. this%par%smc%srh) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci), srh=this%srh)
+        call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
+      elseif (this%par%has_beam_gen) then
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci))
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
+      elseif (this%par%smc%srh) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), srh=this%srh)
       else
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
       end if
@@ -215,6 +231,15 @@ contains
       if (this%par%has_beam_gen) then
         call this%sys_dd(ci)%add_equation(this%calc_bgen(ci))
       end if
+      if (this%par%smc%srh) then
+        call this%sys_dd(ci)%add_equation(this%calc_srh)
+        ! Provide the OTHER carrier's density as external input (fixed during this carrier's solve)
+        if (ci == CR_ELEC) then
+          call this%sys_dd(ci)%provide(this%dens(CR_HOLE), this%par%transport(IDX_VERTEX,0))
+        else
+          call this%sys_dd(ci)%provide(this%dens(CR_ELEC), this%par%transport(IDX_VERTEX,0))
+        end if
+      end if
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
@@ -241,6 +266,10 @@ contains
       end if
       call this%sys_full%add_equation(this%calc_iref(ci))
     end do
+    ! SRH recombination (single equation for both carriers - add OUTSIDE carrier loop)
+    if (this%par%smc%srh) then
+      call this%sys_full%add_equation(this%calc_srh)
+    end if
     call this%sys_full%add_equation(this%ramo_curr)
     ! add electric field calculation equations
     do dir = 1, this%par%g%dim

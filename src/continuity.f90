@@ -8,8 +8,9 @@ module continuity_m
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use imref_m,           only: imref
   use jacobian_m,        only: jacobian, jacobian_ptr
-  use ionization_m,      only: generation_recombination
-  use beam_generation_m, only: beam_generation
+  use ionization_m,       only: generation_recombination
+  use beam_generation_m,  only: beam_generation
+  use srh_recombination_m, only: srh_recombination
   use res_equation_m,    only: res_equation
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
@@ -36,6 +37,8 @@ module continuity_m
       !! generation - recombination
     type(vselector)              :: bgen
       !! external beam generation (STEM-EBIC)
+    type(vselector)              :: srh
+      !! SRH recombination rate
 
     ! Schottky support
     type(vselector), allocatable :: efield(:)
@@ -62,6 +65,8 @@ module continuity_m
     type(jacobian),     pointer     :: jaco_genrec   => null()
     type(jacobian),     pointer     :: jaco_bgen     => null()
       !! Jacobian for beam generation (constant, no dependency on solution)
+    type(jacobian),     pointer     :: jaco_srh      => null()
+      !! Jacobian for SRH recombination (R removes carriers, so +V)
     type(jacobian),     pointer     :: jaco_iref     => null()
       !! Direct Jacobian for iref (Schottky contacts only, bypasses chain rule)
   contains
@@ -71,7 +76,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, dens, cdens, genrec, efield, bgen)
+  subroutine continuity_init(this, par, dens, cdens, genrec, efield, bgen, srh)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -86,10 +91,12 @@ contains
       !! electric field components (for Schottky, optional)
     type(beam_generation), optional, intent(in) :: bgen
       !! external beam generation (STEM-EBIC, optional)
+    type(srh_recombination), optional, intent(in) :: srh
+      !! SRH recombination (optional)
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, ibgen, j, dir
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, ibgen, isrh, j, dir
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
-    logical              :: status, has_schottky, has_beam
+    logical              :: status, has_schottky, has_beam, has_srh
     real                 :: surf, F, dF
 
     print "(A)", "continuity_init"
@@ -115,6 +122,10 @@ contains
     ! init beam generation selector if enabled
     has_beam = present(bgen) .and. par%has_beam_gen
     if (has_beam) call this%bgen%init(bgen, par%transport(IDX_VERTEX, 0))
+
+    ! init SRH recombination selector if enabled
+    has_srh = present(srh) .and. par%smc%srh
+    if (has_srh) call this%srh%init(srh, par%transport(IDX_VERTEX, 0))
 
     ! init residuals using this%dens or this%iref as main variable
     call this%init_f(this%dens)
@@ -159,6 +170,14 @@ contains
         & const = .true., dtime = .false.)
     end if
 
+    ! SRH recombination jacobian
+    if (has_srh) then
+      isrh = this%depend(this%srh)
+      this%jaco_srh => this%init_jaco_f(isrh, &
+        & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
+        & const = .true., dtime = .false.)
+    end if
+
     ! set current density jacobian entries
     do idx_dir = 1, idx_dim
       do i = 1, par%transport(IDX_EDGE,idx_dir)%n
@@ -199,6 +218,15 @@ contains
       end do
     end if
 
+    ! SRH recombination
+    ! F = dn/dt*V + div(j)*V + R_SRH*V = 0  =>  dF/dR = +V (recombination removes carriers)
+    if (has_srh) then
+      do i = 1, par%transport_vct(0)%n
+        idx1 = par%transport_vct(0)%get_idx(i)
+        call this%jaco_srh%set(idx1, idx1, par%tr_vol%get(idx1))
+      end do
+    end if
+
     ! boundary conditions: Dirichlet for Ohmic/Gate, handled in eval for Schottky
     allocate (this%b(this%f%n), source = 0.0)
     j = par%transport_vct(0)%n
@@ -234,6 +262,7 @@ contains
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
     if (associated(this%jaco_bgen)) call this%jaco_bgen%matr%mul_vec(this%bgen%get(), tmp, fact_y = 1.0)
+    if (associated(this%jaco_srh)) call this%jaco_srh%matr%mul_vec(this%srh%get(), tmp, fact_y = 1.0)
     call this%f%set(tmp - this%b)
   end subroutine
 

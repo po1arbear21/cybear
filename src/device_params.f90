@@ -366,6 +366,15 @@ contains
     call file%get(sid, "ii_N_crit",  this%smc%ii_N_crit)
     call file%get(sid, "ii_dop_th",  this%smc%ii_dop_th)
 
+    ! SRH recombination: R = (np - ni²) / [τp(n + ni) + τn(p + ni)]
+    call file%get(sid, "srh", this%smc%srh)
+    if (this%smc%srh) then
+      call file%get(sid, "srh_tau_n", this%smc%srh_tau_n)
+      call file%get(sid, "srh_tau_p", this%smc%srh_tau_p)
+      print "(A,ES12.4,A,ES12.4,A)", "  SRH enabled: tau_n=", this%smc%srh_tau_n, " (norm), tau_p=", &
+        & this%smc%srh_tau_p, " (norm)"
+    end if
+
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
     m4_assert(size(this%smc%alpha)     == 2)
