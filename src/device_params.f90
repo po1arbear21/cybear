@@ -18,7 +18,7 @@ module device_params_m
   use map_m,            only: map_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, &
-    &                         region_contact
+    &                         region_contact, region_beam
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, &
     &                         DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor, &
     &                         STAB_SG, STAB_ED, STAB_MED, STAB_EXACT
@@ -40,6 +40,10 @@ module device_params_m
 
     real :: T
       !! temperature in K
+
+    real :: max_dx, max_dy, max_dz
+      !! mesh spacing for each direction (normalized)
+      !! used for beam position tolerance in STEM-EBIC
 
     integer             :: ci0, ci1
       !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
@@ -143,8 +147,8 @@ module device_params_m
     real                 :: gal_phims
       !! GALENE III phims for gate contacts
   contains
-    procedure :: init     => device_params_init
-    procedure :: destruct => device_params_destruct
+    procedure :: init          => device_params_init
+    procedure :: destruct      => device_params_destruct
     procedure :: get_ct_surf
 
     procedure, private :: init_transport_params  => device_params_init_transport_params
@@ -476,6 +480,14 @@ contains
     case("tr_xyz")
       dim = 3
     end select
+
+    ! read mesh spacing for beam position tolerance (STEM-EBIC)
+    this%max_dx = 0.0
+    this%max_dy = 0.0
+    this%max_dz = 0.0
+    if (dim >= 1) call file%get("grid", "max_dx", this%max_dx, status = status)
+    if (dim >= 2) call file%get("grid", "max_dy", this%max_dy, status = status)
+    if (dim >= 3) call file%get("grid", "max_dz", this%max_dz, status = status)
 
     ! load or generate ?
     if (this%gal) then
@@ -1494,7 +1506,7 @@ contains
     allocate (idx(idx_dim))
 
     ! Allocate and initialize beam_rate on vertices
-    call allocate_grid_data0_real(this%beam_rate)
+    call allocate_grid_data0_real(this%beam_rate, idx_dim)
     call this%beam_rate%init(this%g, IDX_VERTEX, 0)
 
     ! Initialize to zero
@@ -1536,7 +1548,7 @@ contains
         end do
 
       case ("tr_xy", "tr_xyz")
-        gtype_tmp = new_string("tr_xy")
+        gtype_tmp%s = "tr_xy"
         do i = 1, this%transport(IDX_VERTEX, 0)%n
           idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
 

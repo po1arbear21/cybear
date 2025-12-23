@@ -3,6 +3,7 @@ module continuity_m
   use current_density_m, only: current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
+  use electric_field_m,  only: electric_field
   use error_m,           only: assert_failed, program_error
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
   use imref_m,           only: imref
@@ -70,13 +71,13 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, stat, dens, iref, cdens, genrec, efield, bgen)
+  subroutine continuity_init(this, par, dens, cdens, genrec, efield, bgen)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
       !! device parameters
     type(density),                  intent(in)  :: dens
-      !! electron/hole density
+      !! carrier density
     type(current_density),          intent(in)  :: cdens(:)
       !! electron/hole current density
     type(generation_recombination), intent(in)  :: genrec
@@ -150,11 +151,11 @@ contains
         & const = .true., dtime = .false.)
     end if
 
-    ! beam generation jacobian (constant, only on interior vertices)
+    ! beam generation jacobian
     if (has_beam) then
       ibgen = this%depend(this%bgen)
       this%jaco_bgen => this%init_jaco_f(ibgen, &
-        & st = [this%st_dir%get_ptr()], &
+        & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end if
 
@@ -232,113 +233,7 @@ contains
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
-
-    ! Add beam generation (STEM-EBIC)
     if (associated(this%jaco_bgen)) call this%jaco_bgen%matr%mul_vec(this%bgen%get(), tmp, fact_y = 1.0)
-
-    ! Add Schottky current contribution and set Jacobian
-    if (allocated(this%efield)) then
-      dens_arr = this%dens%get()
-
-      j = this%par%transport_vct(0)%n
-      do ict = 1, this%par%nct
-        do i = 1, this%par%transport_vct(ict)%n
-          j = j + 1
-          idx = this%par%transport_vct(ict)%get_idx(i)
-
-          if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
-            normal_dir = this%schottky_normal(ict)
-            if (normal_dir > 0) then
-              ! Get E-field and density
-              efield_arr = this%efield(normal_dir)%get()
-              E_normal = efield_arr(j)
-              dens = dens_arr(j)
-
-              ! Get contact surface area and thermionic velocity
-              A_ct = this%par%get_ct_surf(ict, idx)
-              v_surf_ict = this%v_surf(ict)
-
-              ! Robin BC + Tunneling approach:
-              ! J_schottky = v_surf*(n - n0B) + J_tn
-              ! F = div(J) - A_ct * J_schottky = 0
-
-              ! Compute equilibrium injection density n0B (with optional IFBL)
-              call schottky_n0b(this%par, this%ci, ict, E_normal, n0B)
-
-              ! Compute tunneling current and its derivative
-              call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
-
-              ! ! Numerical verification of dJ_tn_ddens
-              ! block
-              !   real :: J_tn_plus, J_tn_minus, dJ_numerical, eps_fd, dummy
-              !   real :: jaco_full, edge_flux_before
-              !   eps_fd = 1e-6 * max(abs(dens), 1e-12)
-              !   call schottky_tunneling(this%par, this%ci, ict, E_normal, dens + eps_fd, J_tn_plus, dummy)
-              !   call schottky_tunneling(this%par, this%ci, ict, E_normal, dens - eps_fd, J_tn_minus, dummy)
-              !   dJ_numerical = (J_tn_plus - J_tn_minus) / (2.0 * eps_fd)
-
-              !   edge_flux_before = tmp(j)  ! Edge flux contribution BEFORE Schottky term
-              !   jaco_full = v_surf_ict * A_ct - A_ct * dJ_tn_ddens
-
-              !   print "(A,I5,A,I2)", "FD_CHECK j=", j, " ci=", this%ci
-              !   print "(A,ES12.4,A,ES12.4,A,F8.4)", &
-              !     "  dJ_tn/dp: analytical=", dJ_tn_ddens, " numerical=", dJ_numerical, &
-              !     " ratio=", dJ_tn_ddens / (dJ_numerical + 1e-30)
-              !   print "(A,ES12.4,A,ES12.4,A,ES12.4)", &
-              !     "  v_surf*A_ct=", v_surf_ict * A_ct, " -A_ct*dJ_tn/dp=", -A_ct * dJ_tn_ddens, &
-              !     " jaco_set=", jaco_full
-              !   print "(A,ES12.4)", "  edge_flux_before_schottky=", edge_flux_before
-              ! end block
-
-              ! TE component for debugging (J_tn already computed above)
-              J_te = -v_surf_ict * (dens - n0B)
-
-              ! ! Debug output
-              ! print "(A,I3,A,I3)", "DEBUG_SCHOTTKY_ROBIN: contact=", ict, " vertex=", i
-              ! print "(A,2ES14.6)", "  dens, n0B = ", denorm(dens, "cm^-3"), denorm(n0B, "cm^-3")
-              ! print "(A,ES14.6,A)", "  v_surf = ", denorm(v_surf_ict, "cm/s"), " cm/s"
-              ! print "(A,ES14.6,A)", "  J_TE = -v*(n-n0B) = ", denorm(J_te, "A/cm^2"), " A/cm²"
-              ! print "(A,ES14.6,A)", "  J_TN = ", denorm(J_tn, "A/cm^2"), " A/cm²"
-              ! print "(A,ES14.6,A)", "  J_total = ", denorm(J_te + J_tn, "A/cm^2"), " A/cm²"
-              ! print "(A,ES14.6,A)", "  dJ/ddens = ", v_surf_ict * A_ct - A_ct * dJ_tn_ddens
-
-              ! Set Jacobian entry: dF/d(dens) = +v_surf*A_ct - A_ct*dJ_tn/ddens
-              call this%jaco_dens%set(idx, idx, v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
-
-              ! ! Debug: print what we're setting vs what might already be there
-              ! if (j == 3365) then
-              !   block
-              !     real :: jaco_schottky, residual_F, expected_dx
-              !     jaco_schottky = v_surf_ict * A_ct - A_ct * dJ_tn_ddens
-              !     residual_F = tmp(j) + v_surf_ict * A_ct * dens - v_surf_ict * A_ct * n0B - A_ct * J_tn
-              !     expected_dx = residual_F / jaco_schottky  ! If diagonal-only
-
-              !     print "(A)", "=== JACOBIAN DEBUG j=3365 ==="
-              !     print "(A,ES12.4)", "  jaco_schottky (what we set) = ", jaco_schottky
-              !     print "(A,ES12.4)", "  Residual F = ", residual_F
-              !     print "(A,ES12.4)", "  Expected dx = F/J = ", expected_dx
-              !     print "(A,ES12.4)", "  (Jacobian test showed actual dx = -4.10E-14)"
-              !     print "(A)", "  If expected ≈ actual but still overshoots → coupling issue"
-              !   end block
-              ! end if
-
-              ! Add residual: F = div(J) - A_ct * [v_surf*(n - n0B) + J_tn]
-              ! The div(J) is already in tmp from jaco_cdens
-              ! jaco_dens contribution was zeroed earlier, so we add the full BC term:
-              tmp(j) = tmp(j) + v_surf_ict * A_ct * dens - v_surf_ict * A_ct * n0B - A_ct * J_tn
-
-            end if
-          else
-            ! Ohmic/Gate: Dirichlet BC, jaco_dens = 1.0
-            call this%jaco_dens%set(idx, idx, 1.0)
-          end if
-        end do
-      end do
-
-      ! Materialize the non-constant Jacobian entries
-      call this%jaco_dens%set_matr(const = .false., nonconst = .true.)
-    end if
-
     call this%f%set(tmp - this%b)
   end subroutine
 

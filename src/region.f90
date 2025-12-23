@@ -5,7 +5,7 @@ module region_m
   use input_m,         only: input_file
   use math_m,          only: PI
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
-  use string_m,        only: string, new_string
+  use string_m,        only: string
 
   implicit none
 
@@ -166,7 +166,7 @@ contains
       ! get beam generation parameters
       call file%get(sid, "G0", this%G0)
       call file%get(sid, "shape", this%shape, status = st)
-      if (.not. st) this%shape = new_string("line")  ! Default to line
+      if (.not. st) this%shape%s = "line"  ! Default to line
       call file%get(sid, "width", this%width, status = st)
       if (.not. st) this%width = 0.0  ! Default to delta function
 

@@ -34,8 +34,8 @@ program dd
 
   ! ! solve
   call solve_steady_state()
-  call solve_small_signal()
-  call solve_transient()
+  ! call solve_small_signal()
+  ! call solve_transient()
   ! call solve_harmonic_balance()
   ! call solve_responsivity()
 
@@ -98,19 +98,25 @@ contains
 
   subroutine voltage_input_ss(sid, t_inp, V, t_sim)
     !! read in voltage configuration of contacts for steady-state from runfile
+    !! If beam generation is enabled, includes constant beam position as last row
     integer,           intent(in)  :: sid
       !! section id for runfile
     real, allocatable, intent(out) :: t_inp(:)
       !! pseudo time points for polygon input source
     real, allocatable, intent(out) :: V(:,:)
-      !! voltages at each pseudo time point (dev%par%nct, size(t_inp))
+      !! input values at each pseudo time point
+      !! (nct, size(t_inp)) if no beam, (nct+1, size(t_inp)) if beam enabled
     real, allocatable, intent(out) :: t_sim(:)
       !! pseudo time points at which steady-state simulations are performed
 
-    integer              :: ict, ict_sweep, i
+    integer              :: ict, ict_sweep, i, ninput
     integer, allocatable :: nsweep_ct(:), nsweep(:)
     logical              :: status
-    real,    allocatable :: Vbounds(:), tmp(:)
+    real,    allocatable :: Vbounds(:), tmp(:), beam_bounds(:)
+
+    ! count inputs: nct voltages + 1 beam (if enabled)
+    ninput = dev%par%nct
+    if (dev%par%has_beam_gen) ninput = ninput + 1
 
     ! find out which, if any, contact is swept and how many points are used
     ict_sweep = 0
@@ -128,8 +134,10 @@ contains
     ! t_inp
     t_inp = linspace(0.0, real(size(nsweep)), size(nsweep)+1)
 
+    ! allocate input array
+    allocate(V(ninput, size(nsweep)+1))
+
     ! contact voltages
-    allocate(V(dev%par%nct, size(nsweep)+1))
     do ict = 1, dev%par%nct
       call runfile%get(sid, "V_"//dev%par%contacts(ict)%name, Vbounds)
       if (ict == ict_sweep) then
@@ -139,6 +147,22 @@ contains
         V(ict,:) = Vbounds(1)
       end if
     end do
+
+    ! beam position (constant, if beam enabled)
+    if (dev%par%has_beam_gen) then
+      call runfile%get(sid, "Y_BEAM", beam_bounds, status = status)
+      if (status) then
+        ! use center of range if bounds given
+        if (size(beam_bounds) > 1) then
+          V(ninput,:) = (beam_bounds(1) + beam_bounds(2)) / 2.0
+        else
+          V(ninput,:) = beam_bounds(1)
+        end if
+      else
+        ! default: use device file y-range center
+        V(ninput,:) = (dev%par%reg_beam(1)%xyz(2,1) + dev%par%reg_beam(1)%xyz(2,2)) / 2.0
+      end if
+    end if
 
     ! t_sim
     if (ict_sweep == 0) then
@@ -152,10 +176,62 @@ contains
     end if
   end subroutine
 
+  subroutine beam_input_ss(sid, t_inp, inputs, t_sim)
+    !! read in beam sweep configuration for STEM-EBIC steady-state from runfile
+    !! Returns full input array: constant voltages + swept beam position
+    integer,           intent(in)  :: sid
+      !! section id for runfile
+    real, allocatable, intent(out) :: t_inp(:)
+      !! pseudo time points for polygon input source
+    real, allocatable, intent(out) :: inputs(:,:)
+      !! all input values: (nct+1, size(t_inp))
+      !! rows 1..nct = constant voltages, row nct+1 = beam position
+    real, allocatable, intent(out) :: t_sim(:)
+      !! pseudo time points at which steady-state simulations are performed
+
+    integer              :: i, ict, ninput
+    integer, allocatable :: nsweep(:)
+    logical              :: status
+    real,    allocatable :: beam_bounds(:), tmp(:), Vbounds(:)
+
+    ninput = dev%par%nct + 1
+
+    ! get beam sweep points
+    call runfile%get(sid, "N_BEAM", nsweep, status = status)
+    if (.not. status) nsweep = [1]
+
+    ! t_inp (bounds for interpolation)
+    t_inp = linspace(0.0, real(size(nsweep)), size(nsweep)+1)
+
+    ! allocate full input array
+    allocate(inputs(ninput, size(t_inp)))
+
+    ! read constant voltages
+    do ict = 1, dev%par%nct
+      call runfile%get(sid, "V_"//dev%par%contacts(ict)%name, Vbounds)
+      inputs(ict, :) = Vbounds(1)  ! constant voltage
+    end do
+
+    ! read beam position bounds
+    call runfile%get(sid, "Y_BEAM", beam_bounds, status = status)
+    if (.not. status) then
+      ! default: use device file y-range
+      beam_bounds = [dev%par%reg_beam(1)%xyz(2,1), dev%par%reg_beam(1)%xyz(2,2)]
+    end if
+    inputs(ninput, :) = beam_bounds  ! swept beam position
+
+    ! t_sim (actual simulation points)
+    t_sim = [0.0]
+    do i = 1, size(nsweep)
+      tmp = linspace(i-1.0, i+0.0, nsweep(i))
+      t_sim = [t_sim, tmp(2:size(tmp))]
+    end do
+  end subroutine
+
   subroutine solve_steady_state()
     integer              :: si, sj
-    integer, allocatable :: sids(:)
-    logical              :: log
+    integer, allocatable :: sids(:), nsweep_beam(:)
+    logical              :: log, use_beam_sweep, status
     real,    allocatable :: V(:,:), t_inp(:), t(:)
     type(string)         :: name
     type(polygon_src)    :: input
@@ -168,8 +244,19 @@ contains
 
       call runfile%get(sids(si), "name", name)
 
-      ! input config
-      call voltage_input_ss(sids(si), t_inp, V, t)
+      ! check if beam sweep is active
+      use_beam_sweep = .false.
+      if (dev%par%has_beam_gen) then
+        call runfile%get(sids(si), "N_BEAM", nsweep_beam, status = status)
+        if (status) use_beam_sweep = (nsweep_beam(1) > 1)
+      end if
+
+      ! input config: either voltage sweep or beam sweep
+      if (use_beam_sweep) then
+        call beam_input_ss(sids(si), t_inp, V, t)
+      else
+        call voltage_input_ss(sids(si), t_inp, V, t)
+      end if
       call input%init(t_inp, V)
 
       gummel_restart = .true.
@@ -180,8 +267,10 @@ contains
       call runfile%get("full newton params", "log", log)
       call ss%init(dev%sys_full, log = log, msg = "Newton: ")
       call ss%set_params(runfile%sections%d(sj))
-      call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
-                         & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
+      ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
+      !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
+      call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
+                         & string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
   end subroutine
