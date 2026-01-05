@@ -15,6 +15,7 @@ module srh_recombination_m
   use jacobian_m,      only: jacobian
   use semiconductor_m, only: CR_ELEC, CR_HOLE
   use variable_m,      only: variable
+  use normalization_m, only: denorm
 
   implicit none
 
@@ -133,8 +134,8 @@ contains
     this%ni_sq = par%smc%edos(CR_ELEC) * par%smc%edos(CR_HOLE) * exp(-Eg)
     this%ni    = sqrt(this%ni_sq)
 
-    print "(A,ES12.4)", "  ni (normalized) = ", this%ni
-    print "(A,ES12.4,A,ES12.4)", "  tau_n (norm) = ", this%tau_n, ", tau_p (norm) = ", this%tau_p
+    print "(A,ES12.4)", "  ni  = ", denorm(this%ni, 'cm^-3')
+    print "(A,ES12.4,A,ES12.4)", "  tau_n  = ", denorm(this%tau_n, 's'), ", tau_p  = ", denorm(this%tau_p, 's')
 
     ! provide SRH rate on transport vertices
     iprov = this%provide(srh, par%transport(IDX_VERTEX, 0))
@@ -162,11 +163,15 @@ contains
     !! where D = τp*(n + ni) + τn*(p + ni)
     class(calc_srh_recombination), intent(inout) :: this
 
-    integer              :: i
+    integer              :: i, i_max
     integer, allocatable :: idx(:)
     real                 :: n, p, np, numer, denom, R, dRdn, dRdp
+    real                 :: R_max, n_max, p_max
 
     allocate (idx(this%par%g%idx_dim))
+
+    R_max = 0.0
+    i_max = 0
 
     do i = 1, this%par%transport(IDX_VERTEX, 0)%n
       idx = this%par%transport(IDX_VERTEX, 0)%get_idx(i)
@@ -195,7 +200,21 @@ contains
       call this%srh%set(idx, R)
       call this%jaco_dens_n%set(idx, idx, dRdn)
       call this%jaco_dens_p%set(idx, idx, dRdp)
+
+      ! Track max |R| to find where recombination is strongest
+      if (abs(R) > abs(R_max)) then
+        R_max = R
+        n_max = n
+        p_max = p
+        i_max = i
+      end if
     end do
+
+    ! Debug: print max R (where beam effect should be visible)
+    if (i_max > 0) then
+      print "(A,I6,A,ES10.3,A,ES10.3,A,ES10.3)", "  SRH max @ i=", i_max, &
+        & ": n=", denorm(n_max,'cm^-3'), " p=", denorm(p_max,'cm^-3'), " R=", denorm(R_max,'cm^-3/s')
+    end if
   end subroutine
 
 end module

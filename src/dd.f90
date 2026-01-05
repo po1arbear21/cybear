@@ -160,7 +160,7 @@ contains
         end if
       else
         ! default: use device file y-range center
-        V(ninput,:) = (dev%par%reg_beam(1)%xyz(2,1) + dev%par%reg_beam(1)%xyz(2,2)) / 2.0
+        V(ninput,:) = (dev%par%reg_beam(1)%beam_y_min + dev%par%reg_beam(1)%beam_y_max) / 2.0
       end if
     end if
 
@@ -216,7 +216,7 @@ contains
     call runfile%get(sid, "Y_BEAM", beam_bounds, status = status)
     if (.not. status) then
       ! default: use device file y-range
-      beam_bounds = [dev%par%reg_beam(1)%xyz(2,1), dev%par%reg_beam(1)%xyz(2,2)]
+      beam_bounds = [dev%par%reg_beam(1)%beam_y_min, dev%par%reg_beam(1)%beam_y_max]
     end if
     inputs(ninput, :) = beam_bounds  ! swept beam position
 
@@ -229,7 +229,7 @@ contains
   end subroutine
 
   subroutine solve_steady_state()
-    integer              :: si, sj
+    integer              :: si, sj, ict_n
     integer, allocatable :: sids(:), nsweep_beam(:)
     logical              :: log, use_beam_sweep, status
     real,    allocatable :: V(:,:), t_inp(:), t(:)
@@ -272,6 +272,10 @@ contains
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
                          & string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
+
+      ! Print final I_N_CONTACT (EBIC current)
+      call dev%par%contact_map%get(string("N_CONTACT"), ict_n)
+      print "(A,ES12.4,A)", "I_N_CONTACT = ", denorm(dev%curr(ict_n)%x, 'A'), " A"
     end do
   end subroutine
 

@@ -9,6 +9,8 @@ module region_m
 
   implicit none
 
+  public :: region_beam_init
+
   type, abstract :: region
     real, allocatable :: xyz(:,:)
       !! bounds in x, y, z xyz:(dir, 2) tr:(dir, >2)
@@ -50,14 +52,12 @@ module region_m
     procedure :: point_test => region_contact_point_test
   end type
 
-  type, extends(region) :: region_beam
-    !! Beam generation region for STEM-EBIC simulation
-    real         :: G0
-      !! Generation rate (1/cm^3/s)
-    type(string) :: shape
-      !! Shape of beam: "point", "line", or "gaussian"
-    real         :: width
-      !! Width for Gaussian profile (nm)
+  type :: region_beam
+    !! Point beam for STEM-EBIC simulation
+    real :: I_beam        !! Beam current [A]
+    real :: beam_x        !! Beam x-position [cm, normalized]
+    real :: beam_y_min    !! Sweep y minimum [cm, normalized]
+    real :: beam_y_max    !! Sweep y maximum [cm, normalized]
   end type
 
   type region_ptr
@@ -161,14 +161,6 @@ contains
       end if
       call file%get(sid, "phims", this%phims, status = st)
       if (.not. st) this%phims = 0
-
-    class is (region_beam)
-      ! get beam generation parameters
-      call file%get(sid, "G0", this%G0)
-      call file%get(sid, "shape", this%shape, status = st)
-      if (.not. st) this%shape%s = "line"  ! Default to line
-      call file%get(sid, "width", this%width, status = st)
-      if (.not. st) this%width = 0.0  ! Default to delta function
 
     end select
 
@@ -352,5 +344,17 @@ contains
 
     end select
   end function
+
+  subroutine region_beam_init(this, file, sid)
+    !! Initialize beam region from config file
+    type(region_beam), intent(out) :: this
+    type(input_file),  intent(in)  :: file
+    integer,           intent(in)  :: sid
+
+    call file%get(sid, "I_beam", this%I_beam)
+    call file%get(sid, "beam_x", this%beam_x)
+    call file%get(sid, "beam_y_min", this%beam_y_min)
+    call file%get(sid, "beam_y_max", this%beam_y_max)
+  end subroutine
 
 end module

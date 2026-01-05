@@ -18,7 +18,7 @@ module device_params_m
   use map_m,            only: map_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, &
-    &                         region_contact, region_beam
+    &                         region_contact, region_beam, region_beam_init
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, &
     &                         DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor, &
     &                         STAB_SG, STAB_ED, STAB_MED, STAB_EXACT
@@ -40,10 +40,6 @@ module device_params_m
 
     real :: T
       !! temperature in K
-
-    real :: max_dx, max_dy, max_dz
-      !! mesh spacing for each direction (normalized)
-      !! used for beam position tolerance in STEM-EBIC
 
     integer             :: ci0, ci1
       !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
@@ -130,9 +126,7 @@ module device_params_m
     logical                            :: has_beam_gen
       !! enable external beam generation (STEM-EBIC)
     type(region_beam),      allocatable :: reg_beam(:)
-      !! beam generation regions
-    class(grid_data_real),  allocatable :: beam_rate
-      !! beam generation rate on vertices (1/cm^3/s)
+      !! beam generation region (point beam)
 
     logical              :: gal
       !! use GALENE III file
@@ -432,16 +426,16 @@ contains
       call this%reg_ct(si)%init(file, sids(si), this%gtype)
     end do
 
-    ! initialize beam regions (for STEM-EBIC)
+    ! initialize beam region (for STEM-EBIC point beam)
     call file%get_sections("beam", sids)
     allocate (this%reg_beam(size(sids)))
     this%has_beam_gen = size(sids) > 0
     do si = 1, size(sids)
-      call this%reg_beam(si)%init(file, sids(si), this%gtype)
+      call region_beam_init(this%reg_beam(si), file, sids(si))
     end do
     if (this%has_beam_gen) print "(A)", "  Beam generation enabled"
 
-    ! create region pointer array
+    ! create region pointer array (beam is NOT included - it's a point, not a region)
     allocate (this%reg(size(this%reg_poiss) + size(this%reg_trans) + size(this%reg_dop) + size(this%reg_ct)))
     i = 0
     do j = 1, size(this%reg_poiss)
@@ -489,14 +483,6 @@ contains
     case("tr_xyz")
       dim = 3
     end select
-
-    ! read mesh spacing for beam position tolerance (STEM-EBIC)
-    this%max_dx = 0.0
-    this%max_dy = 0.0
-    this%max_dz = 0.0
-    if (dim >= 1) call file%get("grid", "max_dx", this%max_dx, status = status)
-    if (dim >= 2) call file%get("grid", "max_dy", this%max_dy, status = status)
-    if (dim >= 3) call file%get("grid", "max_dz", this%max_dz, status = status)
 
     ! load or generate ?
     if (this%gal) then
@@ -1495,93 +1481,36 @@ contains
   end function
 
   subroutine device_params_init_beam(this)
-    !! Initialize beam generation rate on vertices (for STEM-EBIC)
+    !! Initialize point beam for STEM-EBIC
+    !! Just prints beam parameters - actual G calculation happens in beam_generation
     class(device_params), intent(inout) :: this
 
-    integer              :: i, j, k, ri, idx_dim, i0(3), i1(3), ijk(3)
-    integer, allocatable :: idx(:)
-    real                 :: G0, point(3), x_min, x_max, y_min, y_max
-    logical              :: in_region
-    type(string)         :: gtype_tmp
+    integer :: ix_beam
+    real    :: beam_x, x_actual
 
     print "(A)", "init_beam"
 
     if (.not. this%has_beam_gen) then
-      print "(A)", "  No beam generation regions defined"
+      print "(A)", "  No beam defined"
       return
     end if
 
-    idx_dim = this%g%idx_dim
-    allocate (idx(idx_dim))
+    ! Get beam x-position and find nearest grid node
+    beam_x   = this%reg_beam(1)%beam_x
+    ix_beam  = bin_search(this%g1D(1)%x, beam_x)
+    x_actual = this%g1D(1)%x(ix_beam)
 
-    ! Allocate and initialize beam_rate on vertices
-    call allocate_grid_data0_real(this%beam_rate, idx_dim)
-    call this%beam_rate%init(this%g, IDX_VERTEX, 0)
+    ! Warn if beam x is not aligned with grid
+    if (abs(x_actual - beam_x) > 1e-12) then
+      print "(A,ES12.4,A,ES12.4,A)", "  WARNING: Beam x not aligned! Shifted from ", &
+        denorm(beam_x, 'nm'), " to ", denorm(x_actual, 'nm'), " nm"
+    end if
 
-    ! Initialize to zero
-    do i = 1, this%transport(IDX_VERTEX, 0)%n
-      idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
-      call this%beam_rate%set(idx, 0.0)
-    end do
-
-    ! Set beam generation rate based on regions
-    i0 = 1
-    i1 = 1
-    do ri = 1, size(this%reg_beam)
-      G0 = this%reg_beam(ri)%G0
-      print "(A,I0,A,ES12.4)", "  Processing beam region ", ri, ", G0 = ", denorm(G0, "1/cm^3/s")
-
-      ! Get beam region bounds
-      x_min = this%reg_beam(ri)%xyz(1, 1)
-      x_max = this%reg_beam(ri)%xyz(1, 2)
-      if (idx_dim >= 2) then
-        y_min = this%reg_beam(ri)%xyz(2, 1)
-        y_max = this%reg_beam(ri)%xyz(2, 2)
-      end if
-
-      ! Loop over all transport vertices and check if in beam region
-      select case (this%gtype%s)
-      case ("x", "xy", "xyz")
-        do i = 1, this%transport(IDX_VERTEX, 0)%n
-          idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
-
-          ! Get vertex position
-          call this%g%get_vertex(idx, point(1:this%g%dim))
-
-          ! Check if vertex is in beam region
-          in_region = this%reg_beam(ri)%point_test(this%gtype, point(1:this%g%dim))
-
-          if (in_region) then
-            call this%beam_rate%set(idx, G0)
-          end if
-        end do
-
-      case ("tr_xy", "tr_xyz")
-        gtype_tmp%s = "tr_xy"
-        do i = 1, this%transport(IDX_VERTEX, 0)%n
-          idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
-
-          ! Get vertex position
-          call this%g%get_vertex(idx, point(1:this%g%dim))
-
-          ! Check if vertex is in beam region
-          in_region = this%reg_beam(ri)%point_test(gtype_tmp, point(1:2))
-
-          if (in_region) then
-            call this%beam_rate%set(idx, G0)
-          end if
-        end do
-
-      end select
-    end do
-
-    ! Count vertices with non-zero generation
-    j = 0
-    do i = 1, this%transport(IDX_VERTEX, 0)%n
-      idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
-      if (this%beam_rate%get(idx) > 0.0) j = j + 1
-    end do
-    print "(A,I0,A,I0,A)", "  Beam generation active on ", j, " of ", this%transport(IDX_VERTEX, 0)%n, " transport vertices"
+    ! Print beam parameters
+    print "(A,ES12.4,A)", "  I_beam     = ", denorm(this%reg_beam(1)%I_beam, 'nA'), " nA"
+    print "(A,ES12.4,A)", "  beam_x     = ", denorm(x_actual, 'nm'), " nm"
+    print "(A,ES12.4,A)", "  beam_y_min = ", denorm(this%reg_beam(1)%beam_y_min, 'nm'), " nm"
+    print "(A,ES12.4,A)", "  beam_y_max = ", denorm(this%reg_beam(1)%beam_y_max, 'nm'), " nm"
   end subroutine
 
 end module
