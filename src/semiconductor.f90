@@ -104,6 +104,11 @@ module semiconductor_m
     real    :: srh_tau_p = 0.0
       !! SRH hole lifetime (normalized)
 
+    logical :: surf_recom = .false.
+      !! enable/disable surface recombination
+    real    :: S_surf = 0.0
+      !! surface recombination velocity (cm/s, normalized)
+
   contains
     procedure :: init_dist    => semiconductor_init_dist
     generic   :: get_dist     => semiconductor_get_dist, &

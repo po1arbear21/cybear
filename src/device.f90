@@ -13,7 +13,8 @@ module device_m
   use input_m,           only: input_file
   use ionization_m,      only: ionization, calc_ionization, ion_continuity, generation_recombination, calc_generation_recombination
   use beam_generation_m,  only: beam_generation, beam_position, calc_beam_generation
-  use srh_recombination_m, only: srh_recombination, calc_srh_recombination
+  use srh_recombination_m, only: srh_recombination, calc_srh_recombination, &
+    &                             surface_srh_recombination, calc_surface_srh
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
@@ -84,6 +85,10 @@ module device_m
       !! SRH recombination rate (single variable for both carriers)
     type(calc_srh_recombination)             :: calc_srh
       !! calculate SRH recombination rate
+    type(surface_srh_recombination)          :: surf_srh
+      !! surface SRH recombination rate (single variable for both carriers)
+    type(calc_surface_srh)                   :: calc_surf_srh
+      !! calculate surface SRH recombination rate
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
@@ -167,15 +172,39 @@ contains
       call this%calc_srh%init(this%par, this%dens(CR_ELEC), this%dens(CR_HOLE), this%srh)
     end if
 
+    ! Initialize surface SRH recombination if enabled
+    if (this%par%smc%surf_recom) then
+      call this%surf_srh%init(this%par)
+      call this%calc_surf_srh%init(this%par, this%dens(CR_ELEC), this%dens(CR_HOLE), this%surf_srh)
+    end if
+
     do ci = this%par%ci0, this%par%ci1
-      if (this%par%has_beam_gen .and. this%par%smc%srh) then
+      ! Initialize continuity with all optional physics (beam, SRH, surface SRH)
+      if (this%par%has_beam_gen .and. this%par%smc%srh .and. this%par%smc%surf_recom) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+          & bgen=this%bgen(ci), srh=this%srh, &
+          & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
+        call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
+      elseif (this%par%has_beam_gen .and. this%par%smc%srh) then
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci), srh=this%srh)
+        call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
+      elseif (this%par%has_beam_gen .and. this%par%smc%surf_recom) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+          & bgen=this%bgen(ci), &
+          & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
       elseif (this%par%has_beam_gen) then
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci))
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
+      elseif (this%par%smc%srh .and. this%par%smc%surf_recom) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+          & srh=this%srh, &
+          & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
       elseif (this%par%smc%srh) then
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), srh=this%srh)
+      elseif (this%par%smc%surf_recom) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+          & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
       else
         call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
       end if
@@ -233,7 +262,12 @@ contains
       end if
       if (this%par%smc%srh) then
         call this%sys_dd(ci)%add_equation(this%calc_srh)
-        ! Provide the OTHER carrier's density as external input (fixed during this carrier's solve)
+      end if
+      if (this%par%smc%surf_recom) then
+        call this%sys_dd(ci)%add_equation(this%calc_surf_srh)
+      end if
+      ! Provide the OTHER carrier's density as external input (for SRH or surface SRH)
+      if (this%par%smc%srh .or. this%par%smc%surf_recom) then
         if (ci == CR_ELEC) then
           call this%sys_dd(ci)%provide(this%dens(CR_HOLE), this%par%transport(IDX_VERTEX,0))
         else
@@ -269,6 +303,10 @@ contains
     ! SRH recombination (single equation for both carriers - add OUTSIDE carrier loop)
     if (this%par%smc%srh) then
       call this%sys_full%add_equation(this%calc_srh)
+    end if
+    ! Surface SRH recombination (single equation for both carriers - add OUTSIDE carrier loop)
+    if (this%par%smc%surf_recom) then
+      call this%sys_full%add_equation(this%calc_surf_srh)
     end if
     call this%sys_full%add_equation(this%ramo_curr)
     ! add electric field calculation equations

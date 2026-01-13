@@ -10,7 +10,7 @@ module continuity_m
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,       only: generation_recombination
   use beam_generation_m,  only: beam_generation
-  use srh_recombination_m, only: srh_recombination
+  use srh_recombination_m, only: srh_recombination, surface_srh_recombination
   use res_equation_m,    only: res_equation
   use semiconductor_m,   only: CR_CHARGE, CR_NAME, DOS_PARABOLIC, DIST_MAXWELL
   use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
@@ -39,6 +39,16 @@ module continuity_m
       !! external beam generation (STEM-EBIC)
     type(vselector)              :: srh
       !! SRH recombination rate
+    type(vselector)              :: surf_srh
+      !! surface SRH recombination rate
+
+    ! Surface recombination support
+    integer :: n_surf = 0
+      !! number of surface vertices for this carrier
+    integer, allocatable :: surf_idx(:,:)
+      !! surface vertex indices (idx_dim x n_surf)
+    real, allocatable :: A_surf(:)
+      !! surface area per vertex
 
     ! Schottky support
     type(vselector), allocatable :: efield(:)
@@ -67,6 +77,8 @@ module continuity_m
       !! Jacobian for beam generation (constant, no dependency on solution)
     type(jacobian),     pointer     :: jaco_srh      => null()
       !! Jacobian for SRH recombination (R removes carriers, so +V)
+    type(jacobian),     pointer     :: jaco_surf_srh => null()
+      !! Jacobian for surface SRH recombination (R removes carriers at surface)
     type(jacobian),     pointer     :: jaco_iref     => null()
       !! Direct Jacobian for iref (Schottky contacts only, bypasses chain rule)
   contains
@@ -76,7 +88,7 @@ module continuity_m
 
 contains
 
-  subroutine continuity_init(this, par, dens, cdens, genrec, efield, bgen, srh)
+  subroutine continuity_init(this, par, dens, cdens, genrec, efield, bgen, srh, surf_srh, surf_idx, A_surf)
     !! initialize continuity equation
     class(continuity),              intent(out) :: this
     type(device_params), target,    intent(in)  :: par
@@ -93,10 +105,16 @@ contains
       !! external beam generation (STEM-EBIC, optional)
     type(srh_recombination), optional, intent(in) :: srh
       !! SRH recombination (optional)
+    type(surface_srh_recombination), optional, intent(in) :: surf_srh
+      !! surface SRH recombination (optional)
+    integer, optional, intent(in) :: surf_idx(:,:)
+      !! surface vertex indices (idx_dim x n_surf)
+    real, optional, intent(in) :: A_surf(:)
+      !! surface area per vertex
 
-    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, ibgen, isrh, j, dir
+    integer              :: ci, i, ict, idx_dir, idens, idx_dim, igenrec, ibgen, isrh, isurf_srh, j, dir
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
-    logical              :: status, has_schottky, has_beam, has_srh
+    logical              :: status, has_schottky, has_beam, has_srh, has_surf_srh
     real                 :: surf, F, dF
 
     print "(A)", "continuity_init"
@@ -126,6 +144,18 @@ contains
     ! init SRH recombination selector if enabled
     has_srh = present(srh) .and. par%smc%srh
     if (has_srh) call this%srh%init(srh, par%transport(IDX_VERTEX, 0))
+
+    ! init surface SRH recombination selector if enabled
+    has_surf_srh = present(surf_srh) .and. par%smc%surf_recom .and. present(surf_idx) .and. present(A_surf)
+    if (has_surf_srh) then
+      call this%surf_srh%init(surf_srh, par%transport(IDX_VERTEX, 0))
+      ! store surface vertex indices and areas
+      this%n_surf = size(A_surf)
+      allocate(this%surf_idx(idx_dim, this%n_surf))
+      allocate(this%A_surf(this%n_surf))
+      this%surf_idx = surf_idx
+      this%A_surf = A_surf
+    end if
 
     ! init residuals using this%dens or this%iref as main variable
     call this%init_f(this%dens)
@@ -174,6 +204,14 @@ contains
     if (has_srh) then
       isrh = this%depend(this%srh)
       this%jaco_srh => this%init_jaco_f(isrh, &
+        & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
+        & const = .true., dtime = .false.)
+    end if
+
+    ! surface SRH recombination jacobian
+    if (has_surf_srh) then
+      isurf_srh = this%depend(this%surf_srh)
+      this%jaco_surf_srh => this%init_jaco_f(isurf_srh, &
         & st = [this%st_dir%get_ptr(), (this%st_em%get_ptr(), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end if
@@ -227,6 +265,18 @@ contains
       end do
     end if
 
+    ! surface SRH recombination
+    ! F = dn/dt*V + div(j) + R_surf*A = 0  =>  dF/dR_surf = +A (recombination removes carriers at surface)
+    if (has_surf_srh) then
+      do i = 1, this%n_surf
+        idx1 = this%surf_idx(:, i)
+        ! Only set for uncontacted vertices
+        if (par%ict%get(idx1) == 0) then
+          call this%jaco_surf_srh%set(idx1, idx1, this%A_surf(i))
+        end if
+      end do
+    end if
+
     ! boundary conditions: Dirichlet for Ohmic/Gate, handled in eval for Schottky
     allocate (this%b(this%f%n), source = 0.0)
     j = par%transport_vct(0)%n
@@ -263,6 +313,7 @@ contains
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
     if (associated(this%jaco_bgen)) call this%jaco_bgen%matr%mul_vec(this%bgen%get(), tmp, fact_y = 1.0)
     if (associated(this%jaco_srh)) call this%jaco_srh%matr%mul_vec(this%srh%get(), tmp, fact_y = 1.0)
+    if (associated(this%jaco_surf_srh)) call this%jaco_surf_srh%matr%mul_vec(this%surf_srh%get(), tmp, fact_y = 1.0)
     call this%f%set(tmp - this%b)
   end subroutine
 

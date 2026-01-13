@@ -212,11 +212,15 @@ contains
       inputs(ict, :) = Vbounds(1)  ! constant voltage
     end do
 
-    ! read beam position bounds
+    ! read beam position bounds (supports multi-segment: Y_BEAM = y0, y1, y2, ... : um)
     call runfile%get(sid, "Y_BEAM", beam_bounds, status = status)
     if (.not. status) then
       ! default: use device file y-range
       beam_bounds = [dev%par%reg_beam(1)%beam_y_min, dev%par%reg_beam(1)%beam_y_max]
+    end if
+    ! validate: Y_BEAM must have size(N_BEAM)+1 boundary values
+    if (size(beam_bounds) /= size(nsweep) + 1) then
+      error stop "Y_BEAM must have size(N_BEAM)+1 boundary values"
     end if
     inputs(ninput, :) = beam_bounds  ! swept beam position
 

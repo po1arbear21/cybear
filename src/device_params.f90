@@ -369,6 +369,14 @@ contains
         & this%smc%srh_tau_p, " (norm)"
     end if
 
+    ! Surface recombination: R_s = S × (np - ni²) / (n + p + 2ni)
+    call file%get(sid, "surf_recom", this%smc%surf_recom, status)
+    if (.not. status) this%smc%surf_recom = .false.
+    if (this%smc%surf_recom) then
+      call file%get(sid, "S_surf", this%smc%S_surf)
+      print "(A,ES12.4,A)", "  Surface recom enabled: S_surf=", this%smc%S_surf, " (norm)"
+    end if
+
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
     m4_assert(size(this%smc%alpha)     == 2)
