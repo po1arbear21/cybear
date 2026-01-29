@@ -568,7 +568,7 @@ contains
 
       ! log
       if (log) then
-        print "(A,I6,ES25.16E3)", "Gummel: ", it, denorm(error, "V")
+        print "(A,I4,A,ES25.16E3,A)", "Gummel: iteration ", it, ", absolute error ", denorm(error, "V"), " V"
       end if
     end do
 
@@ -581,7 +581,7 @@ contains
     !! solve non-linear poisson equation
 
     integer                         :: it, nx, min_it, max_it, si
-    logical                         :: status
+    logical                         :: log, status
     real                            :: err, res0, res1, damping, dx0, atol, dx_lim
     real,               allocatable :: x0(:), f(:), dx(:)
     type(block_real),   pointer     :: dfdx
@@ -604,6 +604,7 @@ contains
 
     ! get nlpe params
     call runfile%get_section("nlpe params", si)
+    call runfile%get(si, "log", log)
     call runfile%get(si, "atol", atol)
     call runfile%get(si, "dx_lim", dx_lim)
     call runfile%get(si, "min_it", min_it)
@@ -622,20 +623,21 @@ contains
     call init_solver_real(solver_name%s, solver_params, solver)
 
     ! newton iteration
+    if (log) print "(A)", "NLPE:   ITER            RMS(RESIDUAL)                  DAMPING            ABS_ERROR [V]"
     do while (((err > atol) .and. (it <= max_it)) .or. (it < min_it))
       it = it + 1
 
       ! evaluate system
       call dev%sys_nlpe%eval(f = f, df = dfdx)
-      res1 = dot_product(f, f)
-      write (*, "(A,I6,2ES25.16E3)", advance = "no") "NLPE: ", it, res1, damping
+      res1 = norm2(f) / sqrt(real(size(f)))
+      if (log) write (*, "(A,I6,2ES25.16E3)", advance = "no") "NLPE: ", it, res1, damping
 
       ! repeat step with 0.5*dx if residual gets larger
       if (res1 > res0) then
         it = it - 1
         damping = damping * 0.5
         call dev%sys_nlpe%set_x(x0 + damping * dx)
-        print *
+        if (log) print *
         cycle
       end if
 
@@ -658,7 +660,7 @@ contains
       ! update variables
       call dev%sys_nlpe%set_x(x0 + dx)
 
-      write (*, "(ES25.16E3)") denorm(err, "V")
+      if (log) write (*, "(ES25.16E3)") denorm(err, "V")
     end do
 
     call solver%destruct()
