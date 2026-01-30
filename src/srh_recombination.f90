@@ -450,10 +450,6 @@ contains
       if (abs(R_s) > abs(R_max)) R_max = R_s
     end do
 
-    ! Debug output
-    if (this%n_surf > 0) then
-      print "(A,ES10.3,A)", "  Surface SRH max R = ", denorm(R_max, '1/cm^2/s'), " 1/cm²/s"
-    end if
   end subroutine
 
 end module

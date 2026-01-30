@@ -115,3 +115,12 @@ templates = [
     "devices/stem_ebic/stem_ebic_lateral.ini",
   ], action = "expand" },
 ]
+
+
+[beam_test]
+mode = "debug"
+target = "beam_test"
+args = ""
+templates = [
+  { files = [ "devices/test/beam_minimal.ini" ], action = "expand" }
+]

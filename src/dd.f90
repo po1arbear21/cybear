@@ -160,7 +160,7 @@ contains
         end if
       else
         ! default: use device file y-range center
-        V(ninput,:) = (dev%par%reg_beam(1)%beam_y_min + dev%par%reg_beam(1)%beam_y_max) / 2.0
+        V(ninput,:) = (dev%par%reg_beam(1)%beam_min + dev%par%reg_beam(1)%beam_max) / 2.0
       end if
     end if
 
@@ -216,7 +216,7 @@ contains
     call runfile%get(sid, "Y_BEAM", beam_bounds, status = status)
     if (.not. status) then
       ! default: use device file y-range
-      beam_bounds = [dev%par%reg_beam(1)%beam_y_min, dev%par%reg_beam(1)%beam_y_max]
+      beam_bounds = [dev%par%reg_beam(1)%beam_min, dev%par%reg_beam(1)%beam_max]
     end if
     ! validate: Y_BEAM must have size(N_BEAM)+1 boundary values
     if (size(beam_bounds) /= size(nsweep) + 1) then
@@ -274,7 +274,7 @@ contains
       ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
       !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
-                         & string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
+                         & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! Print final I_N_CONTACT (EBIC current)

@@ -44,7 +44,7 @@ module grid_generator_m
 
 contains
 
-  subroutine generate_1D_grid(file, load, gal, gal_fl, dir, reg, g1D, gptr, ngptr)
+  subroutine generate_1D_grid(file, load, gal, gal_fl, dir, reg, g1D, gptr, ngptr, extra_pts)
     !! create 1D grid x, y, or z
     type(input_file),     intent(in)    :: file
       !! device file
@@ -64,6 +64,8 @@ contains
       !! save pointer to g1D in gptr (used to create tensor grid afterwards)
     integer,              intent(inout) :: ngptr
       !! number of already used gptr entries (gets increased by 1)
+    real, optional,       intent(in)    :: extra_pts(:)
+      !! additional mandatory grid points (e.g., beam sweep positions)
 
     real                          :: max_dx
     real,             allocatable :: x0(:), x(:)
@@ -82,10 +84,16 @@ contains
       m4_assert(.not. gal)
       call file%get("grid", "max_d"//DIR_NAME(dir), max_dx)
 
-      ! generate grid points
+      ! generate grid points from region/refinement bounds
       ref = get_refinements(file, dir)
       x0  = get_bounds(dir, reg, ref)
       x   = generate_axis(x0, max_dx, ref)
+
+      ! merge in extra mandatory points (e.g., beam sweep positions)
+      ! these are added after generate_axis to avoid interference with refinement logic
+      if (present(extra_pts)) then
+        x = merge_points(x, extra_pts)
+      end if
     end if
 
     ! initialize grid
@@ -184,6 +192,36 @@ contains
       x0(j+1:j+2) = ref(i)%x
       j = j + 2
     end do
+  end function
+
+  function merge_points(x, extra) result(merged)
+    !! Merge extra points into sorted array x, removing duplicates
+    !! Used to add beam sweep positions as mandatory grid nodes
+    real, intent(in)  :: x(:)
+    real, intent(in)  :: extra(:)
+    real, allocatable :: merged(:)
+
+    real, parameter   :: TOL = 1e-10
+    real, allocatable :: all_pts(:)
+    integer           :: i, j, n
+
+    ! combine and sort all points
+    allocate(all_pts(size(x) + size(extra)))
+    all_pts(1:size(x)) = x
+    all_pts(size(x)+1:) = extra
+    call qsort(all_pts)
+
+    ! remove duplicates
+    n = size(all_pts)
+    j = 1
+    do i = 2, n
+      if (abs(all_pts(i) - all_pts(j)) > TOL) then
+        j = j + 1
+        all_pts(j) = all_pts(i)
+      end if
+    end do
+
+    merged = all_pts(1:j)
   end function
 
   function generate_axis(x0, dx, ref) result(x)

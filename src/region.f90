@@ -3,7 +3,7 @@ module region_m
   use contact_m,       only: CT_OHMIC, CT_GATE
   use error_m,         only: program_error
   use input_m,         only: input_file
-  use math_m,          only: PI
+  use math_m,          only: PI, linspace
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
   use string_m,        only: string
 
@@ -53,11 +53,16 @@ module region_m
   end type
 
   type :: region_beam
-    !! Point beam for STEM-EBIC simulation
-    real :: I_beam        !! Beam current [A]
-    real :: beam_x        !! Beam x-position [cm, normalized]
-    real :: beam_y_min    !! Sweep y minimum [cm, normalized]
-    real :: beam_y_max    !! Sweep y maximum [cm, normalized]
+    !! STEM-EBIC beam parameters for electron-beam-induced current simulation
+    !! Physics parameters (stopping power, E_ehp, probe profile) are hardcoded
+    !! in beam_generation.f90 for 200 keV Si lamella configuration
+    real :: I_beam           !! Beam current per unit depth [A/cm]
+    real :: lamella_t        !! Lamella thickness - beam path length through material [cm, normalized]
+    real :: beam_min         !! Sweep minimum [cm, normalized]
+    real :: beam_max         !! Sweep maximum [cm, normalized]
+    real :: beam_x           !! Fixed x position for point profile [cm, normalized]
+    type(string) :: beam_dist  !! Beam distribution: "line", "gaussian", or "point"
+    real, allocatable :: beam_y(:)  !! Sweep positions [cm, normalized] - become mandatory grid nodes
   end type
 
   type region_ptr
@@ -351,10 +356,70 @@ contains
     type(input_file),  intent(in)  :: file
     integer,           intent(in)  :: sid
 
+    logical           :: status
+    real, allocatable :: y_bounds(:), tmp(:)
+    integer, allocatable :: n_pts(:)
+    integer           :: i, j, n_total, n_segs
+
     call file%get(sid, "I_beam", this%I_beam)
-    call file%get(sid, "beam_x", this%beam_x)
-    call file%get(sid, "beam_y_min", this%beam_y_min)
-    call file%get(sid, "beam_y_max", this%beam_y_max)
+    call file%get(sid, "lamella_t", this%lamella_t)
+    call file%get(sid, "beam_min", this%beam_min)
+    call file%get(sid, "beam_max", this%beam_max)
+    call file%get(sid, "beam_dist", this%beam_dist, status)
+    if (.not. status) then
+      this%beam_dist%s = "gaussian"  ! default to Gaussian profile
+    end if
+
+    ! Validate beam_dist
+    select case (this%beam_dist%s)
+    case ("line", "gaussian", "point")
+      ! valid
+    case default
+      call program_error("unknown beam_dist '" // this%beam_dist%s // "', use 'line', 'gaussian', or 'point'")
+    end select
+
+    ! Read beam_x (required for "point" profile, optional otherwise)
+    call file%get(sid, "beam_x", this%beam_x, status)
+    if (.not. status) then
+      if (this%beam_dist%s == "point") then
+        call program_error("beam_x is required for beam_dist = 'point'")
+      end if
+      this%beam_x = 0.0  ! default value (unused for line/gaussian)
+    end if
+
+    ! Read Y_BEAM (segment boundaries) and N_BEAM (points per segment)
+    ! These positions become mandatory grid nodes for grid-independent results
+    call file%get(sid, "Y_BEAM", y_bounds, status)
+    if (status) then
+      call file%get(sid, "N_BEAM", n_pts)
+      n_segs = size(y_bounds) - 1
+      if (size(n_pts) /= n_segs) then
+        call program_error("N_BEAM must have one fewer element than Y_BEAM")
+      end if
+
+      ! Calculate total number of unique positions
+      n_total = 1  ! first point
+      do i = 1, n_segs
+        n_total = n_total + n_pts(i) - 1  ! -1 to avoid double-counting segment boundaries
+      end do
+
+      ! Generate positions
+      allocate(this%beam_y(n_total))
+      j = 1
+      do i = 1, n_segs
+        tmp = linspace(y_bounds(i), y_bounds(i+1), n_pts(i))
+        if (i == 1) then
+          this%beam_y(j:j+n_pts(i)-1) = tmp
+          j = j + n_pts(i)
+        else
+          ! Skip first point (already included as last point of previous segment)
+          this%beam_y(j:j+n_pts(i)-2) = tmp(2:n_pts(i))
+          j = j + n_pts(i) - 1
+        end if
+      end do
+
+      print "(A,I0,A)", "  Beam sweep: ", n_total, " positions (will be grid nodes)"
+    end if
   end subroutine
 
 end module

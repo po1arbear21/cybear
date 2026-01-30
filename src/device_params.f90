@@ -505,7 +505,17 @@ contains
     select case(this%gtype%s)
     case("x", "xy", "xyz")
       do dir = 1, dim
-        call generate_1D_grid(file, load, this%gal, this%gal_fl, dir, this%reg, this%g1D(dir), gptr, ngptr)
+        ! For y-direction (dir=2), include beam sweep positions as mandatory grid nodes
+        if (dir == 2 .and. this%has_beam_gen) then
+          if (allocated(this%reg_beam(1)%beam_y)) then
+            call generate_1D_grid(file, load, this%gal, this%gal_fl, dir, this%reg, this%g1D(dir), gptr, ngptr, &
+                                  extra_pts=this%reg_beam(1)%beam_y)
+          else
+            call generate_1D_grid(file, load, this%gal, this%gal_fl, dir, this%reg, this%g1D(dir), gptr, ngptr)
+          end if
+        else
+          call generate_1D_grid(file, load, this%gal, this%gal_fl, dir, this%reg, this%g1D(dir), gptr, ngptr)
+        end if
 
         print "(A,I0)", "#("//DIR_NAME(dir)//"): ", this%g1D(dir)%n
       end do
@@ -1489,12 +1499,9 @@ contains
   end function
 
   subroutine device_params_init_beam(this)
-    !! Initialize point beam for STEM-EBIC
+    !! Initialize STEM-EBIC beam
     !! Just prints beam parameters - actual G calculation happens in beam_generation
     class(device_params), intent(inout) :: this
-
-    integer :: ix_beam
-    real    :: beam_x, x_actual
 
     print "(A)", "init_beam"
 
@@ -1503,22 +1510,10 @@ contains
       return
     end if
 
-    ! Get beam x-position and find nearest grid node
-    beam_x   = this%reg_beam(1)%beam_x
-    ix_beam  = bin_search(this%g1D(1)%x, beam_x)
-    x_actual = this%g1D(1)%x(ix_beam)
-
-    ! Warn if beam x is not aligned with grid
-    if (abs(x_actual - beam_x) > 1e-12) then
-      print "(A,ES12.4,A,ES12.4,A)", "  WARNING: Beam x not aligned! Shifted from ", &
-        denorm(beam_x, 'nm'), " to ", denorm(x_actual, 'nm'), " nm"
-    end if
-
     ! Print beam parameters
-    print "(A,ES12.4,A)", "  I_beam     = ", denorm(this%reg_beam(1)%I_beam, 'nA'), " nA"
-    print "(A,ES12.4,A)", "  beam_x     = ", denorm(x_actual, 'nm'), " nm"
-    print "(A,ES12.4,A)", "  beam_y_min = ", denorm(this%reg_beam(1)%beam_y_min, 'nm'), " nm"
-    print "(A,ES12.4,A)", "  beam_y_max = ", denorm(this%reg_beam(1)%beam_y_max, 'nm'), " nm"
+    print "(A,ES12.4,A)", "  I_beam    = ", denorm(this%reg_beam(1)%I_beam, 'nA'), " nA"
+    print "(A,ES12.4,A)", "  beam_min  = ", denorm(this%reg_beam(1)%beam_min, 'nm'), " nm"
+    print "(A,ES12.4,A)", "  beam_max  = ", denorm(this%reg_beam(1)%beam_max, 'nm'), " nm"
   end subroutine
 
 end module
