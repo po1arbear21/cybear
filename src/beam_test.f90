@@ -19,10 +19,9 @@ program beam_test
   type(polygon_src) :: input
   type(steady_state) :: ss, ss_dd(2)
   class(solver_real), allocatable :: nlpe_solver
-  integer :: ix, iy, nx, ny, ict, ninput, ict_n, ci, itest, n_sweep
-  real :: G, beam_y, G_sum, G_tot, A, rel_err, I_N, y_start, y_end, dy_sweep
+  integer :: ix, iy, nx, ny, ict, ninput, ict_n, ci
+  real :: G, beam_y, G_sum, G_tot, A, rel_err, I_N
   real, allocatable :: t_inp(:), V(:,:)
-  real, allocatable :: sweep_y(:), sweep_I(:)
 
   ! Initialize
   call init_normconst(300.0)
@@ -244,82 +243,6 @@ program beam_test
   print "(A)", ""
   print "(A,ES12.4,A)", "  I_expected  = ", 1.602e-19 * G_tot * 1e-4, " A (ideal)"
 
-  ! Test 5: Fine beam sweep to detect kinks at grid nodes
-  print "(A)", ""
-  print "(A)", "========================================"
-  print "(A)", "Test 5: Fine Beam Sweep (check for kinks at grid nodes)"
-  print "(A)", "========================================"
-  print "(A)", ""
-  print "(A)", "Sweeping beam finely to detect discontinuities at grid nodes."
-  print "(A)", "Grid nodes are at: 0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 nm"
-  print "(A)", ""
-
-  ! Fine sweep around y=1500 nm (junction - grid node between p and n regions)
-  y_start = 1300.0
-  y_end = 1700.0
-  dy_sweep = 25.0
-  n_sweep = nint((y_end - y_start) / dy_sweep) + 1
-
-  allocate(sweep_y(n_sweep), sweep_I(n_sweep))
-
-  print "(A)", "  Sweeping from 1300 to 1700 nm in 25 nm steps (around junction at 1500 nm)..."
-  print "(A)", ""
-
-  do itest = 1, n_sweep
-    beam_y = y_start + (itest - 1) * dy_sweep
-    sweep_y(itest) = beam_y
-    dev%beam_pos%x = norm(beam_y, 'nm')
-    V(ninput, :) = dev%beam_pos%x
-
-    call input%init(t_inp, V)
-
-    do ict = 1, dev%par%nct
-      dev%volt(ict)%x = V(ict, 1)
-    end do
-
-    do ci = CR_ELEC, CR_HOLE
-      call approx_imref(dev%par, dev%iref(ci), dev%volt)
-    end do
-    call approx_potential(dev%par, dev%pot, dev%iref)
-
-    call solve_nlpe_quiet()
-    call gummel_quiet()
-    call ss%init(dev%sys_full, log = .false., msg = "")
-    call ss%run(input = input, t_input = [0.0])
-
-    sweep_I(itest) = denorm(dev%curr(ict_n)%x, 'nA')
-  end do
-
-  ! Print results in table format for easy plotting
-  print "(A)", "  Results (y [nm], I [nA], dI/dy [nA/nm]):"
-  print "(A)", "  ─────────────────────────────────────────"
-  do itest = 1, n_sweep
-    if (itest == 1) then
-      print "(A,F8.1,A,F12.6,A,A)", "  ", sweep_y(itest), "  ", sweep_I(itest), "      ", "---"
-    else
-      print "(A,F8.1,A,F12.6,A,F10.6)", "  ", sweep_y(itest), "  ", sweep_I(itest), "      ", &
-        (sweep_I(itest) - sweep_I(itest-1)) / dy_sweep
-    end if
-  end do
-
-  ! Check for kink at y=1500 (junction grid node)
-  ! Find index closest to 1500
-  print "(A)", ""
-  print "(A)", "  Checking for kink at y=1500 nm (junction grid node):"
-  do itest = 1, n_sweep
-    if (abs(sweep_y(itest) - 1500.0) < 1.0) then
-      if (itest > 1 .and. itest < n_sweep) then
-        print "(A,F10.6,A)", "    dI/dy before: ", (sweep_I(itest) - sweep_I(itest-1)) / dy_sweep, " nA/nm"
-        print "(A,F10.6,A)", "    dI/dy after:  ", (sweep_I(itest+1) - sweep_I(itest)) / dy_sweep, " nA/nm"
-        print "(A,F10.6,A)", "    Jump in slope: ", &
-          abs((sweep_I(itest+1) - sweep_I(itest)) - (sweep_I(itest) - sweep_I(itest-1))) / dy_sweep, " nA/nm"
-      end if
-      exit
-    end if
-  end do
-
-  deallocate(sweep_y, sweep_I)
-
   deallocate(t_inp, V)
 
 contains
@@ -435,100 +358,6 @@ contains
 
       err = max(err_pot, err_iref(1), err_iref(2))
       print "(A,I3,A,ES10.3)", "    Gummel it ", it, ": err = ", denorm(err, 'V')
-    end do
-
-    deallocate(pot0, iref0)
-  end subroutine
-
-  subroutine solve_nlpe_quiet()
-    !! Solve NLPE without printing (for batch tests)
-    integer :: it, n_nlpe
-    real :: err, res0, res1, damping, dx0
-    real, allocatable :: x0(:), f(:), dx(:)
-    type(block_real), pointer :: dfdx
-    type(input_section) :: solver_params
-
-    real, parameter :: ATOL = 1e-10
-    real, parameter :: DX_LIM = 1.0
-    integer, parameter :: MAX_IT = 100
-
-    n_nlpe = dev%sys_nlpe%n
-    allocate(x0(n_nlpe), f(n_nlpe), dx(n_nlpe), source = 0.0)
-
-    if (.not. allocated(nlpe_solver)) then
-      solver_params = default_solver_params("pardiso")
-      call init_solver_real("pardiso", solver_params, nlpe_solver)
-    end if
-
-    it = 0
-    err = huge(err)
-    res0 = huge(res0)
-    damping = 1.0
-    x0 = dev%sys_nlpe%get_x()
-
-    do while ((err > ATOL) .and. (it <= MAX_IT))
-      it = it + 1
-      call dev%sys_nlpe%eval(f = f, df = dfdx)
-      res1 = dot_product(f, f)
-
-      if (res1 > res0) then
-        it = it - 1
-        damping = damping * 0.5
-        call dev%sys_nlpe%set_x(x0 + damping * dx)
-        if (damping < 1e-10) exit
-        cycle
-      end if
-
-      x0 = dev%sys_nlpe%get_x()
-      res0 = res1
-      damping = 1.0
-
-      call nlpe_solver%factorize(dfdx)
-      call nlpe_solver%solve(-f, dx)
-
-      dx0 = maxval(abs(dx) / DX_LIM)
-      if (dx0 > 1) dx = dx / dx0
-      err = maxval(abs(dx))
-      call dev%sys_nlpe%set_x(x0 + dx)
-    end do
-
-    deallocate(x0, f, dx)
-  end subroutine
-
-  subroutine gummel_quiet()
-    !! Gummel iteration without printing (for batch tests)
-    integer :: it, ci
-    real :: err, err_pot, err_iref(2)
-    real, allocatable :: pot0(:), iref0(:,:)
-
-    real, parameter :: ATOL = 1e-6
-    integer, parameter :: MAX_IT = 50
-
-    allocate(pot0(dev%pot%data%n), iref0(dev%iref(1)%data%n, 2))
-
-    do ci = CR_ELEC, CR_HOLE
-      call ss_dd(ci)%init(dev%sys_dd(ci), log = .false., msg = "")
-    end do
-
-    it = 0
-    err = huge(err)
-
-    do while ((denorm(err, 'V') > ATOL) .and. (it < MAX_IT))
-      it = it + 1
-
-      pot0 = dev%pot%get()
-      call solve_nlpe_quiet()
-      err_pot = maxval(abs(dev%pot%get() - pot0))
-
-      do ci = CR_ELEC, CR_HOLE
-        iref0(:, ci) = dev%iref(ci)%get()
-        call ss_dd(ci)%run()
-        call ss_dd(ci)%select(1)
-        call dev%calc_iref(ci)%eval()
-        err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:, ci)))
-      end do
-
-      err = max(err_pot, err_iref(1), err_iref(2))
     end do
 
     deallocate(pot0, iref0)

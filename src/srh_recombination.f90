@@ -257,11 +257,6 @@ contains
       end if
     end do
 
-    ! Debug: print max R (where beam effect should be visible)
-    if (i_max > 0) then
-      print "(A,I6,A,ES10.3,A,ES10.3,A,ES10.3)", "  SRH max @ i=", i_max, &
-        & ": n=", denorm(n_max,'cm^-3'), " p=", denorm(p_max,'cm^-3'), " R=", denorm(R_max,'cm^-3/s')
-    end if
   end subroutine
 
   ! ============================================================================
