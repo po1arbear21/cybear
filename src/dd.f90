@@ -179,7 +179,6 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(sj))
-      ss%msg = "Newton: "
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
                          & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
@@ -189,7 +188,7 @@ contains
   subroutine solve_small_signal()
     integer              :: si, sj, Nf, i
     integer, allocatable :: sids(:)
-    logical              :: flog
+    logical              :: status, flog
     real                 :: f0, f1
     real,    allocatable :: f(:), V(:,:), t_inp(:), t(:)
     complex, allocatable :: s(:), result(:,:)
@@ -213,14 +212,17 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
+      call runfile%get(sids(si), "f", f, status) ! read f directly from input file or linked csv file if provided
+      if (.not. status) then
+        call runfile%get(sids(si), "f0", f0)
+        call runfile%get(sids(si), "f1", f1)
+        call runfile%get(sids(si), "Nf", Nf)
+        call runfile%get(sids(si), "flog", flog)
+        if (flog) then
+          f = logspace(f0, f1, Nf)
+        else
+          f = linspace(f0, f1, Nf)
+        end if
       end if
       s = 2 * PI * (0.0, 1.0) * f
 
@@ -235,7 +237,6 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
-      ss%msg = "Newton: "
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! run small-signal analysis for a single working point
@@ -253,14 +254,17 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
+      call runfile%get(sids(si), "f", f, status) ! read f directly from input file or linked csv file if provided
+      if (.not. status) then
+        call runfile%get(sids(si), "f0", f0)
+        call runfile%get(sids(si), "f1", f1)
+        call runfile%get(sids(si), "Nf", Nf)
+        call runfile%get(sids(si), "flog", flog)
+        if (flog) then
+          f = logspace(f0, f1, Nf)
+        else
+          f = linspace(f0, f1, Nf)
+        end if
       end if
       s = 2 * PI * (0.0, 1.0) * f
 
@@ -275,7 +279,6 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
-      ss%msg = "Newton: "
 
       ! run small-signal analysis at each working point
       allocate (result(size(t), Nf), source = (0.0,0.0))
@@ -334,13 +337,11 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(si_full_newton))
-      ss%msg = "Newton: "
       call ss%run(input = input, gummel = gummel)
 
       ! run transient simulation
       call trans%init(dev%sys_full)
       call trans%set_params(runfile%sections%d(si_transient))
-      trans%msg = "Transient: "
       call trans%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), string("ionA"), &
         &                     string("V_GAT"), string("I_DRN"), string("I_GAT"), string("I_SRC"), string("I_BLK"), &
         &                     string("ncdensx"), string("pcdensx"), string("ncdensy"), string("pcdensy") &
@@ -532,9 +533,9 @@ contains
 
     call runfile%get_section("dd params", si)
     do ci = dev%par%ci0, dev%par%ci1
+      call runfile%sections%d(si)%set("msg", string(CR_NAME(ci) // "DD: "))
       call ss_dd(ci)%init(dev%sys_dd(ci))
       call ss_dd(ci)%set_params(runfile%sections%d(si))
-      ss_dd(ci)%msg = CR_NAME(ci) // "DD: "
     end do
 
     ! get gummel params
