@@ -281,7 +281,7 @@ contains
       call ss%set_params(params)
 
       ! run small-signal analysis at each working point
-      allocate (result(size(t), Nf), source = (0.0,0.0))
+      allocate (result(size(t), size(f)), source = (0.0,0.0))
       do i = 1, size(t)
         print *, "steady-state step: ", i
         call ss%run(input = input, t_input = [t(i)], gummel = gummel)
