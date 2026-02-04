@@ -109,6 +109,13 @@ module semiconductor_m
     real    :: S_surf = 0.0
       !! surface recombination velocity (cm/s, normalized)
 
+    logical :: charged_surf = .false.
+      !! enable charged surface (Fermi-level pinning)
+    real    :: E_surf = 0.0
+      !! surface defect level relative to midgap (normalized to kT)
+    real    :: N_surf = 0.0
+      !! surface state density (cm^-2, normalized)
+
   contains
     procedure :: init_dist    => semiconductor_init_dist
     generic   :: get_dist     => semiconductor_get_dist, &

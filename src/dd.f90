@@ -275,7 +275,7 @@ contains
       !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
                          & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
-      call ss%run(input = input, t_input = t, gummel = gummel)
+      call ss%run(input = input, t_input = t, gummel = gummel, output_hook = eval_efield)
 
       ! Print final I_N_CONTACT (EBIC current)
       call dev%par%contact_map%get(string("N_CONTACT"), ict_n)
@@ -646,6 +646,10 @@ contains
     do while (((error > atol) .and. (it < max_it)) .or. (it < min_it))
       it = it + 1
 
+      ! After first iteration, don't restart for subsequent beam positions
+      ! (reuse converged solution as initial guess)
+      gummel_restart = .false.
+
       ! solve non-linear poisson equation
       pot0 = dev%pot%get()
       call solve_nlpe()
@@ -759,6 +763,16 @@ contains
     end do
 
     call solver%destruct()
+  end subroutine
+
+  subroutine eval_efield()
+    !! Evaluate electric field components before output
+    !! (calc_efield is not in the Newton eval order because nothing depends on it)
+    integer :: dir
+
+    do dir = 1, dev%par%g%dim
+      call dev%calc_efield(dir)%eval()
+    end do
   end subroutine
 
 end program

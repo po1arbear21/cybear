@@ -16,6 +16,7 @@ module ramo_shockley_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use res_equation_m,    only: res_equation
+  use surface_charge_m,  only: surface_charge
   use semiconductor_m,   only: CR_CHARGE
   use sparse_m,          only: sparse_real
   use stencil_m,         only: dirichlet_stencil
@@ -63,7 +64,7 @@ module ramo_shockley_m
 
 contains
 
-  subroutine ramo_shockley_init(this, par, pot, rho, volt, poiss)
+  subroutine ramo_shockley_init(this, par, pot, rho, volt, poiss, scharge)
     !! initialize ramo-shockley data object (=> calculate fundamental solutions and capacitance matrix)
     class(ramo_shockley), intent(out)   :: this
     type(device_params),  intent(in)    :: par
@@ -76,6 +77,8 @@ contains
       !! voltage variables
     type(poisson),        intent(in)    :: poiss
       !! poisson equation
+    type(surface_charge), optional, intent(inout) :: scharge
+      !! surface charge variable (for charged surface model, held at zero for capacitance calc)
 
     integer               :: i, j, k, nct, idx_dir
     integer, allocatable  :: idx1(:), idx2(:), idx(:)
@@ -98,6 +101,12 @@ contains
     ! provide variables
     call rho%reset()
     call sys%provide(rho, input = .false.)
+    ! For Ramo-Shockley capacitance calculation, surface charge is held at zero
+    ! which aren't part of the capacitance calculation)
+    if (present(scharge)) then
+      call scharge%reset()  ! sets to zero
+      call sys%provide(scharge, input = .false.)
+    end if
     nct = par%nct
     do i = 1, nct
       call sys%provide(volt(i), input = .true.)

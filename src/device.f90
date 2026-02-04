@@ -15,6 +15,7 @@ module device_m
   use beam_generation_m,  only: beam_generation, beam_position, calc_beam_generation
   use srh_recombination_m, only: srh_recombination, calc_srh_recombination, &
     &                             surface_srh_recombination, calc_surface_srh
+  use surface_charge_m,  only: surface_charge, calc_surface_charge
   use mobility_m,        only: mobility, calc_mobility
   use poisson_m,         only: poisson
   use potential_m,       only: potential
@@ -89,6 +90,10 @@ module device_m
       !! surface SRH recombination rate (single variable for both carriers)
     type(calc_surface_srh)                   :: calc_surf_srh
       !! calculate surface SRH recombination rate
+    type(surface_charge)                     :: scharge
+      !! surface charge density (for charged surface model)
+    type(calc_surface_charge)                :: calc_scharge
+      !! calculate surface charge from Fermi-level pinning
     type(calc_mobility),        allocatable :: calc_mob(:,:)
       !! calculate electron/hole mobility using Caughey-Thomas model (direction, carrier index)
     type(calc_charge_density)               :: calc_rho
@@ -163,9 +168,26 @@ contains
     ! init equations
     allocate (this%calc_cdens(this%par%g%idx_dim,2))
     if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
-    call this%poiss%init(this%par, this%pot, this%rho, this%volt)
-    call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
+
+    ! Initialize surface charge for charged surface model (must be before Poisson)
+    if (this%par%smc%charged_surf) then
+      call this%scharge%init(this%par)
+      call this%calc_scharge%init(this%par, this%dens(CR_ELEC), this%dens(CR_HOLE), this%scharge)
+    end if
+
+    ! Initialize Poisson equation (with optional surface charge)
+    if (this%par%smc%charged_surf) then
+      call this%poiss%init(this%par, this%pot, this%rho, this%volt, scharge=this%scharge)
+    else
+      call this%poiss%init(this%par, this%pot, this%rho, this%volt)
+    end if
+    if (this%par%smc%charged_surf) then
+      call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss, scharge=this%scharge)
+    else
+      call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
+    end if
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
+
     ! Initialize SRH recombination if enabled (single instance for both carriers)
     if (this%par%smc%srh) then
       call this%srh%init(this%par)
@@ -228,6 +250,10 @@ contains
 
     ! init non-linear poisson equation system
     call this%sys_nlpe%init("non-linear poisson")
+    ! Add calc_scharge BEFORE poiss so the variable is provided first
+    if (this%par%smc%charged_surf) then
+      call this%sys_nlpe%add_equation(this%calc_scharge)
+    end if
     call this%sys_nlpe%add_equation(this%poiss)
     call this%sys_nlpe%add_equation(this%calc_rho)
     do ci = this%par%ci0, this%par%ci1
@@ -307,6 +333,10 @@ contains
     ! Surface SRH recombination (single equation for both carriers - add OUTSIDE carrier loop)
     if (this%par%smc%surf_recom) then
       call this%sys_full%add_equation(this%calc_surf_srh)
+    end if
+    ! Surface charge (Fermi-level pinning - add OUTSIDE carrier loop)
+    if (this%par%smc%charged_surf) then
+      call this%sys_full%add_equation(this%calc_scharge)
     end if
     call this%sys_full%add_equation(this%ramo_curr)
     ! add electric field calculation equations

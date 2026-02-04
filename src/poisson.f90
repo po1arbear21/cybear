@@ -1,16 +1,17 @@
 module poisson_m
 
-  use charge_density_m, only: charge_density
-  use device_params_m,  only: device_params
-  use grid_m,           only: IDX_VERTEX, IDX_CELL, IDX_EDGE
-  use grid0D_m,         only: get_dummy_grid
-  use jacobian_m,       only: jacobian
-  use math_m,           only: eye_real
-  use potential_m,      only: potential
-  use res_equation_m,   only: res_equation
-  use stencil_m,        only: dirichlet_stencil, empty_stencil, near_neighb_stencil
-  use voltage_m,        only: voltage
-  use vselector_m,      only: vselector
+  use charge_density_m,  only: charge_density
+  use device_params_m,   only: device_params
+  use grid_m,            only: IDX_VERTEX, IDX_CELL, IDX_EDGE
+  use grid0D_m,          only: get_dummy_grid
+  use jacobian_m,        only: jacobian
+  use math_m,            only: eye_real
+  use potential_m,       only: potential
+  use res_equation_m,    only: res_equation
+  use stencil_m,         only: dirichlet_stencil, empty_stencil, near_neighb_stencil
+  use surface_charge_m,  only: surface_charge
+  use voltage_m,         only: voltage
+  use vselector_m,       only: vselector
 
   implicit none
 
@@ -29,15 +30,19 @@ module poisson_m
       !! dependency
     type(vselector) :: volt
       !! dependency
+    type(vselector) :: scharge
+      !! surface charge dependency (optional, for charged surface model)
 
     type(dirichlet_stencil)   :: st_dir
     type(dirichlet_stencil)   :: st_dir_volt
     type(empty_stencil)       :: st_em
     type(near_neighb_stencil) :: st_nn
 
-    type(jacobian), pointer :: jaco_pot  => null()
-    type(jacobian), pointer :: jaco_rho  => null()
-    type(jacobian), pointer :: jaco_volt => null()
+    type(jacobian), pointer :: jaco_pot     => null()
+    type(jacobian), pointer :: jaco_rho     => null()
+    type(jacobian), pointer :: jaco_volt    => null()
+    type(jacobian), pointer :: jaco_scharge => null()
+      !! Jacobian for surface charge contribution (optional)
   contains
     procedure :: init => poisson_init
     procedure :: eval => poisson_eval
@@ -45,7 +50,7 @@ module poisson_m
 
 contains
 
-  subroutine poisson_init(this, par, pot, rho, volt)
+  subroutine poisson_init(this, par, pot, rho, volt, scharge)
     !! initialize poisson equation
     class(poisson),              intent(out) :: this
     type(device_params), target, intent(in)  :: par
@@ -56,14 +61,17 @@ contains
       !! charge density variable
     type(voltage),               intent(in)  :: volt(:)
       !! voltages for all contacts
+    type(surface_charge), optional, intent(in) :: scharge
+      !! surface charge variable (for charged surface model)
 
-    integer               :: i,  idx_dir, ict, dum(0)
-    real                  :: cap
+    integer               :: i, idx_dir, ict, dum(0), n_surf_vert
+    real                  :: cap, A_surf
     real, allocatable     :: d_volt(:,:), eye(:,:)
     integer, allocatable  :: idx1(:), idx2(:), idx(:)
-    logical               :: status
+    logical               :: status, has_scharge
 
     print "(A)", "poisson_init"
+    has_scharge = present(scharge)
 
     ! init base
     call this%equation_init("poisson")
@@ -96,6 +104,14 @@ contains
     this%jaco_volt => this%init_jaco_f(this%depend(this%volt), st = [this%st_em%get_ptr(), this%st_em%get_ptr(),  &
       & (this%st_dir_volt%get_ptr(), ict = 1, par%nct)], const = .true.)
 
+    ! surface charge jacobian (optional, for charged surface model)
+    if (has_scharge) then
+      call this%scharge%init(scharge, par%transport_vct(0))
+      this%jaco_scharge => this%init_jaco_f(this%depend(this%scharge), &
+        & st = [this%st_em%get_ptr(), this%st_dir%get_ptr(), &
+        &       (this%st_em%get_ptr(), ict = 1, par%nct)], const = .true.)
+    end if
+
     ! loop over poisson edges
     do idx_dir = 1, par%g%idx_dim
       do i = 1, par%poisson(IDX_EDGE,idx_dir)%n
@@ -124,6 +140,33 @@ contains
       ! set jaco_rho entries
       call this%jaco_rho%set(idx1, idx1, - par%tr_vol%get(idx1))
     end do
+
+    ! set surface charge jacobian entries at surface vertices
+    ! Surface charge contributes: F += -rho_surf * A_surf
+    ! (negative because positive surface charge increases potential, reducing residual)
+    if (has_scharge) then
+      n_surf_vert = 0
+      do i = 1, par%transport(IDX_VERTEX, 0)%n
+        idx1 = par%transport(IDX_VERTEX, 0)%get_idx(i)
+        ! Surface vertices: x=1 or x=nx, not on contact
+        if ((idx1(1) == 1 .or. idx1(1) == par%g1D(1)%n) .and. par%ict%get(idx1) == 0) then
+          n_surf_vert = n_surf_vert + 1
+
+          ! Calculate adjoint surface area (y-extent for x-boundary)
+          if (idx1(2) == 1) then
+            A_surf = 0.5 * (par%g1D(2)%x(2) - par%g1D(2)%x(1))
+          elseif (idx1(2) == par%g1D(2)%n) then
+            A_surf = 0.5 * (par%g1D(2)%x(par%g1D(2)%n) - par%g1D(2)%x(par%g1D(2)%n - 1))
+          else
+            A_surf = 0.5 * (par%g1D(2)%x(idx1(2) + 1) - par%g1D(2)%x(idx1(2) - 1))
+          end if
+
+          ! dF/d(rho_surf) = -A_surf
+          call this%jaco_scharge%set(idx1, idx1, -A_surf)
+        end if
+      end do
+      print "(A,I0,A)", "  Surface charge: ", n_surf_vert, " surface vertices in Poisson"
+    end if
 
     ! loop over contacted vertices
     do ict = 1, par%nct
@@ -157,6 +200,9 @@ contains
     call this%jaco_pot%matr%mul_vec( this%pot%get(),  tmp              )
     call this%jaco_rho%matr%mul_vec( this%rho%get(),  tmp, fact_y = 1.0)
     call this%jaco_volt%matr%mul_vec(this%volt%get(), tmp, fact_y = 1.0)
+    if (associated(this%jaco_scharge)) then
+      call this%jaco_scharge%matr%mul_vec(this%scharge%get(), tmp, fact_y = 1.0)
+    end if
     call this%f%set(tmp)
 
     ! phims

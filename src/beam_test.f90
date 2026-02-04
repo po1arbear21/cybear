@@ -85,13 +85,73 @@ program beam_test
     print *
   end do
 
+  ! Test 1b: Surface vertices (charged surface)
+  if (dev%par%smc%charged_surf) then
+    print "(A)", ""
+    print "(A)", "Test 1b: Surface vertices for charged surface"
+    print "(A)", ""
+    print "(A,I0)", "  Number of surface vertices: ", dev%calc_scharge%n_surf_vert
+    print "(A)", ""
+
+    ! Print surf_idx array
+    print "(A)", "  surf_idx array:"
+    print "(A)", "  ┌───────┬───────┬───────┐"
+    print "(A)", "  │   j   │  ix   │  iy   │"
+    print "(A)", "  ├───────┼───────┼───────┤"
+    do iy = 1, dev%calc_scharge%n_surf_vert
+      print "(A,I4,A,I4,A,I4,A)", "  │", iy, "   │", &
+        dev%calc_scharge%surf_idx(1, iy), "   │", &
+        dev%calc_scharge%surf_idx(2, iy), "   │"
+    end do
+    print "(A)", "  └───────┴───────┴───────┘"
+    print "(A)", ""
+
+    ! 2D grid map with surface vertices highlighted
+    print "(A)", "  2D Grid Map (S = surface vertex):"
+    print "(A)", ""
+
+    ! Header row
+    write(*, "(A)", advance='no') "        x\\y │"
+    do iy = 1, ny
+      write(*, "(I6)", advance='no') nint(denorm(dev%par%g1D(2)%x(iy), 'nm'))
+    end do
+    print *
+
+    ! Separator
+    write(*, "(A)", advance='no') "      ──────┼"
+    do iy = 1, ny
+      write(*, "(A)", advance='no') "──────"
+    end do
+    print *
+
+    ! Grid rows with surface vertices marked
+    ! S = surface (in surf_idx), C = contact, · = interior
+    do ix = 1, nx
+      write(*, "(F10.0,A)", advance='no') denorm(dev%par%g1D(1)%x(ix), 'nm'), " │"
+      do iy = 1, ny
+        ! Check if this is a contact vertex
+        if (dev%par%ict%get([ix, iy]) /= 0) then
+          write(*, "(A)", advance='no') "     C"
+        ! Check if this should be a surface vertex (x-boundary, not contact)
+        elseif (ix == 1 .or. ix == nx) then
+          write(*, "(A)", advance='no') "     S"
+        else
+          write(*, "(A)", advance='no') "     ·"
+        end if
+      end do
+      print *
+    end do
+    print "(A)", ""
+    print "(A)", "  Legend: S = surface vertex, C = contact, · = interior"
+  end if
+
   ! Test 2: Beam generation values
   print "(A)", ""
   print "(A)", "Test 2: bgen_n values"
   print "(A)", ""
 
   ! Set beam at y = 2500 nm (middle of device)
-  beam_y = 1750.0
+  beam_y = 1500.0
   dev%beam_pos%x = norm(beam_y, 'nm')
   print "(A,F8.1,A)", "  Beam position: y = ", beam_y, " nm"
   print "(A)", ""
@@ -227,6 +287,8 @@ program beam_test
   ! Step 4: Full Newton solver
   print "(A)", "  Step 4: Running full Newton solver..."
   call ss%init(dev%sys_full, log = .true., msg = "Newton: ")
+  call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
+    & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], "device.fbs")
   call ss%run(input = input, t_input = [0.0])
 
   ! Get N_CONTACT terminal current

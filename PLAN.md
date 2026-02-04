@@ -1,164 +1,187 @@
 # EBIC Charged Surface Implementation Plan
 
-## Current Status
+## Current Status: Phase 2 Complete
 
-### What's Implemented (Neutral Surface Model)
+### What's Implemented
 
-The current EBIC simulation includes **neutral surface recombination** matching Haney et al. 2016 (Sec. III):
+#### 1. Beam Generation (`src/beam_generation.f90`)
+
+Three beam profile options:
+- **LINE**: Delta function at grid node (default, use Y_BEAM for grid-independence)
+- **POINT**: 2D localized at (beam_x, beam_y)
+- **GAUSSIAN**: Depth-dependent cone with σ(x) = √(σ₀² + (α·x)²)
+
+Hardcoded STEM parameters (200 keV in Si):
+- Stopping power: 5.21 MeV/cm
+- Energy per e-h pair: 3.6 eV
+- Semi-convergence angle: 10 mrad
+- Probe size: σ₀ = 0.1 nm
+
+#### 2. Surface SRH Recombination (`src/srh_recombination.f90:262-449`)
 
 ```
 R_surf = S × (n·p - nᵢ²) / (n + p + 2·nᵢ)
 ```
 
-**Files:**
-- `src/srh_recombination.f90:262-449` - Surface SRH implementation
-- `src/continuity.f90:211-218` - Integration into continuity equation
-- `devices/stem_ebic/stem_ebic_lateral.ini:62-63` - Configuration (S = 10⁶ cm/s)
+- Applied at x-boundaries (x=0, x=Lx), excluding contacts
+- Area weighting via y-direction adjoint lengths
+- Jacobians: dR/dn, dR/dp
 
-**Physics captured:**
-- Bulk SRH recombination (τ_n, τ_p)
-- Surface SRH at x=0 and x=xmax (excluding contacts)
-- Collection efficiency η < 100% emerges naturally from DD solution
+#### 3. Charged Surface / Fermi-Level Pinning (`src/surface_charge.f90`)
 
-### What's Missing (Charged Surface Model)
-
-Haney Sec. IV describes charged surfaces with Fermi-level pinning:
-
+Following Haney et al. 2016 Sec. IV:
 ```
 ρ_surf = q × N_surf/2 × (1 - 2·f_surf)
+f_surf = (n_s + p_trap) / (n_s + p_s + n_trap + p_trap)
 
-f_surf = (n_s + p_surf) / (n_s + p_s + n_surf + p_surf)
+where:
+  n_trap = N_c × exp((E_surf - E_c) / kT)
+  p_trap = N_v × exp((E_v - E_surf) / kT)
 ```
 
-**Not implemented:**
-- Surface charge density in Poisson equation
-- Fermi-level pinning at surface defect level
-- Surface depletion fields (can extend ~150nm for 10¹⁵ cm⁻³ doping)
+- **2D only** (enforced with error check)
+- Surface vertices: x=0 and x=Lx, excluding contacts
+- Coupled to Poisson via `jaco_scharge` in `poisson.f90`
+- Jacobians: dρ_surf/dn, dρ_surf/dp
+
+#### 4. Ramo-Shockley Current Collection (`src/ramo_shockley.f90`)
+
+- Fundamental solutions computed once per device (Laplace with unit potential)
+- Terminal current: I = ∫ J · ∇φ_fundamental dV
+- Capacitance matrix for contact-contact coupling
+
+#### 5. Equation Integration (`src/device.f90`)
+
+```
+sys_nlpe (Non-linear Poisson):
+├─ calc_scharge  → ρ_surf(n, p)     [if charged_surf]
+├─ poisson       → φ(ρ_vol, ρ_surf)
+└─ calc_rho      → ρ_vol(n, p)
+
+sys_dd (Drift-Diffusion per carrier):
+├─ continuity    → ∂n/∂t + ∇·J - G + R = 0
+├─ calc_cdens    → J(φ, n)
+├─ calc_bgen     → G_beam           [if has_beam_gen]
+├─ calc_srh      → R_bulk           [if srh]
+└─ calc_surf_srh → R_surf           [if surf_recom]
+```
 
 ---
 
-## Why Charged Surfaces Matter for This Setup
+## Known Issue: Surface SRH vs Charged Surface Inconsistency
+
+**Problem**: Surface SRH and charged surface use different trap level assumptions.
+
+| Model | Denominator | Assumption |
+|-------|-------------|------------|
+| Surface SRH | `n + p + 2·nᵢ` | Midgap trap (E_t = E_i) |
+| Charged Surface | `n + p + n_trap + p_trap` | General trap (E_t = E_surf) |
+
+**Impact**: When `E_surf ≠ 0`, the two models are inconsistent:
+- Charged surface correctly uses E_surf-dependent n_trap, p_trap
+- Surface SRH ignores E_surf and assumes midgap (n₁ = p₁ = nᵢ)
+
+**Current workaround**: Use `E_surf = 0.0 eV` (midgap), which makes both models consistent.
+
+**Proper fix**: Update `calc_surface_srh` to use:
+```fortran
+n1 = ni * exp((E_surf - E_i) / kT)  ! or equivalently Nc * exp((E_surf - Ec) / kT)
+p1 = ni * exp((E_i - E_surf) / kT)  ! or equivalently Nv * exp((Ev - E_surf) / kT)
+denom = n + p + n1 + p1
+```
+
+---
+
+## Current Limitations
+
+### Physical Limitations
+
+1. **2D only for charged surface** - No 3D surface element handling
+2. **Constant stopping power** - No depth-dependent dE/dz (ESTAR data not used)
+3. **No multiple scattering** - Probe profile unrealistic for thick samples
+4. **Static E_surf** - Not coupled to band bending at surface
+5. **No recombination through surface states** - Only occupancy modeled, not tunneling/thermionic
+
+### Numerical Limitations
+
+6. **Grid-dependent beam** - Must specify Y_BEAM for grid-independence
+7. **Contact surface states ignored** - Assumed ohmic at contact boundaries
+
+---
+
+## Device Configurations
+
+### `devices/stem_ebic/stem_ebic_lateral.ini` (Primary test case)
+
+```
+Geometry:
+  - Lamella: 300 nm (x) × 5000 nm (y)
+  - Junction: y = 1500 nm
+  - p-region: N_a = 1e18 cm⁻³ (y < 1500 nm)
+  - n-region: N_d = 1e15 cm⁻³ (y > 1500 nm)
+
+Surface Physics:
+  - surf_recom = true, S_surf = 1e6 cm/s
+  - charged_surf = true, E_surf = 0.0 eV, N_surf = 1e11 cm⁻²
+
+Beam:
+  - I_beam = 0.0825 nA/μm
+  - beam_dist = "line"
+  - Y_BEAM = 0, 1000, 2500, 5000 nm (mandatory grid nodes)
+```
+
+### Surface Depletion Impact
 
 | Region | Doping | Surface Depletion Width | Lamella (300nm) |
 |--------|--------|-------------------------|-----------------|
-| p-side | 10¹⁷ cm⁻³ | ~15 nm | Negligible |
+| p-side | 10¹⁸ cm⁻³ | ~1.5 nm | Negligible |
 | n-side | 10¹⁵ cm⁻³ | ~150 nm | **50% of thickness!** |
 
-The lightly-doped n-region could be entirely surface-depleted, significantly affecting EBIC collection.
+The lightly-doped n-region may be significantly surface-depleted.
 
 ---
 
-## Implementation Plan
+## Next Steps
 
-### Phase 1: Validation (No Code Changes)
+### Phase 3: Validation
 
-**Goal:** Quantify current model accuracy before adding complexity.
+- [ ] Run beam sweep with current implementation
+- [ ] Compare EBIC lineshape to Haney et al. 2016 Fig. 3-4
+- [ ] Test surface types: E_surf = -0.38, 0.0, +0.38 eV
+- [ ] Verify convergence behavior near surfaces
 
-- [ ] Run beam sweep with current neutral surface model
-- [ ] Compare EBIC lineshape to Haney Fig. 3 (neutral surface)
-- [ ] Check if max efficiency matches analytical formula:
-  ```
-  η = 1 - (S/2)/(μE + S/2) × (D/z_B)/(μE + D/z_B)
-  ```
-- [ ] Vary S_surf (10⁴, 10⁵, 10⁶ cm/s) and compare trends
+### Phase 4: Fix Surface SRH Consistency
 
-### Phase 2: Charged Surface Implementation
+- [ ] Add E_surf-dependent n1, p1 to `calc_surface_srh`
+- [ ] Share n_trap, p_trap computation with `calc_surface_charge`
+- [ ] Or: read E_surf in surface SRH init and compute locally
 
-**Goal:** Add Fermi-level pinning and surface charge to Poisson equation.
+### Phase 5: Enhancements (Future)
 
-#### 2.1 New Parameters (device_params.f90)
-
-```fortran
-! In semiconductor type:
-logical :: charged_surf = .false.
-real    :: E_surf = 0.0        ! Surface defect level relative to midgap [eV]
-real    :: N_surf = 0.0        ! Surface state density [cm⁻²]
-```
-
-#### 2.2 Surface Charge Calculation (new file or extend srh_recombination.f90)
-
-```fortran
-type :: surface_charge
-  real, allocatable :: rho(:)   ! Surface charge at each surface vertex
-  real :: E_surf                ! Defect energy level
-  real :: N_surf                ! State density
-end type
-
-! Occupancy:
-f_surf = (n_s + p_surf) / (n_s + p_s + n_surf + p_surf)
-
-! Where:
-n_surf = N_c × exp((E_surf - E_c) / kT)
-p_surf = N_v × exp((E_v - E_surf) / kT)
-
-! Charge density:
-rho_surf = q × N_surf/2 × (1 - 2×f_surf)
-```
-
-#### 2.3 Poisson Equation Modification (poisson.f90)
-
-Add surface charge as boundary source term:
-```fortran
-! At surface vertices (x=0 or x=xmax, not contacts):
-F_poisson = div(ε·grad(φ)) + q·(p - n + N_D - N_A) + δ_surf × ρ_surf/ε
-```
-
-**Jacobian entries needed:**
-- dρ_surf/dn_s (derivative w.r.t. surface electron density)
-- dρ_surf/dp_s (derivative w.r.t. surface hole density)
-
-#### 2.4 Configuration (stem_ebic_lateral.ini)
-
-```ini
-! Charged surface parameters
-charged_surf = true
-E_surf       = 0.0   : eV      ! Midgap pinning (relative to intrinsic level)
-N_surf       = 1e11  : 1/cm^2  ! Surface state density
-```
-
-### Phase 3: Testing & Validation
-
-- [ ] Compare to Haney Fig. 4 (max EBIC vs beam energy)
-- [ ] Test three surface types:
-  - n-type surface (E_surf = +0.38 eV): inverted EBIC
-  - intrinsic surface (E_surf = 0): reduced max efficiency
-  - p-type surface (E_surf = -0.38 eV): standard EBIC
-- [ ] Verify position x₀ where surface field reverses direction
-- [ ] Check convergence (surface charge couples Poisson ↔ continuity strongly)
+- [ ] Depth-dependent stopping power (ESTAR tables)
+- [ ] 3D charged surface support
+- [ ] Collection efficiency tracking (carrier fate analysis)
+- [ ] Transient solver for time-resolved EBIC
 
 ---
 
-## Open Questions
+## File Summary
 
-1. **Numerical stability**: Charged surfaces create strong field gradients at surface. May need:
-   - Finer mesh near surface (dx < 1nm)
-   - Damping in Newton solver for surface charge updates
-
-2. **Both surfaces**: With 300nm lamella, both x=0 and x=xmax have charged surfaces. Do they have the same E_surf, N_surf?
-
-3. **Contact interference**: Surface charge should be zero at contact boundaries (already handled by `par%ict%get(idx) == 0` check)
-
-4. **2D vs 3D**: Haney's 2D model divides G_tot by diffusion length L_D. Our 2D model uses per-unit-depth. Verify unit consistency.
-
-5. **Ion damage**: FIB creates Ga implantation damage. Should N_surf vary spatially?
+| File | Status | Purpose |
+|------|--------|---------|
+| `src/beam_generation.f90` | ✓ Complete | Beam generation (line/point/Gaussian) |
+| `src/srh_recombination.f90` | ⚠ Needs fix | Bulk + surface SRH (midgap assumption) |
+| `src/surface_charge.f90` | ✓ Complete | Charged surface (Fermi-level pinning) |
+| `src/poisson.f90` | ✓ Complete | Poisson with surface charge coupling |
+| `src/continuity.f90` | ✓ Complete | Carrier continuity with surface SRH |
+| `src/ramo_shockley.f90` | ✓ Complete | Terminal current calculation |
+| `src/device.f90` | ✓ Complete | Equation assembly and solver setup |
+| `src/device_params.f90` | ✓ Complete | Parameter loading (charged_surf, E_surf, N_surf) |
 
 ---
 
 ## References
 
-- Haney et al. 2016: `/home/yu/cybear/Haney2016_Depletion_Region_Surface_Effects_In_Electron_Beam_Induced_Current_Measurements.pdf`
-- Current implementation: `src/srh_recombination.f90`, `src/continuity.f90`
+- Haney et al. 2016: "Depletion Region Surface Effects in Electron Beam Induced Current Measurements"
 - Device config: `devices/stem_ebic/stem_ebic_lateral.ini`
-
----
-
-## Files to Modify/Create
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/semiconductor.f90` | Modify | Add charged_surf, E_surf, N_surf parameters |
-| `src/device_params.f90` | Modify | Read new parameters from INI |
-| `src/surface_charge.f90` | Create | Surface charge calculation + Jacobians |
-| `src/poisson.f90` | Modify | Add surface charge source term |
-| `src/device.f90` | Modify | Initialize and connect surface charge |
-| `devices/stem_ebic/stem_ebic_lateral.ini` | Modify | Add charged surface config |
+- CLAUDE.md: Project overview and physics documentation

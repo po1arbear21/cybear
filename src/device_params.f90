@@ -377,6 +377,16 @@ contains
       print "(A,ES12.4,A)", "  Surface recom enabled: S_surf=", this%smc%S_surf, " (norm)"
     end if
 
+    ! Charged surface (Fermi-level pinning, Haney 2016 Sec. IV)
+    call file%get(sid, "charged_surf", this%smc%charged_surf, status)
+    if (.not. status) this%smc%charged_surf = .false.
+    if (this%smc%charged_surf) then
+      call file%get(sid, "E_surf", this%smc%E_surf)
+      call file%get(sid, "N_surf", this%smc%N_surf)
+      print "(A,F8.4,A)", "  Charged surface: E_surf = ", denorm(this%smc%E_surf, 'eV'), " eV"
+      print "(A,ES12.4,A)", "                   N_surf = ", denorm(this%smc%N_surf, 'cm^-2'), " cm^-2"
+    end if
+
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
     m4_assert(size(this%smc%alpha)     == 2)
