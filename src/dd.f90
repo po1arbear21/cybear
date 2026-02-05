@@ -10,7 +10,7 @@ program dd
   use input_src_m,        only: polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI
   use normalization_m,    only: init_normconst, norm, denorm
-  use semiconductor_m,    only: CR_NAME
+  use semiconductor_m,    only: CR_NAME, DOP_NAME
   use small_signal_m,     only: small_signal
   use solver_base_m,      only: solver_real
   use solver_m,           only: default_solver_params, init_solver_real
@@ -24,16 +24,29 @@ program dd
 
   implicit none
 
-  logical          :: gummel_restart, gummel_once, gummel_enabled
-  real             :: temperature
-  type(input_file) :: runfile
+  integer                   :: ci, ict
+  logical                   :: gummel_restart, gummel_once, gummel_enabled
+  real                      :: temperature
+  type(input_file)          :: runfile
+  type(string), allocatable :: output_list(:)
 
   print "(A)", "Start simulation on " // get_hostname()
 
   ! parse command line arguments
   call command_line()
 
-  ! ! solve
+  ! create list of variables for output in steady-state and transient simulations
+  output_list = [string("pot")]
+  do ci = dev%par%ci0, dev%par%ci1
+    output_list = [output_list, string(CR_NAME(ci) // "dens")]
+    if (dev%par%smc%incomp_ion) output_list = [output_list, string("ion" // DOP_NAME(ci))]
+  end do
+  do ict = 1, dev%par%nct
+    output_list = [output_list, string("V_" // dev%par%contacts(ict)%name)]
+    output_list = [output_list, string("I_" // dev%par%contacts(ict)%name)]
+  end do
+
+  ! solve
   call solve_steady_state()
   call solve_small_signal()
   call solve_transient()
@@ -179,8 +192,7 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(sj))
-      call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
-                         & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
+      call ss%init_output(output_list, name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
   end subroutine
@@ -212,7 +224,7 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f", f, status) ! read f directly from input file or linked csv file if provided
+      call runfile%get(sids(si), "f", f, status = status) ! read f from input file or linked csv file if provided
       if (.not. status) then
         call runfile%get(sids(si), "f0", f0)
         call runfile%get(sids(si), "f1", f1)
@@ -237,6 +249,7 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
+      call ss%init_output(output_list, name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! run small-signal analysis for a single working point
@@ -254,7 +267,7 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f", f, status) ! read f directly from input file or linked csv file if provided
+      call runfile%get(sids(si), "f", f, status = status) ! read f from input file or linked csv file if provided
       if (.not. status) then
         call runfile%get(sids(si), "f0", f0)
         call runfile%get(sids(si), "f1", f1)
@@ -279,6 +292,7 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
+      call ss%init_output(output_list, name%s // ".fbs")
 
       ! run small-signal analysis at each working point
       allocate (result(size(t), size(f)), source = (0.0,0.0))
@@ -342,10 +356,7 @@ contains
       ! run transient simulation
       call trans%init(dev%sys_full)
       call trans%set_params(runfile%sections%d(si_transient))
-      call trans%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), string("ionA"), &
-        &                     string("V_GAT"), string("I_DRN"), string("I_GAT"), string("I_SRC"), string("I_BLK"), &
-        &                     string("ncdensx"), string("pcdensx"), string("ncdensy"), string("pcdensy") &
-        &                    ], name%s // ".fbs")
+      call trans%init_output(output_list, name%s // ".fbs")
       call system_clock(start, rate)
       call trans%run(ti, dt0=dt0, input=input, start_steady_state=.true.)
       call system_clock(end)
