@@ -117,6 +117,23 @@ templates = [
 ]
 
 
+[stem_ebic_3D]
+mode = "debug"
+target = "dd"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_3D.ini",
+  ]},
+  { files = [
+    "devices/stem_ebic/stem_ebic_3D.ini",
+  ], action = "expand" },
+]
+
+
 [beam_test]
 mode = "debug"
 target = "beam_test"
