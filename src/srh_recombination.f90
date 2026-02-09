@@ -245,8 +245,8 @@ contains
       end if
 
       call this%srh%set(idx, R)
-      call this%jaco_dens_n%set(idx, idx, dRdn)
-      call this%jaco_dens_p%set(idx, idx, dRdp)
+      call this%jaco_dens_n%add(idx, idx, dRdn)
+      call this%jaco_dens_p%add(idx, idx, dRdp)
 
       ! Track max |R| to find where recombination is strongest
       if (abs(R) > abs(R_max)) then
@@ -408,8 +408,8 @@ contains
     do i = 1, this%par%transport(IDX_VERTEX, 0)%n
       idx = this%par%transport(IDX_VERTEX, 0)%get_idx(i)
       call this%srec%set(idx, 0.0)
-      call this%jaco_dens_n%set(idx, idx, 0.0)
-      call this%jaco_dens_p%set(idx, idx, 0.0)
+      call this%jaco_dens_n%add(idx, idx, 0.0)
+      call this%jaco_dens_p%add(idx, idx, 0.0)
     end do
 
     R_max = 0.0
@@ -439,8 +439,8 @@ contains
       end if
 
       call this%srec%set(idx, R_s)
-      call this%jaco_dens_n%set(idx, idx, dRdn)
-      call this%jaco_dens_p%set(idx, idx, dRdp)
+      call this%jaco_dens_n%add(idx, idx, dRdn)
+      call this%jaco_dens_p%add(idx, idx, dRdp)
 
       if (abs(R_s) > abs(R_max)) R_max = R_s
     end do

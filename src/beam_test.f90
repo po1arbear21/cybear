@@ -286,7 +286,8 @@ program beam_test
 
   ! Step 4: Full Newton solver
   print "(A)", "  Step 4: Running full Newton solver..."
-  call ss%init(dev%sys_full, log = .true., msg = "Newton: ")
+  call ss%init(dev%sys_full)
+  ss%msg = "Newton: "
   call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
     & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], "device.fbs")
   call ss%run(input = input, t_input = [0.0])
@@ -391,7 +392,7 @@ contains
 
     ! Initialize DD solvers
     do ci = CR_ELEC, CR_HOLE
-      call ss_dd(ci)%init(dev%sys_dd(ci), log = .false., msg = "")
+      call ss_dd(ci)%init(dev%sys_dd(ci))
     end do
 
     it = 0

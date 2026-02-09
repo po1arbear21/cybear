@@ -198,11 +198,11 @@ contains
 
       ! set current density + derivatives
       call this%cdens%set(idx, j)
-      call this%jaco_pot%set( idx, idx1, djdpot(1))
-      call this%jaco_pot%set( idx, idx2, djdpot(2))
-      call this%jaco_dens%set(idx, idx1, djddens(1))
-      call this%jaco_dens%set(idx, idx2, djddens(2))
-      if (this%par%smc%mob) call this%jaco_mob%set(idx, idx, djdmob)
+      call this%jaco_pot%add( idx, idx1, djdpot(1))
+      call this%jaco_pot%add( idx, idx2, djdpot(2))
+      call this%jaco_dens%add(idx, idx1, djddens(1))
+      call this%jaco_dens%add(idx, idx2, djddens(2))
+      if (this%par%smc%mob) call this%jaco_mob%add(idx, idx, djdmob)
     end do
     !$omp end parallel do
 

@@ -212,8 +212,8 @@ contains
         dion = 0
       end if
       call this%ion%set(idx, ion - this%par%dop(IDX_VERTEX, 0, ci)%get(idx))
-      call this%jaco_pot%set( idx, idx, - ch * dion)
-      call this%jaco_iref%set(idx, idx,   ch * dion)
+      call this%jaco_pot%add( idx, idx, - ch * dion)
+      call this%jaco_iref%add(idx, idx,   ch * dion)
     end do
   end subroutine
 
@@ -257,8 +257,8 @@ contains
     allocate (idx(par%g%idx_dim))
     do i = 1, par%ionvert(ci)%n
       idx = par%ionvert(ci)%get_idx(i)
-      call this%jaco_t%set(     idx, idx,  1.0)
-      call this%jaco_genrec%set(idx, idx, -1.0)
+      call this%jaco_t%add(     idx, idx,  1.0)
+      call this%jaco_genrec%add(idx, idx, -1.0)
     end do
 
     ! finish initialization
@@ -400,9 +400,9 @@ contains
 
       ! save
       call this%genrec%set(idx, genrec)
-      call this%jaco_pot%set( idx, idx, -ch * dgenrecdeta)
-      call this%jaco_iref%set(idx, idx,  ch * dgenrecdeta)
-      call this%jaco_ion%set( idx, idx,       dgenrecdion)
+      call this%jaco_pot%add( idx, idx, -ch * dgenrecdeta)
+      call this%jaco_iref%add(idx, idx,  ch * dgenrecdeta)
+      call this%jaco_ion%add( idx, idx,       dgenrecdion)
     end do
   end subroutine
 

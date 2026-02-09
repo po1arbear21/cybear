@@ -228,22 +228,22 @@ contains
         surf = par%tr_surf(idx_dir)%get(idx)
 
         ! set values if uncontacted
-        if (par%ict%get(idx1) == 0) call this%jaco_cdens(idx_dir)%p%set(idx1, idx,  surf)
-        if (par%ict%get(idx2) == 0) call this%jaco_cdens(idx_dir)%p%set(idx2, idx, -surf)
+        if (par%ict%get(idx1) == 0) call this%jaco_cdens(idx_dir)%p%add(idx1, idx,  surf)
+        if (par%ict%get(idx2) == 0) call this%jaco_cdens(idx_dir)%p%add(idx2, idx, -surf)
       end do
     end do
 
     ! density time derivative factor
     do i = 1, par%transport_vct(0)%n
       idx1 = par%transport_vct(0)%get_idx(i)
-      call this%jaco_dens_t%set(idx1, idx1, par%tr_vol%get(idx1))
+      call this%jaco_dens_t%add(idx1, idx1, par%tr_vol%get(idx1))
     end do
 
     ! generation-recombination
     if (par%smc%incomp_ion) then
       do i = 1, par%ionvert(ci)%n
         idx1 = par%ionvert(ci)%get_idx(i)
-        call this%jaco_genrec%set(idx1, idx1, - par%tr_vol%get(idx1))
+        call this%jaco_genrec%add(idx1, idx1, - par%tr_vol%get(idx1))
       end do
     end if
 
@@ -252,7 +252,7 @@ contains
     if (has_beam) then
       do i = 1, par%transport_vct(0)%n
         idx1 = par%transport_vct(0)%get_idx(i)
-        call this%jaco_bgen%set(idx1, idx1, - par%tr_vol%get(idx1))
+        call this%jaco_bgen%add(idx1, idx1, - par%tr_vol%get(idx1))
       end do
     end if
 
@@ -261,7 +261,7 @@ contains
     if (has_srh) then
       do i = 1, par%transport_vct(0)%n
         idx1 = par%transport_vct(0)%get_idx(i)
-        call this%jaco_srh%set(idx1, idx1, par%tr_vol%get(idx1))
+        call this%jaco_srh%add(idx1, idx1, par%tr_vol%get(idx1))
       end do
     end if
 
@@ -272,7 +272,7 @@ contains
         idx1 = this%surf_idx(:, i)
         ! Only set for uncontacted vertices
         if (par%ict%get(idx1) == 0) then
-          call this%jaco_surf_srh%set(idx1, idx1, this%A_surf(i))
+          call this%jaco_surf_srh%add(idx1, idx1, this%A_surf(i))
         end if
       end do
     end if
@@ -284,7 +284,7 @@ contains
       do i = 1, par%transport_vct(ict)%n
         j = j + 1
         idx1 = par%transport_vct(ict)%get_idx(i)
-        call this%jaco_dens%set(idx1, idx1, 1.0)
+        call this%jaco_dens%add(idx1, idx1, 1.0)
         if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
           this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
         else

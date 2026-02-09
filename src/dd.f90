@@ -235,7 +235,7 @@ contains
   subroutine solve_steady_state()
     integer              :: si, sj, ict_n
     integer, allocatable :: sids(:), nsweep_beam(:)
-    logical              :: log, use_beam_sweep, status
+    logical              :: use_beam_sweep, status
     real,    allocatable :: V(:,:), t_inp(:), t(:)
     type(string)         :: name
     type(polygon_src)    :: input
@@ -268,9 +268,9 @@ contains
       gummel_enabled = .true.
 
       ! solve steady-state
-      call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+      call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(sj))
+      ss%msg = "Newton: "
       ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
       !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
@@ -286,7 +286,7 @@ contains
   subroutine solve_small_signal()
     integer              :: si, sj, Nf, i
     integer, allocatable :: sids(:)
-    logical              :: flog, log
+    logical              :: flog
     real                 :: f0, f1
     real,    allocatable :: f(:), V(:,:), t_inp(:), t(:)
     complex, allocatable :: s(:), result(:,:)
@@ -299,7 +299,6 @@ contains
 
     call runfile%get_sections("small signal", sids)
     call runfile%get_section("full newton params", sj)
-    call runfile%get(sj, "log", log)
     params = runfile%sections%d(sj)
     call params%set("currents_atol", 1e300)
     call params%set("ndens_dx_lim_rel", 0.2)
@@ -331,12 +330,13 @@ contains
       gummel_enabled = .true.
 
       ! solve steady-state
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+      call ss%init(dev%sys_full)
       call ss%set_params(params)
+      ss%msg = "Newton: "
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! run small-signal analysis for a single working point
-      call ac%init(dev%sys_full, log=.true.)
+      call ac%init(dev%sys_full)
       call ac%init_output([string("I_GAT")], name%s // ".fbs")
       call ac%run(s)
 
@@ -370,15 +370,16 @@ contains
       gummel_enabled = .true.
 
       ! solve steady-state
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+      call ss%init(dev%sys_full)
       call ss%set_params(params)
+      ss%msg = "Newton: "
 
       ! run small-signal analysis at each working point
       allocate (result(size(t), Nf), source = (0.0,0.0))
       do i = 1, size(t)
         print *, "steady-state step: ", i
         call ss%run(input = input, t_input = [t(i)], gummel = gummel)
-        call ac%init(dev%sys_full, log = .true.)
+        call ac%init(dev%sys_full)
         call ac%run(s)
         result(i,:) = ac%get_scalar("I_GAT", "V_GAT")
         call st%open(name%s // ".fbs", flag = STORAGE_WRITE)
@@ -394,7 +395,6 @@ contains
   subroutine solve_transient()
     integer              :: ict, Nt, si, si_full_newton, si_transient, start, end, rate
     integer, allocatable :: sids(:)
-    logical              :: log
     real                 :: dt0
     real,    allocatable :: ti(:), Vtmp(:), Vi(:,:)
     type(string)         :: name
@@ -429,15 +429,15 @@ contains
       gummel_enabled = .true.
 
       ! solve steady-state
-      call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+      call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(si_full_newton))
+      ss%msg = "Newton: "
       call ss%run(input = input, gummel = gummel)
 
       ! run transient simulation
-      call runfile%get("transient params", "log", log)
-      call trans%init(dev%sys_full, log = log, msg = "Transient: ")
+      call trans%init(dev%sys_full)
       call trans%set_params(runfile%sections%d(si_transient))
+      trans%msg = "Transient: "
       call trans%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), string("ionA"), &
         &                     string("V_GAT"), string("I_DRN"), string("I_GAT"), string("I_SRC"), string("I_BLK"), &
         &                     string("ncdensx"), string("pcdensx"), string("ncdensy"), string("pcdensy") &
@@ -505,8 +505,7 @@ contains
   !     gummel_once    = .false.
   !     gummel_enabled = .true.
 
-  !     call runfile%get("full newton params", "log", log)
-  !     call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+  !     call ss%init(dev%sys_full)
   !     call ss%input_newton_params(runfile, "full newton params")
   !     call ss%input_var_params(runfile, "full newton params")
   !     call ss%run(input = input, gummel = gummel)
@@ -579,8 +578,7 @@ contains
   !     gummel_once    = .false.
   !     gummel_enabled = .true.
 
-  !     call runfile%get("full newton params", "log", log)
-  !     call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+  !     call ss%init(dev%sys_full)
   !     call ss%input_newton_params(runfile, "full newton params")
   !     call ss%input_var_params(runfile, "full newton params")
   !     call ss%run(input = input, gummel = gummel)
@@ -629,9 +627,9 @@ contains
 
     call runfile%get_section("dd params", si)
     do ci = dev%par%ci0, dev%par%ci1
-      call runfile%get("dd params", "log", log)
-      call ss_dd(ci)%init(dev%sys_dd(ci), log = log, msg = CR_NAME(ci) // "DD: ")
+      call ss_dd(ci)%init(dev%sys_dd(ci))
       call ss_dd(ci)%set_params(runfile%sections%d(si))
+      ss_dd(ci)%msg = CR_NAME(ci) // "DD: "
     end do
 
     ! get gummel params

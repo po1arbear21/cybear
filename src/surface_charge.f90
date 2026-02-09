@@ -256,8 +256,8 @@ contains
       end if
 
       call this%scharge%set(idx, rho)
-      call this%jaco_dens_n%set(idx, idx, drho_dn)
-      call this%jaco_dens_p%set(idx, idx, drho_dp)
+      call this%jaco_dens_n%add(idx, idx, drho_dn)
+      call this%jaco_dens_p%add(idx, idx, drho_dp)
 
       ! Debug output for first few surface vertices (only on first call)
       ! if (j <= 3) then

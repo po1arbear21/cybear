@@ -138,7 +138,7 @@ contains
       idx1 = par%transport_vct(0)%get_idx(i)
 
       ! set jaco_rho entries
-      call this%jaco_rho%set(idx1, idx1, - par%tr_vol%get(idx1))
+      call this%jaco_rho%add(idx1, idx1, - par%tr_vol%get(idx1))
     end do
 
     ! set surface charge jacobian entries at surface vertices
@@ -162,7 +162,7 @@ contains
           end if
 
           ! dF/d(rho_surf) = -A_surf
-          call this%jaco_scharge%set(idx1, idx1, -A_surf)
+          call this%jaco_scharge%add(idx1, idx1, -A_surf)
         end if
       end do
       print "(A,I0,A)", "  Surface charge: ", n_surf_vert, " surface vertices in Poisson"
@@ -175,10 +175,10 @@ contains
         idx1 = par%poisson_vct(ict)%get_idx(i)
 
         ! set jaco_volt entry
-        call this%jaco_volt%set(idx1, dum, d_volt)
+        call this%jaco_volt%add(idx1, dum, d_volt)
 
         ! set jaco_pot entry
-        call this%jaco_pot%set(idx1, idx1, 1.0)
+        call this%jaco_pot%add(idx1, idx1, 1.0)
       end do
     end do
 

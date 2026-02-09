@@ -253,16 +253,16 @@ contains
           d(ict,1) = par%curr_fact * par%tr_surf(idx_dir)%get(idx) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
         end do
         do ci = par%ci0, par%ci1
-          call this%jaco_cdens(idx_dir,ci)%p%set(dum, idx, CR_CHARGE(ci) * d)
+          call this%jaco_cdens(idx_dir,ci)%p%add(dum, idx, CR_CHARGE(ci) * d)
         end do
       end do
     end do
 
     ! set jaco_volt entries
-    call this%jaco_volt%set(dum, dum, - ramo%cap)
+    call this%jaco_volt%add(dum, dum, - ramo%cap)
 
     ! set jaco_curr entries
-    call this%jaco_curr%set(dum, dum, eye_real(par%nct))
+    call this%jaco_curr%add(dum, dum, eye_real(par%nct))
 
     ! finish initialization
     call this%init_final()
