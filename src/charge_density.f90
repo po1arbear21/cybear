@@ -110,7 +110,7 @@ contains
       jaco => this%init_jaco(iprov, idep, const = .true.)
       do i = 1, par%transport_vct(0)%n
         idx = par%transport_vct(0)%get_idx(i)
-        call jaco%set(idx, idx, CR_CHARGE(ci))
+        call jaco%add(idx, idx, CR_CHARGE(ci))
       end do
     end do
 
@@ -121,7 +121,7 @@ contains
         jaco => this%init_jaco(iprov, idep, const = .true.)
         do i = 1, par%ionvert(ci)%n
           idx = par%ionvert(ci)%get_idx(i)
-          call jaco%set(idx, idx, DOP_CHARGE(ci))
+          call jaco%add(idx, idx, DOP_CHARGE(ci))
         end do
       end do
     end if

@@ -2,6 +2,8 @@ m4_include(util/macro.f90.inc)
 
 module grid_generator_m
 
+  use, intrinsic :: iso_fortran_env, only: int64
+
   use error_m,       only: assert_failed, program_error
   use galene_m,      only: gal_file, gal_block
   use grid_m,        only: grid, grid_ptr
@@ -142,7 +144,8 @@ contains
     type(refinement), allocatable :: ref(:)
 
     integer                       :: i, j
-    integer,          allocatable :: sids(:), perm(:)
+    integer,          allocatable :: sids(:)
+    integer(int64),   allocatable :: perm(:)
     real,             allocatable :: x1(:)
     type(refinement), allocatable :: tmp(:)
 

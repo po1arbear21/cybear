@@ -133,7 +133,7 @@ contains
     allocate (idx(par%g%idx_dim))
     do i = 1, par%transport(IDX_VERTEX,0)%n
       idx = par%transport(IDX_VERTEX,0)%get_idx(i)
-      call this%jaco_pot%set(idx, idx, 1.0)
+      call this%jaco_pot%add(idx, idx, 1.0)
     end do
 
     ! finish initialization
@@ -161,12 +161,12 @@ contains
       if ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_MAXWELL)) then
         iref = pot + ch * (0.5 * this%par%smc%band_gap + log(dens / sqrt(this%par%smc%edos(1) * this%par%smc%edos(2))))
         call this%iref%set(idx, iref)
-        call this%jaco_dens%set(idx, idx, ch / dens)
+        call this%jaco_dens%add(idx, idx, ch / dens)
       else
         call this%par%smc%get_inv_dist(dens / this%par%smc%edos(ci), eta, detadF)
         iref = pot - this%par%smc%band_edge(ci) + ch * eta
         call this%iref%set(idx, iref)
-        call this%jaco_dens%set(idx, idx, ch * detadF / this%par%smc%edos(ci))
+        call this%jaco_dens%add(idx, idx, ch * detadF / this%par%smc%edos(ci))
       end if
     end do
   end subroutine
@@ -229,15 +229,15 @@ contains
         dens = sqrt(this%par%smc%edos(1) * this%par%smc%edos(2)) * exp(ch * (iref - pot) - 0.5 * this%par%smc%band_gap)
 
         call this%dens%set(idx, dens)
-        call this%jaco_pot%set( idx, idx, - ch*dens)
-        call this%jaco_iref%set(idx, idx,   ch*dens)
+        call this%jaco_pot%add( idx, idx, - ch*dens)
+        call this%jaco_iref%add(idx, idx,   ch*dens)
       else
         call this%par%smc%get_dist(ch * (iref - pot + this%par%smc%band_edge(ci)), 0, F, dFdeta)
         dens = this%par%smc%edos(ci) * F
 
         call this%dens%set(idx, dens)
-        call this%jaco_pot%set( idx, idx, - ch * this%par%smc%edos(ci) * dFdeta)
-        call this%jaco_iref%set(idx, idx,   ch * this%par%smc%edos(ci) * dFdeta)
+        call this%jaco_pot%add( idx, idx, - ch * this%par%smc%edos(ci) * dFdeta)
+        call this%jaco_iref%add(idx, idx,   ch * this%par%smc%edos(ci) * dFdeta)
       end if
     end do
   end subroutine

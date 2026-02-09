@@ -2,7 +2,7 @@ m4_include(util/macro.f90.inc)
 
 module lookup_table_m
 
-  use, intrinsic :: iso_fortran_env, only: real128
+  use, intrinsic :: iso_fortran_env, only: int32, int64, real128
   use, intrinsic :: ieee_arithmetic, only: ieee_value, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, ieee_is_finite
 
   use bin_search_m,    only: bin_search, BS_LESS
@@ -11,7 +11,7 @@ module lookup_table_m
   use omp_lib,         only: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
   use quad_m,          only: quad
   use qsort_m,         only: qsort
-  use util_m,          only: hash
+  use hash_m,          only: hash32
   use vector_m,        only: vector_int, vector_log, vector_real128
 
   implicit none
@@ -174,7 +174,8 @@ contains
     integer, parameter :: MIN_LVL = 10
 
     integer              :: lvl, max_lvl, i, i1, i2, ithread, n, n0, nthreads
-    integer, allocatable :: ns(:), nt(:), perm(:)
+    integer,        allocatable :: ns(:), nt(:)
+    integer(int64), allocatable :: perm(:)
     logical              :: status, l1
     real(real128)        :: dx, x, q, d, q1, q2, e1, e2, sgn
     type(vector_real128) :: gx, tx, gq, tq, gd, td
@@ -595,13 +596,14 @@ contains
       !! success (true) or fail (false)
 
     character(512) :: fname
-    integer        :: h, funit, n
+    integer(int32) :: h
+    integer        :: funit, n
 
     status = .false.
 
     ! filename
     write (fname, "(7ES41.32E3)") xmin, xmax, a, b, rtol, atol, xtol
-    h = hash(fname) ! hash parameters to get unique name
+    h = hash32(fname) ! hash parameters to get unique name
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     ! check if file exists
@@ -641,12 +643,13 @@ contains
       !! minimum interval size for x
 
     character(512) :: fname
-    integer        :: h, funit, num_entries
+    integer(int32) :: h
+    integer        :: funit, num_entries
 
     ! filename
     num_entries = size(this%x)
     write (fname, "(7ES41.32E3)") xmin, xmax, a, b, rtol, atol, xtol
-    h = hash(fname)
+    h = hash32(fname)
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     open (newunit = funit, file = fname, status = "replace", action = "write", form = "unformatted")
@@ -1067,7 +1070,7 @@ contains
     n = n * 41 + 1
     allocate (character(len=n) :: tmp)
     write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash(tmp) ! hash parameters to get unique name
+    h = hash32(tmp) ! hash parameters to get unique name
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     ! check if file exists
@@ -1114,7 +1117,7 @@ contains
     n = n * 41 + 1
     allocate (character(len=n) :: tmp)
     write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash(tmp) ! hash parameters to get unique name
+    h = hash32(tmp) ! hash parameters to get unique name
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     ! load
