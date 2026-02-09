@@ -391,34 +391,42 @@ contains
     ! These positions become mandatory grid nodes for grid-independent results
     call file%get(sid, "Y_BEAM", y_bounds, status)
     if (status) then
-      call file%get(sid, "N_BEAM", n_pts)
       n_segs = size(y_bounds) - 1
-      if (size(n_pts) /= n_segs) then
-        call program_error("N_BEAM must have one fewer element than Y_BEAM")
-      end if
 
-      ! Calculate total number of unique positions
-      n_total = 1  ! first point
-      do i = 1, n_segs
-        n_total = n_total + n_pts(i) - 1  ! -1 to avoid double-counting segment boundaries
-      end do
-
-      ! Generate positions
-      allocate(this%beam_y(n_total))
-      j = 1
-      do i = 1, n_segs
-        tmp = linspace(y_bounds(i), y_bounds(i+1), n_pts(i))
-        if (i == 1) then
-          this%beam_y(j:j+n_pts(i)-1) = tmp
-          j = j + n_pts(i)
-        else
-          ! Skip first point (already included as last point of previous segment)
-          this%beam_y(j:j+n_pts(i)-2) = tmp(2:n_pts(i))
-          j = j + n_pts(i) - 1
+      if (n_segs == 0) then
+        ! Single beam position — no segments, no N_BEAM needed
+        allocate(this%beam_y(1))
+        this%beam_y(1) = y_bounds(1)
+        print "(A,ES12.4)", "  Beam: single position at y = ", y_bounds(1)
+      else
+        call file%get(sid, "N_BEAM", n_pts)
+        if (size(n_pts) /= n_segs) then
+          call program_error("N_BEAM must have one fewer element than Y_BEAM")
         end if
-      end do
 
-      print "(A,I0,A)", "  Beam sweep: ", n_total, " positions (will be grid nodes)"
+        ! Calculate total number of unique positions
+        n_total = 1  ! first point
+        do i = 1, n_segs
+          n_total = n_total + n_pts(i) - 1  ! -1 to avoid double-counting segment boundaries
+        end do
+
+        ! Generate positions
+        allocate(this%beam_y(n_total))
+        j = 1
+        do i = 1, n_segs
+          tmp = linspace(y_bounds(i), y_bounds(i+1), n_pts(i))
+          if (i == 1) then
+            this%beam_y(j:j+n_pts(i)-1) = tmp
+            j = j + n_pts(i)
+          else
+            ! Skip first point (already included as last point of previous segment)
+            this%beam_y(j:j+n_pts(i)-2) = tmp(2:n_pts(i))
+            j = j + n_pts(i) - 1
+          end if
+        end do
+
+        print "(A,I0,A)", "  Beam sweep: ", n_total, " positions (will be grid nodes)"
+      end if
     end if
   end subroutine
 
