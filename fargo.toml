@@ -21,42 +21,6 @@ templates = [
   { files = [ "pmosfet2D.ini" ], action="expand" }
 ]
 
-[nw_2D]
-mode = "debug"
-single = true
-target = "nw_2d"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
-args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "slurm"
-partition = "faster"
-
-
-templates = [
-  { files = [
-    "run.ini",
-  ] },
-  { files = [
-    "nw_2D.ini",
-  ], action = "expand" },
-]
-
-[vfet_test]
-mode = "debug"
-single = true
-target = "nw_2d"
-libraries = ["MPFR", "ZLIB", "ILUPACK"]
-args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "slurm"
-partition = "faster"
-
-templates = [
-  { files = [
-    "run.ini",
-  ] },
-  { files = [
-    "vfet_test.ini",
-  ], action = "expand" },
-]
 
 [galene_converter]
 mode = "debug"
@@ -66,20 +30,3 @@ libraries = ["MPFR", "ZLIB"]
 args = ""
 
 templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
-
-[efield_test]
-mode = "debug"
-single = true
-target = "efield_test_2d"
-libraries = ["MPFR", "ZLIB"]
-args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-templates = [
-  { files = [
-    "run_efield_test_2D.ini",
-  ] },
-  { files = [
-    "efield_test_device_2D.ini",
-  ], action = "expand" },
-]
-
-
