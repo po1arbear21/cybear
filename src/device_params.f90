@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module device_params_m
 
   use bin_search_m,     only: bin_search
-  use contact_m,        only: CT_OHMIC, CT_GATE, contact
+  use contact_m,        only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
   use container_m,      only: container, STORAGE_WRITE
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
@@ -1236,6 +1236,15 @@ contains
           this%contacts(ict)%name  = name%s
           this%contacts(ict)%type  = this%reg_ct(ri)%type
           this%contacts(ict)%phims = this%reg_ct(ri)%phims
+          if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
+            this%contacts(ict)%phi_b          = this%reg_ct(ri)%phi_b
+            this%contacts(ict)%A_richardson_n = this%reg_ct(ri)%A_richardson_n
+            this%contacts(ict)%A_richardson_p = this%reg_ct(ri)%A_richardson_p
+            this%contacts(ict)%ifbl           = this%reg_ct(ri)%ifbl
+            this%contacts(ict)%tunneling      = this%reg_ct(ri)%tunneling
+            this%contacts(ict)%m_tunnel_n     = this%reg_ct(ri)%m_tunnel_n
+            this%contacts(ict)%m_tunnel_p     = this%reg_ct(ri)%m_tunnel_p
+          end if
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
           call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
           call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)
@@ -1297,7 +1306,7 @@ contains
     do ict = 1, nct
       call this%contacted(ict)%init_final()
 
-      ! set phims for ohmic contacts
+      ! set phims based on contact type
       if (this%contacts(ict)%type == CT_OHMIC) then
         ! find vertex indices in transport region
         do i = 1, this%contacted(ict)%n
@@ -1312,6 +1321,8 @@ contains
         ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
         ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
         call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+      else if (this%contacts(ict)%type == CT_SCHOTTKY) then
+        call this%contacts(ict)%set_phims_schottky(this%smc)
       end if
 
       ! update contact vertex tables

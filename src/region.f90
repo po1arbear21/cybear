@@ -1,9 +1,10 @@
 module region_m
 
-  use contact_m,       only: CT_OHMIC, CT_GATE
+  use contact_m,       only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
+  use normalization_m, only: norm
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON
   use string_m,        only: string
 
@@ -43,9 +44,23 @@ module region_m
     type(string) :: name
       !! contact name
     integer      :: type
-      !! contact type (CT_OHMIC or CT_GATE)
+      !! contact type (CT_OHMIC, CT_GATE, or CT_SCHOTTKY)
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
+    real         :: phi_b
+      !! Schottky barrier height (eV)
+    real         :: A_richardson_n
+      !! Richardson constant for electrons (A/cm^2/K^2)
+    real         :: A_richardson_p
+      !! Richardson constant for holes (A/cm^2/K^2)
+    logical      :: ifbl
+      !! image force barrier lowering flag
+    logical      :: tunneling
+      !! enable Tsu-Esaki tunneling model
+    real         :: m_tunnel_n
+      !! tunneling effective mass ratio for electrons (m*/m0)
+    real         :: m_tunnel_p
+      !! tunneling effective mass ratio for holes (m*/m0)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -146,6 +161,21 @@ contains
         this%type = CT_OHMIC
       elseif (type%s == "gate") then
         this%type = CT_GATE
+      elseif (type%s == "schottky") then
+        this%type = CT_SCHOTTKY
+        call file%get(sid, "phi_b", this%phi_b, status = st)
+        call file%get(sid, "A_richardson_n", this%A_richardson_n, status = st)
+        if (.not. st) this%A_richardson_n = norm(112.0, "A/cm^2/K^2")
+        call file%get(sid, "A_richardson_p", this%A_richardson_p, status = st)
+        if (.not. st) this%A_richardson_p = norm(32.0, "A/cm^2/K^2")
+        call file%get(sid, "ifbl", this%ifbl, status = st)
+        if (.not. st) this%ifbl = .false.
+        call file%get(sid, "tunneling", this%tunneling, status = st)
+        if (.not. st) this%tunneling = .false.
+        call file%get(sid, "m_tunnel_n", this%m_tunnel_n, status = st)
+        if (.not. st) this%m_tunnel_n = 1.0
+        call file%get(sid, "m_tunnel_p", this%m_tunnel_p, status = st)
+        if (.not. st) this%m_tunnel_p = 1.0
       else
         call program_error("unknown contact type "//type%s)
       end if

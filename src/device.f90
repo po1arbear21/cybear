@@ -1,6 +1,7 @@
 module device_m
 
   use charge_density_m,  only: charge_density, calc_charge_density
+  use contact_m,         only: CT_SCHOTTKY
   use continuity_m,      only: continuity
   use current_m,         only: current
   use current_density_m, only: current_density, calc_current_density
@@ -145,7 +146,11 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
+      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
+      else
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
+      end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
@@ -195,6 +200,10 @@ contains
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
       end if
+      ! add E-field equations (needed for Schottky lagged E-field)
+      do dir = 1, this%par%g%dim
+        call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
+      end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()

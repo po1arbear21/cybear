@@ -30,3 +30,11 @@ libraries = ["MPFR", "ZLIB"]
 args = ""
 
 templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
+
+[schottky_test]
+mode = "debug"
+target = "schottky_test"
+args = ""
+templates = [
+  { files = [ "devices/test/schottky_minimal.ini" ], action = "expand" }
+]

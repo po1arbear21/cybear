@@ -15,11 +15,12 @@ module contact_m
   implicit none
 
   private
-  public :: CT_OHMIC, CT_GATE, contact
+  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
 
   ! contact types
-  integer, parameter :: CT_OHMIC = 1
-  integer, parameter :: CT_GATE  = 2
+  integer, parameter :: CT_OHMIC    = 1
+  integer, parameter :: CT_GATE     = 2
+  integer, parameter :: CT_SCHOTTKY = 3
 
   type contact
     !! device contact
@@ -27,11 +28,26 @@ module contact_m
     character(:), allocatable :: name
       !! contact name
     integer                   :: type
-      !! type of contact (CT_OHMIC, CT_GATE)
+      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY)
     real                      :: phims
       !! metal-semiconductor workfunction difference
+    real                      :: phi_b
+      !! Schottky barrier height (normalized to kT)
+    real                      :: A_richardson_n = 112.0
+      !! Richardson constant for electrons (normalized, A/cm^2/K^2 physical)
+    real                      :: A_richardson_p = 32.0
+      !! Richardson constant for holes (normalized, A/cm^2/K^2 physical)
+    logical                   :: ifbl = .false.
+      !! image force barrier lowering flag
+    logical                   :: tunneling = .false.
+      !! enable Tsu-Esaki tunneling model
+    real                      :: m_tunnel_n = 1.0
+      !! tunneling effective mass ratio for electrons (m*/m0)
+    real                      :: m_tunnel_p = 1.0
+      !! tunneling effective mass ratio for holes (m*/m0)
   contains
-    procedure :: set_phims_ohmic => contact_set_phims_ohmic
+    procedure :: set_phims_ohmic    => contact_set_phims_ohmic
+    procedure :: set_phims_schottky => contact_set_phims_schottky
   end type
 
 contains
@@ -149,6 +165,23 @@ contains
         m4_ignore(drhodp)
       end if
     end subroutine
+  end subroutine
+
+  subroutine contact_set_phims_schottky(this, smc)
+    !! Set phims for Schottky contacts using Sentaurus Device approach:
+    !! phims = -phi_b + ln(N_c / n_i)
+    !! where n_i = sqrt(N_c * N_v) * exp(-E_g / 2kT)
+    class(contact),      intent(inout) :: this
+    type(semiconductor), intent(in)    :: smc
+
+    real :: ni_term
+
+    ! ln(N_c/n_i) = 0.5*ln(N_c/N_v) + E_g/2  (in normalized units)
+    ni_term = 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE)) + 0.5 * smc%band_gap
+
+    this%phims = -this%phi_b + ni_term
+
+    m4_assert(ieee_is_finite(this%phims))
   end subroutine
 
 end module
