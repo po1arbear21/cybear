@@ -24,6 +24,7 @@ program schottky_test
   integer :: ix, nx, ict, ninput, ci
   real :: phi_b_eV, n_contact, n_expected, rel_err
   real :: I_schottky, I_ohmic
+  real :: V_a, V_T, A_star, J_s, J_expected, J_simulated, I_expected, cf
   real, allocatable :: t_inp(:), V(:,:)
 
   ! ====================================================================
@@ -90,7 +91,7 @@ program schottky_test
 
   ! Step 1: Approximate initial conditions
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = CR_ELEC, CR_HOLE
+  do ci = dev%par%ci0, dev%par%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -107,7 +108,7 @@ program schottky_test
   print "(A)", "  Step 4: Running full Newton solver..."
   call ss%init(dev%sys_full)
   ss%msg = "Newton: "
-  call ss%init_output([string("pot"), string("ndens"), string("pdens"), &
+  call ss%init_output([string("pot"), string("ndens"), &
     & string("V_SCHOTTKY"), string("V_OHMIC"), &
     & string("I_SCHOTTKY"), string("I_OHMIC")], "schottky_test.fbs")
   call ss%run(input = input, t_input = [0.0])
@@ -161,6 +162,158 @@ program schottky_test
   rel_err = abs(n_contact - n_expected) / n_expected * 100.0
   print "(A,F8.2,A)",   "    Error     = ", rel_err, " %"
   if (rel_err < 5.0) then
+    print "(A)", "    PASS"
+  else
+    print "(A)", "    FAIL"
+  end if
+  print "(A)", ""
+
+  ! ====================================================================
+  ! Test 3: Forward bias — thermionic emission current
+  ! ====================================================================
+  V_a = 0.2  ! forward bias [V]
+
+  print "(A)", "========================================"
+  print "(A,F6.3,A)", " Test 3: Forward bias (V_a = ", V_a, " V)"
+  print "(A)", "========================================"
+  print "(A)", ""
+
+  ! New input: ramp SCHOTTKY from 0V to V_a
+  deallocate(t_inp, V)
+  allocate(t_inp(2), V(ninput, 2))
+  t_inp = [0.0, 1.0]
+  V(1, :) = [0.0, norm(V_a, 'V')]   ! SCHOTTKY: 0 → V_a
+  V(2, :) = 0.0                      ! OHMIC: 0V
+  call input%init(t_inp, V)
+
+  ! Solve at V_a (starting from equilibrium solution)
+  print "(A)", "  Running full Newton solver..."
+  ss%log = .true.
+  call ss%run(input = input, t_input = [1.0])
+  ss%log = .false.
+
+  ! Diagnostics: check if bias was applied
+  print "(A)", ""
+  print "(A,F10.6,A)", "  pot(x=0)  after bias = ", denorm(dev%pot%get([1]), 'V'), " V"
+  print "(A,F10.6,A)", "  pot(x=Lx) after bias = ", denorm(dev%pot%get([nx]), 'V'), " V"
+  print "(A,ES12.4,A)","  n(x=0)    after bias = ", denorm(dev%dens(CR_ELEC)%get([1]), '1/cm^3'), " 1/cm^3"
+  print "(A,F10.6,A)", "  V_SCHOTTKY applied   = ", denorm(dev%volt(1)%x, 'V'), " V"
+  print "(A,F10.6,A)", "  V_OHMIC    applied   = ", denorm(dev%volt(2)%x, 'V'), " V"
+
+  ! Get terminal currents
+  I_schottky = denorm(dev%curr(1)%x, 'A')
+  I_ohmic    = denorm(dev%curr(2)%x, 'A')
+
+  print "(A)", ""
+  print "(A,ES12.4,A)", "  I_SCHOTTKY = ", I_schottky, " A"
+  print "(A,ES12.4,A)", "  I_OHMIC    = ", I_ohmic,    " A"
+  print "(A)", ""
+
+  ! Current conservation: I_SCHOTTKY + I_OHMIC = 0
+  print "(A)", "  Current conservation:"
+  rel_err = abs(I_schottky + I_ohmic) / max(abs(I_schottky), 1e-30) * 100.0
+  print "(A,ES12.4,A)", "    I_SCHOTTKY + I_OHMIC = ", I_schottky + I_ohmic, " A"
+  print "(A,F8.4,A)",   "    Relative error       = ", rel_err, " %"
+  if (rel_err < 1.0) then
+    print "(A)", "    PASS"
+  else
+    print "(A)", "    FAIL"
+  end if
+  print "(A)", ""
+
+  ! Analytical thermionic emission: J_s = A* T^2 exp(-phi_b/kT)
+  V_T      = denorm(1.0, 'V')                                          ! kT/q [V]
+  A_star   = denorm(dev%par%contacts(1)%A_richardson_n, 'A/cm^2/K^2')  ! A* [A/cm^2/K^2]
+  phi_b_eV = denorm(dev%par%contacts(1)%phi_b, 'eV')                   ! phi_b [eV]
+  cf       = denorm(dev%par%curr_fact, 'cm^2')                          ! curr_fact [cm^2]
+  J_s      = A_star * dev%par%T**2 * exp(-phi_b_eV / V_T)              ! [A/cm^2]
+  J_expected = J_s * (exp(V_a / V_T) - 1.0)                             ! [A/cm^2]
+  I_expected = J_expected * cf                                           ! [A]
+
+  ! Simulated current density at Schottky contact (edge 1)
+  J_simulated = abs(denorm(dev%cdens(1,CR_ELEC)%get([1]), 'A/cm^2'))
+
+  print "(A)", "  Thermionic emission comparison (electrons):"
+  print "(A,ES12.4,A)", "    V_T          = ", V_T, " V"
+  print "(A,ES12.4,A)", "    A*_n         = ", A_star, " A/cm^2/K^2"
+  print "(A,ES12.4,A)", "    phi_b        = ", phi_b_eV, " eV"
+  print "(A,ES12.4,A)", "    J_s          = ", J_s, " A/cm^2"
+  print "(A,ES12.4,A)", "    curr_fact    = ", cf, " cm^2"
+  print "(A,ES12.4,A)", "    J_expected   = ", J_expected, " A/cm^2"
+  print "(A,ES12.4,A)", "    J_simulated  = ", J_simulated, " A/cm^2  (|cdens| at edge 1)"
+  print "(A,ES12.4,A)", "    I_expected   = ", I_expected, " A"
+  print "(A,ES12.4,A)", "    I_simulated  = ", I_schottky, " A"
+  rel_err = abs(J_simulated - J_expected) / abs(J_expected) * 100.0
+  print "(A,F8.2,A)",   "    J error      = ", rel_err, " %"
+  rel_err = abs(I_schottky - I_expected) / abs(I_expected) * 100.0
+  print "(A,F8.2,A)",   "    I error      = ", rel_err, " %"
+  if (rel_err < 10.0) then
+    print "(A)", "    PASS"
+  else
+    print "(A)", "    FAIL  (>10% — check series resistance or mesh)"
+  end if
+  print "(A)", ""
+
+  ! ====================================================================
+  ! Test 4: Reverse bias — saturation current
+  ! ====================================================================
+  V_a = -0.2  ! reverse bias [V]
+
+  print "(A)", "========================================"
+  print "(A,F7.3,A)", " Test 4: Reverse bias (V_a = ", V_a, " V)"
+  print "(A)", "========================================"
+  print "(A)", ""
+
+  ! New input: ramp SCHOTTKY from 0V to V_a
+  deallocate(t_inp, V)
+  allocate(t_inp(2), V(ninput, 2))
+  t_inp = [0.0, 1.0]
+  V(1, :) = [0.0, norm(V_a, 'V')]   ! SCHOTTKY: 0 → V_a
+  V(2, :) = 0.0                      ! OHMIC: 0V
+  call input%init(t_inp, V)
+
+  ! Solve via equilibrium first (device is at +0.2V from Test 3), then reverse bias
+  print "(A)", "  Running full Newton solver..."
+  ss%log = .true.
+  call ss%run(input = input, t_input = [0.0, 1.0])
+  ss%log = .false.
+
+  ! Get terminal currents
+  I_schottky = denorm(dev%curr(1)%x, 'A')
+  I_ohmic    = denorm(dev%curr(2)%x, 'A')
+
+  print "(A)", ""
+  print "(A,ES12.4,A)", "  I_SCHOTTKY = ", I_schottky, " A"
+  print "(A,ES12.4,A)", "  I_OHMIC    = ", I_ohmic,    " A"
+  print "(A)", ""
+
+  ! Current conservation
+  print "(A)", "  Current conservation:"
+  rel_err = abs(I_schottky + I_ohmic) / max(abs(I_schottky), 1e-30) * 100.0
+  print "(A,ES12.4,A)", "    I_SCHOTTKY + I_OHMIC = ", I_schottky + I_ohmic, " A"
+  print "(A,F8.4,A)",   "    Relative error       = ", rel_err, " %"
+  if (rel_err < 1.0) then
+    print "(A)", "    PASS"
+  else
+    print "(A)", "    FAIL"
+  end if
+  print "(A)", ""
+
+  ! Analytical: reverse saturation current ≈ -J_s * cf
+  ! (reuse V_T, A_star, phi_b_eV, cf, J_s from Test 3)
+  J_expected  = J_s * (exp(V_a / V_T) - 1.0)               ! ≈ -J_s
+  I_expected  = J_expected * cf
+  J_simulated = abs(denorm(dev%cdens(1,CR_ELEC)%get([1]), 'A/cm^2'))
+
+  print "(A)", "  Reverse saturation comparison (electrons):"
+  print "(A,ES12.4,A)", "    J_s          = ", J_s, " A/cm^2"
+  print "(A,ES12.4,A)", "    J_expected   = ", J_expected, " A/cm^2  (J_s*(exp(V/kT)-1) ~ -J_s)"
+  print "(A,ES12.4,A)", "    J_simulated  = ", J_simulated, " A/cm^2  (|cdens| at edge 1)"
+  print "(A,ES12.4,A)", "    I_expected   = ", I_expected, " A"
+  print "(A,ES12.4,A)", "    I_simulated  = ", I_schottky, " A"
+  rel_err = abs(I_schottky - I_expected) / abs(I_expected) * 100.0
+  print "(A,F8.2,A)",   "    I error      = ", rel_err, " %"
+  if (rel_err < 10.0) then
     print "(A)", "    PASS"
   else
     print "(A)", "    FAIL"
@@ -240,9 +393,9 @@ contains
     real, parameter :: ATOL = 1e-6
     integer, parameter :: MAX_IT = 50
 
-    allocate(pot0(dev%pot%data%n), iref0(dev%iref(1)%data%n, 2))
+    allocate(pot0(dev%pot%data%n), iref0(dev%iref(dev%par%ci0)%data%n, 2))
 
-    do ci = CR_ELEC, CR_HOLE
+    do ci = dev%par%ci0, dev%par%ci1
       call ss_dd(ci)%init(dev%sys_dd(ci))
     end do
 
@@ -256,7 +409,7 @@ contains
       call solve_nlpe()
       err_pot = maxval(abs(dev%pot%get() - pot0))
 
-      do ci = CR_ELEC, CR_HOLE
+      do ci = dev%par%ci0, dev%par%ci1
         iref0(:, ci) = dev%iref(ci)%get()
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
@@ -264,7 +417,10 @@ contains
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:, ci)))
       end do
 
-      err = max(err_pot, err_iref(1), err_iref(2))
+      err = err_pot
+      do ci = dev%par%ci0, dev%par%ci1
+        err = max(err, err_iref(ci))
+      end do
       print "(A,I3,A,ES10.3)", "    Gummel it ", it, ": err = ", denorm(err, 'V')
     end do
 
