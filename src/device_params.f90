@@ -50,7 +50,7 @@ module device_params_m
       !! current factor for converting A/m² or A/m to A
 
     class(grid_data_real), allocatable :: eps(:,:)
-      !! electrostatic permittivity (idx_type, idx_dir)
+      !! electrostatic permittivity (idx_type, idx_dir), the table for IDX_VERTEX only includes the transport region
     class(grid_data_real), allocatable :: surf(:)
       !! adjoint volume surfaces
     class(grid_data_real), allocatable :: dop(:,:,:)
@@ -225,8 +225,9 @@ contains
     call ctnr%open("device.fbs", flag = STORAGE_WRITE)
     ! grid
     call ctnr%save(this%g)
-    ! permittivity on cells
-    call ctnr%save("perm", this%eps(IDX_CELL, 0), unit = "eps0")
+    ! permittivity on cells and vertices
+    call ctnr%save("perm_cell", this%eps(IDX_CELL, 0), unit = "eps0")
+    call ctnr%save("perm_vert", this%eps(IDX_VERTEX, 0), unit = "eps0")
     do ci = this%ci0, this%ci1
       ! doping on cells
       call ctnr%save(DOP_NAME(ci)//"con_cell", this%dop(IDX_CELL, 0, ci), unit = "cm^-3")
@@ -235,8 +236,9 @@ contains
       ! dopant ionization energy on vertices
       if (this%smc%incomp_ion) call ctnr%save(DOP_NAME(ci)//"conE_vert", this%ii_E_dop(ci), unit = "eV")
       do idx_dir = 1, this%g%idx_dim
-        ! mobility on edges
+        ! mobility and doping on edges
         call ctnr%save(CR_NAME(ci)//"mob"//DIR_NAME(idx_dir), this%mob0(IDX_EDGE, idx_dir, ci), unit = "cm^2/V/s")
+        call ctnr%save(DOP_NAME(ci)//"con_edge_"//DIR_NAME(idx_dir), this%dop(IDX_EDGE, idx_dir, ci), unit = "cm^-3")
       end do
     end do
     call ctnr%close()
@@ -346,12 +348,23 @@ contains
     call file%get(sid, "curr_fact",  this%curr_fact)
 
     ! incomplete ionization
-    call file%get(sid, "incomp_ion", this%smc%incomp_ion)
-    call file%get(sid, "ii_tau",     this%smc%ii_tau)
-    call file%get(sid, "ii_E_dop0",  this%smc%ii_E_dop0)
-    call file%get(sid, "ii_g",       this%smc%ii_g)
-    call file%get(sid, "ii_N_crit",  this%smc%ii_N_crit)
-    call file%get(sid, "ii_dop_th",  this%smc%ii_dop_th)
+    call file%get(sid, "incomp_ion",   this%smc%incomp_ion)
+    call file%get(sid, "ii_tau",       this%smc%ii_tau)
+    call file%get(sid, "ii_E_dop0",    this%smc%ii_E_dop0)
+    call file%get(sid, "ii_g",         this%smc%ii_g)
+    call file%get(sid, "ii_N_crit",    this%smc%ii_N_crit)
+    call file%get(sid, "ii_dop_th",    this%smc%ii_dop_th)
+    call file%get(sid, "ii_pf",        this%smc%ii_pf)
+    if (this%smc%ii_pf) then
+      call file%get(sid, "ii_ef_min",  this%smc%ii_ef_min)
+      call file%get(sid, "ii_pf_a",    this%smc%ii_pf_a)
+    end if
+    call file%get(sid, "ii_tun",       this%smc%ii_tun)
+    if (this%smc%ii_tun) then
+      call file%get(sid, "ii_tau_tun", this%smc%ii_tau_tun)
+      call file%get(sid, "ii_m_tun",   this%smc%ii_m_tun)
+      call file%get(sid, "ii_ef_min",  this%smc%ii_ef_min)
+    end if
 
     ! make sure parameters are valid
     m4_assert(this%ci0 <= this%ci1)
@@ -817,7 +830,7 @@ contains
     integer                  :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status, load
-    real                     :: cdop, dop(2), p(2,3), mid(2), ii_E_dop, ni
+    real                     :: cdop, dop(2), p(2,3), mid(2), ii_E_dop, ni, eps
     real,    allocatable     :: surf(:,:), vol(:), tmp(:), ddop(:), tdop(:)
     type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
@@ -842,6 +855,7 @@ contains
         call this%dop(IDX_EDGE,idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
       end do
     end do
+    call this%eps(IDX_VERTEX,0)%init(this%g, IDX_VERTEX, 0)
 
     load = this%gal
     if (load) then ! load from GALENE III file
@@ -951,9 +965,12 @@ contains
         ! get adjoint cell volume parts
         call this%g%get_adjoint(idx, vol = vol)
 
-        ! update doping for all vertices belonging to cell
+        ! update doping and permittivity for all vertices belonging to cell
         do j = 1, this%g%cell_nvert
           call this%g%get_neighb(IDX_CELL, 0, IDX_VERTEX, 0, idx, j, idx2, status)
+          ! this%eps(IDX_VERTEX,0) only includes the transport region (because it is only used for Poole-Frenkel effect)
+          eps = this%eps(IDX_CELL,0)%get(idx)
+          call this%eps(IDX_VERTEX,0)%update(idx2, eps * vol(j) / this%tr_vol%get(idx2))
           do ci = DOP_DCON, DOP_ACON
             dop(ci) = this%dop(IDX_CELL,0,ci)%get(idx)
             call this%dop(IDX_VERTEX,0,ci)%update(idx2, dop(ci) * vol(j) / this%tr_vol%get(idx2))

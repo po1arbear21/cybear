@@ -23,6 +23,7 @@ module semiconductor_m
   integer,      parameter :: DOP_ACON      = 2
   character(*), parameter :: DOP_NAME(2)   = [ "D", "A" ]
   real,         parameter :: DOP_CHARGE(2) = [ 1.0, -1.0]
+  character(*), parameter :: RATE_NAME(2)  = [ "DC", "AV" ]
 
   integer,      parameter :: DOS_PARABOLIC      = 1
     !! Parabolic band structure
@@ -84,6 +85,7 @@ module semiconductor_m
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
 
+    !! incomplete ionization parameters
     logical           :: incomp_ion
       !! enable/disable incomplete ionization (Altermatt-Schenk model)
     real, allocatable :: ii_tau(:)
@@ -96,8 +98,18 @@ module semiconductor_m
       !! cricital concentration (alternative to altermatt-schenk)
     real, allocatable :: ii_dop_th(:)
       !! full ionization if doping > threshold
-    real              :: ii_ef_min = 0.0
-      !! minimum field strength for field-assisted ionization numerical stability (V/m)
+    logical           :: ii_tun
+      !! enable/disable tunneling ionization
+    real, allocatable :: ii_tau_tun(:)
+      !! tunneling time constant
+    real, allocatable :: ii_m_tun(:)
+      !! tunneling effective mass
+    logical           :: ii_pf
+      !! enable/disable poole-frenkel effect
+    real              :: ii_pf_a
+      !! smoothing parameter for softmin function in PF barrier lowering
+    real              :: ii_ef_min
+      !! minimum electric field to ensure differentiability: F = sqrt(Fx^2 + Fy^2 + Fz^2 + ii_ef_min^2)
 
   contains
     procedure :: init_dist    => semiconductor_init_dist

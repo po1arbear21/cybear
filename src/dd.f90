@@ -10,7 +10,7 @@ program dd
   use input_src_m,        only: polygon_src, harmonic_src
   use math_m,             only: linspace, logspace, PI
   use normalization_m,    only: init_normconst, norm, denorm
-  use semiconductor_m,    only: CR_NAME, DOP_NAME
+  use semiconductor_m,    only: CR_NAME, DOP_NAME, RATE_NAME
   use small_signal_m,     only: small_signal
   use solver_base_m,      only: solver_real
   use solver_m,           only: default_solver_params, init_solver_real
@@ -37,9 +37,12 @@ program dd
 
   ! create list of variables for output in steady-state and transient simulations
   output_list = [string("pot")]
+  if (dev%par%smc%incomp_ion .and. (dev%par%smc%ii_pf .or. dev%par%smc%ii_tun)) output_list = [output_list, string("electric_field")]
   do ci = dev%par%ci0, dev%par%ci1
     output_list = [output_list, string(CR_NAME(ci) // "dens")]
+    output_list = [output_list, string("eta_" // CR_NAME(ci))]
     if (dev%par%smc%incomp_ion) output_list = [output_list, string("ion" // DOP_NAME(ci))]
+    if (dev%par%smc%incomp_ion) output_list = [output_list, string("genrec_" // RATE_NAME(ci))]
   end do
   do ict = 1, dev%par%nct
     output_list = [output_list, string("V_" // dev%par%contacts(ict)%name)]
@@ -573,6 +576,7 @@ contains
 
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
+        call dev%calc_eta_dens(ci)%eval()
         call dev%calc_iref(ci)%eval()
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:,ci)))
         error = max(error, err_iref(ci))
