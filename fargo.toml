@@ -8,7 +8,7 @@ target    = "dd"
 args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 templates = [
   { files = [ "run.ini" ] },
-  { files = [ "pmosfet2D.ini" ], action="expand" }
+  { files = [ "devices/examples/pmosfet2D.ini" ], action="expand" }
 ]
 
 
@@ -18,7 +18,7 @@ args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 mode      = "release"
 templates = [
   { files = [ "run.ini" ] },
-  { files = [ "pmosfet2D.ini" ], action="expand" }
+  { files = [ "devices/examples/pmosfet2D.ini" ], action="expand" }
 ]
 
 
