@@ -104,7 +104,7 @@ templates = [
 mode = "debug"
 target = "dd"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-runner = "slurm"
+# runner = "slurm"
 partition = "faster"
 
 templates = [

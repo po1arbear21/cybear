@@ -151,7 +151,7 @@ program beam_test
   print "(A)", ""
 
   ! Set beam at y = 2500 nm (middle of device)
-  beam_y = 1500.0
+  beam_y = 2000.0
   dev%beam_pos%x = norm(beam_y, 'nm')
   print "(A,F8.1,A)", "  Beam position: y = ", beam_y, " nm"
   print "(A)", ""
