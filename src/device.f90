@@ -66,7 +66,7 @@ module device_m
       !! Ramo-Shockley data object
 
     type(poisson)                                    :: poiss
-      !! poisson equation
+      !! Poisson equation
     type(continuity)                                 :: contin(2)
       !! electron/hole continuity equation (carrier index)
     type(ion_continuity)                             :: ion_contin(2)
@@ -80,9 +80,9 @@ module device_m
     type(calc_imref)                                 :: calc_iref(2)
       !! calculate electron/hole imref from potential and chemical potential (carrier index)
     type(calc_density)                               :: calc_dens(2)
-      !! calculate electron/hole density from potential and imref (carrier index)
+      !! calculate electron/hole density from chemical potential (carrier index)
     type(calc_ionization)                            :: calc_ion(2)
-      !! calculate stationary donor/acceptor ionization ratio from potential and imref (dopant index)
+      !! calculate stationary donor/acceptor ionization ratio from chemical potential (dopant index)
     type(calc_generation_recombination)              :: calc_genrec(2)
       !! calculate generation-recombination (dopant index)
     type(calc_mobility),                 allocatable :: calc_mob(:,:)

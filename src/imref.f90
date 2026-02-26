@@ -209,6 +209,7 @@ contains
     real                 :: dens, eta, detadF
 
     allocate (idx(this%par%g%idx_dim))
+    !$omp parallel do default(none) schedule(dynamic) private(i,idx,dens,eta,detadF) shared(this)
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
@@ -218,6 +219,7 @@ contains
       call this%eta%set(idx, eta)
       call this%jaco_dens%add(idx, idx, detadF / this%par%smc%edos(this%eta%ci))
     end do
+    !$omp end parallel do
   end subroutine
 
   subroutine calc_imref_init(this, par, eta, pot, iref)
@@ -384,22 +386,21 @@ contains
     !! evaluate density calculation equation
     class(calc_density), intent(inout) :: this
 
-    integer              :: i, ci
-    real                 :: ch, F, dFdeta
+    integer              :: i
+    real                 :: F, dFdeta
     integer, allocatable :: idx(:)
 
-    ci = this%eta%ci
-    ch = CR_CHARGE(ci)
-
     allocate (idx(this%par%g%idx_dim))
+    !$omp parallel do default(none) schedule(dynamic) private(i,idx,F,dFdeta) shared(this)
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! calculate density
       call this%par%smc%get_dist(this%eta%get(idx), 0, F, dFdeta)
-      call this%dens%set(idx, this%par%smc%edos(ci) * F)
-      call this%jaco_eta%add(idx, idx, this%par%smc%edos(ci) * dFdeta)
+      call this%dens%set(idx, this%par%smc%edos(this%eta%ci) * F)
+      call this%jaco_eta%add(idx, idx, this%par%smc%edos(this%eta%ci) * dFdeta)
     end do
+    !$omp end parallel do
   end subroutine
 
 end module

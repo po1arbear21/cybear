@@ -8,6 +8,7 @@ program dd
   ! use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file, input_section
   use input_src_m,        only: polygon_src, harmonic_src
+  use logging_m,          only: init_logging
   use math_m,             only: linspace, logspace, PI
   use normalization_m,    only: init_normconst, norm, denorm
   use semiconductor_m,    only: CR_NAME, DOP_NAME, RATE_NAME
@@ -31,6 +32,7 @@ program dd
   type(string), allocatable :: output_list(:)
 
   print "(A)", "Start simulation on " // get_hostname()
+  call init_logging(fmt = "%DD/%mm/%YY | %HH:%MM:%SS | %MEM GiB | %MSG", record_time = .true., record_mem = .true.)
 
   ! parse command line arguments
   call command_line()
