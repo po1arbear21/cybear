@@ -33,10 +33,10 @@ module contact_m
       !! metal-semiconductor workfunction difference
     real                      :: phi_b
       !! Schottky barrier height (normalized to kT)
-    real                      :: A_richardson_n = 112.0
-      !! Richardson constant for electrons (normalized, A/cm^2/K^2 physical)
-    real                      :: A_richardson_p = 32.0
-      !! Richardson constant for holes (normalized, A/cm^2/K^2 physical)
+    real                      :: A_richardson_n
+      !! Richardson constant for electrons [A/cm^2/K^2]
+    real                      :: A_richardson_p
+      !! Richardson constant for holes [A/cm^2/K^2]
     logical                   :: ifbl = .false.
       !! image force barrier lowering flag
     logical                   :: tunneling = .false.

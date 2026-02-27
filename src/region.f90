@@ -48,7 +48,7 @@ module region_m
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
     real         :: phi_b
-      !! Schottky barrier height (eV)
+      !! Schottky barrier height (normalized to kT)
     real         :: A_richardson_n
       !! Richardson constant for electrons (A/cm^2/K^2)
     real         :: A_richardson_p
@@ -164,10 +164,11 @@ contains
       elseif (type%s == "schottky") then
         this%type = CT_SCHOTTKY
         call file%get(sid, "phi_b", this%phi_b, status = st)
+        if (.not. st) call program_error("Schottky contact '"//this%name%s//"': phi_b is required")
         call file%get(sid, "A_richardson_n", this%A_richardson_n, status = st)
-        if (.not. st) this%A_richardson_n = norm(112.0, "A/cm^2/K^2")
+        if (.not. st) call program_error("Schottky contact '"//this%name%s//"': A_richardson_n is required")
         call file%get(sid, "A_richardson_p", this%A_richardson_p, status = st)
-        if (.not. st) this%A_richardson_p = norm(32.0, "A/cm^2/K^2")
+        if (.not. st) call program_error("Schottky contact '"//this%name%s//"': A_richardson_p is required")
         call file%get(sid, "ifbl", this%ifbl, status = st)
         if (.not. st) this%ifbl = .false.
         call file%get(sid, "tunneling", this%tunneling, status = st)

@@ -22,7 +22,7 @@ module continuity_m
   public continuity
 
   type, extends(res_equation) :: continuity
-    !! dn/dt + div j = 0
+    !! dn/dt + div(J) = G - R
 
     integer :: ci
       !! carrier index
@@ -32,7 +32,7 @@ module continuity_m
     type(vselector)              :: dens
       !! main variable: density
     type(vselector), allocatable :: cdens(:)
-      !! dependencies: current densities in 2 directions
+      !! dependencies: current densities per spatial direction
     type(vselector)              :: genrec
       !! generation - recombination
 
@@ -41,8 +41,10 @@ module continuity_m
       !! electric field components (only allocated when Schottky contacts present)
     integer, allocatable :: schottky_normal(:)
       !! normal direction for each contact (0 if not Schottky)
-    real, allocatable :: v_surf(:)
+    real, allocatable :: v_th(:)
       !! thermionic velocity per contact (for Robin BC)
+    real, allocatable :: eps_sc(:)
+      !! semiconductor permittivity at each contact (for Schottky IFBL)
 
     real, allocatable :: b(:)
       !! right-hand side
@@ -81,6 +83,7 @@ contains
     logical              :: status, has_schottky
     real                 :: surf, F, dF
     type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:)
+    type(jacobian), pointer :: jaco_tmp
 
     print "(A)", "continuity_init"
 
@@ -103,11 +106,17 @@ contains
       if (.not. present(efield)) call program_error("E-field required for Schottky contacts")
 
       allocate(this%schottky_normal(par%nct))
-      allocate(this%v_surf(par%nct), source=0.0)
+      allocate(this%v_th(par%nct), source=0.0)
+      allocate(this%eps_sc(par%nct), source=0.0)
       do ict = 1, par%nct
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
           this%schottky_normal(ict) = get_normal_dir(par, ict)
-          this%v_surf(ict) = schottky_velocity(par, ci, ict)
+          this%v_th(ict) = schottky_velocity(par, ci, ict)
+
+          ! look up semiconductor permittivity from a neighboring edge
+          idx = par%transport_vct(ict)%get_idx(1)
+          call par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, this%schottky_normal(ict), idx, 1, idx1, status)
+          this%eps_sc(ict) = par%eps(IDX_EDGE, this%schottky_normal(ict))%get(idx1)
         else
           this%schottky_normal(ict) = 0
         end if
@@ -154,6 +163,15 @@ contains
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
     if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
+
+    ! Lagged E-field dependency: zero Jacobian establishes eval ordering
+    ! (calc_efield must run before continuity) without adding dF/dE terms.
+    if (has_schottky) then
+      do dir = 1, par%g%dim
+        jaco_tmp => this%init_jaco_f(this%depend(this%efield(dir)), &
+          & st = [(this%st_em%get_ptr(), ict = 0, par%nct)], const = .true.)
+      end do
+    end if
 
     ! init jacobians
     ! jaco_dens: non-constant when Schottky contacts present (updated each iteration)
@@ -266,8 +284,8 @@ contains
     integer              :: idx_dir, ict, i, j, normal_dir
     integer, allocatable :: idx(:)
     real, allocatable    :: tmp(:), dens_arr(:), efield_arr(:)
-    real                 :: E_normal, dens, A_ct
-    real                 :: n0B, J_tn, dJ_tn_ddens, v_surf_ict
+    real                 :: E_normal, dens, A_ct, delta_phi
+    real                 :: n0b, J_t, dJ_t_ddens, v_th_ict
 
     allocate (tmp(this%f%n))
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
@@ -310,19 +328,21 @@ contains
               dens = dens_arr(j)
 
               A_ct = this%par%get_ct_surf(ict, idx)
-              v_surf_ict = this%v_surf(ict)
+              v_th_ict = this%v_th(ict)
 
-              ! equilibrium injection density (with optional IFBL)
-              call schottky_n0b(this%par, this%ci, ict, E_normal, n0B)
+              ! equilibrium boundary density (with optional IFBL)
+              call schottky_n0b(this%par, this%ci, ict, E_normal, n0b, eps_s=this%eps_sc(ict), delta_phi=delta_phi)
 
               ! tunneling current and its derivative
-              call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_tn, dJ_tn_ddens)
+              call schottky_tunneling(this%par, this%ci, ict, E_normal, dens, J_t, dJ_t_ddens, eps_s=this%eps_sc(ict))
 
-              ! Jacobian: dF/d(dens) = v_surf*A_ct - A_ct*dJ_tn/ddens
-              call this%jaco_dens%add(idx, idx, v_surf_ict * A_ct - A_ct * dJ_tn_ddens)
+              ! Jacobian: dF/d(dens) = v_th*exp(dphi)*A_ct - A_ct*dJ_t/ddens
+              ! (forward thermionic velocity enhanced by IFBL for detailed balance)
+              call this%jaco_dens%add(idx, idx, v_th_ict * exp(delta_phi) * A_ct - A_ct * dJ_t_ddens)
 
-              ! residual: F = div(J) - A_ct * [v_surf*(n - n0B) + J_tn]
-              tmp(j) = tmp(j) + v_surf_ict * A_ct * dens - v_surf_ict * A_ct * n0B - A_ct * J_tn
+              ! residual: F = div(J) + A_ct * [v_th*exp(dphi)*n - v_th*n0b - J_t]
+              tmp(j) = tmp(j) + v_th_ict * exp(delta_phi) * A_ct * dens &
+                & - v_th_ict * A_ct * n0b - A_ct * J_t
             end if
           else
             ! Ohmic/Gate: Dirichlet BC (re-add constant 1.0 after reset)
