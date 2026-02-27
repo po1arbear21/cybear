@@ -433,6 +433,10 @@ contains
         err = abs(err) / (abs(eta) + ATOL)
       end do
       detadF = 1 / dF2deta
+    else if (this%dist == DIST_MAXWELL) then
+      ! analytical inverse: F(eta) = exp(eta) for MB statistics
+      eta    = log(F)
+      detadF = 1 / F
     else
       call this%Ftab(0)%inv(F, eta, detadF)
     end if

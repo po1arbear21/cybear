@@ -1,6 +1,7 @@
 module device_m
 
   use charge_density_m,  only: charge_density, calc_charge_density
+  use contact_m,         only: CT_SCHOTTKY
   use continuity_m,      only: continuity
   use current_m,         only: current
   use current_density_m, only: current_density, calc_current_density
@@ -201,34 +202,37 @@ contains
     end if
 
     do ci = this%par%ci0, this%par%ci1
-      ! Initialize continuity with all optional physics (beam, SRH, surface SRH)
+      ! Initialize continuity with all optional physics (beam, SRH, surface SRH, Schottky efield)
       if (this%par%has_beam_gen .and. this%par%smc%srh .and. this%par%smc%surf_recom) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
           & bgen=this%bgen(ci), srh=this%srh, &
           & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
       elseif (this%par%has_beam_gen .and. this%par%smc%srh) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci), srh=this%srh)
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
+          & bgen=this%bgen(ci), srh=this%srh)
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
       elseif (this%par%has_beam_gen .and. this%par%smc%surf_recom) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
           & bgen=this%bgen(ci), &
           & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
       elseif (this%par%has_beam_gen) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), bgen=this%bgen(ci))
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
+          & bgen=this%bgen(ci))
         call this%calc_bgen(ci)%init(this%par, this%bgen(ci), this%beam_pos)
       elseif (this%par%smc%srh .and. this%par%smc%surf_recom) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
           & srh=this%srh, &
           & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
       elseif (this%par%smc%srh) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), srh=this%srh)
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
+          & srh=this%srh)
       elseif (this%par%smc%surf_recom) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), &
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield, &
           & surf_srh=this%surf_srh, surf_idx=this%calc_surf_srh%surf_idx, A_surf=this%calc_surf_srh%A_surf)
       else
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
+        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
       end if
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
@@ -300,6 +304,10 @@ contains
           call this%sys_dd(ci)%provide(this%dens(CR_ELEC), this%par%transport(IDX_VERTEX,0))
         end if
       end if
+      ! add E-field equations (needed for Schottky lagged E-field)
+      do dir = 1, this%par%g%dim
+        call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
+      end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%init_final()
