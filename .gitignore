@@ -8,6 +8,7 @@
 doc
 jobs
 CLAUDE.md
+tables
 !.gitignore
 !.gitlab-ci.yml
 !.fortls

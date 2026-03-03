@@ -1,12 +1,50 @@
 module fukushima_m
   !! Fermi-Dirac integral for different orders (without Gamma-Function prefactor!!)
 
+  use error_m, only: program_error
+  use util_m,  only: int2str
+
   implicit none
 
   private
-  public fd1h, fdm1h, fdm3h, fdm5h, fdm7h, fdm9h, dfdm9h, ifd1h
+  public fermi_dirac_integral, fd1h, fdm1h, fdm3h, fdm5h, fdm7h, fdm9h, dfdm9h, ifd1h
 
 contains
+
+  function fermi_dirac_integral(x, k) result(fd)
+    !! get k-th derivative of scaled Fermi-Dirac integral
+    real,    intent(in) :: x
+      !! argument
+    integer, intent(in) :: k
+      !! derivative (can be 0)
+    real                :: fd
+      !! return value of Fermi-Dirac integral
+
+    real, parameter :: G0 = 1.0 / gamma( 1.5)
+    real, parameter :: G1 = 1.0 / gamma( 0.5)
+    real, parameter :: G2 = 1.0 / gamma(-0.5)
+    real, parameter :: G3 = 1.0 / gamma(-1.5)
+    real, parameter :: G4 = 1.0 / gamma(-2.5)
+    real, parameter :: G5 = 1.0 / gamma(-3.5)
+
+    ! select scaled fukushima function based on k
+    select case (k)
+    case (0)
+      fd = fd1h( x) * G0
+    case (1)
+      fd = fdm1h(x) * G1
+    case (2)
+      fd = fdm3h(x) * G2
+    case (3)
+      fd = fdm5h(x) * G3
+    case (4)
+      fd = fdm7h(x) * G4
+    case (5)
+      fd = fdm9h(x) * G5
+    case default
+      call program_error("k = "//int2str(k)//" not implemented")
+    end select
+  end function
 
   real function fd1h(x)
     !! double precision rational minimax approximation of Fermi-Dirac integral of order k=1/2
