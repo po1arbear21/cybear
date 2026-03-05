@@ -118,7 +118,7 @@ contains
     character(*),         intent(in)    :: tabledir
       !! file system table directory
 
-    real, parameter :: ETA0 = -5e3, ETA1 = 5e3
+    real, parameter :: ETA0 = -1e4, ETA1 = 5e3
 
     character(255)            :: project_root
     character(:), allocatable :: fname, fdir
@@ -324,7 +324,7 @@ contains
       do j = 0, 1
         select case (k + j)
         case (0)
-          ff(j) =   t + 1
+          ff(j) =   2 * exp(B * eta) / (exp(B * eta) + 1)
         case (1)
           ff(j) =   0.5 * c
         case (2)
@@ -370,7 +370,7 @@ contains
     B = this%reg_params(2)
 
     if (this%reg .and. (F <= 0.4 * A)) then
-      eta = 2 * atanh(2 * F / A - 1) / B
+      eta = log(2 * F / A / (2 - 2 * F / A)) / B
     else
       if (this%dist == DIST_MAXWELL) then
         eta = log(F)
@@ -406,7 +406,7 @@ contains
     end if
 
     ! second safety check
-    if(.not. (ieee_is_finite(eta) .and. ieee_is_finite(detadF)) .or. (detadF <= 0)) then
+    if (.not. (ieee_is_finite(eta) .and. ieee_is_finite(detadF)) .or. (detadF <= 0)) then
       print "(A,ES25.16E3)", "F      = ", F
       print "(A,ES25.16E3)", "eta    = ", eta
       print "(A,ES25.16E3)", "detadF = ", detadF

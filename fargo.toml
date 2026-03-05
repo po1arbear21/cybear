@@ -6,6 +6,8 @@ libraries = ["BLAS95", "LAPACK95", "MPFR", "MUMPS", "ZLIB"]
 [debug]
 target    = "dd"
 args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
+runner    = "slurm"
+partition = "fast"
 templates = [
   { files = [ "run.ini" ] },
   { files = [ "devices/examples/pmosfet2D.ini" ], action="expand" }
@@ -16,28 +18,10 @@ templates = [
 target    = "dd"
 args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
 mode      = "release"
+runner    = "slurm"
+partition = "fast"
 templates = [
   { files = [ "run.ini" ] },
   { files = [ "devices/examples/pmosfet2D.ini" ], action="expand" }
 ]
 
-
-[galene_converter]
-mode = "debug"
-single = true
-target = "galene_converter"
-libraries = ["MPFR", "ZLIB"]
-args = ""
-
-templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
-
-[schottky_test]
-mode = "debug"
-target = "schottky_test"
-sources = ["lib/fortran-basic/src", "test"]
-runner = "slurm"
-partition = "faster"
-args = ""
-templates = [
-  { files = [ "devices/test/schottky_minimal.ini" ], action = "expand" }
-]
