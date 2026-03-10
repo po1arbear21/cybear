@@ -101,15 +101,15 @@ contains
     this%rho  => rho
 
     ! provides charge_density
-    iprov = this%provide(rho, tab = par%transport_vct(0))
+    iprov = this%provide(rho, tab = par%transport(IDX_VERTEX,0))
 
     ! depends on electron/hole density
     allocate (idx(par%g%idx_dim))
     do ci = par%ci0, par%ci1
-      idep = this%depend(dens(ci), tab = par%transport_vct(0))
+      idep = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
       jaco => this%init_jaco(iprov, idep, const = .true.)
-      do i = 1, par%transport_vct(0)%n
-        idx = par%transport_vct(0)%get_idx(i)
+      do i = 1, par%transport(IDX_VERTEX,0)%n
+        idx = par%transport(IDX_VERTEX,0)%get_idx(i)
         call jaco%add(idx, idx, CR_CHARGE(ci))
       end do
     end do
@@ -139,8 +139,8 @@ contains
 
     ! calculate charge density at each vertex in the transport region
     allocate (idx(this%par%g%idx_dim))
-    do i = 1, this%par%transport_vct(0)%n
-      idx = this%par%transport_vct(0)%get_idx(i)
+    do i = 1, this%par%transport(IDX_VERTEX,0)%n
+      idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! electron/hole density
       rho = 0

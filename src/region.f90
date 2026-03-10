@@ -1,6 +1,6 @@
 module region_m
 
-  use contact_m,       only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
+  use contact_m,       only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC
   use error_m,         only: program_error
   use input_m,         only: input_file
   use math_m,          only: PI
@@ -43,7 +43,7 @@ module region_m
     type(string) :: name
       !! contact name
     integer      :: type
-      !! contact type (CT_OHMIC, CT_GATE, or CT_SCHOTTKY)
+      !! contact type (CT_OHMIC, CT_GATE, CT_SCHOTTKY, or CT_REALOHMIC)
     real         :: phims
       !! metal-semiconductor workfunction difference (one value per contact)
     real         :: phi_b
@@ -60,6 +60,8 @@ module region_m
       !! tunneling effective mass ratio for electrons (m*/m0)
     real         :: m_tunnel_p
       !! tunneling effective mass ratio for holes (m*/m0)
+    real         :: vrec
+      !! metal-semiconductor recombination velocity (real ohmic contact)
   contains
     procedure :: point_test => region_contact_point_test
   end type
@@ -176,6 +178,9 @@ contains
         if (.not. st) this%m_tunnel_n = 1.0
         call file%get(sid, "m_tunnel_p", this%m_tunnel_p, status = st)
         if (.not. st) this%m_tunnel_p = 1.0
+      elseif (type%s == "realohmic") then
+        this%type = CT_REALOHMIC
+        call file%get(sid, "vrec", this%vrec)
       else
         call program_error("unknown contact type "//type%s)
       end if

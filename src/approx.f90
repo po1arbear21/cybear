@@ -5,12 +5,10 @@ module approx_m
   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
   use block_m,          only: block_real
-  use charge_density_m, only: charge_density
-  use contact_m,        only: CT_OHMIC
   use device_params_m,  only: device_params
   use error_m,          only: assert_failed, program_error
   use esystem_m,        only: esystem
-  use grid_m,           only: IDX_VERTEX, IDX_CELL, IDX_EDGE
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE
   use grid0D_m,         only: get_dummy_grid
   use imref_m,          only: imref
   use input_m,          only: input_section
@@ -18,7 +16,6 @@ module approx_m
   use math_m,           only: eye_real
   use normalization_m,  only: norm
   use pardiso_m,        only: pardiso_default_params, pardiso_real
-  use poisson_m,        only: poisson
   use potential_m,      only: potential
   use res_equation_m,   only: res_equation
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON

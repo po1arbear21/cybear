@@ -3,7 +3,7 @@ m4_include(util/macro.f90.inc)
 module device_params_m
 
   use bin_search_m,     only: bin_search
-  use contact_m,        only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
+  use contact_m,        only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC, contact
   use container_m,      only: container, STORAGE_WRITE
   use error_m,          only: assert_failed, program_error
   use galene_m,         only: gal_file, gal_block, GALDATA_CHAR, GALDATA_INT, GALDATA_REAL
@@ -60,11 +60,13 @@ module device_params_m
     class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
     class(grid_data_real), allocatable :: tr_surf(:)
-      !! adjoint volume surfaces in transport region
+      !! adjoint volume surfaces in transport region (idx_dir)
     class(grid_data_real), allocatable :: tr_vol
       !! adjoint volumes for transport region
     class(grid_data_real), allocatable :: vol
       !! adjoint volumes
+    class(grid_data_real), allocatable :: ct_surf
+      !! contact area for real ohmic contact vertices
 
     type(grid_table),      allocatable :: poisson(:,:)
       !! poisson grid tables (idx_type, idx_dir)
@@ -688,10 +690,12 @@ contains
     ! allocate/initialize grid data
     call allocate_grid_data1_real(this%tr_surf, idx_dim, 1, idx_dim)
     call allocate_grid_data0_real(this%tr_vol, idx_dim)
+    call allocate_grid_data0_real(this%ct_surf, idx_dim)
     do idx_dir = 1, idx_dim
       call this%tr_surf(idx_dir)%init(this%g, IDX_EDGE, idx_dir)
     end do
     call this%tr_vol%init(this%g, IDX_VERTEX, 0)
+    call this%ct_surf%init(this%g, IDX_VERTEX, 0)
 
     ! allocate/initialize oxide and transport grid tables
     allocate (this%oxide(4,0:this%g%idx_dim))
@@ -1130,9 +1134,9 @@ contains
 
     integer                   :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, k0, k1, kk, ri
     integer                   :: nct, nv_poiss, nv_conti
-    integer, allocatable      :: idx(:), gimat(:)
-    logical                   :: status
-    real                      :: dop(2), ii_E_dop(2), p(2)
+    integer, allocatable      :: idx(:), idx1(:), idx2(:), gimat(:)
+    logical                   :: status, stat1
+    real                      :: dop(2), idx_surf, ii_E_dop(2), p(2)
     type(string)              :: name
     type(string), allocatable :: gmat(:)
     type(gal_block), pointer  :: gblock1, gblock2, gblock3
@@ -1174,7 +1178,7 @@ contains
     allocate (this%contacts(nct))
 
     ! allocate/initialize grid data
-    allocate (idx(idx_dim))
+    allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim))
     call allocate_grid_data0_int(this%ict, idx_dim)
     call this%ict%init(this%g, IDX_VERTEX, 0)
 
@@ -1253,6 +1257,7 @@ contains
             this%contacts(ict)%m_tunnel_n     = this%reg_ct(ri)%m_tunnel_n
             this%contacts(ict)%m_tunnel_p     = this%reg_ct(ri)%m_tunnel_p
           end if
+          if (this%reg_ct(ri)%type == CT_REALOHMIC) this%contacts(ict)%vrec = this%reg_ct(ri)%vrec
           call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
           call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
           call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)
@@ -1314,8 +1319,8 @@ contains
     do ict = 1, nct
       call this%contacted(ict)%init_final()
 
-      ! set phims based on contact type
-      if (this%contacts(ict)%type == CT_OHMIC) then
+      ! set phims for ohmic contacts
+      if ((this%contacts(ict)%type == CT_OHMIC) .or. (this%contacts(ict)%type == CT_REALOHMIC)) then
         ! find vertex indices in transport region
         do i = 1, this%contacted(ict)%n
           idx = this%contacted(ict)%get_idx(i)
@@ -1357,16 +1362,60 @@ contains
     call this%oxide_vct(    0)%init_final()
     call this%transport_vct(0)%init_final()
 
+    ! make sure that contact transport vertices are never inside contact (they have at least one uncontacted neighbor)
+    do ict = 1, nct
+      do i = 1, this%transport_vct(ict)%n
+        idx = this%transport_vct(ict)%get_idx(i)
+        stat1 = .false.
+        do j = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)
+          call this%g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx, j, idx1, status)
+          if (status) stat1 = stat1 .or. this%transport_vct(0)%flags%get(idx1)
+        end do
+        if (.not. stat1) call program_error("Vertex " // int2str(i) // " in the interior domain of contact " // this%contacts(ict)%name // " part of transport region")
+      end do
+    end do
+
+    ! set contact areas for real ohmic contacts
+    do ict = 1, nct
+      if (this%contacts(ict)%type == CT_REALOHMIC) then
+        select case (this%gtype%s)
+        case ("x", "xy", "xyz", "tr_xy")
+          do i = 1, this%transport_vct(ict)%n
+            idx = this%transport_vct(ict)%get_idx(i)
+            idx_surf = 0.0
+            ! loop over adjacent faces of vertex
+            do idx_dir = 1, idx_dim
+              do j = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir)
+                call this%g%get_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir, idx, j, idx1, status)
+                if (status) then
+                  ! check if all vertices of the face are part of the contact surface
+                  stat1 = .true.
+                  do k = 1, this%g%get_max_neighb(IDX_FACE, idx_dir, IDX_VERTEX, 0)
+                    call this%g%get_neighb(IDX_FACE, idx_dir, IDX_VERTEX, 0, idx1, k, idx2, status)
+                    m4_assert(status) ! faces should always have the same number of vertices for these grid types
+                    stat1 = stat1 .and. this%transport_vct(ict)%flags%get(idx2)
+                  end do
+                  ! add part of the face area to the contact surface if all vertices are part of the contact surface
+                  if (stat1) idx_surf = idx_surf + this%g%get_surf(idx1, idx_dir) / 2.0**(this%g%dim-1)
+                end if
+              end do
+            end do
+            call this%ct_surf%set(idx, idx_surf)
+          end do
+        case ("tr_xyz")
+          call program_error("real ohmic contact surface area calculation not yet implemented for tr_xyz grid")
+        end select
+      end if
+    end do
+
     ! doping vertices
     allocate(this%dopvert(2), this%ionvert(2))
     do ci = DOP_DCON, DOP_ACON
       call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
       call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
-    end do
-    do i = 1, this%transport_vct(0)%n
-      idx = this%transport_vct(0)%get_idx(i)
+      do i = 1, this%transport(IDX_VERTEX,0)%n
+        idx = this%transport(IDX_VERTEX,0)%get_idx(i)
 
-      do ci = DOP_DCON, DOP_ACON
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
         if (dop(ci) > 0) then
           call this%dopvert(ci)%flags%set(idx, .true.)
@@ -1375,8 +1424,6 @@ contains
           end if
         end if
       end do
-    end do
-    do ci = DOP_DCON, DOP_ACON
       call this%dopvert(ci)%init_final()
       call this%ionvert(ci)%init_final()
     end do

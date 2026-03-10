@@ -40,6 +40,7 @@ program dd
   ! create list of variables for output in steady-state and transient simulations
   output_list = [string("pot")]
   if (dev%par%smc%incomp_ion .and. (dev%par%smc%ii_pf .or. dev%par%smc%ii_tun)) output_list = [output_list, string("electric_field")]
+  output_list = [output_list, string("rho")]
   do ci = dev%par%ci0, dev%par%ci1
     output_list = [output_list, string(CR_NAME(ci) // "dens")]
     output_list = [output_list, string("eta_" // CR_NAME(ci))]

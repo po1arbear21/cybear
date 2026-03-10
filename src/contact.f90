@@ -15,12 +15,13 @@ module contact_m
   implicit none
 
   private
-  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
+  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC, contact
 
   ! contact types
-  integer, parameter :: CT_OHMIC    = 1
-  integer, parameter :: CT_GATE     = 2
-  integer, parameter :: CT_SCHOTTKY = 3
+  integer, parameter :: CT_OHMIC     = 1
+  integer, parameter :: CT_GATE      = 2
+  integer, parameter :: CT_SCHOTTKY  = 3
+  integer, parameter :: CT_REALOHMIC = 4
 
   type contact
     !! device contact
@@ -28,7 +29,7 @@ module contact_m
     character(:), allocatable :: name
       !! contact name
     integer                   :: type
-      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY)
+      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC)
     real                      :: phims
       !! metal-semiconductor workfunction difference
     real                      :: phi_b
@@ -46,6 +47,8 @@ module contact_m
       !! tunneling effective mass ratio for electrons (m*/m0)
     real                      :: m_tunnel_p = 1.0
       !! tunneling effective mass ratio for holes (m*/m0)
+    real                      :: vrec
+      !! metal-semiconductor recombination velocity (real ohmic contact)
   contains
     procedure :: set_phims_ohmic    => contact_set_phims_ohmic
     procedure :: set_phims_schottky => contact_set_phims_schottky
