@@ -144,6 +144,7 @@ contains
 
     inf = ieee_value(inf, IEEE_POSITIVE_INF)
     if ((this%dist == DIST_FERMI) .and. (this%dos /= DOS_PARABOLIC)) then
+      print "(A)", "generate Ftab for distribution function"
       do k = lbound(this%Ftab, 1), ubound(this%Ftab, 1)
         fname = "dist_" // int2str(this%dos) // int2str(this%dist) // "_" // int2str(k)
         call this%Ftab(k)%init(fdir, fname, ETA0, ETA1, Z_dist, [-inf, inf], 1e-12, 1e-15, 1e-6)
@@ -151,11 +152,11 @@ contains
     end if
 
     if ((this%dist /= DIST_MAXWELL) .or. this%reg) then
+      print "(A)", "generate Itab for generalized Scharfetter-Gummel"
       do k = -5, 5
         if (k == 0) cycle
-        fname = "I_" // int2str(this%dos) // int2str(this%dist) // "_" // int2str(k)
         p(1) = k
-        call this%Itab(k)%init(fdir, fname, ETA0, ETA1, 3, Fk, p, 5e-15, 0.0, 1e-10)
+        call this%Itab(k)%init(ETA0, ETA1, 3, Fk, p, 5e-15, 0.0, 1e-10)
       end do
     end if
 

@@ -63,9 +63,6 @@ module lookup_table_m
     !! lookup table for definite integrals
     !! q(a,b) = integral_{a}^{b} f(x) dx
 
-    character(:), allocatable :: name
-      !! name for loading and saving
-
     integer              :: ng
       !! number of gauss-legendre nodes
     real,    allocatable :: xg(:)
@@ -85,8 +82,6 @@ module lookup_table_m
   contains
     procedure :: init => def_int_table_init
     procedure :: get  => def_int_table_get
-    procedure :: load => def_int_table_load
-    procedure :: save => def_int_table_save
 
     procedure, private :: gauss => def_int_table_gauss
   end type
@@ -106,7 +101,7 @@ module lookup_table_m
 
 contains
 
-  subroutine par_int_table_init(this, dir, name, xmin, xmax, f, bnd, rtol, atol, xtol)
+  subroutine par_int_table_init(this, dir, name, xmin, xmax, f, bnd, rtol, atol, xtol, logging)
     class(par_int_table), intent(out) :: this
     character(*),         intent(in)  :: dir
       !! directory
@@ -126,13 +121,15 @@ contains
       !! absolute error tolerance
     real,                 intent(in)  :: xtol
       !! minimum interval size for x
+    logical, optional,    intent(in)  :: logging
+      !! enable/disable logging (default false)
 
     integer, parameter :: MIN_LVL = 10
 
     integer                     :: lvl, max_lvl, i, i1, i2, ithread, n, n0, nthreads
     integer,        allocatable :: ns(:), nt(:)
     integer(int64), allocatable :: perm(:)
-    logical                     :: status, l1
+    logical                     :: log_, status, l1
     real                        :: dx, x, q, d, q1, q2, e1, e2, sgn
     type(vector_real)           :: gx, tx, gq, tq, gd, td
     type(vector_log)            :: gl, tl
@@ -143,7 +140,10 @@ contains
     call this%load(dir, xmin, xmax, bnd, rtol, atol, xtol, status)
     if (status) return
 
-    print "(2A)", "Generating table ", name
+    log_ = .false.
+    if (present(logging)) log_ = logging
+
+    if (log_) print "(2A)", "Generating table ", name
 
     max_lvl = max(ceiling(log((xmax - xmin) / xtol) / log(2.0)), MIN_LVL)
 
@@ -176,7 +176,7 @@ contains
       ns = 0
       nt = 0
 
-      print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
+      if (log_) print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
 
       !$omp parallel default(none) &
       !$omp private(i,i1,i2,ithread,l1,dx,x,q,d,q1,q2,e1,e2,sgn,tx,tq,td,tl,ts) &
@@ -287,7 +287,7 @@ contains
       if (gs%n == 0) exit
     end do
 
-    if (gs%n > 0) print *, "Warning: some intervals are imprecise"
+    if (log_ .and. gs%n > 0) print *, "Warning: some intervals are imprecise"
 
     this%x = gx%to_array()
     this%q = gq%to_array()
@@ -629,12 +629,8 @@ contains
     close (funit)
   end subroutine
 
-  subroutine def_int_table_init(this, dir, name, xmin, xmax, ng, intg, p, rtol, atol, xtol)
+  subroutine def_int_table_init(this, xmin, xmax, ng, intg, p, rtol, atol, xtol, logging)
     class(def_int_table), intent(out) :: this
-    character(*),         intent(in)  :: dir
-      !! directory
-    character(*),         intent(in)  :: name
-      !! name for loading and saving
     real,                 intent(in)  :: xmin
       !! minimal supported x
     real,                 intent(in)  :: xmax
@@ -651,18 +647,22 @@ contains
       !! absolute error tolerance
     real,                 intent(in)  :: xtol
       !! minimum interval size for x
+    logical, optional,    intent(in)  :: logging
+      !! enable/disable logging (default false)
 
     integer, parameter :: MIN_LVL = 10
 
     integer              :: lvl, max_lvl, i, i1, i2, i3, iq, iq0, ithread, n, nx0, nq0, nthreads
     integer, allocatable :: ns(:), nt(:)
-    logical              :: status
+    logical              :: log_
     real                 :: dx, x, d1, d2, q, q1, q2, dqdp(size(p)), err
     type(vector_real)    :: gx, tx, gq, tq
     type(vector_int)     :: gs, ts, gi
 
+    log_ = .false.
+    if (present(logging)) log_ = logging
+
     ! set members
-    this%name =  name
     this%ng   = ng
     this%p    =  p
 
@@ -684,11 +684,7 @@ contains
       call program_error("ng must be between 1 and 4")
     end select
 
-    ! try to load table from file
-    call this%load(dir, xmin, xmax, rtol, atol, xtol, status)
-    if (status) return
-
-    print "(2A)", "Generating table ", name
+    if(log_) print "(2A)", "Generating def_int_table"
 
     max_lvl = max(ceiling(log((xmax - xmin) / xtol) / log(2.0)), MIN_LVL)
 
@@ -715,7 +711,7 @@ contains
       ns  = 0
       nt  = 0
 
-      print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
+      if(log_) print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
 
       !$omp parallel default(none) &
       !$omp private(i,i1,i2,iq,ithread,dx,x,d1,d2,q,q1,q2,dqdp,err,tx,tq,ts) &
@@ -811,7 +807,7 @@ contains
       if (gs%n == 0) exit
     end do
 
-    if (gs%n > 0) print *, "Warning: some intervals are imprecise"
+    if (log_ .and. gs%n > 0) print *, "Warning: some intervals are imprecise"
 
     ! delete q values of upper levels
     call gs%resize(0)
@@ -870,9 +866,6 @@ contains
     this%x = gx%to_array()
     this%q = gq%to_array()
     this%i = gi%to_array()
-
-    ! save
-    call this%save(dir, xmin, xmax, rtol, atol, xtol)
   end subroutine
 
   recursive subroutine def_int_table_get(this, intg, a, b, rtol, q, dqda, dqdb)
@@ -1018,100 +1011,6 @@ contains
         q = q + this%q(iq - 1)
       end if
     end do
-  end subroutine
-
-  subroutine def_int_table_load(this, dir, xmin, xmax, rtol, atol, xtol, status)
-    !! load definite integral table from file
-    class(def_int_table), intent(inout) :: this
-    character(*),         intent(in)    :: dir
-      !! directory
-    real,                 intent(in)    :: xmin
-      !! minimal supported x
-    real,                 intent(in)    :: xmax
-      !! maximal supported x
-    real,                 intent(in)    :: rtol
-      !! relative error tolerance
-    real,                 intent(in)    :: atol
-      !! absolute error tolerance
-    real,                 intent(in)    :: xtol
-      !! minimum interval size for x
-    logical,              intent(out)   :: status
-      !! success (true) or fail (false)
-
-    character(:), allocatable :: tmp
-    character(32)             :: fmt
-    character(256)            :: fname
-    integer(int32)            :: h
-    integer                   :: n, funit, nx, nq, ni
-
-    status = .false.
-
-    ! filename
-    n = 5 + size(this%p)
-    write (fmt, "(A,I0,A)") "(", n, "ES24.16E3,I1)"
-    n = n * 41 + 1
-    allocate (character(len=n) :: tmp)
-    write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash32(tmp) ! hash parameters to get unique name
-    write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
-
-    ! check if file exists
-    inquire (file = fname, exist = status)
-    if (.not. status) return
-
-    ! load
-    open (newunit = funit, file = fname, status = "old", action = "read", form = "unformatted")
-    read (funit) nx
-    read (funit) nq
-    read (funit) ni
-    allocate (this%x(nx), this%q(nq), this%i(ni))
-    read (funit) this%x
-    read (funit) this%q
-    read (funit) this%i
-    close (funit)
-    status = .true.
-  end subroutine
-
-  subroutine def_int_table_save(this, dir, xmin, xmax, rtol, atol, xtol)
-    !! save definite integral table to file
-    class(def_int_table), intent(in) :: this
-    character(*),         intent(in) :: dir
-      !! directory
-    real,                 intent(in) :: xmin
-      !! minimal supported x
-    real,                 intent(in) :: xmax
-      !! maximal supported x
-    real,                 intent(in) :: rtol
-      !! relative error tolerance
-    real,                 intent(in) :: atol
-      !! absolute error tolerance
-    real,                 intent(in) :: xtol
-      !! minimum interval size for x
-
-    character(:), allocatable :: tmp
-    character(32)             :: fmt
-    character(256)            :: fname
-    integer(int32)            :: h
-    integer                   :: n, funit
-
-    ! filename
-    n = 5 + size(this%p)
-    write (fmt, "(A,I0,A)") "(", n, "ES24.16E3,I1)"
-    n = n * 41 + 1
-    allocate (character(len=n) :: tmp)
-    write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash32(tmp) ! hash parameters to get unique name
-    write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
-
-    ! load
-    open (newunit = funit, file = fname, status = "replace", action = "write", form = "unformatted")
-    write (funit) size(this%x)
-    write (funit) size(this%q)
-    write (funit) size(this%i)
-    write (funit) this%x
-    write (funit) this%q
-    write (funit) this%i
-    close (funit)
   end subroutine
 
   subroutine def_int_table_gauss(this, intg, a, b, q, dqda, dqdb)
