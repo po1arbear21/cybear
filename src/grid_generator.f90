@@ -9,6 +9,7 @@ module grid_generator_m
   use grid_m,        only: grid, grid_ptr
   use grid1D_m,      only: grid1D
   use input_m,       only: input_file
+  use string_m,      only: string
   use tensor_grid_m, only: tensor_grid
   use triang_grid_m, only: triang_grid
   ! m4_ifdef({m4_triangle},{
@@ -67,10 +68,12 @@ contains
     integer,              intent(inout) :: ngptr
       !! number of already used gptr entries (gets increased by 1)
 
+    logical                       :: status
     real                          :: max_dx
     real,             allocatable :: x0(:), x(:)
     type(gal_block),  pointer     :: gblock
     type(refinement), allocatable :: ref(:)
+    type(string)                  :: unit
 
     ! load or generate axis
     if (load) then
@@ -90,8 +93,15 @@ contains
       x   = generate_axis(x0, max_dx, ref)
     end if
 
+    ! get output unit
+    call file%get("grid", DIR_NAME(dir)//"unit", unit, status = status)
+
     ! initialize grid
-    call g1D%init(DIR_NAME(dir), x)
+    if (status) then
+      call g1D%init(DIR_NAME(dir), x, unit = unit%s)
+    else
+      call g1D%init(DIR_NAME(dir), x)
+    end if
 
     ! update pointer list
     ngptr         =  ngptr + 1
