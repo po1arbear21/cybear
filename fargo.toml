@@ -25,3 +25,14 @@ templates = [
   { files = [ "devices/examples/pmosfet2D.ini" ], action="expand" }
 ]
 
+[test]
+target    = "test"
+sources   = ["test"]
+templates = [
+  { files = [ "test/devices/cap1D.ini" ] },
+  { files = [ "test/devices/cap1DpermShift.ini" ] },
+  { files = [ "test/devices/1Dtransport.ini" ] },
+  { files = [ "test/devices/cap2D.ini" ] },
+  { files = [ "test/devices/2Dtransport.ini" ] },
+  { files = [ "test/devices/cap3D.ini" ] }
+]

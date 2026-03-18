@@ -72,10 +72,10 @@ module device_params_m
       !! oxide grid tables (idx_type, idx_dir)
     type(grid_table),      allocatable :: transport(:,:)
       !! transport grid tables (idx_type, idx_dir)
-    type(grid_table)                   :: dopvert(2)
+    type(grid_table),      allocatable :: dopvert(:) ! allocatable prevents compiler bug
       !! uncontacted transport vertices with doping > 0 (donor, acceptor)
-    type(grid_table)                   :: ionvert(2)
-      !! uncontacted transport vertices with partial ionization enabled
+    type(grid_table),      allocatable :: ionvert(:) ! allocatable prevents compiler bug
+      !! uncontacted transport vertices with partial ionization enabled (donor, acceptor)
     type(contact),         allocatable :: contacts(:)
       !! device contacts
     type(map_string_int)               :: contact_map
@@ -222,7 +222,7 @@ contains
     call this%init_contacts()
 
     ! output
-    call ctnr%open("device.fbs", flag = STORAGE_WRITE)
+    call ctnr%open(file%name(1:index(file%name,".ini")-1)//".fbs", flag = STORAGE_WRITE)
     ! grid
     call ctnr%save(this%g)
     ! permittivity on cells and vertices
@@ -1358,6 +1358,7 @@ contains
     call this%transport_vct(0)%init_final()
 
     ! doping vertices
+    allocate(this%dopvert(2), this%ionvert(2))
     do ci = DOP_DCON, DOP_ACON
       call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
       call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
