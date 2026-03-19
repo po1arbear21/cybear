@@ -241,7 +241,7 @@ contains
     dpot = - ch * (pot(2) - pot(1))
     n    = dens / edos
 
-    if (smc%dist == DIST_MAXWELL) then
+    if (smc%dist == DIST_MAXWELL .and. (.not. smc%reg)) then
       ! non-degenerate case: always use Scharfetter-Gummel
       call this%get_curr_sg(n, dpot, j, djdn, djddpot)
     else
