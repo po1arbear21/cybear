@@ -30,6 +30,7 @@ module grid_generator_m
 
    ! parameters
   character(*), parameter :: DIR_NAME(3)  = [ "x", "y", "z"]
+  real,         parameter :: TOL          = 1e-10
 
   type refinement
     integer :: dir
@@ -165,7 +166,7 @@ contains
     do i = 1, size(sids)
       j = j + 1
       call tmp(j)%init(file, sids(i))
-      if (tmp(j)%dir /= dim) j = j - 1
+      if (tmp(j)%dir /= dim .or. abs(tmp(j)%x(1) - tmp(j)%x(2)) < TOL) j = j - 1
     end do
 
     x1 = tmp(1:j)%x(1)
@@ -204,8 +205,6 @@ contains
     real,             intent(in) :: dx
     type(refinement), intent(in) :: ref(:)
     real, allocatable            :: x(:)
-
-    real, parameter :: TOL = 1e-10
 
     real              :: xm
     real, allocatable :: xtmp(:), xx(:)
