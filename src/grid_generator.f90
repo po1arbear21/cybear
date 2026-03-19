@@ -272,7 +272,7 @@ contains
       this%dir = dir
 
       if (size(tmp) /= 2) call program_error("coordinates must have size 2")
-      if (tmp(2) <= tmp(1)) tmp = tmp([2,1])
+      if (tmp(2) < tmp(1)) call program_error("refinement bounds must be ascending")
       this%x = tmp
 
       call file%get(sid, "d"//DIR_NAME(dir), tmp, status = status)
