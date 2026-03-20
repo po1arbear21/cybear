@@ -39,6 +39,9 @@ module semiconductor_m
     !! exact (numerical) solution of integral equation (thermodynamically consistent)
 
   type semiconductor
+    integer :: ci0, ci1
+      !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
+
     real :: edos(2)
       !! effective density of states Nc, Nv
     real :: band_gap
@@ -63,18 +66,11 @@ module semiconductor_m
     type(def_int_table)      :: Itab(-5:5)
       !! integral_0^{eta} F(eta')^k deta'; k = -5 to 5
 
-    logical           :: mob
+    !! velocity saturation parameters (Caughey-Thomas model)
+    logical           :: mob_sat
       !! enable/disable mobility saturation
-    real, allocatable :: alpha(:)
-      !! Caughey-Thomas alpha parameter
     real, allocatable :: beta(:)
       !! Caughey-Thomas beta parameter
-    real, allocatable :: mob_min(:)
-      !! Caughey-Thomas minimal mobility
-    real, allocatable :: mob_max(:)
-      !! Caughey-Thomas maximal mobility
-    real, allocatable :: N_ref(:)
-      !! Caughey-Thomas reference density
     real, allocatable :: v_sat(:)
       !! Caughey-Thomas saturation velocity
 

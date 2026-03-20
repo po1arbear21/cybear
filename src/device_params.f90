@@ -41,8 +41,6 @@ module device_params_m
     real :: T
       !! temperature in K
 
-    integer             :: ci0, ci1
-      !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
     type(semiconductor) :: smc
       !! semiconductor charge carrier parameters
 
@@ -147,6 +145,7 @@ module device_params_m
     procedure, private :: init_grid              => device_params_init_grid
     procedure, private :: init_poisson           => device_params_init_poisson
     procedure, private :: init_transport         => device_params_init_transport
+    procedure, private :: init_contact_tables    => device_params_init_contact_tables
     procedure, private :: init_doping            => device_params_init_doping
     procedure, private :: init_mobility          => device_params_init_mobility
     procedure, private :: init_contacts          => device_params_init_contacts
@@ -180,8 +179,8 @@ contains
     m4_assert(status <= 0) ! at most one galene sections allowed
     this%gal = (status == 0)
     if (this%gal) then
-      ! only transport params and galene section allowed
-      m4_assert(file%sections%n == 2)
+      ! only galene, geometry, semiconductor, (incomplete ionization) and bulk mobility sections allowed
+      m4_assert(file%sections%n == 4 .or. file%sections%n == 5)
 
       ! load galene file
       call file%get(gal_sid, "file", gal_filename)
@@ -219,8 +218,9 @@ contains
     call this%init_grid(file)
     call this%init_poisson()
     call this%init_transport()
+    call this%init_contact_tables()
     call this%init_doping(file)
-    call this%init_mobility()
+    call this%init_mobility(file)
     call this%init_contacts()
 
     ! output
@@ -230,7 +230,7 @@ contains
     ! permittivity on cells and vertices
     call ctnr%save("perm_cell", this%eps(IDX_CELL, 0), unit = "eps0")
     call ctnr%save("perm_vert", this%eps(IDX_VERTEX, 0), unit = "eps0")
-    do ci = this%ci0, this%ci1
+    do ci = this%smc%ci0, this%smc%ci1
       ! doping on cells
       call ctnr%save(DOP_NAME(ci)//"con_cell", this%dop(IDX_CELL, 0, ci), unit = "cm^-3")
       ! doping on vertices
@@ -257,24 +257,28 @@ contains
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer      :: sid
+    integer      :: sid, stat
     logical      :: elec, hole, status
     type(string) :: dos, dist, tabledir, stab
 
-    ! find transport parameters section id
-    call file%get_section("transport parameters", sid)
+    ! ============================================= device geometry factor =============================================
+    call file%get_section("geometry", sid)
+    call file%get(sid, "curr_fact", this%curr_fact)
+
+    ! ============================================ semiconductor parameters ============================================
+    call file%get_section("semiconductor", sid)
 
     ! general parameters
     call file%get(sid, "electrons", elec)
     call file%get(sid, "holes",     hole)
-    this%ci0 = CR_ELEC
-    this%ci1 = CR_HOLE
-    if (.not. elec) this%ci0 = CR_HOLE
-    if (.not. hole) this%ci1 = CR_ELEC
-    call file%get(sid, "N_c0",       this%smc%edos(CR_ELEC))
-    call file%get(sid, "N_v0",       this%smc%edos(CR_HOLE))
+    this%smc%ci0 = CR_ELEC
+    this%smc%ci1 = CR_HOLE
+    if (.not. elec) this%smc%ci0 = CR_HOLE
+    if (.not. hole) this%smc%ci1 = CR_ELEC
+    call file%get(sid, "N_c0", this%smc%edos(CR_ELEC))
+    call file%get(sid, "N_v0", this%smc%edos(CR_HOLE))
     this%smc%edos(:) = this%smc%edos(:) * this%T ** 1.5
-    call file%get(sid, "E_gap",      this%smc%band_gap)
+    call file%get(sid, "E_gap", this%smc%band_gap)
     this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
     this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
 
@@ -329,47 +333,45 @@ contains
     end select
     call this%smc%init_dist(tabledir%s)
 
-    ! mobility
-    call file%get(sid, "mob",        this%smc%mob)
-    call file%get(sid, "alpha",      this%smc%alpha)
-    call file%get(sid, "beta",       this%smc%beta)
-    call file%get(sid, "mob_min",    this%smc%mob_min)
-    call file%get(sid, "mob_max",    this%smc%mob_max)
-    call file%get(sid, "N_ref",      this%smc%N_ref)
-    call file%get(sid, "v_sat",      this%smc%v_sat)
-
-    call file%get(sid, "curr_fact",  this%curr_fact)
-
-    ! incomplete ionization
-    call file%get(sid, "incomp_ion",   this%smc%incomp_ion)
-    call file%get(sid, "ii_tau",       this%smc%ii_tau)
-    call file%get(sid, "ii_E_dop0",    this%smc%ii_E_dop0)
-    call file%get(sid, "ii_g",         this%smc%ii_g)
-    call file%get(sid, "ii_N_crit",    this%smc%ii_N_crit)
-    call file%get(sid, "ii_dop_th",    this%smc%ii_dop_th)
-    call file%get(sid, "ii_pf",        this%smc%ii_pf)
-    if (this%smc%ii_pf) then
-      call file%get(sid, "ii_ef_min",  this%smc%ii_ef_min)
-      call file%get(sid, "ii_pf_a",    this%smc%ii_pf_a)
-    end if
-    call file%get(sid, "ii_tun",       this%smc%ii_tun)
-    if (this%smc%ii_tun) then
-      call file%get(sid, "ii_tau_tun", this%smc%ii_tau_tun)
-      call file%get(sid, "ii_m_tun",   this%smc%ii_m_tun)
-      call file%get(sid, "ii_ef_min",  this%smc%ii_ef_min)
-    end if
-
     ! make sure parameters are valid
-    m4_assert(this%ci0 <= this%ci1)
-    m4_assert(size(this%smc%alpha)     == 2)
-    m4_assert(size(this%smc%beta)      == 2)
-    m4_assert(size(this%smc%mob_min)   == 2)
-    m4_assert(size(this%smc%mob_max)   == 2)
-    m4_assert(size(this%smc%N_ref)     == 2)
-    m4_assert(size(this%smc%v_sat)     == 2)
-    m4_assert(size(this%smc%ii_tau)    == 2)
-    m4_assert(size(this%smc%ii_E_dop0) == 2)
-    m4_assert(size(this%smc%ii_g)      == 2)
+    m4_assert(this%smc%ci0 <= this%smc%ci1)
+
+    ! ============================================= incomplete ionization ==============================================
+    call file%get_section("incomplete ionization", sid, stat)
+    if (stat > 0) then
+      call program_error("multiple incomplete ionization sections found")
+    elseif (stat == -1) then
+      this%smc%incomp_ion = .false.
+    else
+      call file%get(sid, "incomp_ion",   this%smc%incomp_ion)
+    end if
+
+    if (this%smc%incomp_ion) then
+      call file%get(sid, "tau",       this%smc%ii_tau)
+      call file%get(sid, "E_dop0",    this%smc%ii_E_dop0)
+      call file%get(sid, "g",         this%smc%ii_g)
+      call file%get(sid, "N_crit",    this%smc%ii_N_crit)
+      call file%get(sid, "dop_th",    this%smc%ii_dop_th)
+      call file%get(sid, "pf",        this%smc%ii_pf)
+      if (this%smc%ii_pf) then
+        call file%get(sid, "ef_min",  this%smc%ii_ef_min)
+        call file%get(sid, "pf_a",    this%smc%ii_pf_a)
+      end if
+      call file%get(sid, "tun",       this%smc%ii_tun)
+      if (this%smc%ii_tun) then
+        call file%get(sid, "tau_tun", this%smc%ii_tau_tun)
+        call file%get(sid, "m_tun",   this%smc%ii_m_tun)
+        call file%get(sid, "ef_min",  this%smc%ii_ef_min)
+      end if
+
+      ! make sure parameters are valid
+      m4_assert(size(this%smc%ii_tau)    == 2)
+      m4_assert(size(this%smc%ii_E_dop0) == 2)
+      m4_assert(size(this%smc%ii_g)      == 2)
+      m4_assert(size(this%smc%ii_N_crit) == 2)
+      m4_assert(size(this%smc%ii_dop_th) == 2)
+    end if
+
   end subroutine
 
   subroutine device_params_init_regions(this, file)
@@ -690,12 +692,10 @@ contains
     ! allocate/initialize grid data
     call allocate_grid_data1_real(this%tr_surf, idx_dim, 1, idx_dim)
     call allocate_grid_data0_real(this%tr_vol, idx_dim)
-    call allocate_grid_data0_real(this%ct_surf, idx_dim)
     do idx_dir = 1, idx_dim
       call this%tr_surf(idx_dir)%init(this%g, IDX_EDGE, idx_dir)
     end do
     call this%tr_vol%init(this%g, IDX_VERTEX, 0)
-    call this%ct_surf%init(this%g, IDX_VERTEX, 0)
 
     ! allocate/initialize oxide and transport grid tables
     allocate (this%oxide(4,0:this%g%idx_dim))
@@ -818,6 +818,232 @@ contains
     print "(A,I0)", "#(Transport vertices): ", this%transport(IDX_VERTEX,0)%n
   end subroutine
 
+  subroutine device_params_init_contact_tables(this)
+    class(device_params), intent(inout) :: this
+
+    integer                   :: dim, idx_dim, i, i0(3), i1(3), ict, ict0, idx_dir, ijk(3), j, k, k0, k1, kk, ri
+    integer                   :: nct, nv_poiss, nv_conti
+    integer, allocatable      :: idx(:), idx1(:), gimat(:)
+    logical                   :: status, stat1
+    real                      :: p(2)
+    type(string)              :: name
+    type(string), allocatable :: gmat(:)
+    type(gal_block), pointer  :: gblock1, gblock2, gblock3
+
+    print "(A)", "init_contact_tables"
+
+    ! abbreviations
+    dim     = this%g%dim
+    idx_dim = this%g%idx_dim
+
+    ! get all contact names and number of contacts (nct)
+    call this%contact_map%init()
+    nct = 0
+    if (this%gal) then
+      allocate (gmat(this%gal_mat%nodes%n), gimat(this%gal_mat%nodes%n))
+      call this%gal_mat%to_array(keys = gmat, values = gimat)
+      do i = 1, size(gmat)
+        if ((gmat(i)%s == "SIL") .or. (gmat(i)%s == "OX")) cycle
+
+        ! new contact
+        nct = nct + 1
+        call this%contact_map%set(gmat(i), nct)
+      end do
+    else
+      do ri = 1, size(this%reg_ct)
+        ! search for contact name in map
+        call this%contact_map%get(this%reg_ct(ri)%name, ict, status = status)
+
+        ! do nothing if name already exists
+        if (status) cycle
+
+        ! new contact
+        nct = nct + 1
+        call this%contact_map%set(this%reg_ct(ri)%name, nct)
+      end do
+    end if
+
+    this%nct = nct
+    allocate (this%contacts(nct))
+
+    ! allocate/initialize grid data
+    allocate (idx(idx_dim), idx1(idx_dim))
+    call allocate_grid_data0_int(this%ict, idx_dim)
+    call this%ict%init(this%g, IDX_VERTEX, 0)
+
+    ! init contacts
+    allocate (this%contacted(nct))
+    if (this%gal) then
+      gblock1 => this%gal_fl%get_block("#vertex(contact,poisson)")
+      gblock2 => this%gal_fl%get_block("#vertex(contact,continuity)")
+      gblock3 => this%gal_fl%get_block("vertex(contact,poisson)")
+      k1 = 0
+      do i = 1, size(gmat)
+        do j = 1, size(gimat)
+          if (gimat(j) == i) exit
+        end do
+        if ((gmat(j)%s == "SIL") .or. (gmat(j)%s == "OX")) cycle
+        call this%contact_map%get(gmat(j), ict)
+
+        !i: gal contact order
+        !j: gimat contact order
+        !ict: this contact order
+
+        ! number of vertices
+        nv_poiss = gblock1%idata(i)
+        nv_conti = gblock2%idata(i)
+
+        this%contacts(ict)%name = gmat(j)%s
+        if (nv_conti == 0) then
+          this%contacts(ict)%type = CT_GATE
+        else
+          this%contacts(ict)%type = CT_OHMIC
+        end if
+        this%contacts(ict)%phims = this%gal_phims
+
+        call this%contacted(ict)%init("contacted_"//this%contacts(ict)%name, this%g, IDX_VERTEX, 0)
+
+        k0 = k1 + 1
+        k1 = k1 + nv_poiss
+        do k = k0, k1
+          kk = gblock3%idata(k)
+          idx(1) = mod(kk-1, this%g1D(1)%n) + 1
+          idx(2) = (kk - idx(1)) / this%g1D(1)%n + 1
+          call this%ict%set(idx, ict)
+          call this%contacted(ict)%flags%set(idx, .true.)
+        end do
+      end do
+    else
+      i0 = 1
+      i1 = 1
+      do ri = 1, size(this%reg_ct)
+        ! get contact name, index and type
+        name = this%reg_ct(ri)%name
+        call this%contact_map%get(name, ict)
+
+        ! create new contact if name is encountered for the first time
+        if (.not. allocated(this%contacts(ict)%name)) then
+          this%contacts(ict)%name  = name%s
+          this%contacts(ict)%type  = this%reg_ct(ri)%type
+          this%contacts(ict)%phims = this%reg_ct(ri)%phims
+          if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
+            this%contacts(ict)%phi_b          = this%reg_ct(ri)%phi_b
+            this%contacts(ict)%A_richardson_n = this%reg_ct(ri)%A_richardson_n
+            this%contacts(ict)%A_richardson_p = this%reg_ct(ri)%A_richardson_p
+            this%contacts(ict)%ifbl           = this%reg_ct(ri)%ifbl
+            this%contacts(ict)%tunneling      = this%reg_ct(ri)%tunneling
+            this%contacts(ict)%m_tunnel_n     = this%reg_ct(ri)%m_tunnel_n
+            this%contacts(ict)%m_tunnel_p     = this%reg_ct(ri)%m_tunnel_p
+          end if
+          if (this%contacts(ict)%type == CT_REALOHMIC) this%contacts(ict)%vrec  = this%reg_ct(ri)%vrec
+          call this%contacted(ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
+        elseif (this%contacts(ict)%type /= this%reg_ct(ri)%type) then
+          call program_error("contact "//name%s//" given multiple times with different types")
+        end if
+
+        select case (this%gtype%s)
+        case("x", "xy", "xyz")
+          ! get bounds
+          do idx_dir = 1, idx_dim
+            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 1))
+            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 2))
+          end do
+
+          ! update vertex tables
+          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
+            ijk  = [i, j, k]
+            idx  = ijk(1:idx_dim)
+            ict0 = this%ict%get(idx)
+            if ((ict0 /= 0) .and. (ict0 /= ict)) then
+              call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
+            end if
+            call this%ict%set(idx, ict)
+            call this%contacted(ict)%flags%set(idx, .true.)
+          end do; end do; end do
+
+        case ("tr_xy", "tr_xyz")
+          ! get z bounds
+          if (dim == 3) then
+            i0(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,1))
+            i1(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,2))
+          end if
+
+          ! loop over triangle grid vertices
+          do i = 1, this%gtr%nvert
+            ! test if vertex belongs to contact surface
+            call this%gtr%get_vertex([i], p)
+            if (.not. this%reg_ct(ri)%point_test(string("tr_xy"), p)) cycle
+
+            ! loop over z direction
+            do k = i0(3), i1(3)
+              ijk(1:2) = [i, k]
+              idx      = ijk(1:idx_dim)
+              ict0     = this%ict%get(idx)
+              if ((ict0 /= 0) .and. (ict0 /= ict)) then
+                call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
+              end if
+              call this%ict%set(idx, ict)
+              call this%contacted(ict)%flags%set(idx, .true.)
+            end do
+          end do
+        end select
+      end do
+    end if
+
+    ! finish initialization of contacts
+    do ict = 1, nct
+      call this%contacted(ict)%init_final()
+    end do
+
+    ! create vertex grid tables grouped by contact
+    allocate (this%poisson_vct(0:nct), this%oxide_vct(0:nct), this%transport_vct(0:nct))
+    call this%poisson_vct(  0)%init("poisson_VCT0",   this%g, IDX_VERTEX, 0)
+    call this%oxide_vct(    0)%init("oxide_VCT0",     this%g, IDX_VERTEX, 0)
+    call this%transport_vct(0)%init("transport_VCT0", this%g, IDX_VERTEX, 0)
+    this%poisson_vct(  0)%flags = this%poisson(  IDX_VERTEX,0)%flags
+    this%oxide_vct(    0)%flags = this%oxide(    IDX_VERTEX,0)%flags
+    this%transport_vct(0)%flags = this%transport(IDX_VERTEX,0)%flags
+    do ict = 1, nct
+      call this%poisson_vct(  ict)%init("poisson_VCT_"//this%contacts(ict)%name, this%g, IDX_VERTEX, 0)
+      call this%oxide_vct(    ict)%init("oxide_VCT_"//this%contacts(ict)%name, this%g, IDX_VERTEX, 0)
+      call this%transport_vct(ict)%init("transport_VCT_"//this%contacts(ict)%name, this%g, IDX_VERTEX, 0)
+      do i = 1, this%contacted(ict)%n
+        idx = this%contacted(ict)%get_idx(i)
+        if (this%poisson(IDX_VERTEX,0)%flags%get(idx)) then
+          call this%poisson_vct(ict)%flags%set(idx, .true. )
+          call this%poisson_vct(  0)%flags%set(idx, .false.)
+        end if
+        if (this%oxide(IDX_VERTEX,0)%flags%get(idx)) then
+          call this%oxide_vct(ict)%flags%set(idx, .true. )
+          call this%oxide_vct(  0)%flags%set(idx, .false.)
+        end if
+        if (this%transport(IDX_VERTEX,0)%flags%get(idx)) then
+          call this%transport_vct(ict)%flags%set(idx, .true. )
+          call this%transport_vct(  0)%flags%set(idx, .false.)
+        end if
+      end do
+      call this%poisson_vct(  ict)%init_final()
+      call this%oxide_vct(    ict)%init_final()
+      call this%transport_vct(ict)%init_final()
+    end do
+    call this%poisson_vct(  0)%init_final()
+    call this%oxide_vct(    0)%init_final()
+    call this%transport_vct(0)%init_final()
+
+    ! make sure that contact transport vertices are never inside contact (they have at least one uncontacted neighbor)
+    do ict = 1, nct
+      do i = 1, this%transport_vct(ict)%n
+        idx = this%transport_vct(ict)%get_idx(i)
+        stat1 = .false.
+        do j = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)
+          call this%g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx, j, idx1, status)
+          if (status) stat1 = stat1 .or. this%transport_vct(0)%flags%get(idx1)
+        end do
+        if (.not. stat1) call program_error("Vertex " // int2str(i) // " in the interior domain of contact " // this%contacts(ict)%name // " part of transport region")
+      end do
+    end do
+  end subroutine
+
   subroutine device_params_init_doping(this, file)
     class(device_params), intent(inout) :: this
     type(input_file),     intent(in)    :: file
@@ -842,7 +1068,6 @@ contains
 
     ! allocate/initialize grid data
     call allocate_grid_data3_real(this%dop,  this%g%idx_dim, [1, 0, DOP_DCON], [4, this%g%idx_dim, DOP_ACON])
-    call allocate_grid_data1_real(this%ii_E_dop, idx_dim, DOP_DCON, DOP_ACON)
     do ci = DOP_DCON, DOP_ACON
       call this%dop(IDX_VERTEX,0,ci)%init(this%g, IDX_VERTEX, 0)
       call this%dop(IDX_CELL,  0,ci)%init(this%g, IDX_CELL,   0)
@@ -993,29 +1218,65 @@ contains
       end do
     end do
 
-    ! Pearson-Bardeen ionization model init
+    ! doping grid tables
+    allocate(this%dopvert(2))
+    if (this%smc%incomp_ion) allocate (this%ionvert(2))
     do ci = DOP_DCON, DOP_ACON
-      call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
-      cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
+      call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
+      if (this%smc%incomp_ion) call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
       do i = 1, this%transport(IDX_VERTEX,0)%n
-        idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
-        dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
+        idx = this%transport(IDX_VERTEX,0)%get_idx(i)
 
-        ii_E_dop = this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0) !max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
-        call this%ii_E_dop(ci)%set(idx, ii_E_dop)
+        dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
+        if (dop(ci) > 0) then
+          call this%dopvert(ci)%flags%set(idx, .true.)
+          if (this%smc%incomp_ion) then
+            if (dop(ci) < this%smc%ii_dop_th(ci)) call this%ionvert(ci)%flags%set(idx, .true.)
+          end if
+        end if
       end do
+      call this%dopvert(ci)%init_final()
+      if (this%smc%incomp_ion) call this%ionvert(ci)%init_final()
     end do
+
+    ! Pearson-Bardeen ionization model init
+    if (this%smc%incomp_ion) then
+      call allocate_grid_data1_real(this%ii_E_dop, idx_dim, DOP_DCON, DOP_ACON)
+      do ci = DOP_DCON, DOP_ACON
+        call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
+        cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
+        do i = 1, this%transport(IDX_VERTEX,0)%n
+          idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
+          dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
+
+          ii_E_dop = this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0) !max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
+          call this%ii_E_dop(ci)%set(idx, ii_E_dop)
+        end do
+      end do
+    end if
   end subroutine
 
-  subroutine device_params_init_mobility(this)
+  subroutine device_params_init_mobility(this, file)
     class(device_params), intent(inout) :: this
+    type(input_file),     intent(in)    :: file
 
-    integer              :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
+    integer              :: sid, ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
     integer, allocatable :: idx(:), idx2(:)
     logical              :: status
-    real                 :: alpha, dop(2), mid(2), mob0(2), mob_min, mob_max, N_ref, p(2,3)
-    real,    allocatable :: surf(:,:)
-    type(string)         :: gtype_tmp
+    real                 :: dop(2), mid(2), mob0(2), p(2,3)
+    real,    allocatable :: alpha(:), mob_min(:), mob_max(:), N_ref(:), mob_const(:), surf(:,:)
+    type(string)         :: model, gtype_tmp
+
+    ! TODO: current functionality: the mandatory bulk mobility section sets the bulk zero-field mobility to a constant
+    ! or according to the Caughey-Thomas model. These values are overwritten inside the mobility regions by a given
+    ! constant value. The velocity saturation model is chosen with the parameter saturation_model which however
+    ! currently only accepts "Caughey-Thomas" or "off". The velocity saturation is applied to the whole device,
+    ! including the mobility regions.
+    ! What we want is that that the mobility regions can have a different mobility model each both for zero-field and
+    ! saturation mobilities. It only makes sense to implement this after the regions feature a grid table each.
+    ! Case decisions of the mobility model etc. should then be moved to the mobility equation which is then added
+    ! in all cases. This does not deteriorate the performance because in case of e.g. constant mobilities the mobility
+    ! equation does not have any dependencies, preventing any additional terms in the Jacobian.
 
     print "(A)", "init_mobility"
 
@@ -1027,30 +1288,68 @@ contains
     allocate (idx(idx_dim), idx2(idx_dim))
     allocate (surf(this%g%max_cell_nedge,idx_dim))
 
-    call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%ci0], [4, this%g%idx_dim, this%ci1])
-    do ci = this%ci0, this%ci1
+    call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%smc%ci0], [4, this%g%idx_dim, this%smc%ci1])
+    do ci = this%smc%ci0, this%smc%ci1
       call this%mob0(IDX_CELL,0,ci)%init(this%g, IDX_CELL, 0)
       do idx_dir = 1, idx_dim
         call this%mob0(IDX_EDGE,idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
       end do
     end do
 
-    ! init zero-field mobility based on doping
-    do ci = this%ci0, this%ci1
-      mob_min = this%smc%mob_min(ci)
-      mob_max = this%smc%mob_max(ci)
-      N_ref   = this%smc%N_ref(ci)
-      alpha   = this%smc%alpha(ci)
+    ! get bulk mobility section
+    call file%get_section("bulk mobility", sid)
 
-      ! mobility in cells
-      do i = 1, this%transport(IDX_CELL,0)%n
-        idx           = this%transport(IDX_CELL,0)%get_idx(i)
-        dop(DOP_DCON) = this%dop(IDX_CELL,0,DOP_DCON)%get(idx)
-        dop(DOP_ACON) = this%dop(IDX_CELL,0,DOP_ACON)%get(idx)
-        mob0(ci)      = mob_min + (mob_max - mob_min)/(1 + ((dop(DOP_DCON) + dop(DOP_ACON))/N_ref)**alpha)
-        call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
+    ! init zero-field bulk mobility
+    call file%get(sid, "zero_field_model", model)
+    select case (model%s)
+    case ("Caughey-Thomas")
+      call file%get(sid, "alpha",   alpha)
+      call file%get(sid, "mob_min", mob_min)
+      call file%get(sid, "mob_max", mob_max)
+      call file%get(sid, "N_ref",   N_ref)
+      m4_assert(size(alpha)   == 2)
+      m4_assert(size(mob_min) == 2)
+      m4_assert(size(mob_max) == 2)
+      m4_assert(size(N_ref)   == 2)
+      do ci = this%smc%ci0, this%smc%ci1
+        ! dopant-dependent mobility in cells
+        do i = 1, this%transport(IDX_CELL,0)%n
+          idx           = this%transport(IDX_CELL,0)%get_idx(i)
+          dop(DOP_DCON) = this%dop(IDX_CELL,0,DOP_DCON)%get(idx)
+          dop(DOP_ACON) = this%dop(IDX_CELL,0,DOP_ACON)%get(idx)
+          mob0(ci)      = mob_min(ci) + (mob_max(ci) - mob_min(ci))/(1 + ((dop(DOP_DCON) + dop(DOP_ACON))/N_ref(ci))**alpha(ci))
+          call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
+        end do
       end do
-    end do
+    case ("constant")
+      call file%get(sid, "mob0", mob_const)
+      m4_assert(size(mob_const) == 2)
+      do ci = this%smc%ci0, this%smc%ci1
+        ! constant mobility in cells
+        do i = 1, this%transport(IDX_CELL,0)%n
+          idx = this%transport(IDX_CELL,0)%get_idx(i)
+          call this%mob0(IDX_CELL, 0, ci)%set(idx, mob_const(ci))
+        end do
+      end do
+    case default
+      call program_error("unknown zero-field bulk mobility model " // model%s)
+    end select
+
+    ! bulk velocity saturation model
+    ! TODO: with the current implementation, this model is applied in the whole device including different mobility regions, not only in the bulk
+    call file%get(sid, "saturation_model", model)
+    select case (model%s)
+    case ("Caughey-Thomas")
+      this%smc%mob_sat = .true.
+      call file%get(sid, "beta",  this%smc%beta)
+      call file%get(sid, "v_sat", this%smc%v_sat)
+      m4_assert(size(this%smc%beta)  == 2)
+      m4_assert(size(this%smc%v_sat) == 2)
+    case ("off")
+      this%smc%mob_sat = .false.
+    case default
+      call program_error("unknown bulk velocity saturation model " // model%s)
+    end select
 
     ! additionally process mobility regions
     i0   = 1
@@ -1073,7 +1372,7 @@ contains
           idx = ijk(1:idx_dim)
 
           ! overwrite mobility in cells
-          do ci = this%ci0, this%ci1
+          do ci = this%smc%ci0, this%smc%ci1
             if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
           end do
         end do; end do; end do
@@ -1100,7 +1399,7 @@ contains
             idx      = ijk(1:idx_dim)
 
             ! overwrite mobility in cells
-            do ci = this%ci0, this%ci1
+            do ci = this%smc%ci0, this%smc%ci1
               if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
             end do
           end do
@@ -1120,7 +1419,7 @@ contains
       do idx_dir = 1, idx_dim
         do j = 1, this%g%cell_nedge(idx_dir)
           call this%g%get_neighb(IDX_CELL, 0, IDX_EDGE, idx_dir, idx, j, idx2, status)
-          do ci = this%ci0, this%ci1
+          do ci = this%smc%ci0, this%smc%ci1
             mob0(ci) = this%mob0(IDX_CELL,0,ci)%get(idx)
             call this%mob0(IDX_EDGE,idx_dir,ci)%update(idx2, mob0(ci) * surf(j,idx_dir) / this%tr_surf(idx_dir)%get(idx2))
           end do
@@ -1132,251 +1431,44 @@ contains
   subroutine device_params_init_contacts(this)
     class(device_params), intent(inout) :: this
 
-    integer                   :: ci, dim, i, i0(3), i1(3), ict, ict0, idx_dim, idx_dir, ijk(3), j, k, k0, k1, kk, ri
-    integer                   :: nct, nv_poiss, nv_conti
-    integer, allocatable      :: idx(:), idx1(:), idx2(:), gimat(:)
-    logical                   :: status, stat1
-    real                      :: dop(2), idx_surf, ii_E_dop(2), p(2)
-    type(string)              :: name
-    type(string), allocatable :: gmat(:)
-    type(gal_block), pointer  :: gblock1, gblock2, gblock3
+    integer              :: ict, idx_dir, i, j, k
+    integer, allocatable :: idx(:), idx1(:), idx2(:)
+    logical              :: status, stat1
+    real                 :: dop(2), idx_surf
+    real,    allocatable :: ii_E_dop(:)
 
     print "(A)", "init_contacts"
 
-    ! abbreviations
-    dim     = this%g%dim
-    idx_dim = this%g%idx_dim
+    allocate (idx(this%g%idx_dim), idx1(this%g%idx_dim), idx2(this%g%idx_dim))
+    if (this%smc%incomp_ion) allocate (ii_E_dop(2))
 
-    ! get all contact names and number of contacts (nct)
-    call this%contact_map%init()
-    nct = 0
-    if (this%gal) then
-      allocate (gmat(this%gal_mat%nodes%n), gimat(this%gal_mat%nodes%n))
-      call this%gal_mat%to_array(keys = gmat, values = gimat)
-      do i = 1, size(gmat)
-        if ((gmat(i)%s == "SIL") .or. (gmat(i)%s == "OX")) cycle
-
-        ! new contact
-        nct = nct + 1
-        call this%contact_map%set(gmat(i), nct)
-      end do
-    else
-      do ri = 1, size(this%reg_ct)
-        ! search for contact name in map
-        call this%contact_map%get(this%reg_ct(ri)%name, ict, status = status)
-
-        ! do nothing if name already exists
-        if (status) cycle
-
-        ! new contact
-        nct = nct + 1
-        call this%contact_map%set(this%reg_ct(ri)%name, nct)
-      end do
-    end if
-
-    this%nct = nct
-    allocate (this%contacts(nct))
-
-    ! allocate/initialize grid data
-    allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim))
-    call allocate_grid_data0_int(this%ict, idx_dim)
-    call this%ict%init(this%g, IDX_VERTEX, 0)
-
-    ! allocate/initialize grid tables
-    allocate (this%contacted(nct), this%poisson_vct(0:nct), this%oxide_vct(0:nct), this%transport_vct(0:nct))
-    call this%poisson_vct(  0)%init("poisson_VCT0",   this%g, IDX_VERTEX, 0)
-    call this%oxide_vct(    0)%init("oxide_VCT0",     this%g, IDX_VERTEX, 0)
-    call this%transport_vct(0)%init("transport_VCT0", this%g, IDX_VERTEX, 0)
-    this%poisson_vct(  0)%flags = this%poisson(  IDX_VERTEX,0)%flags
-    this%oxide_vct(    0)%flags = this%oxide(    IDX_VERTEX,0)%flags
-    this%transport_vct(0)%flags = this%transport(IDX_VERTEX,0)%flags
-
-    ! init contacts
-    if (this%gal) then
-      gblock1 => this%gal_fl%get_block("#vertex(contact,poisson)")
-      gblock2 => this%gal_fl%get_block("#vertex(contact,continuity)")
-      gblock3 => this%gal_fl%get_block("vertex(contact,poisson)")
-      k1 = 0
-      do i = 1, size(gmat)
-        do j = 1, size(gimat)
-          if (gimat(j) == i) exit
-        end do
-        if ((gmat(j)%s == "SIL") .or. (gmat(j)%s == "OX")) cycle
-        call this%contact_map%get(gmat(j), ict)
-
-        !i: gal contact order
-        !j: gimat contact order
-        !ict: this contact order
-
-        ! number of vertices
-        nv_poiss = gblock1%idata(i)
-        nv_conti = gblock2%idata(i)
-
-        this%contacts(ict)%name = gmat(j)%s
-        if (nv_conti == 0) then
-          this%contacts(ict)%type = CT_GATE
-        else
-          this%contacts(ict)%type = CT_OHMIC
-        end if
-        this%contacts(ict)%phims = this%gal_phims
-
-        call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
-        call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-        call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-        call this%transport_vct(ict)%init("transport_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-
-        k0 = k1 + 1
-        k1 = k1 + nv_poiss
-        do k = k0, k1
-          kk = gblock3%idata(k)
-          idx(1) = mod(kk-1, this%g1D(1)%n) + 1
-          idx(2) = (kk - idx(1)) / this%g1D(1)%n + 1
-          call this%ict%set(idx, ict)
-          call this%contacted(ict)%flags%set(idx, .true.)
-        end do
-      end do
-    else
-      i0 = 1
-      i1 = 1
-      do ri = 1, size(this%reg_ct)
-        ! get contact name, index and type
-        name = this%reg_ct(ri)%name
-        call this%contact_map%get(name, ict)
-
-        ! create new contact if name is encountered for the first time
-        if (.not. allocated(this%contacts(ict)%name)) then
-          this%contacts(ict)%name  = name%s
-          this%contacts(ict)%type  = this%reg_ct(ri)%type
-          this%contacts(ict)%phims = this%reg_ct(ri)%phims
-          if (this%reg_ct(ri)%type == CT_SCHOTTKY) then
-            this%contacts(ict)%phi_b          = this%reg_ct(ri)%phi_b
-            this%contacts(ict)%A_richardson_n = this%reg_ct(ri)%A_richardson_n
-            this%contacts(ict)%A_richardson_p = this%reg_ct(ri)%A_richardson_p
-            this%contacts(ict)%ifbl           = this%reg_ct(ri)%ifbl
-            this%contacts(ict)%tunneling      = this%reg_ct(ri)%tunneling
-            this%contacts(ict)%m_tunnel_n     = this%reg_ct(ri)%m_tunnel_n
-            this%contacts(ict)%m_tunnel_p     = this%reg_ct(ri)%m_tunnel_p
-          end if
-          if (this%reg_ct(ri)%type == CT_REALOHMIC) this%contacts(ict)%vrec = this%reg_ct(ri)%vrec
-          call this%contacted(    ict)%init("contacted_"//name%s, this%g, IDX_VERTEX, 0)
-          call this%poisson_vct(  ict)%init("poisson_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-          call this%oxide_vct(    ict)%init("oxide_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-          call this%transport_vct(ict)%init("transport_VCT_"//name%s, this%g, IDX_VERTEX, 0)
-        elseif (this%contacts(ict)%type /= this%reg_ct(ri)%type) then
-          call program_error("contact "//name%s//" given multiple times with different types")
-        end if
-
-        select case (this%gtype%s)
-        case("x", "xy", "xyz")
-          ! get bounds
-          do idx_dir = 1, idx_dim
-            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 1))
-            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 2))
-          end do
-
-          ! update vertex tables
-          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-            ijk  = [i, j, k]
-            idx  = ijk(1:idx_dim)
-            ict0 = this%ict%get(idx)
-            if ((ict0 /= 0) .and. (ict0 /= ict)) then
-              call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
-            end if
-            call this%ict%set(idx, ict)
-            call this%contacted(ict)%flags%set(idx, .true.)
-          end do; end do; end do
-
-        case ("tr_xy", "tr_xyz")
-          ! get z bounds
-          if (dim == 3) then
-            i0(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,1))
-            i1(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,2))
-          end if
-
-          ! loop over triangle grid vertices
-          do i = 1, this%gtr%nvert
-            ! test if vertex belongs to contact surface
-            call this%gtr%get_vertex([i], p)
-            if (.not. this%reg_ct(ri)%point_test(string("tr_xy"), p)) cycle
-
-            ! loop over z direction
-            do k = i0(3), i1(3)
-              ijk(1:2) = [i, k]
-              idx      = ijk(1:idx_dim)
-              ict0     = this%ict%get(idx)
-              if ((ict0 /= 0) .and. (ict0 /= ict)) then
-                call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
-              end if
-              call this%ict%set(idx, ict)
-              call this%contacted(ict)%flags%set(idx, .true.)
-            end do
-          end do
-        end select
-      end do
-    end if
-
-    ! finish initialization of contacts
-    do ict = 1, nct
-      call this%contacted(ict)%init_final()
-
-      ! set phims for ohmic contacts
+    ! set phims for ohmic contacts
+    do ict = 1, this%nct
       if ((this%contacts(ict)%type == CT_OHMIC) .or. (this%contacts(ict)%type == CT_REALOHMIC)) then
         ! find vertex indices in transport region
         do i = 1, this%contacted(ict)%n
           idx = this%contacted(ict)%get_idx(i)
-          if (this%transport(IDX_VERTEX,0)%flags%get(idx)) exit
+          if (this%transport(IDX_VERTEX, 0)%flags%get(idx)) exit
         end do
         if (i > this%contacted(ict)%n) call program_error("Ohmic contact "//this%contacts(ict)%name//" not at transport region")
 
         ! calculate phims using charge neutrality
-        dop(DOP_DCON) = this%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
-        dop(DOP_ACON) = this%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
-        ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
-        ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
-        call this%contacts(ict)%set_phims_ohmic(this%ci0, this%ci1, dop, ii_E_dop, this%smc)
+        dop(DOP_DCON) = this%dop(IDX_VERTEX, 0, DOP_DCON)%get(idx)
+        dop(DOP_ACON) = this%dop(IDX_VERTEX, 0, DOP_ACON)%get(idx)
+        if (this%smc%incomp_ion) then
+          ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
+          ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
+        end if
+        call this%contacts(ict)%set_phims_ohmic(this%smc, dop, ii_E_dop)
       else if (this%contacts(ict)%type == CT_SCHOTTKY) then
         call this%contacts(ict)%set_phims_schottky(this%smc)
       end if
-
-      ! update contact vertex tables
-      do i = 1, this%contacted(ict)%n
-        idx = this%contacted(ict)%get_idx(i)
-        if (this%poisson(IDX_VERTEX,0)%flags%get(idx)) then
-          call this%poisson_vct(ict)%flags%set(idx, .true. )
-          call this%poisson_vct(  0)%flags%set(idx, .false.)
-        end if
-        if (this%oxide(IDX_VERTEX,0)%flags%get(idx)) then
-          call this%oxide_vct(ict)%flags%set(idx, .true. )
-          call this%oxide_vct(  0)%flags%set(idx, .false.)
-        end if
-        if (this%transport(IDX_VERTEX,0)%flags%get(idx)) then
-          call this%transport_vct(ict)%flags%set(idx, .true. )
-          call this%transport_vct(  0)%flags%set(idx, .false.)
-        end if
-      end do
-      call this%poisson_vct(  ict)%init_final()
-      call this%oxide_vct(    ict)%init_final()
-      call this%transport_vct(ict)%init_final()
-    end do
-    call this%poisson_vct(  0)%init_final()
-    call this%oxide_vct(    0)%init_final()
-    call this%transport_vct(0)%init_final()
-
-    ! make sure that contact transport vertices are never inside contact (they have at least one uncontacted neighbor)
-    do ict = 1, nct
-      do i = 1, this%transport_vct(ict)%n
-        idx = this%transport_vct(ict)%get_idx(i)
-        stat1 = .false.
-        do j = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0)
-          call this%g%get_neighb(IDX_VERTEX, 0, IDX_VERTEX, 0, idx, j, idx1, status)
-          if (status) stat1 = stat1 .or. this%transport_vct(0)%flags%get(idx1)
-        end do
-        if (.not. stat1) call program_error("Vertex " // int2str(i) // " in the interior domain of contact " // this%contacts(ict)%name // " part of transport region")
-      end do
     end do
 
     ! set contact areas for real ohmic contacts
-    do ict = 1, nct
+    call allocate_grid_data0_real(this%ct_surf, this%g%idx_dim)
+    call this%ct_surf%init(this%g, IDX_VERTEX, 0)
+    do ict = 1, this%nct
       if (this%contacts(ict)%type == CT_REALOHMIC) then
         select case (this%gtype%s)
         case ("x", "xy", "xyz", "tr_xy")
@@ -1384,7 +1476,7 @@ contains
             idx = this%transport_vct(ict)%get_idx(i)
             idx_surf = 0.0
             ! loop over adjacent faces of vertex
-            do idx_dir = 1, idx_dim
+            do idx_dir = 1, this%g%idx_dim
               do j = 1, this%g%get_max_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir)
                 call this%g%get_neighb(IDX_VERTEX, 0, IDX_FACE, idx_dir, idx, j, idx1, status)
                 if (status) then
@@ -1406,26 +1498,6 @@ contains
           call program_error("real ohmic contact surface area calculation not yet implemented for tr_xyz grid")
         end select
       end if
-    end do
-
-    ! doping vertices
-    allocate(this%dopvert(2), this%ionvert(2))
-    do ci = DOP_DCON, DOP_ACON
-      call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
-      call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
-      do i = 1, this%transport(IDX_VERTEX,0)%n
-        idx = this%transport(IDX_VERTEX,0)%get_idx(i)
-
-        dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
-        if (dop(ci) > 0) then
-          call this%dopvert(ci)%flags%set(idx, .true.)
-          if (dop(ci) < this%smc%ii_dop_th(ci)) then
-            call this%ionvert(ci)%flags%set(idx, .true.)
-          end if
-        end if
-      end do
-      call this%dopvert(ci)%init_final()
-      call this%ionvert(ci)%init_final()
     end do
   end subroutine
 

@@ -149,7 +149,7 @@ contains
     this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%transport(IDX_VERTEX, 0)), st = [this%st_nn%get_ptr()])
 
     ! depend on mobility
-    if (par%smc%mob) this%jaco_mob => this%init_jaco(iprov, this%depend(mob, par%transport(IDX_EDGE, idx_dir)), st = [this%st_dir%get_ptr()])
+    if (par%smc%mob_sat) this%jaco_mob => this%init_jaco(iprov, this%depend(mob, par%transport(IDX_EDGE, idx_dir)), st = [this%st_dir%get_ptr()])
 
     ! finish initialization
     call this%init_final()
@@ -184,7 +184,7 @@ contains
       pot( 2) = this%pot%get( idx2)
       dens(1) = this%dens%get(idx1)
       dens(2) = this%dens%get(idx2)
-      if (this%par%smc%mob) then
+      if (this%par%smc%mob_sat) then
         mob = this%mob%get(idx)
       else
         mob = this%par%mob0(IDX_EDGE, idx_dir, this%cdens%ci)%get(idx)
@@ -199,7 +199,7 @@ contains
       call this%jaco_pot%add( idx, idx2, djdpot(2))
       call this%jaco_dens%add(idx, idx1, djddens(1))
       call this%jaco_dens%add(idx, idx2, djddens(2))
-      if (this%par%smc%mob) call this%jaco_mob%add(idx, idx, djdmob)
+      if (this%par%smc%mob_sat) call this%jaco_mob%add(idx, idx, djdmob)
     end do
     !$omp end parallel do
 
