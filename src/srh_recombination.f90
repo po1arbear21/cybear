@@ -11,7 +11,7 @@ module srh_recombination_m
   use device_params_m, only: device_params
   use equation_m,      only: equation
   use grid_m,          only: IDX_VERTEX
-  use grid_data_m,     only: grid_data1_real, grid_data2_real, grid_data3_real
+  use grid_data_m,     only: grid_data_real, grid_data1_real, grid_data2_real, grid_data3_real
   use jacobian_m,      only: jacobian
   use semiconductor_m, only: CR_ELEC, CR_HOLE
   use variable_m,      only: variable
@@ -55,10 +55,10 @@ module srh_recombination_m
     type(density), pointer :: dens_p => null()
       !! hole density variable
 
-    real :: tau_n
-      !! electron lifetime (normalized)
-    real :: tau_p
-      !! hole lifetime (normalized)
+    class(grid_data_real), pointer :: tau_n_gd => null()
+      !! per-vertex electron lifetime grid data
+    class(grid_data_real), pointer :: tau_p_gd => null()
+      !! per-vertex hole lifetime grid data
     real :: ni_sq
       !! intrinsic concentration squared (normalized)
     real :: ni
@@ -172,9 +172,9 @@ contains
     this%dens_n => dens_n
     this%dens_p => dens_p
 
-    ! store lifetime parameters
-    this%tau_n = par%smc%srh_tau_n
-    this%tau_p = par%smc%srh_tau_p
+    ! point to per-vertex lifetime grid data
+    this%tau_n_gd => par%srh_tau(CR_ELEC)
+    this%tau_p_gd => par%srh_tau(CR_HOLE)
 
     ! calculate ni² = Nc * Nv * exp(-Eg/kT)
     Eg = par%smc%band_gap  ! already normalized to kT
@@ -182,7 +182,8 @@ contains
     this%ni    = sqrt(this%ni_sq)
 
     print "(A,ES12.4)", "  ni  = ", denorm(this%ni, 'cm^-3')
-    print "(A,ES12.4,A,ES12.4)", "  tau_n  = ", denorm(this%tau_n, 's'), ", tau_p  = ", denorm(this%tau_p, 's')
+    print "(A,ES12.4,A,ES12.4)", "  tau_n (global) = ", denorm(par%smc%srh_tau_n, 's'), &
+      & ", tau_p (global) = ", denorm(par%smc%srh_tau_p, 's')
 
     ! provide SRH rate on transport vertices
     iprov = this%provide(srh, par%transport(IDX_VERTEX, 0))
@@ -214,6 +215,7 @@ contains
     integer, allocatable :: idx(:)
     real                 :: n, p, np, numer, denom, R, dRdn, dRdp
     real                 :: R_max, n_max, p_max
+    real                 :: tau_n_loc, tau_p_loc
 
     allocate (idx(this%par%g%idx_dim))
 
@@ -227,17 +229,21 @@ contains
       n = this%dens_n%get(idx)
       p = this%dens_p%get(idx)
 
+      ! get per-vertex lifetimes
+      tau_n_loc = this%tau_n_gd%get(idx)
+      tau_p_loc = this%tau_p_gd%get(idx)
+
       ! SRH recombination rate
       np    = n * p
       numer = np - this%ni_sq
-      denom = this%tau_p * (n + this%ni) + this%tau_n * (p + this%ni)
+      denom = tau_p_loc * (n + this%ni) + tau_n_loc * (p + this%ni)
 
       if (denom > 1e-30) then
         R = numer / denom
 
         ! Jacobians: dR/dn and dR/dp
-        dRdn = (p * denom - numer * this%tau_p) / (denom * denom)
-        dRdp = (n * denom - numer * this%tau_n) / (denom * denom)
+        dRdn = (p * denom - numer * tau_p_loc) / (denom * denom)
+        dRdp = (n * denom - numer * tau_n_loc) / (denom * denom)
       else
         R    = 0.0
         dRdn = 0.0

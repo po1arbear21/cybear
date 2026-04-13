@@ -41,6 +41,13 @@ module region_m
       !! enable/disable set mobility for each carrier
   end type
 
+  type, extends(region) :: region_srh
+    real    :: tau(2)
+      !! SRH lifetimes: tau(CR_ELEC)=tau_n, tau(CR_HOLE)=tau_p
+    logical :: set_tau(2)
+      !! which lifetimes are specified in this section
+  end type
+
   type, extends(region) :: region_contact
     type(string) :: name
       !! contact name
@@ -166,6 +173,11 @@ contains
       ! get ND, NA
       call file%get(sid, "nmob0", this%mob0(CR_ELEC), status = this%set_mob(CR_ELEC))
       call file%get(sid, "pmob0", this%mob0(CR_HOLE), status = this%set_mob(CR_HOLE))
+
+    class is (region_srh)
+      ! get SRH lifetimes (both optional per section)
+      call file%get(sid, "srh_tau_n", this%tau(CR_ELEC), status = this%set_tau(CR_ELEC))
+      call file%get(sid, "srh_tau_p", this%tau(CR_HOLE), status = this%set_tau(CR_HOLE))
 
     class is (region_contact)
       ! get name, type and phims

@@ -18,7 +18,7 @@ module device_params_m
   use map_m,            only: map_string_int
   use normalization_m,  only: norm, denorm
   use region_m,         only: region_ptr, region_poisson, region_transport, region_doping, region_mobility, &
-    &                         region_contact, region_beam, region_beam_init
+    &                         region_srh, region_contact, region_beam, region_beam_init
   use semiconductor_m,  only: CR_ELEC, CR_HOLE, DOP_DCON, DOP_ACON, CR_NAME, DOP_NAME, DOS_PARABOLIC, &
     &                         DOS_PARABOLIC_TAIL, DOS_GAUSS, DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG, semiconductor, &
     &                         STAB_SG, STAB_ED, STAB_MED, STAB_EXACT
@@ -59,6 +59,8 @@ module device_params_m
       !! incomplete ionization donor/acceptor dopant energy level (dcon/acon)
     class(grid_data_real), allocatable :: mob0(:,:,:)
       !! zero-field mobility (idx_type, idx_dir, carrier index)
+    class(grid_data_real), allocatable :: srh_tau(:)
+      !! per-vertex SRH lifetimes, indexed by carrier (CR_ELEC, CR_HOLE)
     class(grid_data_real), allocatable :: tr_surf(:)
       !! adjoint volume surfaces in transport region
     class(grid_data_real), allocatable :: tr_vol
@@ -120,6 +122,8 @@ module device_params_m
       !! doping regions
     type(region_mobility),  allocatable :: reg_mob(:)
       !! mobility regions
+    type(region_srh),       allocatable :: reg_srh(:)
+      !! SRH lifetime regions
     type(region_contact),   allocatable :: reg_ct(:)
       !! contact regions
 
@@ -152,6 +156,7 @@ module device_params_m
     procedure, private :: init_transport         => device_params_init_transport
     procedure, private :: init_doping            => device_params_init_doping
     procedure, private :: init_mobility          => device_params_init_mobility
+    procedure, private :: init_srh              => device_params_init_srh
     procedure, private :: init_contacts          => device_params_init_contacts
     procedure, private :: init_beam              => device_params_init_beam
   end type
@@ -225,6 +230,7 @@ contains
     call this%init_transport()
     call this%init_doping(file)
     call this%init_mobility()
+    call this%init_srh()
     call this%init_contacts()
     call this%init_beam()
 
@@ -361,7 +367,8 @@ contains
     call file%get(sid, "ii_dop_th",  this%smc%ii_dop_th)
 
     ! SRH recombination: R = (np - ni²) / [τp(n + ni) + τn(p + ni)]
-    call file%get(sid, "srh", this%smc%srh)
+    call file%get(sid, "srh", this%smc%srh, status)
+    if (.not. status) this%smc%srh = .false.
     if (this%smc%srh) then
       call file%get(sid, "srh_tau_n", this%smc%srh_tau_n)
       call file%get(sid, "srh_tau_p", this%smc%srh_tau_p)
@@ -435,6 +442,13 @@ contains
     allocate (this%reg_mob(size(sids)))
     do si = 1, size(sids)
       call this%reg_mob(si)%init(file, sids(si), this%gtype)
+    end do
+
+    ! initialize SRH lifetime regions
+    call file%get_sections("srh", sids)
+    allocate (this%reg_srh(size(sids)))
+    do si = 1, size(sids)
+      call this%reg_srh(si)%init(file, sids(si), this%gtype)
     end do
 
     ! initialize contact regions
@@ -1168,6 +1182,91 @@ contains
         end do
       end do
     end do
+  end subroutine
+
+  subroutine device_params_init_srh(this)
+    !! Initialize per-vertex SRH lifetime grid data.
+    !! Global defaults from [transport parameters] are applied first,
+    !! then [srh] region sections override specific spatial regions.
+    class(device_params), intent(inout) :: this
+
+    integer              :: ci, i, ri, idx_dim, n_set
+    integer, allocatable :: idx(:)
+    real                 :: pos(3)
+
+    if (.not. this%smc%srh) return
+
+    print "(A)", "init_srh"
+
+    idx_dim = this%g%idx_dim
+    allocate(idx(idx_dim))
+
+    ! allocate per-vertex grid_data for tau_n (CR_ELEC) and tau_p (CR_HOLE)
+    call allocate_grid_data1_real(this%srh_tau, idx_dim, CR_ELEC, CR_HOLE)
+    do ci = CR_ELEC, CR_HOLE
+      call this%srh_tau(ci)%init(this%g, IDX_VERTEX, 0)
+    end do
+
+    ! fill all transport vertices with global defaults
+    do i = 1, this%transport(IDX_VERTEX, 0)%n
+      idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
+      call this%srh_tau(CR_ELEC)%set(idx, this%smc%srh_tau_n)
+      call this%srh_tau(CR_HOLE)%set(idx, this%smc%srh_tau_p)
+    end do
+
+    ! apply regional overrides (later regions overwrite earlier ones)
+    do ri = 1, size(this%reg_srh)
+      n_set = 0
+      do i = 1, this%transport(IDX_VERTEX, 0)%n
+        idx = this%transport(IDX_VERTEX, 0)%get_idx(i)
+
+        ! get vertex position
+        pos = 0.0
+        select case (this%gtype%s)
+        case ("x")
+          pos(1) = this%g1D(1)%x(idx(1))
+        case ("xy")
+          pos(1) = this%g1D(1)%x(idx(1))
+          pos(2) = this%g1D(2)%x(idx(2))
+        case ("xyz")
+          pos(1) = this%g1D(1)%x(idx(1))
+          pos(2) = this%g1D(2)%x(idx(2))
+          pos(3) = this%g1D(3)%x(idx(3))
+        end select
+
+        if (this%reg_srh(ri)%point_test(this%gtype, pos(1:this%g%dim))) then
+          if (this%reg_srh(ri)%set_tau(CR_ELEC)) &
+            call this%srh_tau(CR_ELEC)%set(idx, this%reg_srh(ri)%tau(CR_ELEC))
+          if (this%reg_srh(ri)%set_tau(CR_HOLE)) &
+            call this%srh_tau(CR_HOLE)%set(idx, this%reg_srh(ri)%tau(CR_HOLE))
+          n_set = n_set + 1
+        end if
+      end do
+      print "(A,I0,A,I0,A)", "  SRH region ", ri, ": overrode ", n_set, " vertices"
+    end do
+
+    ! debug: print tau at specific probe points
+    block
+      real :: probe_x, probe_y, tau_n_val, tau_p_val
+      integer :: ix, iy, probe_idx(2)
+      real, parameter :: probes(2,2) = reshape([0.1, 0.1, 7.0, 7.0], [2,2])
+      !                                         x1   y1    x2   y2
+
+      do i = 1, 2
+        probe_x = norm(probes(1,i), 'um')
+        probe_y = norm(probes(2,i), 'um')
+        ix = bin_search(this%g1D(1)%x, probe_x)
+        iy = bin_search(this%g1D(2)%x, probe_y)
+        probe_idx = [ix, iy]
+        tau_n_val = this%srh_tau(CR_ELEC)%get(probe_idx)
+        tau_p_val = this%srh_tau(CR_HOLE)%get(probe_idx)
+        print "(A,F6.2,A,F6.2,A,ES10.3,A,ES10.3,A)", &
+          & "  SRH tau at (", probes(1,i), ", ", probes(2,i), ") um: tau_n=", &
+          & denorm(tau_n_val, 's'), " s, tau_p=", denorm(tau_p_val, 's'), " s"
+      end do
+    end block
+
+    deallocate(idx)
   end subroutine
 
   subroutine device_params_init_contacts(this)

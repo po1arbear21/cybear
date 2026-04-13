@@ -8,6 +8,7 @@ program beam_test
   use steady_state_m,  only: steady_state
   use string_m,        only: string
   use approx_m,        only: approx_imref, approx_potential
+  use taylor_remainder_m, only: taylor_test, taylor_test_per_block
   use block_m,         only: block_real
   use solver_base_m,   only: solver_real
   use solver_m,        only: default_solver_params, init_solver_real
@@ -243,9 +244,47 @@ program beam_test
     print "(A)", "  FAIL"
   end if
 
-  ! Test 4: Terminal current from DD solver
+  ! Test 4: Taylor remainder (Jacobian verification)
   print "(A)", ""
-  print "(A)", "Test 4: Terminal current (DD solve)"
+  print "(A)", "Test 4: Taylor remainder (Jacobian verification)"
+  print "(A,F8.1,A)", "  Beam position: y = ", beam_y, " nm"
+  print "(A)", ""
+
+  ! Initialize state (same as jacobian_test)
+  do ict = 1, dev%par%nct
+    dev%volt(ict)%x = 0.0
+  end do
+  do ci = dev%par%ci0, dev%par%ci1
+    call approx_imref(dev%par, dev%iref(ci), dev%volt)
+  end do
+  call approx_potential(dev%par, dev%pot, dev%iref)
+  do ci = dev%par%ci0, dev%par%ci1
+    call dev%calc_bgen(ci)%eval()
+  end do
+
+  ! print "(A)", "========================================"
+  ! print "(A)", " NLPE"
+  ! print "(A)", "========================================"
+  ! call taylor_test(dev%sys_nlpe)
+  ! call taylor_test_per_block(dev%sys_nlpe)
+
+  ! print "(A)", "========================================"
+  ! print "(A)", " Full Newton"
+  ! print "(A)", "========================================"
+  ! call taylor_test(dev%sys_full)
+  ! call taylor_test_per_block(dev%sys_full)
+
+  ! do ci = CR_ELEC, CR_HOLE
+  !   print "(A)", "========================================"
+  !   print "(A,I0,A)", " DD (carrier ", ci, ")"
+  !   print "(A)", "========================================"
+  !   call taylor_test(dev%sys_dd(ci))
+  !   call taylor_test_per_block(dev%sys_dd(ci))
+  ! end do
+
+  ! Test 5: Terminal current from DD solver
+  print "(A)", ""
+  print "(A)", "Test 5: Terminal current (DD solve)"
   print "(A)", ""
 
   ! Set up input: nct voltages (0V) + beam position
@@ -276,9 +315,48 @@ program beam_test
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
 
+  ! Debug: initial state at contacts
+  print "(A)", ""
+  print "(A)", "  === Initial state after approximation ==="
+  print "(A,ES12.4,A)", "  Nc (edos_n) = ", denorm(dev%par%smc%edos(CR_ELEC), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "  Nv (edos_p) = ", denorm(dev%par%smc%edos(CR_HOLE), '1/cm^3'), " 1/cm^3"
+  do ict = 1, dev%par%nct
+    print "(A,I0,A,A)", "  Contact ", ict, ": ", dev%par%contacts(ict)%name
+    print "(A,F10.6,A)", "    phims    = ", denorm(dev%par%contacts(ict)%phims, 'V'), " V"
+    print "(A,F10.6,A)", "    phi_b    = ", denorm(dev%par%contacts(ict)%phi_b, 'eV'), " eV"
+    print "(A,ES12.4,A)", "    n0b_elec = ", denorm(dev%par%smc%edos(CR_ELEC) * exp(-dev%par%contacts(ict)%phi_b), '1/cm^3'), " 1/cm^3"
+    print "(A,ES12.4,A)", "    n0b_hole = ", denorm(dev%par%smc%edos(CR_HOLE) &
+      & * exp(-(dev%par%smc%band_gap - dev%par%contacts(ict)%phi_b)), '1/cm^3'), " 1/cm^3"
+  end do
+  ! Density at contact vertices (corners: ix=1, ix=nx)
+  print "(A)", "  Carrier density at P_CONTACT (iy=1):"
+  print "(A,ES12.4,A)", "    n(1,1)   = ", denorm(dev%dens(CR_ELEC)%get([1,1]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,1)   = ", denorm(dev%dens(CR_HOLE)%get([1,1]), '1/cm^3'), " 1/cm^3"
+  print "(A)", "  Carrier density at N_CONTACT (iy=ny):"
+  print "(A,ES12.4,A)", "    n(1,ny)  = ", denorm(dev%dens(CR_ELEC)%get([1,ny]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,ny)  = ", denorm(dev%dens(CR_HOLE)%get([1,ny]), '1/cm^3'), " 1/cm^3"
+  print "(A)", "  Carrier density at interior (ix=1, iy=ny/2):"
+  print "(A,ES12.4,A)", "    n(1,mid) = ", denorm(dev%dens(CR_ELEC)%get([1,ny/2]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,mid) = ", denorm(dev%dens(CR_HOLE)%get([1,ny/2]), '1/cm^3'), " 1/cm^3"
+  print "(A)", ""
+
   ! Step 2: Solve NLPE (non-linear Poisson equation)
   print "(A)", "  Step 2: Solving NLPE..."
   call solve_nlpe()
+
+  ! Debug: state after NLPE
+  print "(A)", ""
+  print "(A)", "  === State after NLPE ==="
+  print "(A)", "  Carrier density at P_CONTACT (iy=1):"
+  print "(A,ES12.4,A)", "    n(1,1)   = ", denorm(dev%dens(CR_ELEC)%get([1,1]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,1)   = ", denorm(dev%dens(CR_HOLE)%get([1,1]), '1/cm^3'), " 1/cm^3"
+  print "(A)", "  Carrier density at N_CONTACT (iy=ny):"
+  print "(A,ES12.4,A)", "    n(1,ny)  = ", denorm(dev%dens(CR_ELEC)%get([1,ny]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,ny)  = ", denorm(dev%dens(CR_HOLE)%get([1,ny]), '1/cm^3'), " 1/cm^3"
+  print "(A)", "  Carrier density at interior (ix=1, iy=ny/2):"
+  print "(A,ES12.4,A)", "    n(1,mid) = ", denorm(dev%dens(CR_ELEC)%get([1,ny/2]), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    p(1,mid) = ", denorm(dev%dens(CR_HOLE)%get([1,ny/2]), '1/cm^3'), " 1/cm^3"
+  print "(A)", ""
 
   ! Step 3: Gummel iteration
   print "(A)", "  Step 3: Running Gummel iteration..."
@@ -287,7 +365,10 @@ program beam_test
   ! Step 4: Full Newton solver
   print "(A)", "  Step 4: Running full Newton solver..."
   call ss%init(dev%sys_full)
-  ss%msg = "Newton: "
+  ss%log    = .true.
+  ss%msg    = "Newton: "
+  ss%max_it = 200
+  ss%dx_lim = norm(5.0, 'V')   ! limit Newton step to 5V (~200 kT)
   call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
     & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], "device.fbs")
   call ss%run(input = input, t_input = [0.0])
@@ -383,17 +464,26 @@ contains
     integer :: it, ci
     real :: err, err_pot, err_iref(2)
     real, allocatable :: pot0(:), iref0(:,:)
-
+    ! Debug: track where the max error occurs
+    integer :: dbg_i, dbg_ix, dbg_iy, dbg_nclamp, dbg_imax
+    real :: dbg_diff, dbg_d, dbg_dmin, dens_floor
+    real, allocatable :: dbg_delta(:), dens0(:)
+    character(len=8) :: dbg_name(2) = [character(len=8) :: "electron", "hole    "]
     ! Parameters (hardcoded for test)
     real, parameter :: ATOL = 1e-6
-    integer, parameter :: MAX_IT = 50
+    integer, parameter :: MAX_IT = 30
 
     allocate(pot0(dev%pot%data%n), iref0(dev%iref(1)%data%n, 2))
 
     ! Initialize DD solvers
     do ci = CR_ELEC, CR_HOLE
       call ss_dd(ci)%init(dev%sys_dd(ci))
+      ss_dd(ci)%log    = .true.
+      ss_dd(ci)%msg    = "    DD: "
+      ss_dd(ci)%max_it = 50
+      ss_dd(ci)%error_if_not_converged = .false.
     end do
+    dens_floor = norm(1.0, '1/cm^3')
 
     it = 0
     err = huge(err)
@@ -413,14 +503,85 @@ contains
 
       ! Solve DD for each carrier
       do ci = CR_ELEC, CR_HOLE
+        ! Save density before DD solve for diagnostics
+        dens0 = dev%dens(ci)%get()
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
+
+        ! Diagnose: where did DD change density the most?
+        dbg_delta = dev%dens(ci)%get() - dens0
+        dbg_imax = maxloc(abs(dbg_delta), dim=1)
+        dbg_ix = mod(dbg_imax - 1, nx) + 1
+        dbg_iy = (dbg_imax - 1) / nx + 1
+        print "(A,A,A)", "      [DD-DIAG] ", trim(dbg_name(ci)), " max density change:"
+        print "(A,I0,A,I0,A,F7.1,A,F7.1,A)", &
+          & "        at (", dbg_ix, ",", dbg_iy, ") = (", &
+          & denorm(dev%par%g1D(1)%x(dbg_ix), 'nm'), ",", &
+          & denorm(dev%par%g1D(2)%x(dbg_iy), 'nm'), " nm)"
+        print "(A,ES12.4,A,ES12.4,A,ES12.4,A)", &
+          & "        before: ", denorm(dens0(dbg_imax), '1/cm^3'), &
+          & "  after: ", denorm(dens0(dbg_imax) + dbg_delta(dbg_imax), '1/cm^3'), &
+          & "  delta: ", denorm(dbg_delta(dbg_imax), '1/cm^3'), " cm^-3"
+        deallocate(dbg_delta, dens0)
+
+        ! Debug: show raw density before clamping
+        dbg_dmin = huge(dbg_dmin)
+        dbg_nclamp = 0
+        do dbg_iy = 1, ny
+          do dbg_ix = 1, nx
+            dbg_d = dev%dens(ci)%get([dbg_ix, dbg_iy])
+            if (dbg_d < dbg_dmin) dbg_dmin = dbg_d
+            if (dbg_d < dens_floor) then
+              if (dbg_nclamp < 5) then
+                print "(A,A,A,I0,A,I0,A,F7.1,A,F7.1,A,ES10.3,A)", &
+                  & "      [CLAMP] ", trim(dbg_name(ci)), " dens(", dbg_ix, ",", dbg_iy, &
+                  & ") = (", denorm(dev%par%g1D(1)%x(dbg_ix), 'nm'), ",", &
+                  & denorm(dev%par%g1D(2)%x(dbg_iy), 'nm'), " nm): ", &
+                  & denorm(dbg_d, '1/cm^3'), " cm^-3"
+              end if
+              dbg_nclamp = dbg_nclamp + 1
+              call dev%dens(ci)%set([dbg_ix, dbg_iy], dens_floor)
+            end if
+          end do
+        end do
+        if (dbg_nclamp > 0) then
+          print "(A,A,A,I0,A,I0,A,ES10.3,A)", &
+            & "      [CLAMP] ", trim(dbg_name(ci)), ": ", dbg_nclamp, " of ", nx*ny, &
+            & " points clamped (min was ", denorm(dbg_dmin, '1/cm^3'), " cm^-3)"
+        end if
+
         call dev%calc_iref(ci)%eval()
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:, ci)))
       end do
 
       err = max(err_pot, err_iref(1), err_iref(2))
       print "(A,I3,A,ES10.3)", "    Gummel it ", it, ": err = ", denorm(err, 'V')
+
+      ! Debug: identify which variable and grid node drives the error
+      ! Potential
+      dbg_delta = abs(dev%pot%get() - pot0)
+      dbg_i = maxloc(dbg_delta, dim=1)
+      dbg_ix = mod(dbg_i - 1, nx) + 1
+      dbg_iy = (dbg_i - 1) / nx + 1
+      print "(A,ES10.3,A,I0,A,I0,A,F7.1,A,F7.1,A)", &
+        & "      pot:  d=", denorm(dbg_delta(dbg_i), 'V'), &
+        & "  at (", dbg_ix, ",", dbg_iy, ") = (", &
+        & denorm(dev%par%g1D(1)%x(dbg_ix), 'nm'), ",", &
+        & denorm(dev%par%g1D(2)%x(dbg_iy), 'nm'), " nm)"
+      deallocate(dbg_delta)
+      ! Imref
+      do ci = CR_ELEC, CR_HOLE
+        dbg_delta = abs(dev%iref(ci)%get() - iref0(:, ci))
+        dbg_i = maxloc(dbg_delta, dim=1)
+        dbg_ix = mod(dbg_i - 1, nx) + 1
+        dbg_iy = (dbg_i - 1) / nx + 1
+        print "(A,A,A,ES10.3,A,I0,A,I0,A,F7.1,A,F7.1,A)", &
+          & "      iref_", trim(dbg_name(ci)), ": d=", denorm(dbg_delta(dbg_i), 'V'), &
+          & "  at (", dbg_ix, ",", dbg_iy, ") = (", &
+          & denorm(dev%par%g1D(1)%x(dbg_ix), 'nm'), ",", &
+          & denorm(dev%par%g1D(2)%x(dbg_iy), 'nm'), " nm)"
+        deallocate(dbg_delta)
+      end do
     end do
 
     deallocate(pot0, iref0)

@@ -155,7 +155,7 @@ contains
 
       ! solve steady-state
       call runfile%get("full newton params", "log", log)
-      call ss%init(dev%sys_full, log = log, msg = "Newton: ")
+      call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(sj))
       print "(A,I0,A,I0)", "DEBUG: g%dim = ", dev%par%g%dim, ", g%idx_dim = ", dev%par%g%idx_dim
 
@@ -360,7 +360,7 @@ contains
     call runfile%get_section("dd params", si)
     do ci = dev%par%ci0, dev%par%ci1
       call runfile%get("dd params", "log", log)
-      call ss_dd(ci)%init(dev%sys_dd(ci), log = log, msg = CR_NAME(ci) // "DD: ")
+      call ss_dd(ci)%init(dev%sys_dd(ci))
       call ss_dd(ci)%set_params(runfile%sections%d(si))
     end do
 

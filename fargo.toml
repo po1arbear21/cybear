@@ -70,15 +70,15 @@ templates = [{ files = ["DD.OSV", "DGMOS.GEO"] }]
 [efield_test]
 mode = "debug"
 single = true
-target = "efield_test_2d"
+target = "efield_test"
 libraries = ["MPFR", "ZLIB"]
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 templates = [
   { files = [
-    "run_efield_test_2D.ini",
+    "run_efield_test_1D.ini",
   ] },
   { files = [
-    "efield_test_device_2D.ini",
+    "efield_test_device_1D.ini",
   ], action = "expand" },
 ]
 
@@ -88,7 +88,7 @@ mode = "debug"
 target = "dd"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
 runner = "slurm"
-partition = "faster"
+partition = "fast"
 
 templates = [
   { files = [
@@ -96,6 +96,91 @@ templates = [
   ] },
   { files = [
     "devices/stem_ebic/stem_ebic.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit]
+mode = "release"
+target = "dd"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_j4]
+mode = "release"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_j4.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_j4.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_ohmic_j4]
+mode = "release"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_ohmic_j4.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_ohmic_j4.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_pt]
+mode = "release"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_pt.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_pt.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_2d]
+mode = "release"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit.ini",
   ], action = "expand" },
 ]
 
@@ -117,6 +202,23 @@ templates = [
 ]
 
 
+[stem_ebic_lateral_schottky]
+mode = "debug"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+# runner = "slurm"
+partition = "faster"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_lateral_schottky.ini",
+  ]},
+  { files = [
+    "devices/stem_ebic/stem_ebic_lateral_schottky.ini",
+  ], action = "expand" },
+]
+
+
 [stem_ebic_3D]
 mode = "debug"
 target = "dd"
@@ -134,9 +236,22 @@ templates = [
 ]
 
 
-[beam_test]
+[slit_test]
 mode = "debug"
+target = "slit_test"
+runner = "slurm"
+partition = "fast"
+args = ""
+templates = [
+  { files = [ "devices/stem_ebic/stem_ebic_slit_ohmic.ini" , "devices/stem_ebic/stem_ebic_slit.ini"
+  ], action = "expand" },
+]
+
+[beam_test]
+mode = "release"
 target = "beam_test"
+runner = "slurm"
+partition = "fast"
 args = ""
 templates = [
   { files = [ "devices/test/beam_minimal.ini" ], action = "expand" }
@@ -147,8 +262,19 @@ mode = "debug"
 target = "schottky_test"
 sources = ["lib/fortran-basic/src", "test"]
 runner = "slurm"
-partition = "faster"
+partition = "fast"
 args = ""
 templates = [
   { files = [ "devices/test/schottky_minimal.ini" ], action = "expand" }
+]
+
+[jacobian_test]
+mode = "debug"
+target = "jacobian_test"
+sources = ["lib/fortran-basic/src", "test"]
+runner = "slurm"
+partition = "fast"
+args = ""
+templates = [
+  { files = [ "devices/test/beam_minimal.ini" ], action = "expand" }
 ]
