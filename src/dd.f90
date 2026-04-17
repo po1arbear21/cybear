@@ -273,13 +273,18 @@ contains
       ss%msg = "Newton: "
       ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
       !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
+      ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
+      !                    & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
+      ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), &
+      !                    & string("V_DRN"), string("I_DRN")], name%s // ".fbs")
       call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
-                         & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
+                         & string("V_LEFT_N"), string("V_LEFT_P"), string("V_RIGHT_N"), string("V_RIGHT_P"), &
+                         & string("I_LEFT_N"), string("I_LEFT_P"), string("I_RIGHT_N"), string("I_RIGHT_P")], name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel, output_hook = eval_efield)
 
-      ! Print final I_N_CONTACT (EBIC current)
-      call dev%par%contact_map%get(string("N_CONTACT"), ict_n)
-      print "(A,ES12.4,A)", "I_N_CONTACT = ", denorm(dev%curr(ict_n)%x, 'A'), " A"
+      ! ! Print final I_N_CONTACT (EBIC current)
+      ! call dev%par%contact_map%get(string("N_CONTACT"), ict_n)
+      ! print "(A,ES12.4,A)", "I_N_CONTACT = ", denorm(dev%curr(ict_n)%x, 'A'), " A"
     end do
   end subroutine
 

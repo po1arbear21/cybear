@@ -3,6 +3,16 @@ sources   = ["lib/fortran-basic/src"]
 libraries = ["BLAS95", "LAPACK95", "MPFR"]
 
 
+[pn_test]
+mode      = "debug"
+target    = "dd"
+args      = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+templates = [
+  { files = ["devices/pn/run_pn.ini"] },
+  { files = ["devices/pn/pn.ini"], action = "expand" },
+]
+
+
 [debug]
 target    = "dd"
 args      = "--run {files[0]} --temperature 4.0 --device {files[1]}"
@@ -100,6 +110,57 @@ templates = [
 ]
 
 
+[stem_ebic_slit_1pt]
+mode = "debug"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_1pt.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_1pt.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_1pt_ohmic]
+mode = "debug"
+target = "dd"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_1pt_ohmic.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_1pt_ohmic.ini",
+  ], action = "expand" },
+]
+
+
+[stem_ebic_slit_ohmic]
+mode = "release"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_slit_ohmic.ini",
+  ] },
+  { files = [
+    "devices/stem_ebic/stem_ebic_slit_1pt_ohmic.ini",
+  ], action = "expand" },
+]
+
+
 [stem_ebic_slit]
 mode = "release"
 target = "dd"
@@ -185,6 +246,23 @@ templates = [
 ]
 
 
+[stem_ebic_buildin_study]
+mode = "debug"
+target = "stem_ebic"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+runner = "slurm"
+partition = "fast"
+
+templates = [
+  { files = [
+    "devices/stem_ebic/run_stem_ebic_buildin_study.ini",
+  ]},
+  { files = [
+    "devices/stem_ebic/stem_ebic_buildin_study.ini",
+  ], action = "expand" },
+]
+
+
 [stem_ebic_lateral]
 mode = "debug"
 target = "dd"
@@ -206,7 +284,7 @@ templates = [
 mode = "debug"
 target = "stem_ebic"
 args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
-# runner = "slurm"
+runner = "slurm"
 partition = "faster"
 
 templates = [
