@@ -25,6 +25,7 @@ program adjoint_ebic_driver
   use normalization_m, only: init_normconst, denorm
   use semiconductor_m, only: CR_NAME, CR_ELEC, CR_HOLE
   use steady_state_m,  only: steady_state
+  use storage_m,       only: storage, STORAGE_WRITE
   use string_m,        only: string
   use util_m,          only: get_hostname
 
@@ -99,10 +100,10 @@ contains
     type(string)               :: suite_name, contact_name
     integer                    :: sj, ict_collect, nk, k, n_n_int, n_p_int, i
     real                       :: I_beam_saved
-    real,          allocatable :: r_beam_list(:), I_EBIC(:)
+    real,          allocatable :: r_beam_list(:), x_beam_list(:), z_beam_list(:), I_EBIC(:)
     real,          allocatable :: c(:), phi(:), s(:)
     real,          allocatable :: phi_n_int(:), phi_p_int(:)
-    logical                    :: have_holes
+    logical                    :: have_holes, sweep_has_x, sweep_has_z
     logical                    :: status
 
     ! Absolute collection efficiency accounting
@@ -121,29 +122,99 @@ contains
 
     call runfile%get(si, "collecting_contact", contact_name)
 
-    ! r_beam can be specified two ways:
-    !   Explicit list:   r_beam = v1, v2, ... : nm
-    !   Linspace:        r_beam_min = X : nm, r_beam_max = Y : nm, r_beam_n = N
-    ! If all three linspace keys are present, they take precedence.
+    ! Beam-position specification. Supports four modes by key presence:
+    !   (a) r_beam / r_beam_min/_max/_n       -> 1D y-sweep (legacy)
+    !   (b) x_beam_*, y_beam_*                -> 2D (x, y) Cartesian for 2D point
+    !   (c) y_beam_*, z_beam_*                -> 2D (y, z) Cartesian for 3D line
+    !   (d) x_beam_*, y_beam_*, z_beam_*      -> 3D (x, y, z) Cartesian for 3D point
+    ! Flat ordering: outermost loop over y, then z, then x inner-most.
     block
       real    :: r_beam_min, r_beam_max
-      integer :: r_beam_n
+      real    :: x_beam_min, x_beam_max, y_beam_min, y_beam_max
+      real    :: z_beam_min, z_beam_max
+      integer :: r_beam_n, x_beam_n, y_beam_n, z_beam_n, i_x, i_y, i_z, k_idx
+      integer :: n_axis_x, n_axis_y, n_axis_z
       logical :: has_min, has_max, has_n
+      logical :: hx_min, hx_max, hx_n, hy_min, hy_max, hy_n
+      logical :: hz_min, hz_max, hz_n
+      real, allocatable :: x_axis(:), y_axis(:), z_axis(:)
 
-      call runfile%get(si, "r_beam_min", r_beam_min, status = has_min)
-      call runfile%get(si, "r_beam_max", r_beam_max, status = has_max)
-      call runfile%get(si, "r_beam_n",   r_beam_n,   status = has_n)
-      if (has_min .and. has_max .and. has_n) then
-        r_beam_list = linspace(r_beam_min, r_beam_max, r_beam_n)
+      call runfile%get(si, "x_beam_min", x_beam_min, status = hx_min)
+      call runfile%get(si, "x_beam_max", x_beam_max, status = hx_max)
+      call runfile%get(si, "x_beam_n",   x_beam_n,   status = hx_n)
+      call runfile%get(si, "y_beam_min", y_beam_min, status = hy_min)
+      call runfile%get(si, "y_beam_max", y_beam_max, status = hy_max)
+      call runfile%get(si, "y_beam_n",   y_beam_n,   status = hy_n)
+      call runfile%get(si, "z_beam_min", z_beam_min, status = hz_min)
+      call runfile%get(si, "z_beam_max", z_beam_max, status = hz_max)
+      call runfile%get(si, "z_beam_n",   z_beam_n,   status = hz_n)
+      sweep_has_x = hx_min .and. hx_max .and. hx_n
+      sweep_has_z = hz_min .and. hz_max .and. hz_n
+
+      if (sweep_has_x .or. sweep_has_z) then
+        if (.not. (hy_min .and. hy_max .and. hy_n)) &
+          & call program_error("sweep requires y_beam_min/_max/_n when x_beam_* or z_beam_* is present")
+
+        if (sweep_has_x) then
+          x_axis = linspace(x_beam_min, x_beam_max, x_beam_n)
+          n_axis_x = x_beam_n
+        else
+          allocate (x_axis(1))
+          x_axis = 0.0
+          n_axis_x = 1
+        end if
+        y_axis = linspace(y_beam_min, y_beam_max, y_beam_n)
+        n_axis_y = y_beam_n
+        if (sweep_has_z) then
+          z_axis = linspace(z_beam_min, z_beam_max, z_beam_n)
+          n_axis_z = z_beam_n
+        else
+          allocate (z_axis(1))
+          z_axis = 0.0
+          n_axis_z = 1
+        end if
+
+        allocate (r_beam_list(n_axis_x * n_axis_y * n_axis_z))
+        if (sweep_has_x) allocate (x_beam_list(n_axis_x * n_axis_y * n_axis_z))
+        if (sweep_has_z) allocate (z_beam_list(n_axis_x * n_axis_y * n_axis_z))
+        k_idx = 0
+        do i_y = 1, n_axis_y
+          do i_z = 1, n_axis_z
+            do i_x = 1, n_axis_x
+              k_idx = k_idx + 1
+              r_beam_list(k_idx) = y_axis(i_y)
+              if (sweep_has_x) x_beam_list(k_idx) = x_axis(i_x)
+              if (sweep_has_z) z_beam_list(k_idx) = z_axis(i_z)
+            end do
+          end do
+        end do
       else
-        call runfile%get(si, "r_beam", r_beam_list)
+        call runfile%get(si, "r_beam_min", r_beam_min, status = has_min)
+        call runfile%get(si, "r_beam_max", r_beam_max, status = has_max)
+        call runfile%get(si, "r_beam_n",   r_beam_n,   status = has_n)
+        if (has_min .and. has_max .and. has_n) then
+          r_beam_list = linspace(r_beam_min, r_beam_max, r_beam_n)
+        else
+          call runfile%get(si, "r_beam", r_beam_list)
+        end if
       end if
+      if (.not. allocated(x_beam_list)) allocate (x_beam_list(0))
+      if (.not. allocated(z_beam_list)) allocate (z_beam_list(0))
     end block
 
     call dev%par%contact_map%get(contact_name, ict_collect, status)
     if (.not. status) call program_error("contact not found: " // contact_name%s)
     print "(A,A,A,I0,A)", "  Collecting contact: ", trim(contact_name%s), &
                        &  " (index ", ict_collect, ")"
+    if (sweep_has_x .and. sweep_has_z) then
+      print "(A)",    "  Sweep mode: 3D Cartesian (x, y, z) product"
+    else if (sweep_has_x) then
+      print "(A)",    "  Sweep mode: 2D Cartesian (x, y) product"
+    else if (sweep_has_z) then
+      print "(A)",    "  Sweep mode: 2D Cartesian (y, z) product"
+    else
+      print "(A)",    "  Sweep mode: 1D (y only)"
+    end if
     print "(A,I0)", "  Number of beam positions: ", size(r_beam_list)
 
     call runfile%get_section("full newton params", sj)
@@ -180,7 +251,16 @@ contains
     print "(A)", "--- Beam sweep via adjoint dot-product ---"
     call system_clock(t_sweep_start)
     do k = 1, nk
-      call build_adjoint_source(dev, r_beam_list(k), s)
+      if (sweep_has_x .and. sweep_has_z) then
+        call build_adjoint_source(dev, r_beam_list(k), s, &
+          & x_beam = x_beam_list(k), z_beam = z_beam_list(k))
+      else if (sweep_has_x) then
+        call build_adjoint_source(dev, r_beam_list(k), s, x_beam = x_beam_list(k))
+      else if (sweep_has_z) then
+        call build_adjoint_source(dev, r_beam_list(k), s, z_beam = z_beam_list(k))
+      else
+        call build_adjoint_source(dev, r_beam_list(k), s)
+      end if
       I_EBIC(k) = evaluate_ebic(phi, s)
     end do
     call system_clock(t_sweep_end)
@@ -197,20 +277,27 @@ contains
     print "(A,ES12.4,A)", "  q * G_total              : ", Q_ELEM_C * total_pairs_per_sec, &
                         &                                  " A  (= I_EBIC if eta=1)"
     print "(A)", ""
-    print "(A)", "  ┌──────────┬──────────────────┬────────────────┬────────────────┐"
-    print "(A)", "  │ y [nm]   │   I_EBIC [A]     │  eta_absolute  │  eta / peak    │"
-    print "(A)", "  ├──────────┼──────────────────┼────────────────┼────────────────┤"
-    do k = 1, nk
-      I_EBIC_A = denorm(I_EBIC(k), 'A')
-      eta_abs  = I_EBIC_A / (Q_ELEM_C * total_pairs_per_sec)
-      eta_rel  = I_EBIC_A / I_EBIC_peak_A
-      print "(A,F8.1,A,ES16.6,A,F14.6,A,F14.6,A)",                                  &
-        "  │ ", denorm(r_beam_list(k), 'nm'),                                       &
-        " │ ", I_EBIC_A,                                                            &
-        " │ ", eta_abs,                                                             &
-        " │ ", eta_rel, " │"
-    end do
-    print "(A)", "  └──────────┴──────────────────┴────────────────┴────────────────┘"
+    if (sweep_has_x .or. sweep_has_z) then
+      print "(A,ES16.6,A)", "  Multi-D sweep peak |I_EBIC|: ", I_EBIC_peak_A, " A"
+      print "(A,ES16.6)",   "  Multi-D sweep peak eta_abs : ", &
+                          & I_EBIC_peak_A / (Q_ELEM_C * total_pairs_per_sec)
+      print "(A)",          "  (Per-position values written to fbs; table skipped for multi-D sweep.)"
+    else
+      print "(A)", "  ┌──────────┬──────────────────┬────────────────┬────────────────┐"
+      print "(A)", "  │ y [nm]   │   I_EBIC [A]     │  eta_absolute  │  eta / peak    │"
+      print "(A)", "  ├──────────┼──────────────────┼────────────────┼────────────────┤"
+      do k = 1, nk
+        I_EBIC_A = denorm(I_EBIC(k), 'A')
+        eta_abs  = I_EBIC_A / (Q_ELEM_C * total_pairs_per_sec)
+        eta_rel  = I_EBIC_A / I_EBIC_peak_A
+        print "(A,F8.1,A,ES16.6,A,F14.6,A,F14.6,A)",                                  &
+          "  │ ", denorm(r_beam_list(k), 'nm'),                                       &
+          " │ ", I_EBIC_A,                                                            &
+          " │ ", eta_abs,                                                             &
+          " │ ", eta_rel, " │"
+      end do
+      print "(A)", "  └──────────┴──────────────────┴────────────────┴────────────────┘"
+    end if
 
     setup_sec = real(t_setup_end - t_setup_start) / real(clock_rate)
     sweep_sec = real(t_sweep_end - t_sweep_start) / real(clock_rate)
@@ -250,27 +337,90 @@ contains
     print "(A)", ""
     print "(A,ES14.6)", "  |phi|   = ", norm2(phi)
     print "(A,ES14.6)", "  max|c|  = ", maxval(abs(c))
-    call build_adjoint_source(dev, r_beam_list((nk + 1) / 2), s)
+    if (sweep_has_x .and. sweep_has_z) then
+      call build_adjoint_source(dev, r_beam_list((nk + 1) / 2), s, &
+        & x_beam = x_beam_list((nk + 1) / 2), z_beam = z_beam_list((nk + 1) / 2))
+    else if (sweep_has_x) then
+      call build_adjoint_source(dev, r_beam_list((nk + 1) / 2), s, &
+        & x_beam = x_beam_list((nk + 1) / 2))
+    else if (sweep_has_z) then
+      call build_adjoint_source(dev, r_beam_list((nk + 1) / 2), s, &
+        & z_beam = z_beam_list((nk + 1) / 2))
+    else
+      call build_adjoint_source(dev, r_beam_list((nk + 1) / 2), s)
+    end if
     print "(A,ES14.6)", "  |s|     = ", norm2(s)
     print "(A,ES14.6)", "  max|s|  = ", maxval(abs(s))
+
+    ! Persist the scalar sweep, collection-probability interior slices, and a
+    ! few scalar summaries to an fbs file for downstream plotting. The grid
+    ! (coordinates for the phi^n/phi^p interior entries) lives in device.fbs,
+    ! which dev%init already emits alongside this file.
+    block
+      type(storage)             :: st
+      character(:), allocatable :: fbs_path
+      real,         allocatable :: eta_abs_arr(:)
+      integer                   :: kk
+
+      fbs_path = suite_name%s // ".fbs"
+      allocate (eta_abs_arr(nk))
+      do kk = 1, nk
+        eta_abs_arr(kk) = denorm(I_EBIC(kk), 'A') / (Q_ELEM_C * total_pairs_per_sec)
+      end do
+
+      call st%open(fbs_path, flag = STORAGE_WRITE)
+      call st%write("adjoint/r_beam",             r_beam_list,   unit = "nm")
+      if (sweep_has_x) &
+        call st%write("adjoint/x_beam",           x_beam_list,   unit = "nm")
+      if (sweep_has_z) &
+        call st%write("adjoint/z_beam",           z_beam_list,   unit = "nm")
+      call st%write("adjoint/I_EBIC",             I_EBIC,        unit = "A")
+      call st%write("adjoint/eta_absolute",       eta_abs_arr)
+      call st%write("adjoint/phi_n_interior",     phi_n_int)
+      if (have_holes) &
+        call st%write("adjoint/phi_p_interior",   phi_p_int)
+      call st%write("adjoint/G_total",            [total_pairs_per_sec])
+      call st%write("adjoint/q_times_G_total",    [Q_ELEM_C * total_pairs_per_sec])
+      call st%write("adjoint/setup_time",         [setup_sec])
+      call st%write("adjoint/sweep_time",         [sweep_sec])
+      call st%close()
+      print "(A)", ""
+      print "(A)", "  Results written to " // fbs_path
+    end block
 
     print "(A)", ""
     print "(A)", "=== Case " // suite_name%s // " complete ==="
     print "(A)", ""
     print "(A)", "--- Forward EBIC validation at middle r_beam ---"
-    call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect)
+    if (sweep_has_x .and. sweep_has_z) then
+      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+        & x_beam = x_beam_list((nk + 1) / 2), z_beam = z_beam_list((nk + 1) / 2))
+    else if (sweep_has_x) then
+      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+        & x_beam = x_beam_list((nk + 1) / 2))
+    else if (sweep_has_z) then
+      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+        & z_beam = z_beam_list((nk + 1) / 2))
+    else
+      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect)
+    end if
   end subroutine
 
-  subroutine run_forward_validation(r_beam, I_beam_phys, ict_collect)
+  subroutine run_forward_validation(r_beam, I_beam_phys, ict_collect, x_beam, z_beam)
     !! Run a fresh forward DC solve with the beam turned on at r_beam.
     !! Print the resulting I_<collect> for direct comparison against the adjoint value.
+    !! For 2D point-beam sweeps pass x_beam; for 3D line sweeps pass z_beam; for 3D
+    !! point pass both.
     real,    intent(in) :: r_beam, I_beam_phys
     integer, intent(in) :: ict_collect
+    real, optional, intent(in) :: x_beam, z_beam
 
     type(steady_state)   :: ss_fwd
     type(polygon_src)    :: input
     real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:)
     integer              :: sj, ict
+    integer(8)           :: t_fwd_start, t_fwd_end, clock_rate
+    real                 :: t_fwd_sec
 
     call runfile%get_section("full newton params", sj)
     call ss_fwd%init(dev%sys_full)
@@ -288,17 +438,31 @@ contains
     call input%init(t_inp, V_all)
 
     dev%par%reg_beam(1)%I_beam = I_beam_phys
+    if (present(x_beam)) dev%par%reg_beam(1)%beam_x = x_beam
+    if (present(z_beam)) dev%par%reg_beam(1)%beam_z = z_beam
 
     gummel_restart = .true.
     gummel_once    = .true.
     gummel_enabled = .true.
 
+    call system_clock(count_rate = clock_rate)
+    call system_clock(t_fwd_start)
     call ss_fwd%run(input=input, t_input=t_sim, gummel=gummel)
+    call system_clock(t_fwd_end)
+    t_fwd_sec = real(t_fwd_end - t_fwd_start) / real(clock_rate)
 
-    print "(A,F9.2,A,ES16.6,A)", "  Forward I_collect at r_beam = ", denorm(r_beam, 'nm'), &
-                           &      " nm  is  ", denorm(dev%curr(ict_collect)%x, 'A'), " A"
+    if (present(x_beam)) then
+      print "(A,F9.2,A,F9.2,A,ES16.6,A)", "  Forward I_collect at (x, y) = (", &
+        & denorm(x_beam, 'nm'), " nm, ", denorm(r_beam, 'nm'), " nm) is ", &
+        & denorm(dev%curr(ict_collect)%x, 'A'), " A"
+    else
+      print "(A,F9.2,A,ES16.6,A)", "  Forward I_collect at r_beam = ", denorm(r_beam, 'nm'), &
+                             &      " nm  is  ", denorm(dev%curr(ict_collect)%x, 'A'), " A"
+    end if
     print "(A,ES16.6)",           "  Forward eta = I_collect / I_beam = ", &
                            &      dev%curr(ict_collect)%x / I_beam_phys
+    print "(A,F10.4,A)",          "  Forward Newton time (= brute-force cost per beam position):", &
+                           &      t_fwd_sec, " s"
   end subroutine
 
   subroutine run_dark_solve(ss)

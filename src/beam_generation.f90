@@ -190,10 +190,16 @@ contains
     use_line = (this%par%reg_beam(1)%beam_dist%s == "line")
     use_point = (this%par%reg_beam(1)%beam_dist%s == "point")
 
-    ! For 3D: beam z-position at device center (can be made configurable later)
+    ! For 3D: beam z-position. If reg_beam(1)%beam_z is set (>= 0), snap to the
+    ! nearest z grid node. Otherwise default to device center. The adjoint driver
+    ! overrides reg_beam(1)%beam_z before each eval to sweep the z-axis.
     iz_beam = 1
     if (is_3D) then
-      iz_beam = (this%par%g1D(3)%n + 1) / 2  ! middle of device in z
+      if (this%par%reg_beam(1)%beam_z >= 0.0) then
+        iz_beam = bin_search(this%par%g1D(3)%x, this%par%reg_beam(1)%beam_z)
+      else
+        iz_beam = (this%par%g1D(3)%n + 1) / 2
+      end if
     end if
 
     ! Get lamella thickness [cm] - the beam path length through the material

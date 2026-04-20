@@ -82,6 +82,8 @@ module region_m
     real :: beam_min         !! Sweep minimum [cm, normalized]
     real :: beam_max         !! Sweep maximum [cm, normalized]
     real :: beam_x           !! Fixed x position for point profile [cm, normalized]
+    real :: beam_z = -1.0    !! Fixed z position for 3D beams [cm, normalized].
+                             !! Sentinel -1 means "use device z-center" (beam_generation.f90 default).
     type(string) :: beam_dist  !! Beam distribution: "line", "gaussian", or "point"
     real, allocatable :: beam_y(:)  !! Sweep positions [cm, normalized] - become mandatory grid nodes
   end type

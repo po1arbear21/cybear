@@ -1245,26 +1245,29 @@ contains
       print "(A,I0,A,I0,A)", "  SRH region ", ri, ": overrode ", n_set, " vertices"
     end do
 
-    ! debug: print tau at specific probe points
-    block
-      real :: probe_x, probe_y, tau_n_val, tau_p_val
-      integer :: ix, iy, probe_idx(2)
-      real, parameter :: probes(2,2) = reshape([0.1, 0.1, 7.0, 7.0], [2,2])
-      !                                         x1   y1    x2   y2
+    ! debug: print tau at specific probe points (2D only — probes are hardcoded
+    ! to 2D coordinates; 3D grids would need a third probe index).
+    if (this%g%dim == 2) then
+      block
+        real :: probe_x, probe_y, tau_n_val, tau_p_val
+        integer :: ix, iy, probe_idx(2)
+        real, parameter :: probes(2,2) = reshape([0.1, 0.1, 7.0, 7.0], [2,2])
+        !                                         x1   y1    x2   y2
 
-      do i = 1, 2
-        probe_x = norm(probes(1,i), 'um')
-        probe_y = norm(probes(2,i), 'um')
-        ix = bin_search(this%g1D(1)%x, probe_x)
-        iy = bin_search(this%g1D(2)%x, probe_y)
-        probe_idx = [ix, iy]
-        tau_n_val = this%srh_tau(CR_ELEC)%get(probe_idx)
-        tau_p_val = this%srh_tau(CR_HOLE)%get(probe_idx)
-        print "(A,F6.2,A,F6.2,A,ES10.3,A,ES10.3,A)", &
-          & "  SRH tau at (", probes(1,i), ", ", probes(2,i), ") um: tau_n=", &
-          & denorm(tau_n_val, 's'), " s, tau_p=", denorm(tau_p_val, 's'), " s"
-      end do
-    end block
+        do i = 1, 2
+          probe_x = norm(probes(1,i), 'um')
+          probe_y = norm(probes(2,i), 'um')
+          ix = bin_search(this%g1D(1)%x, probe_x)
+          iy = bin_search(this%g1D(2)%x, probe_y)
+          probe_idx = [ix, iy]
+          tau_n_val = this%srh_tau(CR_ELEC)%get(probe_idx)
+          tau_p_val = this%srh_tau(CR_HOLE)%get(probe_idx)
+          print "(A,F6.2,A,F6.2,A,ES10.3,A,ES10.3,A)", &
+            & "  SRH tau at (", probes(1,i), ", ", probes(2,i), ") um: tau_n=", &
+            & denorm(tau_n_val, 's'), " s, tau_p=", denorm(tau_p_val, 's'), " s"
+        end do
+      end block
+    end if
 
     deallocate(idx)
   end subroutine
