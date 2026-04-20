@@ -357,6 +357,16 @@ templates = [
   { files = [ "devices/test/beam_minimal.ini" ], action = "expand" }
 ]
 
+[adjoint_ebic_pn]
+mode = "debug"
+target = "adjoint_ebic_driver"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+templates = [
+  { files = [ "devices/adjoint_test/run_adjoint_ebic_pn.ini" ] },
+  { files = [ "devices/adjoint_test/pn_2d.ini" ],                      action = "expand" },
+]
+
+
 [linearity_test]
 mode = "debug"
 target = "linearity_test"
