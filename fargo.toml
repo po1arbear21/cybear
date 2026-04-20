@@ -356,3 +356,25 @@ args = ""
 templates = [
   { files = [ "devices/test/beam_minimal.ini" ], action = "expand" }
 ]
+
+[linearity_test]
+mode = "debug"
+target = "linearity_test"
+args = "--suite {files[0]} --temperature 300.0"
+runner = "slurm"
+partition = "fast"
+templates = [
+  { files = [ "devices/linearity_test/linearity_suite.ini" ] },
+  { files = [ "devices/linearity_test/lateral.ini" ],                        action = "expand" },
+  { files = [ "devices/linearity_test/lateral_surf.ini" ],                   action = "expand" },
+  { files = [ "devices/linearity_test/lateral_schottky.ini" ],               action = "expand" },
+  { files = [ "devices/linearity_test/slit.ini" ],                           action = "expand" },
+  { files = [ "devices/linearity_test/flat_ohmic.ini" ],                     action = "expand" },
+  { files = [ "devices/linearity_test/flat_schottky.ini" ],                  action = "expand" },
+  { files = [ "devices/linearity_test/run_linearity_lateral.ini" ] },
+  { files = [ "devices/linearity_test/run_linearity_lateral_surf.ini" ] },
+  { files = [ "devices/linearity_test/run_linearity_lateral_schottky.ini" ] },
+  { files = [ "devices/linearity_test/run_linearity_slit.ini" ] },
+  { files = [ "devices/linearity_test/run_linearity_flat_ohmic.ini" ] },
+  { files = [ "devices/linearity_test/run_linearity_flat_schottky.ini" ] },
+]
