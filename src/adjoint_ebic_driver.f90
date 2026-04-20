@@ -14,7 +14,9 @@ program adjoint_ebic_driver
 
   use adjoint_ebic_m,  only: build_collection_functional, build_adjoint_source, &
                            & refactorize_at_converged, solve_adjoint,            &
-                           & evaluate_ebic, extract_phi_for_var
+                           & evaluate_ebic, extract_phi_for_var,                 &
+                           & adjoint_fast_path, init_adjoint_fast_path,          &
+                           & eval_I_EBIC_fast
   use approx_m,        only: approx_imref, approx_potential
   use cl_options_m,    only: cl_option_descriptor, cl_option, get_cl_options
   use device_m,        only: dev
@@ -249,21 +251,67 @@ contains
 
     print "(A)", ""
     print "(A)", "--- Beam sweep via adjoint dot-product ---"
-    call system_clock(t_sweep_start)
-    do k = 1, nk
-      if (sweep_has_x .and. sweep_has_z) then
-        call build_adjoint_source(dev, r_beam_list(k), s, &
-          & x_beam = x_beam_list(k), z_beam = z_beam_list(k))
-      else if (sweep_has_x) then
-        call build_adjoint_source(dev, r_beam_list(k), s, x_beam = x_beam_list(k))
-      else if (sweep_has_z) then
-        call build_adjoint_source(dev, r_beam_list(k), s, z_beam = z_beam_list(k))
+    ! Profile-aware fast path for "line" and "point" beams: O(N_active_vertices)
+    ! per position instead of O(N_dof). Bypasses calc_bgen, jaco_bgen mat-vec,
+    ! scatter, and dense dot_product. Falls back to the general path for
+    ! "gaussian" or any future profile.
+    block
+      type(adjoint_fast_path) :: fp
+      logical                 :: use_fast, use_fast_requested, has_fast_key
+      character(:), allocatable :: dist_s
+
+      ! Read optional override from run INI. Default: auto (use fast when profile
+      ! is line/point, slow otherwise). Set `use_fast_path = false` to force the
+      ! general mat-vec path — useful as a correctness fallback or for debugging.
+      call runfile%get(si, "use_fast_path", use_fast_requested, status = has_fast_key)
+      if (.not. has_fast_key) use_fast_requested = .true.
+
+      dist_s = dev%par%reg_beam(1)%beam_dist%s
+      use_fast = use_fast_requested .and. (dist_s == "line" .or. dist_s == "point")
+
+      if (use_fast) then
+        print "(A,A,A)", "  Sweep kernel: profile-aware fast path (",                 &
+                       & trim(dist_s), " profile, O(N_active_vertices) per position)"
+        call init_adjoint_fast_path(dev, fp)
+      else if (.not. use_fast_requested) then
+        print "(A,A,A)", "  Sweep kernel: general slow path (use_fast_path=false in ",&
+                       & "run INI, O(N_dof) per position)"
       else
-        call build_adjoint_source(dev, r_beam_list(k), s)
+        print "(A,A,A)",  "  Sweep kernel: general slow path (profile '",             &
+                       & trim(dist_s), "' not handled by fast path, O(N_dof) per position)"
       end if
-      I_EBIC(k) = evaluate_ebic(phi, s)
-    end do
-    call system_clock(t_sweep_end)
+
+      call system_clock(t_sweep_start)
+      do k = 1, nk
+        if (use_fast) then
+          if (sweep_has_x .and. sweep_has_z) then
+            call eval_I_EBIC_fast(dev, fp, phi, r_beam_list(k), I_EBIC(k), &
+              & x_beam = x_beam_list(k), z_beam = z_beam_list(k))
+          else if (sweep_has_x) then
+            call eval_I_EBIC_fast(dev, fp, phi, r_beam_list(k), I_EBIC(k), &
+              & x_beam = x_beam_list(k))
+          else if (sweep_has_z) then
+            call eval_I_EBIC_fast(dev, fp, phi, r_beam_list(k), I_EBIC(k), &
+              & z_beam = z_beam_list(k))
+          else
+            call eval_I_EBIC_fast(dev, fp, phi, r_beam_list(k), I_EBIC(k))
+          end if
+        else
+          if (sweep_has_x .and. sweep_has_z) then
+            call build_adjoint_source(dev, r_beam_list(k), s, &
+              & x_beam = x_beam_list(k), z_beam = z_beam_list(k))
+          else if (sweep_has_x) then
+            call build_adjoint_source(dev, r_beam_list(k), s, x_beam = x_beam_list(k))
+          else if (sweep_has_z) then
+            call build_adjoint_source(dev, r_beam_list(k), s, z_beam = z_beam_list(k))
+          else
+            call build_adjoint_source(dev, r_beam_list(k), s)
+          end if
+          I_EBIC(k) = evaluate_ebic(phi, s)
+        end if
+      end do
+      call system_clock(t_sweep_end)
+    end block
 
     ! Total pair generation rate — needed for absolute collection efficiency.
     ! G_tot (stored on calc_bgen during eval) is in pairs/(s·cm) for 2D; multiply

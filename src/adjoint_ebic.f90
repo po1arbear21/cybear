@@ -16,11 +16,13 @@ module adjoint_ebic_m
   !!     I_EBIC(i_beam) = evaluate_ebic(phi, s)
   !!   end do
 
-  use block_m,       only: block_real
-  use device_m,      only: device
-  use error_m,       only: program_error
+  use bin_search_m,    only: bin_search
+  use block_m,         only: block_real
+  use device_m,        only: device
+  use error_m,         only: program_error
+  use normalization_m, only: norm, denorm
   use semiconductor_m, only: CR_ELEC, CR_HOLE
-  use solver_base_m, only: solver_real
+  use solver_base_m,   only: solver_real
 
   implicit none
 
@@ -31,6 +33,21 @@ module adjoint_ebic_m
   public solve_adjoint
   public evaluate_ebic
   public extract_phi_for_var
+  public adjoint_fast_path
+  public init_adjoint_fast_path
+  public eval_I_EBIC_fast
+
+  type adjoint_fast_path
+    !! Precomputed state for the profile-aware fast evaluation path.
+    !! Built once per (device, bias) at setup, reused across every beam position.
+    logical :: enabled = .false.
+    logical :: is_3D   = .false.
+    logical :: has_elec, has_hole
+    integer :: i_lo_elec = -1   !! sys_full DOF offset for ndens interior tab (0-indexed: +k-1)
+    integer :: i_lo_hole = -1   !! sys_full DOF offset for pdens interior tab
+    integer, allocatable :: rev_map(:,:,:)   !! (ix,iy,iz) -> k in transport_vct(0); 0 on contact
+    real,    allocatable :: tr_vol_norm(:)   !! cached V_k (normalized), length = n_interior
+  end type
 
 contains
 
@@ -171,6 +188,192 @@ contains
     end if
     I_EBIC = dot_product(phi, s)
   end function
+
+  subroutine init_adjoint_fast_path(dev, fp)
+    !! Precompute state for eval_I_EBIC_fast_line. Runs once per bias point.
+    !!
+    !! Builds:
+    !!   - rev_map(ix,iy,iz) -> k in transport_vct(0), or 0 if that vertex is on
+    !!     a contact (no continuity equation there, so no contribution to I_EBIC).
+    !!   - tr_vol_norm(k): cached normalized control volume for interior vertex k.
+    !!   - i_lo_elec / i_lo_hole: starting DOF offsets in sys_full for each
+    !!     carrier's interior ndens/pdens tab. phi(i_lo + k - 1) is the adjoint
+    !!     value at interior vertex k.
+    class(device), target, intent(in)  :: dev
+    type(adjoint_fast_path), intent(out) :: fp
+
+    integer              :: k, iimvar, ibl, idx_dim
+    integer, allocatable :: idx(:)
+    integer              :: Nx, Ny, Nz
+
+    idx_dim = dev%par%g%idx_dim
+    fp%is_3D = (idx_dim == 3)
+    fp%has_elec = (dev%par%ci0 <= CR_ELEC) .and. (dev%par%ci1 >= CR_ELEC)
+    fp%has_hole = (dev%par%ci0 <= CR_HOLE) .and. (dev%par%ci1 >= CR_HOLE)
+
+    Nx = dev%par%g1D(1)%n
+    Ny = dev%par%g1D(2)%n
+    if (fp%is_3D) then
+      Nz = dev%par%g1D(3)%n
+    else
+      Nz = 1
+    end if
+    allocate (fp%rev_map(Nx, Ny, Nz), source = 0)
+    allocate (fp%tr_vol_norm(dev%par%transport_vct(0)%n))
+    allocate (idx(idx_dim))
+
+    do k = 1, dev%par%transport_vct(0)%n
+      idx = dev%par%transport_vct(0)%get_idx(k)
+      if (fp%is_3D) then
+        fp%rev_map(idx(1), idx(2), idx(3)) = k
+      else
+        fp%rev_map(idx(1), idx(2), 1) = k
+      end if
+      fp%tr_vol_norm(k) = dev%par%tr_vol%get(idx)
+    end do
+
+    if (fp%has_elec) then
+      iimvar = dev%sys_full%search_main_var("ndens")
+      ibl    = dev%sys_full%res2block(iimvar)%d(1)
+      fp%i_lo_elec = dev%sys_full%i0(ibl)
+    end if
+    if (fp%has_hole) then
+      iimvar = dev%sys_full%search_main_var("pdens")
+      ibl    = dev%sys_full%res2block(iimvar)%d(1)
+      fp%i_lo_hole = dev%sys_full%i0(ibl)
+    end if
+
+    fp%enabled = .true.
+  end subroutine
+
+  subroutine eval_I_EBIC_fast(dev, fp, phi, r_beam, I_EBIC, x_beam, z_beam)
+    !! Profile-aware fast evaluation of I_EBIC. Handles both "line" and "point"
+    !! beam profiles. Falls through to program_error for anything else.
+    !!
+    !! Math: given the set S of interior vertices where the beam deposits
+    !! nonzero generation,
+    !!     I_EBIC = sum_{k in S} V_k * G_k * phi(dof_k)
+    !!           = G_tot / V_total * sum_{k in S} V_k * phi(dof_k)
+    !! where V_total = sum_{k in S} V_k_phys (col_vol for line, point_vol for
+    !! point). Skips calc_bgen, jaco_bgen mat-vec, scatter, and the full
+    !! sys_full dot product entirely — O(|S|) operations per position instead
+    !! of O(N_dof).
+    !!
+    !! S is:
+    !!   line 2D:   {(ix, iy_beam)        : ix = 1..Nx}              (~Nx terms)
+    !!   line 3D:   {(ix, iy_beam, iz_beam): ix = 1..Nx}             (~Nx terms)
+    !!   point 2D:  {(ix_beam, iy_beam)}                             (1 term)
+    !!   point 3D:  {(ix_beam, iy_beam, iz_beam)}                    (1 term)
+    class(device),           target, intent(inout) :: dev
+    type(adjoint_fast_path),         intent(in)    :: fp
+    real,                            intent(in)    :: phi(:)
+    real,                            intent(in)    :: r_beam     !! y beam position (normalized)
+    real,                            intent(out)   :: I_EBIC     !! result (normalized units)
+    real,                  optional, intent(in)    :: x_beam     !! x beam position (normalized), point profile
+    real,                  optional, intent(in)    :: z_beam     !! z beam position (normalized), 3D only
+
+    ! Physics constants (must match beam_generation.f90)
+    real, parameter :: Q_ELEM = 1.602176634e-19
+    real, parameter :: DE_DZ  = 5.21e6
+    real, parameter :: E_EHP  = 3.6
+
+    integer :: ix, iy, iz, k, dof, ix_lo, ix_hi
+    real    :: t_cm, I_beam_phys, N_ehp, G_tot, vol_total_phys, V_k_phys
+    real    :: G_phys, G_norm, wsum
+    logical :: is_line, is_point
+
+    if (.not. fp%enabled) &
+      & call program_error("eval_I_EBIC_fast: fast path not initialized")
+
+    is_line  = (dev%par%reg_beam(1)%beam_dist%s == "line")
+    is_point = (dev%par%reg_beam(1)%beam_dist%s == "point")
+    if (.not. (is_line .or. is_point)) &
+      & call program_error("eval_I_EBIC_fast: only 'line' and 'point' profiles supported")
+
+    ! Update the device-level beam coords so downstream printouts stay consistent
+    ! and bin_search on the current values works.
+    dev%beam_pos%x = r_beam
+    if (present(x_beam)) dev%par%reg_beam(1)%beam_x = x_beam
+    if (present(z_beam)) dev%par%reg_beam(1)%beam_z = z_beam
+
+    ! Snap y to grid (always needed; mirrors beam_generation.f90)
+    iy = bin_search(dev%par%g1D(2)%x, r_beam)
+
+    ! Snap z for 3D; irrelevant for 2D
+    if (fp%is_3D) then
+      if (dev%par%reg_beam(1)%beam_z >= 0.0) then
+        iz = bin_search(dev%par%g1D(3)%x, dev%par%reg_beam(1)%beam_z)
+      else
+        iz = (dev%par%g1D(3)%n + 1) / 2
+      end if
+    else
+      iz = 1
+    end if
+
+    ! x iteration range: all x for line, single x for point
+    if (is_line) then
+      ix_lo = 1
+      ix_hi = dev%par%g1D(1)%n
+    else
+      ix_lo = bin_search(dev%par%g1D(1)%x, dev%par%reg_beam(1)%beam_x)
+      ix_hi = ix_lo
+    end if
+
+    ! Pass 1: vol_total_phys = sum of control volumes of beam-active vertices
+    vol_total_phys = 0.0
+    do ix = ix_lo, ix_hi
+      k = fp%rev_map(ix, iy, iz)
+      if (k == 0) cycle   ! vertex on a contact — skip
+      if (fp%is_3D) then
+        V_k_phys = denorm(fp%tr_vol_norm(k), 'cm^3')
+      else
+        V_k_phys = denorm(fp%tr_vol_norm(k), 'cm^2')
+      end if
+      vol_total_phys = vol_total_phys + V_k_phys
+    end do
+
+    if (vol_total_phys <= 0.0) then
+      I_EBIC = 0.0
+      return
+    end if
+
+    ! G_tot from beam params (matches beam_generation.f90:209-210)
+    t_cm  = denorm(dev%par%reg_beam(1)%lamella_t, 'cm')
+    if (fp%is_3D) then
+      I_beam_phys = denorm(dev%par%reg_beam(1)%I_beam, 'A')
+    else
+      I_beam_phys = denorm(dev%par%reg_beam(1)%I_beam, 'A/cm')
+    end if
+    N_ehp = DE_DZ * t_cm / E_EHP
+    G_tot = (I_beam_phys / Q_ELEM) * N_ehp
+
+    ! Mirror the slow path's side effect: calc_bgen%eval stores G_tot on each
+    ! calc_bgen for the driver's eta_absolute reporting. Without this the value
+    ! left over from the dark solve (I_beam=0 -> G_tot=0) would divide-by-zero.
+    if (fp%has_elec) dev%calc_bgen(CR_ELEC)%G_tot = G_tot
+    if (fp%has_hole) dev%calc_bgen(CR_HOLE)%G_tot = G_tot
+
+    ! Uniform G per active vertex (normalized units, matching bgen storage)
+    G_phys = G_tot / vol_total_phys
+    G_norm = norm(G_phys, '1/cm^3/s')
+
+    ! Pass 2: I_EBIC = sum_{ci} sum_{k active} V_k_norm * G_norm * phi(dof_k)
+    wsum = 0.0
+    do ix = ix_lo, ix_hi
+      k = fp%rev_map(ix, iy, iz)
+      if (k == 0) cycle
+      if (fp%has_elec) then
+        dof = fp%i_lo_elec + k - 1
+        wsum = wsum + phi(dof) * fp%tr_vol_norm(k)
+      end if
+      if (fp%has_hole) then
+        dof = fp%i_lo_hole + k - 1
+        wsum = wsum + phi(dof) * fp%tr_vol_norm(k)
+      end if
+    end do
+
+    I_EBIC = wsum * G_norm
+  end subroutine
 
   subroutine extract_phi_for_var(dev, phi, var_name, tab_idx, phi_slice)
     !! Extract the portion of phi corresponding to main variable var_name,
