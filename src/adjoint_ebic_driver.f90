@@ -100,13 +100,14 @@ contains
 
     type(steady_state)         :: ss
     type(string)               :: suite_name, contact_name
-    integer                    :: sj, ict_collect, nk, k, n_n_int, n_p_int, i
+    integer                    :: sj, ict_collect, nk, k, n_n_int, n_p_int, i, ict
     real                       :: I_beam_saved
     real,          allocatable :: r_beam_list(:), x_beam_list(:), z_beam_list(:), I_EBIC(:)
     real,          allocatable :: c(:), phi(:), s(:)
     real,          allocatable :: phi_n_int(:), phi_p_int(:)
+    real,          allocatable :: V_contact(:), I_dark(:)
     logical                    :: have_holes, sweep_has_x, sweep_has_z
-    logical                    :: status
+    logical                    :: status, has_V, any_biased
 
     ! Absolute collection efficiency accounting
     real, parameter            :: Q_ELEM_C = 1.602176634e-19   ! Coulombs
@@ -219,6 +220,27 @@ contains
     end if
     print "(A,I0)", "  Number of beam positions: ", size(r_beam_list)
 
+    ! Per-contact bias: optional keys V_<contact_name> (unit ": V"). Missing keys
+    ! default to 0 V (short-circuit). Non-zero entries enable "operando" EBIC: the
+    ! adjoint linearizes around the biased DC operating point, and the forward
+    ! validation subtracts the dark contact current before comparing.
+    allocate (V_contact(dev%par%nct))
+    allocate (I_dark(dev%par%nct))
+    any_biased = .false.
+    do ict = 1, dev%par%nct
+      call runfile%get(si, "V_" // trim(dev%par%contacts(ict)%name), V_contact(ict), &
+        & status = has_V)
+      if (.not. has_V) V_contact(ict) = 0.0
+      if (abs(V_contact(ict)) > 0.0) any_biased = .true.
+    end do
+    if (any_biased) then
+      print "(A)", "  Contact bias (operando — adjoint linearizes around the biased DC state):"
+      do ict = 1, dev%par%nct
+        print "(A,A,A,ES12.4,A)", "    V_", trim(dev%par%contacts(ict)%name), " = ", &
+          & denorm(V_contact(ict), 'V'), " V"
+      end do
+    end if
+
     call runfile%get_section("full newton params", sj)
     call ss%init(dev%sys_full)
     call ss%set_params(runfile%sections%d(sj))
@@ -228,7 +250,7 @@ contains
     call system_clock(t_setup_start)
 
     I_beam_saved = dev%par%reg_beam(1)%I_beam
-    call run_dark_solve(ss)
+    call run_dark_solve(ss, V_contact, I_dark)
 
     print "(A)", ""
     print "(A)", "--- Refactorize J at converged u* ---"
@@ -239,8 +261,6 @@ contains
     call build_collection_functional(dev, ict_collect, c)
     call solve_adjoint(ss%solver, c, phi)
     print "(A,I0)", "  adjoint DOFs: ", size(phi)
-
-    call system_clock(t_setup_end)
 
     ! Restore physical I_beam; G enters s linearly so sign of the beam matters
     ! but the magnitude cleanly multiplies the final I_EBIC.
@@ -281,6 +301,10 @@ contains
                        & trim(dist_s), "' not handled by fast path, O(N_dof) per position)"
       end if
 
+      ! Close setup timing AFTER fast-path init so setup_time includes all
+      ! one-time amortized work. Everything between here and t_sweep_start is
+      ! per-run negligible (print statements).
+      call system_clock(t_setup_end)
       call system_clock(t_sweep_start)
       do k = 1, nk
         if (use_fast) then
@@ -431,6 +455,8 @@ contains
       call st%write("adjoint/q_times_G_total",    [Q_ELEM_C * total_pairs_per_sec])
       call st%write("adjoint/setup_time",         [setup_sec])
       call st%write("adjoint/sweep_time",         [sweep_sec])
+      call st%write("adjoint/V_contact",          V_contact, unit = "V")
+      call st%write("adjoint/I_dark",             I_dark,    unit = "A")
       call st%close()
       print "(A)", ""
       print "(A)", "  Results written to " // fbs_path
@@ -438,35 +464,117 @@ contains
 
     print "(A)", ""
     print "(A)", "=== Case " // suite_name%s // " complete ==="
-    print "(A)", ""
-    print "(A)", "--- Forward EBIC validation at middle r_beam ---"
-    if (sweep_has_x .and. sweep_has_z) then
-      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
-        & x_beam = x_beam_list((nk + 1) / 2), z_beam = z_beam_list((nk + 1) / 2))
-    else if (sweep_has_x) then
-      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
-        & x_beam = x_beam_list((nk + 1) / 2))
-    else if (sweep_has_z) then
-      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
-        & z_beam = z_beam_list((nk + 1) / 2))
-    else
-      call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect)
-    end if
+
+    block
+      logical :: run_fwd, has_fwd_key
+      call runfile%get(si, "run_forward_validation", run_fwd, status = has_fwd_key)
+      if (.not. has_fwd_key) run_fwd = .true.
+      if (.not. run_fwd) then
+        print "(A)", ""
+        print "(A)", "--- Forward validation skipped (run_forward_validation=false) ---"
+      else
+        print "(A)", ""
+        print "(A)", "--- Forward EBIC validation at middle r_beam ---"
+        if (sweep_has_x .and. sweep_has_z) then
+          call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+            & V_contact, I_dark, &
+            & x_beam = x_beam_list((nk + 1) / 2), z_beam = z_beam_list((nk + 1) / 2))
+        else if (sweep_has_x) then
+          call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+            & V_contact, I_dark, x_beam = x_beam_list((nk + 1) / 2))
+        else if (sweep_has_z) then
+          call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+            & V_contact, I_dark, z_beam = z_beam_list((nk + 1) / 2))
+        else
+          call run_forward_validation(r_beam_list((nk + 1) / 2), I_beam_saved, ict_collect, &
+            & V_contact, I_dark)
+        end if
+      end if
+    end block
+
+    ! Optional forward-linescan (direct reference for adjoint validation). Runs
+    ! N_fwd forward Newton solves with the beam swept along y at fixed x and
+    ! (for 3D) fixed z. Results saved to <name>_fwd_linescan.fbs. Controlled by
+    ! forward_linescan_n (+ optional forward_linescan_x, _y_min, _y_max, _z).
+    block
+      integer              :: n_fwd, kk
+      real, allocatable    :: fwd_y(:), fwd_I(:)
+      real                 :: fx, fz, fy_min, fy_max, y_lo, y_hi
+      logical              :: has_n, has_x, has_z, has_ymin, has_ymax
+      type(storage)        :: st_fwd
+      integer(8)           :: t_ls_start, t_ls_end, clock_rate_ls
+
+      call runfile%get(si, "forward_linescan_n",     n_fwd,  status = has_n)
+      if (has_n .and. n_fwd > 0) then
+        call runfile%get(si, "forward_linescan_x",     fx,     status = has_x)
+        call runfile%get(si, "forward_linescan_z",     fz,     status = has_z)
+        call runfile%get(si, "forward_linescan_y_min", fy_min, status = has_ymin)
+        call runfile%get(si, "forward_linescan_y_max", fy_max, status = has_ymax)
+        y_lo = fy_min
+        y_hi = fy_max
+        if (.not. has_ymin) y_lo = minval(r_beam_list)
+        if (.not. has_ymax) y_hi = maxval(r_beam_list)
+        if (.not. has_x)    fx   = dev%par%reg_beam(1)%beam_x
+
+        fwd_y = linspace(y_lo, y_hi, n_fwd)
+        allocate (fwd_I(n_fwd))
+
+        print "(A)", ""
+        print "(A,I0,A)", "--- Forward linescan: ", n_fwd, " points ---"
+
+        call system_clock(count_rate = clock_rate_ls)
+        call system_clock(t_ls_start)
+        do kk = 1, n_fwd
+          if (has_z) then
+            call run_forward_validation(fwd_y(kk), I_beam_saved, ict_collect,       &
+              & V_contact, I_dark, x_beam = fx, z_beam = fz,                        &
+              & I_ebic_out = fwd_I(kk), quiet = .true.)
+          else
+            call run_forward_validation(fwd_y(kk), I_beam_saved, ict_collect,       &
+              & V_contact, I_dark, x_beam = fx,                                     &
+              & I_ebic_out = fwd_I(kk), quiet = .true.)
+          end if
+          print "(A,I4,A,F8.1,A,ES16.6,A)", "    k=", kk, "  y = ",                 &
+            & denorm(fwd_y(kk), 'nm'), " nm  I_EBIC = ",                            &
+            & denorm(fwd_I(kk), 'A'), " A"
+        end do
+        call system_clock(t_ls_end)
+        print "(A,F10.4,A)", "  Forward linescan total time: ",                      &
+          & real(t_ls_end - t_ls_start) / real(clock_rate_ls), " s"
+
+        call st_fwd%open(suite_name%s // "_fwd_linescan.fbs", flag = STORAGE_WRITE)
+        call st_fwd%write("fwd/y",      fwd_y, unit = "nm")
+        call st_fwd%write("fwd/x",      [fx],  unit = "nm")
+        call st_fwd%write("fwd/I_EBIC", fwd_I, unit = "A")
+        if (has_z) call st_fwd%write("fwd/z", [fz], unit = "nm")
+        call st_fwd%close()
+        print "(A)", "  Results written to " // suite_name%s // "_fwd_linescan.fbs"
+      end if
+    end block
   end subroutine
 
-  subroutine run_forward_validation(r_beam, I_beam_phys, ict_collect, x_beam, z_beam)
-    !! Run a fresh forward DC solve with the beam turned on at r_beam.
-    !! Print the resulting I_<collect> for direct comparison against the adjoint value.
+  subroutine run_forward_validation(r_beam, I_beam_phys, ict_collect, V_contact, I_dark, &
+    & x_beam, z_beam, I_ebic_out, quiet)
+    !! Run a fresh forward DC solve with the beam turned on at r_beam, at the same
+    !! per-contact bias as the adjoint's DC operating point. The beam-induced
+    !! signal is I(beam on) − I_dark — that is what the adjoint's φ·s matches.
     !! For 2D point-beam sweeps pass x_beam; for 3D line sweeps pass z_beam; for 3D
-    !! point pass both.
+    !! point pass both. Pass I_ebic_out to capture the dark-subtracted current for
+    !! a calling linescan. Pass quiet=true to suppress prints when looping.
     real,    intent(in) :: r_beam, I_beam_phys
     integer, intent(in) :: ict_collect
-    real, optional, intent(in) :: x_beam, z_beam
+    real,    intent(in) :: V_contact(:), I_dark(:)
+    real, optional, intent(in)  :: x_beam, z_beam
+    real, optional, intent(out) :: I_ebic_out
+    logical, optional, intent(in) :: quiet
+
+    logical :: be_quiet
 
     type(steady_state)   :: ss_fwd
     type(polygon_src)    :: input
-    real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:)
-    integer              :: sj, ict
+    real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:), frac(:)
+    integer              :: sj, ict, n_ramp, kk
+    real                 :: I_collect_fwd, I_ebic_fwd, max_bias
     integer(8)           :: t_fwd_start, t_fwd_end, clock_rate
     real                 :: t_fwd_sec
 
@@ -475,14 +583,32 @@ contains
     call ss_fwd%set_params(runfile%sections%d(sj))
     ss_fwd%msg = "Fwd-Newton: "
 
-    allocate (V_all(dev%par%nct + 1, 1))
-    do ict = 1, dev%par%nct
-      V_all(ict, 1) = 0.0
-    end do
-    V_all(dev%par%nct + 1, 1) = r_beam
+    ! Same ramping discipline as run_dark_solve — beam is on from the start so
+    ! G also scales with the ramp, but that just means the final leg lands on
+    ! the target DC state. (For small beam currents the correction is linear
+    ! anyway; ramping robustness dominates.)
+    max_bias = maxval(abs(V_contact))
+    if (denorm(max_bias, 'V') < 0.026) then
+      n_ramp = 0
+    else
+      n_ramp = ceiling(denorm(max_bias, 'V') / 0.1)
+    end if
 
-    t_inp = [0.0]
-    t_sim = [0.0]
+    allocate (V_all(dev%par%nct + 1, n_ramp + 1))
+    if (n_ramp == 0) then
+      frac = [ 1.0 ]
+    else
+      frac = [ (real(kk) / real(n_ramp), kk = 0, n_ramp) ]
+    end if
+    do kk = 1, n_ramp + 1
+      do ict = 1, dev%par%nct
+        V_all(ict, kk) = frac(kk) * V_contact(ict)
+      end do
+      V_all(dev%par%nct + 1, kk) = r_beam
+    end do
+
+    t_inp = frac
+    t_sim = frac
     call input%init(t_inp, V_all)
 
     dev%par%reg_beam(1)%I_beam = I_beam_phys
@@ -499,39 +625,85 @@ contains
     call system_clock(t_fwd_end)
     t_fwd_sec = real(t_fwd_end - t_fwd_start) / real(clock_rate)
 
-    if (present(x_beam)) then
-      print "(A,F9.2,A,F9.2,A,ES16.6,A)", "  Forward I_collect at (x, y) = (", &
-        & denorm(x_beam, 'nm'), " nm, ", denorm(r_beam, 'nm'), " nm) is ", &
-        & denorm(dev%curr(ict_collect)%x, 'A'), " A"
-    else
-      print "(A,F9.2,A,ES16.6,A)", "  Forward I_collect at r_beam = ", denorm(r_beam, 'nm'), &
-                             &      " nm  is  ", denorm(dev%curr(ict_collect)%x, 'A'), " A"
+    I_collect_fwd = dev%curr(ict_collect)%x
+    I_ebic_fwd    = I_collect_fwd - I_dark(ict_collect)
+
+    be_quiet = .false.
+    if (present(quiet)) be_quiet = quiet
+
+    if (.not. be_quiet) then
+      if (present(x_beam)) then
+        print "(A,F9.2,A,F9.2,A,ES16.6,A)", "  Forward I_collect at (x, y) = (", &
+          & denorm(x_beam, 'nm'), " nm, ", denorm(r_beam, 'nm'), " nm) is ", &
+          & denorm(I_collect_fwd, 'A'), " A"
+      else
+        print "(A,F9.2,A,ES16.6,A)", "  Forward I_collect at r_beam = ", denorm(r_beam, 'nm'), &
+                             &      " nm  is  ", denorm(I_collect_fwd, 'A'), " A"
+      end if
+      print "(A,ES16.6,A)",         "  Dark I_collect (beam off, bias on)        = ", &
+                             &      denorm(I_dark(ict_collect), 'A'), " A"
+      print "(A,ES16.6,A)",         "  Forward I_EBIC = I_collect − I_dark       = ", &
+                             &      denorm(I_ebic_fwd, 'A'),                       " A"
+      print "(A,ES16.6)",           "  Forward eta = I_EBIC / I_beam             = ", &
+                             &      I_ebic_fwd / I_beam_phys
+      print "(A,F10.4,A)",          "  Forward Newton time (= brute-force cost per beam position):", &
+                             &      t_fwd_sec, " s"
     end if
-    print "(A,ES16.6)",           "  Forward eta = I_collect / I_beam = ", &
-                           &      dev%curr(ict_collect)%x / I_beam_phys
-    print "(A,F10.4,A)",          "  Forward Newton time (= brute-force cost per beam position):", &
-                           &      t_fwd_sec, " s"
+
+    if (present(I_ebic_out)) I_ebic_out = I_ebic_fwd
   end subroutine
 
-  subroutine run_dark_solve(ss)
-    !! Dark reference u_0: V=0 on all contacts, I_beam=0, beam parked arbitrarily.
+  subroutine run_dark_solve(ss, V_contact, I_dark)
+    !! Reference DC operating point u* with beam off. Contacts are held at the
+    !! (possibly non-zero) V_contact biases. Captured per-contact currents
+    !! I_dark are the baseline that the forward validation subtracts to isolate
+    !! the beam-induced signal.
+    !!
+    !! Bias ramping: if any |V_contact| exceeds V_T, solve at intermediate bias
+    !! fractions to keep Newton inside its basin of attraction. Without this,
+    !! Newton oscillates for V_P ≳ 0.2V forward on a pn junction — the V=0
+    !! nlpe guess is exponentially far from the strongly-injected solution.
     type(steady_state), intent(inout) :: ss
+    real,               intent(in)    :: V_contact(:)
+    real,               intent(out)   :: I_dark(:)
 
     type(polygon_src)    :: input
-    real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:)
-    integer              :: ict
+    real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:), frac(:)
+    integer              :: ict, n_ramp, k
+    real                 :: max_bias
 
     print "(A)", ""
-    print "(A)", "--- Dark reference solve (V=0, I_beam=0) ---"
+    print "(A)", "--- Operating-point solve (user bias, I_beam=0) ---"
 
-    allocate (V_all(dev%par%nct + 1, 1))
-    do ict = 1, dev%par%nct
-      V_all(ict, 1) = 0.0
+    max_bias = maxval(abs(V_contact))
+    ! At ~0 bias, a single-point solve is enough; no ramp. Otherwise use
+    ! ~0.1 V per Newton leg (≈ 4 V_T at 300K), producing n_ramp+1 time points
+    ! from 0 to V_contact. Threshold is 1 V_T — below that the dark nlpe/gummel
+    ! initial guess is already in Newton's basin of attraction.
+    if (denorm(max_bias, 'V') < 0.026) then
+      n_ramp = 0
+    else
+      n_ramp = ceiling(denorm(max_bias, 'V') / 0.1)
+      print "(A,I0,A,ES10.3,A)", "  Ramping bias in ", n_ramp, " legs (max |V| = ", &
+        & denorm(max_bias, 'V'), " V)"
+    end if
+
+    allocate (V_all(dev%par%nct + 1, n_ramp + 1))
+    if (n_ramp == 0) then
+      frac = [ 1.0 ]   ! single-step solve directly at target (zero bias is a
+                       ! trivial 1.0 * 0 = 0; small bias is one-shot without ramp)
+    else
+      frac = [ (real(k) / real(n_ramp), k = 0, n_ramp) ]
+    end if
+    do k = 1, n_ramp + 1
+      do ict = 1, dev%par%nct
+        V_all(ict, k) = frac(k) * V_contact(ict)
+      end do
+      V_all(dev%par%nct + 1, k) = 0.0   ! beam y (arbitrary; beam is off)
     end do
-    V_all(dev%par%nct + 1, 1) = 0.0   ! beam y (arbitrary; beam is off)
 
-    t_inp = [0.0]
-    t_sim = [0.0]
+    t_inp = frac
+    t_sim = frac
     call input%init(t_inp, V_all)
 
     dev%par%reg_beam(1)%I_beam = 0.0
@@ -543,8 +715,9 @@ contains
     call ss%run(input=input, t_input=t_sim, gummel=gummel)
 
     do ict = 1, dev%par%nct
+      I_dark(ict) = dev%curr(ict)%x
       print "(A,A,A,ES12.4,A)", "  I_", trim(dev%par%contacts(ict)%name), &
-        " = ", denorm(dev%curr(ict)%x, 'A'), " A"
+        " = ", denorm(I_dark(ict), 'A'), " A"
     end do
   end subroutine
 
