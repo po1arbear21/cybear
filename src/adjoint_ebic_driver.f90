@@ -30,6 +30,7 @@ program adjoint_ebic_driver
   use storage_m,       only: storage, STORAGE_WRITE
   use string_m,        only: string
   use util_m,          only: get_hostname
+  use vselector_m,     only: vselector
 
   implicit none
 
@@ -106,6 +107,7 @@ contains
     real,          allocatable :: c(:), phi(:), s(:)
     real,          allocatable :: phi_n_int(:), phi_p_int(:)
     real,          allocatable :: V_contact(:), I_dark(:)
+    real,          allocatable :: u_dark_state(:), delta_u_primal(:), s_primal_save(:)
     logical                    :: have_holes, sweep_has_x, sweep_has_z
     logical                    :: status, has_V, any_biased
 
@@ -250,7 +252,16 @@ contains
     call system_clock(t_setup_start)
 
     I_beam_saved = dev%par%reg_beam(1)%I_beam
-    call run_dark_solve(ss, V_contact, I_dark)
+    ! Pass r_beam_list(1) as the dark-solve beam_y so that u_dark and u_fwd
+    ! agree on the Y_BEAM input-DOF value. I_beam = 0 during dark, so the
+    ! physics is unaffected (no generation regardless of where we park the
+    ! beam), but norm(u_fwd - u_dark) no longer picks up the 7000 nm input
+    ! difference that would otherwise dominate the diagnostic norm.
+    call run_dark_solve(ss, V_contact, I_dark, beam_y_park = r_beam_list(1))
+
+    ! Capture flat u_dark for the Jacobian-linearization residual diagnostic
+    ! (compared later against u_fwd - u_dark from the forward linescan).
+    u_dark_state = dev%sys_full%get_x()
 
     print "(A)", ""
     print "(A)", "--- Refactorize J at converged u* ---"
@@ -336,6 +347,10 @@ contains
       end do
       call system_clock(t_sweep_end)
     end block
+
+    call run_primal_diagnostic(si, ss, c, phi, r_beam_list, x_beam_list, z_beam_list, &
+                             & sweep_has_x, sweep_has_z, u_dark_state,                &
+                             & delta_u_primal, s_primal_save)
 
     ! Total pair generation rate — needed for absolute collection efficiency.
     ! G_tot (stored on calc_bgen during eval) is in pairs/(s·cm) for 2D; multiply
@@ -551,6 +566,201 @@ contains
         print "(A)", "  Results written to " // suite_name%s // "_fwd_linescan.fbs"
       end if
     end block
+
+    if (allocated(delta_u_primal)) &
+      & call compare_du_fwd_vs_primal(c, ict_collect, u_dark_state, delta_u_primal)
+  end subroutine
+
+  subroutine run_primal_diagnostic(si, ss, c, phi, r_beam_list, x_beam_list,           &
+                                 & z_beam_list, sweep_has_x, sweep_has_z,              &
+                                 & u_dark_state, delta_u_primal, s_primal_save)
+    !! Adjoint self-consistency + Jacobian-correctness diagnostic. Gated by the
+    !! debug_primal_solve key in the run INI; if the key is absent or false,
+    !! returns silently with delta_u_primal / s_primal_save unallocated, which
+    !! the caller uses as a "did the diagnostic run?" flag for the downstream
+    !! compare_du_fwd_vs_primal call.
+    !!
+    !! Three independent tests, in order:
+    !!   1. Transpose identity:   c · (A^-1 s) ?= phi · s    (must be ~1e-12).
+    !!   2. Source equivalence:   adjoint s = -jaco_bgen.bgen vs forward
+    !!                            implicit -F(u_dark, beam on) at continuity rows.
+    !!   3. Taylor probe:         |F(u_dark + A^-1 s, beam on)| / |s|. If A is
+    !!                            the true linearization, residual is O(|s|^2);
+    !!                            an O(|s|) residual localizes the bug to A.
+    integer,            intent(in)    :: si
+    type(steady_state), intent(inout) :: ss
+    real,               intent(in)    :: c(:), phi(:)
+    real,               intent(in)    :: r_beam_list(:), x_beam_list(:), z_beam_list(:)
+    logical,            intent(in)    :: sweep_has_x, sweep_has_z
+    real,               intent(in)    :: u_dark_state(:)
+    real,  allocatable, intent(out)   :: delta_u_primal(:), s_primal_save(:)
+
+    logical              :: do_primal, has_key
+    real,    allocatable :: s_primal(:), delta_u(:)
+    real,    allocatable :: f_beam_on(:), s_implicit(:)
+    real,    allocatable :: u_test(:), f_test(:)
+    real                 :: I_primal, I_adjoint, rel_diff
+    real                 :: ratio, diff_norm, s_adj_norm, s_imp_norm, f_test_norm
+    integer              :: iimvar, ibl, ilo, ihi
+
+    call runfile%get(si, "debug_primal_solve", do_primal, status = has_key)
+    if (.not. (has_key .and. do_primal)) return
+
+    print "(A)", ""
+    print "(A)", "--- DEBUG: primal-vs-adjoint self-consistency (r_beam_list(1)) ---"
+
+    if (sweep_has_x .and. sweep_has_z) then
+      call build_adjoint_source(dev, r_beam_list(1), s_primal,                          &
+        & x_beam = x_beam_list(1), z_beam = z_beam_list(1))
+    else if (sweep_has_x) then
+      call build_adjoint_source(dev, r_beam_list(1), s_primal, x_beam = x_beam_list(1))
+    else if (sweep_has_z) then
+      call build_adjoint_source(dev, r_beam_list(1), s_primal, z_beam = z_beam_list(1))
+    else
+      call build_adjoint_source(dev, r_beam_list(1), s_primal)
+    end if
+
+    allocate (delta_u(size(s_primal)))
+    call ss%solver%solve(s_primal, delta_u, trans = 'N')
+
+    allocate (delta_u_primal, source = delta_u)
+    allocate (s_primal_save,  source = s_primal)
+
+    I_primal  = dot_product(c, delta_u)
+    I_adjoint = dot_product(phi, s_primal)
+    if (abs(I_adjoint) > 0.0) then
+      rel_diff = (I_primal - I_adjoint) / I_adjoint
+    else
+      rel_diff = 0.0
+    end if
+
+    print "(A,ES20.12,A)", "  primal  c*(A^-1 s):  ", denorm(I_primal,  'A'), " A"
+    print "(A,ES20.12,A)", "  adjoint phi*s     :  ", denorm(I_adjoint, 'A'), " A"
+    print "(A,ES12.4)",    "  (primal - adjoint) / adjoint (should be ~1e-12): ", rel_diff
+
+    ! Source equivalence: adjoint s vs forward implicit -F(u_dark, beam on).
+    ! At u = u_dark, F_dark(u_dark) = 0; turning the beam on perturbs only the
+    ! continuity rows (-V*G), so -F is exactly what the first Newton step solves.
+    dev%beam_pos%x = r_beam_list(1)
+
+    allocate (f_beam_on(dev%sys_full%n))
+    call dev%sys_full%eval(f = f_beam_on)
+    s_implicit = -f_beam_on
+
+    print "(A)", ""
+    print "(A)", "--- DEBUG: adjoint's s vs forward's implicit s (-F at u_dark + beam) ---"
+    print "(A)", "  main_var / tab      |  |s_adj|       |s_imp|       |diff|        diff/|s_adj|"
+
+    do iimvar = 1, dev%sys_full%g%imvar%n
+      associate (mv => dev%sys_full%get_main_var(iimvar))
+        do ibl = 1, mv%ntab
+          ilo = dev%sys_full%i0(dev%sys_full%res2block(iimvar)%d(ibl))
+          ihi = dev%sys_full%i1(dev%sys_full%res2block(iimvar)%d(ibl))
+          s_adj_norm = norm2(s_primal_save(ilo:ihi))
+          s_imp_norm = norm2(s_implicit(ilo:ihi))
+          diff_norm  = norm2(s_primal_save(ilo:ihi) - s_implicit(ilo:ihi))
+          if (s_adj_norm > 0.0 .or. s_imp_norm > 0.0) then
+            print "(A,A16,A,I1,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)",                   &
+              & "  ", adjustl(mv%name), "/t", ibl,                                       &
+              & "   ", s_adj_norm, "  ", s_imp_norm, "  ", diff_norm,                    &
+              & "   ", diff_norm / max(s_adj_norm, tiny(1.0))
+          end if
+        end do
+      end associate
+    end do
+
+    if (norm2(s_primal_save) > 0.0) then
+      ratio = dot_product(s_primal_save, s_implicit) / (norm2(s_primal_save)**2)
+      print "(A,ES20.12)", "  <s_adj, s_imp> / |s_adj|^2 (= s_imp / s_adj if parallel): ", ratio
+    end if
+
+    ! Taylor probe at u_dark + A^-1 s. If A = J(u_dark), residual is O(|s|^2).
+    u_test = u_dark_state + delta_u_primal
+    call dev%sys_full%set_x(u_test)
+    allocate (f_test(dev%sys_full%n))
+    call dev%sys_full%eval(f = f_test)
+    f_test_norm = norm2(f_test)
+    print "(A,ES14.6)", "  |F(u_dark + A^-1 s, beam on)| = ", f_test_norm
+    print "(A,ES14.6)", "  |s_adj|                       = ", norm2(s_primal_save)
+    print "(A,ES14.6)", "  ratio (should be ~|s|^2-scale): ",                            &
+      & f_test_norm / max(norm2(s_primal_save), tiny(1.0))
+    ! Restore u_dark so the downstream forward Newton starts from a clean state.
+    call dev%sys_full%set_x(u_dark_state)
+  end subroutine
+
+  subroutine compare_du_fwd_vs_primal(c, ict_collect, u_dark_state, delta_u_primal)
+    !! Forward-vs-primal linearization comparison. Must be called AFTER the
+    !! forward Newton solve so dev%sys_full%get_x() returns u_fwd. At V=0 and
+    !! small I_beam, u_fwd - u_dark must equal A^-1 s to machine precision
+    !! (up to O(|s|^2)). Discrepancy here is the smoking gun for A != J(u_dark)
+    !! as seen by the forward -- the open ~5.24e-4 bug.
+    real,    intent(in) :: c(:)
+    integer, intent(in) :: ict_collect
+    real,    intent(in) :: u_dark_state(:), delta_u_primal(:)
+
+    real,    allocatable      :: u_fwd_state(:), delta_u_fwd(:)
+    real                      :: du_fwd_norm, du_pri_norm, du_diff_norm
+    real                      :: I_fwd_dot, I_adj_dot, I_dark_at_ict
+    real                      :: d_fwd_norm, d_pri_norm, d_dif_norm
+    integer                   :: ict_dof, iimvar, itab, ibl, ilo, ihi, n_imvar
+    class(vselector), pointer :: mv
+
+    u_fwd_state = dev%sys_full%get_x()
+    delta_u_fwd = u_fwd_state - u_dark_state
+
+    du_fwd_norm  = norm2(delta_u_fwd)
+    du_pri_norm  = norm2(delta_u_primal)
+    du_diff_norm = norm2(delta_u_fwd - delta_u_primal)
+
+    iimvar  = dev%sys_full%search_main_var("currents")
+    ibl     = dev%sys_full%res2block(iimvar)%d(1)
+    ict_dof = dev%sys_full%i0(ibl) + ict_collect - 1
+    I_fwd_dot     = dot_product(c, delta_u_fwd)
+    I_adj_dot     = dot_product(c, delta_u_primal)
+    I_dark_at_ict = u_dark_state(ict_dof)
+
+    print "(A)", ""
+    print "(A)", "--- DEBUG: forward vs adjoint linearization of u ---"
+    print "(A,ES14.6)",    "  |delta_u_forward|           = ", du_fwd_norm
+    print "(A,ES14.6)",    "  |delta_u_primal (A^-1 s)|   = ", du_pri_norm
+    print "(A,ES14.6)",    "  |fwd - primal|              = ", du_diff_norm
+    print "(A,ES14.6)",    "  relative error              = ",                          &
+      & du_diff_norm / max(du_pri_norm, tiny(1.0))
+    print "(A)",           ""
+    print "(A,ES20.12,A)", "  c . delta_u_fwd  (should = I_fwd - I_dark):  ",            &
+      & denorm(I_fwd_dot, 'A'), " A"
+    print "(A,ES20.12,A)", "  c . delta_u_pri  (= phi . s, adjoint linear):",            &
+      & denorm(I_adj_dot, 'A'), " A"
+    print "(A,ES20.12,A)", "  u_dark (I_ct_dof) [check ~= 0 at V=0]:       ",            &
+      & denorm(I_dark_at_ict, 'A'), " A"
+    if (abs(I_adj_dot) > 0.0) &
+      print "(A,ES12.4)",  "  (c.dU_fwd - c.dU_pri) / c.dU_pri:             ",           &
+        & (I_fwd_dot - I_adj_dot) / I_adj_dot
+
+    ! Per-main-variable breakdown of |dU_fwd - dU_pri|. Identifies which main
+    ! variable (pot / ndens / pdens / iref_* / cdens_* / currents) carries the
+    ! gauge direction.
+    print "(A)", ""
+    print "(A)", "--- Per-main-variable breakdown ---"
+    print "(A)", "  main_var / tab      | blk   i0..i1       |dU_fwd|      |dU_pri|      |diff|        diff/|pri|"
+
+    n_imvar = dev%sys_full%g%imvar%n
+    do iimvar = 1, n_imvar
+      mv => dev%sys_full%get_main_var(iimvar)
+      do itab = 1, mv%ntab
+        ibl = dev%sys_full%res2block(iimvar)%d(itab)
+        ilo = dev%sys_full%i0(ibl)
+        ihi = dev%sys_full%i1(ibl)
+        d_fwd_norm = norm2(delta_u_fwd(ilo:ihi))
+        d_pri_norm = norm2(delta_u_primal(ilo:ihi))
+        d_dif_norm = norm2(delta_u_fwd(ilo:ihi) - delta_u_primal(ilo:ihi))
+        print "(A,A16,A,I1,A,I3,A,I6,A,I6,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)",         &
+          & "  ", adjustl(mv%name), "/t", itab,                                           &
+          & " | ", ibl, "  ", ilo, "..", ihi,                                             &
+          & "  ", d_fwd_norm, "  ", d_pri_norm, "  ", d_dif_norm,                         &
+          & "  ", d_dif_norm / max(d_pri_norm, tiny(1.0))
+      end do
+    end do
   end subroutine
 
   subroutine run_forward_validation(r_beam, I_beam_phys, ict_collect, V_contact, I_dark, &
@@ -653,7 +863,7 @@ contains
     if (present(I_ebic_out)) I_ebic_out = I_ebic_fwd
   end subroutine
 
-  subroutine run_dark_solve(ss, V_contact, I_dark)
+  subroutine run_dark_solve(ss, V_contact, I_dark, beam_y_park)
     !! Reference DC operating point u* with beam off. Contacts are held at the
     !! (possibly non-zero) V_contact biases. Captured per-contact currents
     !! I_dark are the baseline that the forward validation subtracts to isolate
@@ -663,14 +873,21 @@ contains
     !! fractions to keep Newton inside its basin of attraction. Without this,
     !! Newton oscillates for V_P ≳ 0.2V forward on a pn junction — the V=0
     !! nlpe guess is exponentially far from the strongly-injected solution.
+    !!
+    !! Optional beam_y_park: where to park the beam-y input during dark solve.
+    !! I_beam = 0 so physics is unaffected, but setting this to match the
+    !! forward's target r_beam keeps the Y_BEAM input-DOF value equal between
+    !! u_dark and u_fwd (removes a spurious ~input-scale term from the
+    !! |u_fwd - u_dark| diagnostic).
     type(steady_state), intent(inout) :: ss
     real,               intent(in)    :: V_contact(:)
     real,               intent(out)   :: I_dark(:)
+    real,  optional,    intent(in)    :: beam_y_park
 
     type(polygon_src)    :: input
     real,    allocatable :: V_all(:,:), t_inp(:), t_sim(:), frac(:)
     integer              :: ict, n_ramp, k
-    real                 :: max_bias
+    real                 :: max_bias, y_park_val
 
     print "(A)", ""
     print "(A)", "--- Operating-point solve (user bias, I_beam=0) ---"
@@ -695,11 +912,13 @@ contains
     else
       frac = [ (real(k) / real(n_ramp), k = 0, n_ramp) ]
     end if
+    y_park_val = 0.0
+    if (present(beam_y_park)) y_park_val = beam_y_park
     do k = 1, n_ramp + 1
       do ict = 1, dev%par%nct
         V_all(ict, k) = frac(k) * V_contact(ict)
       end do
-      V_all(dev%par%nct + 1, k) = 0.0   ! beam y (arbitrary; beam is off)
+      V_all(dev%par%nct + 1, k) = y_park_val   ! beam y (beam is off anyway)
     end do
 
     t_inp = frac

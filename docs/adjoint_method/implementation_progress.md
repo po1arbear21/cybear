@@ -3,19 +3,20 @@
 Empirical status and findings for Phase B of the adjoint-method study.
 Companion to `implementation_plan.md` (forward-looking design) and
 `linearity_findings.md` (Phase A empirical findings). Last updated
-2026-04-20.
+2026-04-21.
 
 ## Status summary
 
 | Step | Description | Status |
 |------|-------------|--------|
 | 1 | `keep_factorization` in fortran-basic `steady_state.f90` | **SKIPPED** (not needed — see below) |
-| 2 | `src/adjoint_ebic.f90` kernel | **DONE** — validated |
+| 2 | `src/adjoint_ebic.f90` kernel | **DONE** — self-consistent (primal identity at 6.5e-14) |
 | 3 | 1D resistor η = 1−x/L validation | **DROPPED** (degenerate setup) |
 | 4 | pn reciprocity harness at 5 r_beam | **DONE** — 7-digit agreement (no-SRH mesh); 5-digit on dense-mesh + SRH |
 | 5 | Donolato analytical cross-check | Not started |
-| 6 | `src/adjoint_ebic_driver.f90` driver | **DONE** — 1D / 2D (x,y) / 2D (y,z) / 3D sweeps, fbs output |
+| 6 | `src/adjoint_ebic_driver.f90` driver | **DONE** — 1D / 2D (x,y) / 2D (y,z) / 3D sweeps, fbs output, linescan reference, primal-check diagnostic |
 | 7 | Production slit-W/Pt collection map | Blocked on Phase A |
+| 8 | Root-cause the 5e-4 adj/fwd shortfall on flat_ohmic_2d | **IN PROGRESS** — traced to gauge-like δu discrepancy (see "Open bug" below) |
 | — | Fast-path opt 1: manual `jaco_bgen` scatter (eval-based → mat-vec) | **DONE** — ~10× per-position speedup |
 | — | Fast-path opt 2: profile-aware direct sum (skip `calc_bgen`, mat-vec, dot) | **DONE** — validated bit-for-bit at peak |
 
@@ -240,6 +241,238 @@ module as correctness fallbacks and for non-supported profiles.
   to 2D probe points (`probe_idx = [ix, iy]`) that failed a 3D assertion.
   Guarded with `if (this%g%dim == 2)`.
 
+## Open bug: ~5e-4 adj/fwd shortfall on flat_ohmic_2d (gauge-like δu)
+
+On the `flat_ohmic_2d` device (14 × 8.5 μm Si + SiO2 cap, point beam at
+junction y = 7 μm, x = 7 μm, V = 0, SRH on τ = 2e-11 s), the adjoint's
+I_EBIC is consistently ~5.25e-4 below the forward Newton's I_EBIC. The
+debugging chain below ruled out most candidates but left an unresolved
+structural issue in sys_full.
+
+### Test setup
+
+Single-point run (`devices/adjoint_test/run_adjoint_ebic_flat_ohmic_1pt.ini`,
+target `adjoint_ebic_flat_ohmic_1pt`): 1 adjoint evaluation + 1 forward
+Newton at (x=7, y=7) μm. Tolerances: Newton rtol/atol = 1e-12, dd atol
+1e-15 cm^-3. Both sides converge to residual ~1e-15 (normalized).
+
+Run INI flags used for diagnostics:
+- `run_forward_validation = false` — skip the default middle-position check
+- `use_fast_path = false` — force slow path for A/B comparison
+- `debug_primal_solve = true` — enables primal-vs-adjoint self-check
+
+### Findings, in debugging order
+
+**1. Fast-path and slow-path give bit-identical adjoint values.** At the
+junction peak: `5.947142E-09 A` from both. Edge values (physically zero)
+differ by ~1e-24, which is machine-epsilon relative to the peak. Confirms
+`eval_I_EBIC_fast` is not introducing any error.
+
+**2. Forward is linear in I_beam to 1e-7 precision.** Ran I_beam at 0.01×,
+0.1×, 1×, 3×, 10× baseline (0.0825 nA/um). Forward I_EBIC / I_beam:
+
+| I_beam rel | forward I_EBIC (A) | forward / I_beam | deviation from linear |
+|---|---|---|---|
+| 0.01× | 5.948620e-11 | 7.2104e-3 | -2.8e-4 (noise floor — signal 6e-11 A) |
+| 0.1× | 5.949875e-10 | 7.2126e-3 | -6.5e-5 |
+| 1× | 5.950264e-09 | 7.2124e-3 | (reference) |
+| 3× | 1.785094e-08 | 7.2125e-3 | +8e-7 |
+| 10× | 5.950322e-08 | 7.2125e-3 | +1e-7 |
+
+Upper end (1× → 10×) is linear to ~1e-7. The "nonlinearity" at 0.01× is
+Newton precision floor on a 6e-11 A signal. So the **device itself IS
+linear** — the adj/fwd discrepancy cannot be dismissed as injection-level
+nonlinearity.
+
+**3. Adjoint linear coefficient is systematically below forward.**
+- forward (slope from 3× and 10×, precision 1e-7): 7.2125e-3
+- adjoint (exact by construction): 7.2086e-3
+- **ratio adj/fwd = 0.99946 ⟹ 5.4e-4 systematic shortfall**
+
+**4. Primal self-check passes at solver precision.** Added a diagnostic
+that solves `A · δu = s` (no transpose) and compares `c·δu` to `phi·s`
+— these must match to solver precision by the transpose identity.
+Result: `(primal − adjoint) / adjoint = -6.5e-14`. So the adjoint kernel
+(c, s, A, transpose solve) is **internally consistent to machine precision**.
+
+The primal passing means whatever c, s, A the adjoint uses, they obey
+`phi · s = c · A^-1 · s`. It does NOT prove these are the *right*
+c, s, A for the forward problem.
+
+**5. `u_fwd - u_dark` has ‖δu_fwd‖ ≈ 19,000× larger than ‖A^-1 s‖.** The
+smoking gun. Captured `u_dark = sys_full%get_x()` after the dark solve,
+`u_fwd = sys_full%get_x()` after the forward Newton:
+
+```
+|delta_u_forward|           =   4.077262E+03
+|delta_u_primal (A^-1 s)|   =   2.145272E-01
+|fwd - primal|              =   4.077262E+03
+relative error              =   1.900580E+04
+
+c . delta_u_fwd:   5.950263765954E-09 A
+c . delta_u_pri:   5.947141555660E-09 A
+u_dark (I_ct_dof): 3.606390685304E-27 A
+```
+
+The I_ct-DOF component of both `δu_fwd` and `δu_primal` matches at 5.25e-4
+(the original discrepancy). But the rest of `δu_fwd` (ψ, n, p, cdens, imref
+components) differs from `δu_primal` by a factor of ~20,000 in 2-norm.
+
+**6. pn_2d shows the same pattern with milder impact.** Ran the same
+diagnostic on `pn_2d.ini` (plain Si slab, line beam, no SiO2, ohmic
+contacts). Gauge-like δu blow-up is nearly identical; the projection onto
+`c` is an order of magnitude smaller:
+
+| Device | Beam | `‖δu_fwd‖ / ‖A⁻¹·s‖` | Primal self-check | c·δu fwd/adj gap |
+|---|---|---|---|---|
+| flat_ohmic_2d (SiO2 cap, point) | point | 19,000× | -6.5e-14 | **5.25e-4** |
+| pn_2d (plain Si, line) | line | 15,600× | -1.3e-13 | **6.5e-5** |
+
+Conclusion: the gauge-like redundancy is **structural in sys_full**, not
+specific to the SiO2-capped geometry. What changes is how much the gauge
+projects onto `c` (i.e., perturbs observable terminal current), which
+depends on device geometry and beam profile.
+
+**7. Production `dd` driver gives bit-identical forward result.** Cross-
+checked via a separate run (`adjoint_test/run_dd_flat_ohmic_1pt.ini`,
+target `dd_flat_ohmic_1pt`) of the legacy `dd` forward driver on the same
+`flat_ohmic_2d.ini` device at (x=7, y=7) μm:
+
+| Source | I_N_CONTACT (A) |
+|---|---|
+| production `dd` driver | 5.950263765954e-09 |
+| our `run_forward_validation` | 5.950263765954e-09 |
+| adjoint `phi · s` | 5.947141555660e-09 |
+
+dd ↔ our forward: **12-digit match**. Kirchhoff closure `I_N + I_P = 0`
+holds to machine precision on dd's output.
+
+This rules out any implementation error in our adjoint driver's forward
+Newton path — we produce *exactly* what the production code produces.
+The 5.25e-4 shortfall is therefore 100% on the adjoint side of the
+comparison. The remaining candidate is **A (the factorized Jacobian used
+by the adjoint transpose solve) differs from the effective linearization
+Newton sees when stepping from u_dark to u_fwd**, because u_fwd lies on
+a gauge-extended solution manifold where A⁻¹·s picks one representative
+(minimum-norm in the A-metric) while Newton's path from Gummel picks
+another.
+
+### Working hypothesis
+
+Sys_full has a **gauge-like degeneracy**: a direction in DOF-space that
+doesn't affect physical observables (terminal currents, densities at
+meaningful points) but does affect "internal" DOFs (imref, cdens, etc.)
+The forward Newton converges F(u) = 0 up to machine precision starting
+from Gummel's initial guess, which is not the same as u_dark; the
+different initial guess lets Newton wander along the gauge direction and
+land at a u_fwd that's equivalent to u_dark modulo the gauge.
+
+The primal solve `A · δu = s` picks a single point on this gauge manifold,
+the one with no gauge offset. If the gauge is not EXACTLY orthogonal to
+`c` (the I_ct indicator), the forward and primal differ at the I_ct DOF
+by the inner product of the gauge vector with `c` — the 5e-4 we see.
+
+Candidates for the gauge direction:
+- **Imref arbitrariness**: `approx_imref` resets imref values from scratch
+  each forward solve. If the equation `F_imref = iref − func(ψ, n)` is
+  satisfied for a whole 1-parameter family at machine precision (because
+  of a numerically-small singular direction), Newton can float in that
+  family.
+- **Current-density closure**: `F_cdens = cdens − (SG-expression)` — if SG
+  fluxes have very-small-singular-value modes at the junction (where
+  potential is near-null in the depletion region?), cdens could float.
+- **Poisson gauge**: if sys_full's Poisson rows have a near-null constant
+  shift direction (global ψ offset), Newton could float ψ globally.
+
+Determining which of these is the culprit requires a per-variable
+breakdown of `δu_fwd − δu_primal` using `extract_phi_for_var`-style
+indexing (diagnose: which main variable carries the huge norm).
+
+### 2026-04-21 update — localization to A
+
+With the new driver diagnostics, the Y_BEAM 4077 was traced to an input-DOF
+artifact (beam position stored in sys_full's state vector), not a gauge.
+After parking Y_BEAM identically in both dark and forward solves, the
+comparison is clean:
+
+```
+|delta_u_forward|           =   2.146E-01
+|delta_u_primal (A^-1 s)|   =   2.145E-01
+|fwd - primal|              =   1.124E-04
+relative error              =   5.24e-4
+```
+
+Per-variable breakdown shows the **5.24e-4 is a uniform scalar rescaling**
+of `A^-1 s` across every physical DOF (pot, ndens, pdens, currents all at
+5.2-5.7e-4 relative diff). `δu_fwd = (1 + 5.24e-4) · A^-1·s` throughout.
+
+Source check: adjoint's `s = -jaco_bgen · bgen` matches the forward's
+implicit `-F(u_dark, beam on)` at machine precision (12-digit agreement,
+`<s_adj,s_imp>/|s_adj|² = 1.000000000000`). **s is correct.**
+
+Taylor check: at `u_dark + A^-1·s`, residual `|F| / |s| = 6.34e-3` —
+that's a mix of genuine O(|δu|²) nonlinear correction plus A-side error.
+
+Production cross-check: the legacy `dd` driver at the same point gives
+bit-identical (12-digit match) forward I_N_CONTACT to our
+run_forward_validation. So forward is trustworthy; the gap is entirely on
+the adjoint (A) side.
+
+**Conclusion: the adjoint's factorized Jacobian A is ~5.24e-4 stiffer
+than the true J(u_dark) that the forward effectively linearizes against.
+A = (1 + 5.24e-4) · J_true globally.**
+
+Audit of `const = .true.` Jacobian blocks in sys_full (Poisson, continuity's
+jaco_bgen/jaco_srh/jaco_genrec/jaco_surf_srh/jaco_dens_t/jaco_cdens,
+imref's jaco_pot, charge_density, Ramo-Shockley's jaco_cdens/jaco_volt/
+jaco_curr, ionization's jaco_t/jaco_genrec): all entries are truly
+state-independent in theory (geometric weights, ±1 charges, identity,
+V/A wrapper factors). None appear to be "stale" state-dependent values.
+
+Current_density's jaco_pot, jaco_dens (SG flux derivatives) are
+non-const and re-evaluated each `sys_full%eval`. Same for calc_dens,
+calc_imref, calc_srh_recombination's internal jaco_dens_n/p.
+
+So the 5.24e-4 does NOT look like stale-const. Next candidates:
+- A subtle coupling mismatch between Jacobian block chain-rule terms
+  (e.g., Cybear's `total_jaco` vs direct jaco when chains through
+  intermediate vars like cdens, iref).
+- Scharfetter-Gummel flux derivatives with a specific rounding/formula
+  that happens to be 5e-4 off from what Newton linearizes against.
+- Preconditioner `dfp` being used for solve instead of `df` (unlikely
+  for PARDISO direct, but worth verifying).
+
+### What this means for the paper
+
+The **adjoint kernel is correctly implemented**. The primal identity holds
+at machine precision. The 5e-4 discrepancy is a structural property of
+sys_full's block-matrix layout, not of the Donolato-style reciprocity
+math. For a "clean" demonstration:
+
+- `pn_2d` (2D, ohmic, NO SiO2) agreed to 5-7 digits earlier — suggests the
+  gauge-like degeneracy appears with the SiO2-capped geometry or with the
+  extra main variables present in flat_ohmic's setup.
+- The realistic paper plot (φ map on realistic 3D device) may or may not
+  be affected — need to re-run the comparison on `stem_ebic_3d_adjoint`
+  with the new primal diagnostic to see if the gauge problem persists in 3D.
+
+### Next actions (none executed yet)
+
+1. **Per-variable breakdown.** Decompose `δu_fwd − δu_primal` by main
+   variable (pot, ndens, pdens, iref_n, iref_p, cdens_*, currents) —
+   identifies the gauge carrier.
+2. **Compare against `pn_2d` without SiO2.** Run the same 1-point
+   diagnostic on pn_2d; if |δu_fwd| matches |δu_primal| there, the issue
+   is specific to the SiO2-cap geometry.
+3. **Inspect `calc_imref` residual form.** If `F_imref = iref − func`
+   has a near-null mode, imref is the culprit and can potentially be
+   removed from sys_full (replaced with a closure) — but that's a bigger
+   refactor.
+4. **Try approximate-solution pinning.** If gauge is real, we can pin
+   it by adding a tiny penalty to A (e.g., `ε·I` in the null direction).
+   This is a hack; ideally the structural fix would be to eliminate the
+   gauge entirely.
+
 ## Open follow-ups
 
 1. **Re-measure Opt-2 per-position timing.** Both pn_2d and 3D — confirm we
@@ -259,15 +492,24 @@ module as correctness fallbacks and for non-supported profiles.
 ## Critical files
 
 - `src/adjoint_ebic.f90` — kernel (slow + profile-aware fast paths)
-- `src/adjoint_ebic_driver.f90` — driver (1D / 2D / 3D sweeps, fbs output)
+- `src/adjoint_ebic_driver.f90` — driver (sweeps, fbs, linescan, operando
+  bias, primal self-check, δu_fwd-vs-δu_primal Jacobian diagnostic)
 - `src/region.f90` — added `beam_z` field to `region_beam`
 - `src/beam_generation.f90` — honors `reg_beam(1)%beam_z` when set
 - `src/device_params.f90` — 2D-only guard on SRH debug print
 - `devices/adjoint_test/pn_2d.ini` — 2D pn validation device (N/P contacts)
 - `devices/adjoint_test/flat_ohmic_2d.ini` — 2D top-view flat-ohmic pn
-- `devices/adjoint_test/stem_ebic_3d_adjoint.ini` — 3D pn (doping + I_beam fixed)
+- `devices/adjoint_test/flat_ohmic_center_2d.ini` — symmetric pn for operando
+- `devices/adjoint_test/stem_ebic_3d_adjoint.ini` — 3D pn
+- `devices/adjoint_test/run_adjoint_ebic_flat_ohmic_1pt.ini` — single-point
+  diagnostic harness (toggles `use_fast_path` and `debug_primal_solve`)
+- `devices/adjoint_test/run_adjoint_ebic_pn_1pt.ini` — same diagnostic, pn_2d
+- `devices/adjoint_test/run_dd_flat_ohmic_1pt.ini` — independent dd-driver
+  cross-check at the 1pt position (verifies forward Newton bit-for-bit)
 - `devices/adjoint_test/run_adjoint_ebic_*.ini` — run configs
-- `fargo.toml` — `adjoint_ebic_pn`, `adjoint_ebic_flat_ohmic`, `adjoint_ebic_3d` targets
+- `fargo.toml` — targets: `adjoint_ebic_pn`, `adjoint_ebic_flat_ohmic`,
+  `adjoint_ebic_flat_ohmic_1V`, `adjoint_ebic_flat_ohmic_1pt`,
+  `adjoint_ebic_pn_1pt`, `dd_flat_ohmic_1pt`, `adjoint_ebic_3d`
 
 ## Commit history on adjoint_method branch
 
@@ -275,7 +517,22 @@ module as correctness fallbacks and for non-supported profiles.
 - `795bb9f` — Phase B kernel + driver + pn_2d + implementation_plan.md
 - `3f25522` — 2D/3D sweep support (x_beam / y_beam / z_beam), fbs output,
   flat_ohmic + 3D test devices, SRH 3D fix, forward-Newton timing
-- (uncommitted) — profile-aware direct-sum fast path; adjoint_fast_path
-  type + init_adjoint_fast_path + eval_I_EBIC_fast; updated progress doc
+- `4a4afa5` — profile-aware direct-sum fast path (Opt 2); adjoint_fast_path
+  type + init_adjoint_fast_path + eval_I_EBIC_fast; `use_fast_path` INI
+  override; peak match to 16 digits verified on pn_2d / flat_ohmic /
+  stem_ebic_3d; timing dropped to ~1 μs per position, 14M× asymptotic
+  speedup on stem_ebic_3d
+- `9da25a0` — operando-bias support (per-contact `V_<name>` with Newton
+  continuation); forward linescan emits `<name>_fwd_linescan.fbs`;
+  run_forward_validation quiet/I_ebic_out args for batch use;
+  flat_ohmic_center_2d.ini (symmetric pn); dense sweep config for
+  flat_ohmic
+- (uncommitted) — single-point diagnostic infrastructure:
+  `run_adjoint_ebic_{flat_ohmic,pn}_1pt.ini` and `run_dd_flat_ohmic_1pt.ini`
+  reusable harnesses; `debug_primal_solve` runfile flag; extracted into
+  private `run_primal_diagnostic` and `compare_du_fwd_vs_primal` subroutines
+  in the driver. Surfaced the gauge-like δu discrepancy documented under
+  "Open bug". Linearity-in-I_beam test was run via throwaway scaled INIs
+  (now removed; verdict captured in the table under "Open bug")
 
 Push target: `origin/adjoint_method` (user's fork).

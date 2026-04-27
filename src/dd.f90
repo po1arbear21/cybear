@@ -273,18 +273,35 @@ contains
       ss%msg = "Newton: "
       ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
       !                    & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
-      ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
-      !                    & string("bgen_n"), string("V_P_CONTACT"), string("V_N_CONTACT"), string("I_N_CONTACT"), string("I_P_CONTACT")], name%s // ".fbs")
-      ! call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), &
-      !                    & string("V_DRN"), string("I_DRN")], name%s // ".fbs")
-      call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("Ex"), string("Ey"), &
-                         & string("V_LEFT_N"), string("V_LEFT_P"), string("V_RIGHT_N"), string("V_RIGHT_P"), &
-                         & string("I_LEFT_N"), string("I_LEFT_P"), string("I_RIGHT_N"), string("I_RIGHT_P")], name%s // ".fbs")
+      ! Generic output: one V_ and one I_ per contact. Works for any device.
+      block
+        type(string), allocatable :: out_vars(:)
+        integer                   :: iv, ict_n
+        iv = 5
+        allocate(out_vars(iv + 2 * dev%par%nct))
+        out_vars(1) = string("pot")
+        out_vars(2) = string("ndens")
+        out_vars(3) = string("pdens")
+        out_vars(4) = string("Ex")
+        out_vars(5) = string("Ey")
+        do ict_n = 1, dev%par%nct
+          out_vars(iv + ict_n)                 = string("V_" // dev%par%contacts(ict_n)%name)
+          out_vars(iv + dev%par%nct + ict_n)   = string("I_" // dev%par%contacts(ict_n)%name)
+        end do
+        call ss%init_output(out_vars, name%s // ".fbs")
+      end block
       call ss%run(input = input, t_input = t, gummel = gummel, output_hook = eval_efield)
 
-      ! ! Print final I_N_CONTACT (EBIC current)
-      ! call dev%par%contact_map%get(string("N_CONTACT"), ict_n)
-      ! print "(A,ES12.4,A)", "I_N_CONTACT = ", denorm(dev%curr(ict_n)%x, 'A'), " A"
+      ! Print all contact currents after solve (for direct comparison).
+      block
+        integer :: ict_n
+        print "(A)", ""
+        print "(A)", "--- dd driver terminal currents at final beam position ---"
+        do ict_n = 1, dev%par%nct
+          print "(A,A,A,ES20.12,A)", "  I_", trim(dev%par%contacts(ict_n)%name), &
+            & " = ", denorm(dev%curr(ict_n)%x, 'A'), " A"
+        end do
+      end block
     end do
   end subroutine
 

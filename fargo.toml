@@ -393,6 +393,42 @@ templates = [
 ]
 
 
+[adjoint_ebic_flat_ohmic_1pt]
+mode = "debug"
+target = "adjoint_ebic_driver"
+runner = "slurm"
+partition = "fast"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+templates = [
+  { files = [ "devices/adjoint_test/run_adjoint_ebic_flat_ohmic_1pt.ini" ] },
+  { files = [ "devices/adjoint_test/flat_ohmic_2d.ini" ],                 action = "expand" },
+]
+
+
+[adjoint_ebic_pn_1pt]
+mode = "debug"
+target = "adjoint_ebic_driver"
+runner = "slurm"
+partition = "fast"
+args = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+templates = [
+  { files = [ "devices/adjoint_test/run_adjoint_ebic_pn_1pt.ini" ] },
+  { files = [ "devices/adjoint_test/pn_2d.ini" ],                         action = "expand" },
+]
+
+
+[dd_flat_ohmic_1pt]
+mode      = "debug"
+target    = "dd"
+runner    = "slurm"
+partition = "fast"
+args      = "--run {files[0]} --temperature 300.0 --device {files[1]}"
+templates = [
+  { files = [ "devices/adjoint_test/run_dd_flat_ohmic_1pt.ini" ] },
+  { files = [ "devices/adjoint_test/flat_ohmic_2d.ini" ],                 action = "expand" },
+]
+
+
 [adjoint_ebic_3d]
 mode = "debug"
 target = "adjoint_ebic_driver"
