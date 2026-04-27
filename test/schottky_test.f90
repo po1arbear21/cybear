@@ -306,8 +306,8 @@ program schottky_test
   print "(A,ES16.8)", "    n at contact  = ", dev%dens(CR_ELEC)%get([1])
   print "(A,ES16.8,A)", "    n denormed    = ", denorm(dev%dens(CR_ELEC)%get([1]), '1/cm^3'), " 1/cm^3"
   print "(A,ES16.8)", "    E at contact  = ", dev%efield(1)%get([1])
-  print "(A,ES16.8)", "    v_th        = ", dev%contin(1)%v_th(1)
-  print "(A,ES16.8,A)", "    v_th denorm = ", denorm(dev%contin(1)%v_th(1), 'cm/s'), " cm/s"
+  print "(A,ES16.8)", "    v_th        = ", dev%calc_sbc(1, CR_ELEC)%v_th
+  print "(A,ES16.8,A)", "    v_th denorm = ", denorm(dev%calc_sbc(1, CR_ELEC)%v_th, 'cm/s'), " cm/s"
   print "(A)", ""
 
   print "(A)", "  Step 4: Running Newton solver..."
@@ -334,7 +334,7 @@ program schottky_test
 
   ! Check B: schottky_n0b returns correct IFBL-adjusted value
   E_contact = dev%efield(1)%get([1])
-  eps_sc = dev%contin(1)%eps_sc(1)
+  eps_sc = dev%calc_sbc(1, CR_ELEC)%eps_sc
   delta_phi_sim = sqrt(abs(E_contact) / (4.0 * PI * eps_sc))
   n_expected_ifbl = denorm(dev%par%smc%edos(CR_ELEC) &
     & * exp(-(dev%par%contacts(1)%phi_b - delta_phi_sim)), '1/cm^3')
@@ -443,7 +443,7 @@ program schottky_test
 
   ! Use equilibrium E-field and density from the existing solution
   E_contact = dev%efield(1)%get([1])
-  eps_sc = dev%contin(1)%eps_sc(1)
+  eps_sc = dev%calc_sbc(1, CR_ELEC)%eps_sc
   n_eq = dev%par%smc%edos(CR_ELEC) * exp(-dev%par%contacts(1)%phi_b)
 
   ! Check A: unit test — J_t = 0 at equilibrium density

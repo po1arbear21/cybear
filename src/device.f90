@@ -17,6 +17,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
+  use schottky_m,        only: schottky_bc, calc_schottky_bc, get_normal_dir
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -81,6 +82,12 @@ module device_m
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
     type(calc_efield),          allocatable :: calc_efield(:)
       !! calculate electric field from potential gradient (direction)
+    type(schottky_bc),          allocatable :: sbc(:,:)
+      !! Schottky boundary current variable per (contact, carrier);
+      !! initialized only for CT_SCHOTTKY contacts
+    type(calc_schottky_bc),     allocatable :: calc_sbc(:,:)
+      !! equation that fills sbc(ict,ci); allocated for all contacts but
+      !! only init+registered for CT_SCHOTTKY
 
     type(esystem)              :: sys_nlpe
       !! non-linear poisson equation system
@@ -106,7 +113,7 @@ contains
     real,          intent(in)  :: T
       !! temperature in K
 
-    integer          :: ci, idx_dir, ict, dir
+    integer          :: ci, idx_dir, ict, dir, normal_dir
     type(input_file) :: file
 
     ! load device parameters
@@ -139,6 +146,17 @@ contains
       call this%curr(ict)%init("I_"//this%par%contacts(ict)%name)
     end do
 
+    ! init Schottky boundary current variables (per contact, per carrier)
+    ! must be initialized BEFORE continuity_init (passed as input)
+    allocate (this%sbc(this%par%nct, 2))
+    do ci = this%par%ci0, this%par%ci1
+      do ict = 1, this%par%nct
+        if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+          call this%sbc(ict, ci)%init(this%par, ict, ci)
+        end if
+      end do
+    end do
+
     ! init equations
     allocate (this%calc_cdens(this%par%g%idx_dim,2))
     if (this%par%smc%mob) allocate (this%calc_mob(this%par%g%idx_dim,2))
@@ -146,11 +164,7 @@ contains
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
     do ci = this%par%ci0, this%par%ci1
-      if (any(this%par%contacts(1:this%par%nct)%type == CT_SCHOTTKY)) then
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%efield)
-      else
-        call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci))
-      end if
+      call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%sbc(:,ci))
       call this%calc_iref(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       call this%calc_dens(ci)%init(this%par, this%pot, this%dens(ci), this%iref(ci))
       if (this%par%smc%incomp_ion) then
@@ -167,6 +181,18 @@ contains
     allocate (this%calc_efield(this%par%g%dim))
     do idx_dir = 1, this%par%g%dim
       call this%calc_efield(idx_dir)%init(this%par, this%pot, this%efield(idx_dir))
+    end do
+
+    ! init calc_schottky_bc equations (per Schottky contact, per carrier)
+    allocate (this%calc_sbc(this%par%nct, 2))
+    do ci = this%par%ci0, this%par%ci1
+      do ict = 1, this%par%nct
+        if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+          normal_dir = get_normal_dir(this%par, ict)
+          call this%calc_sbc(ict, ci)%init(this%par, this%dens(ci), &
+            & this%efield(normal_dir), this%sbc(ict, ci))
+        end if
+      end do
     end do
 
     ! init non-linear poisson equation system
@@ -200,9 +226,15 @@ contains
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
       end if
-      ! add E-field equations (needed for Schottky lagged E-field)
+      ! add E-field equations (consumed by calc_schottky_bc; lagged dependency)
       do dir = 1, this%par%g%dim
         call this%sys_dd(ci)%add_equation(this%calc_efield(dir))
+      end do
+      ! add per-Schottky-contact boundary equations
+      do ict = 1, this%par%nct
+        if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+          call this%sys_dd(ci)%add_equation(this%calc_sbc(ict, ci))
+        end if
       end do
       call this%sys_dd(ci)%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
       call this%sys_dd(ci)%provide(this%pot, this%par%transport(IDX_VERTEX,0))
@@ -231,6 +263,14 @@ contains
     ! add electric field calculation equations
     do dir = 1, this%par%g%dim
       call this%sys_full%add_equation(this%calc_efield(dir))
+    end do
+    ! add per-Schottky-contact boundary equations
+    do ci = this%par%ci0, this%par%ci1
+      do ict = 1, this%par%nct
+        if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
+          call this%sys_full%add_equation(this%calc_sbc(ict, ci))
+        end if
+      end do
     end do
     do ict = 1, this%par%nct
       call this%sys_full%provide(this%volt(ict), input = .true.)

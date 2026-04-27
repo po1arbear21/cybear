@@ -11,12 +11,20 @@ module schottky_m
   !!   - dphi: image force barrier lowering (0 when IFBL disabled)
   !!   - J_t: sub-barrier tunneling current (Tsu-Esaki)
 
+  use contact_m,        only: CT_SCHOTTKY
+  use density_m,        only: density
   use device_params_m,  only: device_params
-  use semiconductor_m,  only: CR_ELEC, CR_HOLE
-  use math_m,           only: PI, expm1, log1p
-  use quad_m,           only: quad
-  use normalization_m,  only: norm, denorm
+  use electric_field_m, only: electric_field
+  use equation_m,       only: equation
   use error_m,          only: program_error
+  use grid_m,           only: IDX_VERTEX, IDX_EDGE
+  use jacobian_m,       only: jacobian
+  use math_m,           only: PI, expm1, log1p
+  use normalization_m,  only: norm, denorm
+  use quad_m,           only: quad
+  use semiconductor_m,  only: CR_ELEC, CR_HOLE, CR_NAME
+  use stencil_m,        only: dirichlet_stencil, empty_stencil, stencil_ptr
+  use variable_m,       only: variable
 
   implicit none
   private
@@ -25,6 +33,44 @@ module schottky_m
   public :: schottky_velocity
   public :: schottky_n0b
   public :: schottky_tunneling
+  public :: schottky_bc
+  public :: calc_schottky_bc
+
+  type, extends(variable) :: schottky_bc
+    !! Schottky boundary carrier flux at one Schottky contact.
+    !!   j_bc(idx) = v_th * exp(dphi) * dens - v_th * n0b - J_t
+    !! Units: 1/cm^2/s. Continuity folds in -A_ct * j_bc per Schottky vertex.
+
+    integer :: ci    !! carrier index (CR_ELEC / CR_HOLE)
+    integer :: ict   !! contact index (must be CT_SCHOTTKY)
+  contains
+    procedure :: init => schottky_bc_init
+  end type
+
+  type, extends(equation) :: calc_schottky_bc
+    !! Compute schottky_bc + Jacobian w.r.t. dens at one Schottky contact.
+    !! Lagged dF/dE_normal: empty stencil on efield (value read at eval, no Jacobian).
+
+    type(device_params),  pointer :: par           => null()
+    type(density),        pointer :: dens          => null()
+    type(electric_field), pointer :: efield_normal => null()
+    type(schottky_bc),    pointer :: bc            => null()
+
+    integer :: ict
+    integer :: ci
+    integer :: normal_dir   !! cached at init via get_normal_dir
+    real    :: v_th         !! cached at init via schottky_velocity
+    real    :: eps_sc       !! cached at init from neighboring-edge permittivity
+
+    type(dirichlet_stencil) :: st_dir
+    type(empty_stencil)     :: st_em
+
+    type(jacobian), pointer :: jaco_dens   => null()
+    type(jacobian), pointer :: jaco_efield => null()
+  contains
+    procedure :: init => calc_schottky_bc_init
+    procedure :: eval => calc_schottky_bc_eval
+  end type
 
 contains
 
@@ -276,5 +322,116 @@ contains
       dT_dF   =  exp_gamma * coeff * E_diff**1.5 * F / (F_safe**3)
     end if
   end subroutine wkb_transmission
+
+
+
+  subroutine schottky_bc_init(this, par, ict, ci)
+    !! initialize Schottky boundary current variable at contact ict for carrier ci
+    class(schottky_bc),  intent(out) :: this
+    type(device_params), intent(in)  :: par
+    integer,             intent(in)  :: ict, ci
+
+    if (par%contacts(ict)%type /= CT_SCHOTTKY) &
+      call program_error("schottky_bc_init: contact "//par%contacts(ict)%name//" is not Schottky")
+
+    call this%variable_init("schottky_bc_"//CR_NAME(ci)//"_"//par%contacts(ict)%name, "1/cm^2/s", &
+      &                     g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
+    this%ci  = ci
+    this%ict = ict
+  end subroutine
+
+
+  subroutine calc_schottky_bc_init(this, par, dens, efield_normal, bc)
+    !! initialize the calc equation for one Schottky contact
+    class(calc_schottky_bc),       intent(out) :: this
+    type(device_params),   target, intent(in)  :: par
+    type(density),         target, intent(in)  :: dens
+    type(electric_field),  target, intent(in)  :: efield_normal
+      !! electric field component in the contact-normal direction
+    type(schottky_bc),     target, intent(in)  :: bc
+
+    integer              :: iprov, idep_dens, idep_efield, ict, ci
+    integer, allocatable :: idx(:), idx1(:)
+    logical              :: status
+
+    ict = bc%ict
+    ci  = bc%ci
+
+    print "(A)", "calc_schottky_bc_init for "//bc%name
+
+    call this%equation_init("calc_"//bc%name)
+    this%par           => par
+    this%dens          => dens
+    this%efield_normal => efield_normal
+    this%bc            => bc
+    this%ict           =  ict
+    this%ci            =  ci
+
+    ! cache geometric / Richardson parameters (relocated from continuity_init)
+    ! caller is responsible for passing the electric_field component matching
+    ! get_normal_dir(par, ict); we read the direction back from the variable itself
+    this%normal_dir = efield_normal%dir
+    this%v_th       = schottky_velocity(par, ci, ict)
+
+    ! semiconductor permittivity from a neighboring edge in the normal direction
+    allocate(idx(par%g%idx_dim), idx1(par%g%idx_dim))
+    idx = par%transport_vct(ict)%get_idx(1)
+    call par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, this%normal_dir, idx, 1, idx1, status)
+    this%eps_sc = par%eps(IDX_EDGE, this%normal_dir)%get(idx1)
+
+    ! init stencils
+    call this%st_dir%init(par%g)
+    call this%st_em%init()
+
+    ! provide schottky_bc on this contact's vertices
+    iprov = this%provide(bc, par%transport_vct(ict))
+
+    ! depend on density at this contact's vertices (non-const diagonal Jacobian)
+    idep_dens = this%depend(dens, par%transport_vct(ict))
+    this%jaco_dens => this%init_jaco(iprov, idep_dens, &
+      & st = [this%st_dir%get_ptr()], const = .false.)
+
+    ! depend on E-field for evaluation order; lagged (empty stencil = no Jacobian entries)
+    idep_efield = this%depend(efield_normal, par%transport_vct(ict))
+    this%jaco_efield => this%init_jaco(iprov, idep_efield, &
+      & st = [this%st_em%get_ptr()], const = .true.)
+
+    call this%init_final()
+  end subroutine
+
+
+  subroutine calc_schottky_bc_eval(this)
+    !! evaluate Schottky boundary current and its derivative w.r.t. density
+    class(calc_schottky_bc), intent(inout) :: this
+
+    integer              :: i, ict, ci
+    integer, allocatable :: idx(:)
+    real                 :: E_normal, dens_val, n0b, J_t, dJ_t_ddens, delta_phi, j_bc
+
+    ict = this%ict
+    ci  = this%ci
+
+    allocate(idx(this%par%g%idx_dim))
+
+    do i = 1, this%par%transport_vct(ict)%n
+      idx = this%par%transport_vct(ict)%get_idx(i)
+
+      E_normal = this%efield_normal%get(idx)
+      dens_val = this%dens%get(idx)
+
+      ! equilibrium boundary density (with optional IFBL)
+      call schottky_n0b(this%par, ci, ict, E_normal, n0b, eps_s = this%eps_sc, delta_phi = delta_phi)
+
+      ! tunneling current and its derivative w.r.t. density
+      call schottky_tunneling(this%par, ci, ict, E_normal, dens_val, J_t, dJ_t_ddens, eps_s = this%eps_sc)
+
+      ! boundary current density: j_bc = v_th * exp(dphi) * dens - v_th * n0b - J_t
+      j_bc = this%v_th * exp(delta_phi) * dens_val - this%v_th * n0b - J_t
+      call this%bc%set(idx, j_bc)
+
+      ! diagonal Jacobian entry: dj_bc/d(dens) = v_th * exp(dphi) - dJ_t/d(dens)
+      call this%jaco_dens%add(idx, idx, this%v_th * exp(delta_phi) - dJ_t_ddens)
+    end do
+  end subroutine
 
 end module schottky_m
