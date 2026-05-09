@@ -32,7 +32,8 @@ module contact_m
     real                      :: phims
       !! metal-semiconductor workfunction difference
     real                      :: phi_b
-      !! Schottky barrier height (normalized to kT)
+      !! Schottky barrier height for ELECTRONS (phi_Bn = E_C - E_F_metal, normalized to kT).
+      !! Hole barrier is phi_Bp = band_gap - phi_b. Must satisfy 0 <= phi_b <= band_gap.
     real                      :: A_richardson_n
       !! Richardson constant for electrons [A/cm^2/K^2]
     real                      :: A_richardson_p
@@ -175,6 +176,12 @@ contains
     type(semiconductor), intent(in)    :: smc
 
     real :: ni_term
+
+    ! validate input convention: phi_b is the electron barrier and must lie within the gap
+    if (this%phi_b < 0.0 .or. this%phi_b > smc%band_gap) then
+      call program_error("contact "//this%name//": phi_b (electron Schottky barrier) "// &
+        & "must lie in [0, band_gap]; check the .ini convention (phi_b = E_C - E_F_metal)")
+    end if
 
     ! ln(N_c/n_i) = 0.5*ln(N_c/N_v) + E_g/2  (in normalized units)
     ni_term = 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE)) + 0.5 * smc%band_gap

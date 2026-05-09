@@ -1,19 +1,6 @@
 m4_include(util/macro.f90.inc)
 
 module electric_field_m
-  !! Electric field calculation module
-  !!
-  !! Calculates electric field components from potential gradient using
-  !! finite volume method. The electric field at each vertex is computed as:
-  !!
-  !!   E_k,dir = -sum_l [A_kl * (r_l - r_k)_dir / (Omega_k * L_kl)] * (phi_l - phi_k)
-  !!
-  !! where:
-  !!   A_kl    = adjoint surface area between vertices k and l
-  !!   Omega_k = control volume at vertex k
-  !!   L_kl    = edge length between vertices k and l
-  !!   r       = vertex coordinates
-  !!   phi     = electrostatic potential
 
   use device_params_m,  only: device_params
   use equation_m,       only: equation
