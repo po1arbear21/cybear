@@ -38,7 +38,7 @@ module continuity_m
     type(vselector)              :: genrec
       !! generation - recombination
 
-    type(vselector), allocatable :: schottky_bc_sel(:)
+    type(vselector), allocatable :: schottky_bc(:)
       !! per-contact wrapper for schottky_bc(ict) on transport_vct(ict);
       !! initialized only for CT_SCHOTTKY contacts (others are unused defaults)
 
@@ -77,11 +77,11 @@ contains
       !! Schottky boundary current variables, indexed by contact (sized par%nct);
       !! entries for non-Schottky contacts are unused
 
-    integer              :: ci, i, ict, ict2, idx_dir, idens, igenrec, idep_sbc, j
+    integer              :: ci, i, ict, jct, idx_dir, idens, igenrec, idep_sbc, j
     integer, allocatable :: idx(:), idx1(:), idx2(:), icdens(:)
     logical              :: status
     real                 :: surf, F, dF
-    type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:), st_sbc(:)
+    type(stencil_ptr), allocatable :: st_dens_ct(:), st_dens_t_ct(:), st_cdens_ct(:), st_sbc_ct(:)
 
     print "(A)", "continuity_init"
 
@@ -102,13 +102,14 @@ contains
     end do
     if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
 
-    ! per-contact schottky_bc selectors (only Schottky entries init'd)
-    allocate(this%schottky_bc_sel(par%nct), this%jaco_schottky_bc(par%nct))
-    do ict = 1, par%nct
-      if (par%contacts(ict)%type == CT_SCHOTTKY) then
-        call this%schottky_bc_sel(ict)%init(sbc(ict), par%transport_vct(ict))
-      end if
-    end do
+    ! per-contact schottky_bc selectors (only allocated when device has Schottky contacts)
+    if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)) then
+      allocate(this%schottky_bc(par%nct), this%jaco_schottky_bc(par%nct))
+      do ict = 1, par%nct
+        if (par%contacts(ict)%type == CT_SCHOTTKY) &
+          call this%schottky_bc(ict)%init(sbc(ict), par%transport_vct(ict))
+      end do
+    end if
 
     ! init residual variable (= dens)
     call this%init_f(this%dens)
@@ -166,22 +167,24 @@ contains
     end if
 
     ! per-Schottky-contact Jacobian on schottky_bc(ict): diagonal +A_ct only at matching contact
-    allocate(st_sbc(1 + par%nct))
+    allocate(st_sbc_ct(par%nct))
     do ict = 1, par%nct
       if (par%contacts(ict)%type /= CT_SCHOTTKY) cycle
 
-      idep_sbc = this%depend(this%schottky_bc_sel(ict))
+      idep_sbc = this%depend(this%schottky_bc(ict))
 
-      st_sbc(1) = this%st_em%get_ptr()  ! interior — no contribution
-      do ict2 = 1, par%nct
-        if (ict2 == ict) then
-          st_sbc(1 + ict2) = this%st_dir%get_ptr()
+      ! per-contact stencil: dirichlet at the matching contact, empty everywhere else
+      do jct = 1, par%nct
+        if (jct == ict) then
+          st_sbc_ct(jct) = this%st_dir%get_ptr()
         else
-          st_sbc(1 + ict2) = this%st_em%get_ptr()
+          st_sbc_ct(jct) = this%st_em%get_ptr()
         end if
       end do
+
       this%jaco_schottky_bc(ict)%p => this%init_jaco_f(idep_sbc, &
-        & st = st_sbc, const = .true., dtime = .false.)
+        & st = [this%st_em%get_ptr(), (st_sbc_ct(jct), jct = 1, par%nct)], &
+        & const = .true., dtime = .false.)
     end do
 
     ! cdens jacobian entries: surface contributions at interior + Schottky vertices
@@ -278,10 +281,12 @@ contains
 
     if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
 
-    do ict = 1, this%par%nct
-      if (associated(this%jaco_schottky_bc(ict)%p)) &
-        call this%jaco_schottky_bc(ict)%p%matr%mul_vec(this%schottky_bc_sel(ict)%get(), tmp, fact_y = 1.0)
-    end do
+    if (allocated(this%jaco_schottky_bc)) then
+      do ict = 1, this%par%nct
+        if (associated(this%jaco_schottky_bc(ict)%p)) &
+          call this%jaco_schottky_bc(ict)%p%matr%mul_vec(this%schottky_bc(ict)%get(), tmp, fact_y = 1.0)
+      end do
+    end if
 
     call this%f%set(tmp - this%b)
   end subroutine

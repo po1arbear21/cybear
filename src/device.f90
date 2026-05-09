@@ -17,7 +17,7 @@ module device_m
   use poisson_m,         only: poisson
   use potential_m,       only: potential
   use ramo_shockley_m,   only: ramo_shockley, ramo_shockley_current
-  use schottky_m,        only: schottky_bc, calc_schottky_bc, get_normal_dir
+  use schottky_m,        only: schottky_bc, calc_schottky_bc
   use semiconductor_m,   only: CR_NAME
   use voltage_m,         only: voltage
 
@@ -54,6 +54,9 @@ module device_m
       !! terminal voltages
     type(current),         allocatable :: curr(:)
       !! terminal currents
+    type(schottky_bc),     allocatable :: sbc(:,:)
+      !! Schottky boundary current variable per (contact, carrier);
+      !! initialized only for CT_SCHOTTKY contacts
 
     type(ramo_shockley) :: ramo
       !! Ramo-Shockley data object
@@ -82,9 +85,6 @@ module device_m
       !! calculate electron/hole current density by drift-diffusion model (direction, carrier index)
     type(calc_efield),          allocatable :: calc_efield(:)
       !! calculate electric field from potential gradient (direction)
-    type(schottky_bc),          allocatable :: sbc(:,:)
-      !! Schottky boundary current variable per (contact, carrier);
-      !! initialized only for CT_SCHOTTKY contacts
     type(calc_schottky_bc),     allocatable :: calc_sbc(:,:)
       !! equation that fills sbc(ict,ci); allocated for all contacts but
       !! only init+registered for CT_SCHOTTKY
@@ -113,7 +113,7 @@ contains
     real,          intent(in)  :: T
       !! temperature in K
 
-    integer          :: ci, idx_dir, ict, dir, normal_dir
+    integer          :: ci, idx_dir, ict, dir
     type(input_file) :: file
 
     ! load device parameters
@@ -188,9 +188,8 @@ contains
     do ci = this%par%ci0, this%par%ci1
       do ict = 1, this%par%nct
         if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
-          normal_dir = get_normal_dir(this%par, ict)
           call this%calc_sbc(ict, ci)%init(this%par, this%dens(ci), &
-            & this%efield(normal_dir), this%sbc(ict, ci))
+            & this%efield, this%sbc(ict, ci))
         end if
       end do
     end do

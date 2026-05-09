@@ -1,15 +1,4 @@
 module schottky_m
-  !! Schottky contact physics module
-  !!
-  !! Provides Robin BC helpers for thermionic emission and WKB tunneling
-  !! at metal-semiconductor Schottky barriers.
-  !!
-  !! Robin BC formulation:
-  !!   F = div(J) + A_ct * [v_th * exp(dphi) * n - v_th * n0b(dphi) - J_t]
-  !!   - v_th: thermionic velocity (Richardson equation)
-  !!   - n0b: equilibrium boundary density (IFBL-lowered barrier)
-  !!   - dphi: image force barrier lowering (0 when IFBL disabled)
-  !!   - J_t: sub-barrier tunneling current (Tsu-Esaki)
 
   use contact_m,        only: CT_SCHOTTKY
   use density_m,        only: density
@@ -29,8 +18,6 @@ module schottky_m
   implicit none
   private
 
-  public :: get_normal_dir
-  public :: schottky_velocity
   public :: schottky_n0b
   public :: schottky_tunneling
   public :: schottky_bc
@@ -56,11 +43,12 @@ module schottky_m
     type(electric_field), pointer :: efield_normal => null()
     type(schottky_bc),    pointer :: bc            => null()
 
-    integer :: ict
-    integer :: ci
-    integer :: normal_dir   !! cached at init via get_normal_dir
-    real    :: v_th         !! cached at init via schottky_velocity
-    real    :: eps_sc       !! cached at init from neighboring-edge permittivity
+    integer :: normal_dir         !! cached at init via get_normal_dir
+    real    :: v_th               !! cached at init via schottky_velocity
+    real, allocatable :: eps_sc(:)
+      !! per-contact-vertex semiconductor permittivity (from the adjacent edge in
+      !! the normal direction); sized transport_vct(ict)%n. Cached at init so
+      !! IFBL sees the local permittivity at heterointerfaces along the contact.
 
     type(dirichlet_stencil) :: st_dir
     type(empty_stencil)     :: st_em
@@ -77,8 +65,10 @@ contains
 
   function get_normal_dir(par, ict) result(dir)
     !! Determine which coordinate direction is normal to a contact surface.
-    !! The normal direction is the one with minimum coordinate range across
-    !! the contact vertices (i.e., the flat direction).
+    !! The normal direction is the one with zero coordinate range across the
+    !! contact vertices (i.e., the flat direction). Hard-fails if no such
+    !! direction exists, since an oblique contact would silently produce
+    !! a meaningless IFBL geometry.
 
     type(device_params), intent(in) :: par
     integer, intent(in) :: ict
@@ -87,10 +77,11 @@ contains
     integer :: i, d, n
     integer, allocatable :: idx(:)
     real :: cmin(3), cmax(3), range(3), pos(3)
+    real, parameter :: REL_TOL = 1.0e-6
 
     dir = 1
-    cmin = 1e30
-    cmax = -1e30
+    cmin =  huge(0.0)
+    cmax = -huge(0.0)
 
     allocate(idx(par%g%idx_dim))
     n = par%transport_vct(ict)%n
@@ -106,10 +97,13 @@ contains
     end do
 
     range = cmax - cmin
-    dir = 1
     do d = 2, par%g%dim
       if (range(d) < range(dir)) dir = d
     end do
+
+    if (range(dir) > REL_TOL * maxval(range(1:par%g%dim))) &
+      call program_error("get_normal_dir: contact "//par%contacts(ict)%name// &
+        & " is not axis-aligned (no flat direction found)")
   end function get_normal_dir
 
 
@@ -138,22 +132,43 @@ contains
   end function schottky_velocity
 
 
-  subroutine schottky_n0b(par, ci, ict, E_normal, n0b, eps_s, delta_phi)
+  pure subroutine ifbl_delta_phi(ifbl, E_normal, eps_sc, dphi)
+    !! Image-force barrier lowering at a Schottky contact.
+    !!   dphi = sqrt(|E_normal| / (4 pi eps_sc))
+    !! Returns 0 when IFBL is disabled or |E_normal| is below a numerical floor
+    !! (avoids a singular sqrt at zero field). All quantities normalized.
+
+    logical, intent(in)  :: ifbl
+    real,    intent(in)  :: E_normal, eps_sc
+    real,    intent(out) :: dphi
+
+    real, parameter :: E_TOL = 1.0e-10
+
+    if (ifbl .and. abs(E_normal) > E_TOL) then
+      dphi = sqrt(abs(E_normal) / (4.0 * PI * eps_sc))
+    else
+      dphi = 0.0
+    end if
+  end subroutine ifbl_delta_phi
+
+
+  subroutine schottky_n0b(par, ci, ict, E_normal, n0b, eps_sc, delta_phi)
     !! Calculate equilibrium boundary density at Schottky barrier.
     !!
-    !! n0b = N_c exp(-phi_b_eff / kT)
-    !!
-    !! With optional image force barrier lowering (IFBL):
-    !!   phi_b_eff = phi_b - sqrt(|E| / (4 pi eps_s))
+    !! n0b = N_c exp(-phi_b_eff / kT),  phi_b_eff = max(phi_b - dphi, 0)
+    !! where dphi is the IFBL barrier lowering (zero when IFBL is disabled).
 
     type(device_params), intent(in) :: par
     integer, intent(in) :: ci, ict
     real, intent(in) :: E_normal
     real, intent(out) :: n0b
-    real, optional, intent(in) :: eps_s
-      !! normalized semiconductor permittivity (required when IFBL is enabled)
+    real, intent(in) :: eps_sc
+      !! normalized semiconductor permittivity (used only when IFBL is enabled)
     real, optional, intent(out) :: delta_phi
-      !! barrier lowering (normalized to kT)
+      !! effective barrier lowering, clamped to phi_b (normalized to kT).
+      !! Clamping keeps n0b and the v_th*exp(delta_phi) prefactor in eval consistent,
+      !! so detailed balance holds even when |E| is large enough that the raw
+      !! image-force formula would exceed phi_b.
 
     real :: phi_b, phi_b_eff, dphi
 
@@ -163,19 +178,9 @@ contains
       phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
     end if
 
-    phi_b_eff = phi_b
-
-    if (par%contacts(ict)%ifbl) then
-      if (.not. present(eps_s)) call program_error("schottky_n0b: eps_s required when IFBL is enabled")
-      if (abs(E_normal) > 1e-10) then
-        dphi = sqrt(abs(E_normal) / (4.0 * PI * eps_s))
-        phi_b_eff = max(phi_b - dphi, 0.0)
-      else
-        dphi = 0.0
-      end if
-    else
-      dphi = 0.0
-    end if
+    call ifbl_delta_phi(par%contacts(ict)%ifbl, E_normal, eps_sc, dphi)
+    dphi = min(dphi, phi_b)
+    phi_b_eff = phi_b - dphi
 
     n0b = par%smc%edos(ci) * exp(-phi_b_eff)
 
@@ -184,23 +189,28 @@ contains
   end subroutine schottky_n0b
 
 
-  subroutine schottky_tunneling(par, ci, ict, E_normal, dens, J_t, dJ_t_ddens, eps_s)
+  subroutine schottky_tunneling(par, ci, ict, E_normal, dens, J_t, dJ_t_ddens, eps_sc)
     !! Calculate sub-barrier tunneling current via Tsu-Esaki integral.
     !!
     !! J_t = (m* / 2 pi^2) * integral_0^{phi_b} T(E) * supply(E) dE
     !!
     !! The above-barrier thermionic component is handled separately
     !! by the Robin BC velocity term.
+    !!
+    !! NOTE: validated for electrons (CR_ELEC). The hole branch reuses the
+    !! same integrand with m_tunnel_p and phi_b_hole = band_gap - phi_b;
+    !! this symmetric form has not yet been benchmarked against an
+    !! independent hole-tunneling reference.
 
     type(device_params), intent(in) :: par
     integer, intent(in) :: ict, ci
     real, intent(in) :: E_normal, dens
     real, intent(out) :: J_t
     real, intent(out) :: dJ_t_ddens
-    real, optional, intent(in) :: eps_s
-      !! normalized semiconductor permittivity (required when IFBL is enabled)
+    real, intent(in) :: eps_sc
+      !! normalized semiconductor permittivity (used only when IFBL is enabled)
 
-    real :: phi_b, m_tunnel, eta, eta_m, detadF
+    real :: phi_b, m_tunnel, eta, eta_m, detadF, dphi
     real :: params(4), integral, dIda, dIdb, dIdp(4), err
     real :: prefactor
     integer :: ncalls
@@ -230,12 +240,8 @@ contains
     eta_m = eta + phi_b
 
     ! apply IFBL to phi_b for WKB barrier shape and integration bounds
-    if (par%contacts(ict)%ifbl) then
-      if (.not. present(eps_s)) call program_error("schottky_tunneling: eps_s required when IFBL is enabled")
-    end if
-    if (par%contacts(ict)%ifbl .and. abs(E_normal) > 1e-10) then
-      phi_b = max(phi_b - sqrt(abs(E_normal) / (4.0 * PI * eps_s)), 0.0)
-    end if
+    call ifbl_delta_phi(par%contacts(ict)%ifbl, E_normal, eps_sc, dphi)
+    phi_b = max(phi_b - dphi, 0.0)
 
     ! integration parameters: [phi_b, |E|, m*, eta_m]
     params = [phi_b, E_normal, m_tunnel, eta_m]
@@ -324,7 +330,6 @@ contains
   end subroutine wkb_transmission
 
 
-
   subroutine schottky_bc_init(this, par, ict, ci)
     !! initialize Schottky boundary current variable at contact ict for carrier ci
     class(schottky_bc),  intent(out) :: this
@@ -341,16 +346,16 @@ contains
   end subroutine
 
 
-  subroutine calc_schottky_bc_init(this, par, dens, efield_normal, bc)
+  subroutine calc_schottky_bc_init(this, par, dens, efield, bc)
     !! initialize the calc equation for one Schottky contact
     class(calc_schottky_bc),       intent(out) :: this
     type(device_params),   target, intent(in)  :: par
     type(density),         target, intent(in)  :: dens
-    type(electric_field),  target, intent(in)  :: efield_normal
-      !! electric field component in the contact-normal direction
+    type(electric_field),  target, intent(in)  :: efield(:)
+      !! all electric field components; the contact-normal one is selected internally
     type(schottky_bc),     target, intent(in)  :: bc
 
-    integer              :: iprov, idep_dens, idep_efield, ict, ci
+    integer              :: iprov, idep_dens, idep_efield, ict, ci, i
     integer, allocatable :: idx(:), idx1(:)
     logical              :: status
 
@@ -360,24 +365,26 @@ contains
     print "(A)", "calc_schottky_bc_init for "//bc%name
 
     call this%equation_init("calc_"//bc%name)
-    this%par           => par
-    this%dens          => dens
-    this%efield_normal => efield_normal
-    this%bc            => bc
-    this%ict           =  ict
-    this%ci            =  ci
+    this%par  => par
+    this%dens => dens
+    this%bc   => bc
 
-    ! cache geometric / Richardson parameters (relocated from continuity_init)
-    ! caller is responsible for passing the electric_field component matching
-    ! get_normal_dir(par, ict); we read the direction back from the variable itself
-    this%normal_dir = efield_normal%dir
-    this%v_th       = schottky_velocity(par, ci, ict)
+    ! resolve the contact-normal direction and bind the matching efield component
+    this%normal_dir    =  get_normal_dir(par, ict)
+    this%efield_normal => efield(this%normal_dir)
+    this%v_th          =  schottky_velocity(par, ci, ict)
 
-    ! semiconductor permittivity from a neighboring edge in the normal direction
+    ! per-vertex semiconductor permittivity from the adjacent edge in the normal
+    ! direction; populated once at init so IFBL in eval just indexes by i
     allocate(idx(par%g%idx_dim), idx1(par%g%idx_dim))
-    idx = par%transport_vct(ict)%get_idx(1)
-    call par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, this%normal_dir, idx, 1, idx1, status)
-    this%eps_sc = par%eps(IDX_EDGE, this%normal_dir)%get(idx1)
+    allocate(this%eps_sc(par%transport_vct(ict)%n))
+    do i = 1, par%transport_vct(ict)%n
+      idx = par%transport_vct(ict)%get_idx(i)
+      call par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, this%normal_dir, idx, 1, idx1, status)
+      if (.not. status) call program_error("calc_schottky_bc_init: contact "//par%contacts(ict)%name// &
+        &                                  " has a vertex with no neighboring edge in the normal direction")
+      this%eps_sc(i) = par%eps(IDX_EDGE, this%normal_dir)%get(idx1)
+    end do
 
     ! init stencils
     call this%st_dir%init(par%g)
@@ -392,7 +399,7 @@ contains
       & st = [this%st_dir%get_ptr()], const = .false.)
 
     ! depend on E-field for evaluation order; lagged (empty stencil = no Jacobian entries)
-    idep_efield = this%depend(efield_normal, par%transport_vct(ict))
+    idep_efield = this%depend(efield(this%normal_dir), par%transport_vct(ict))
     this%jaco_efield => this%init_jaco(iprov, idep_efield, &
       & st = [this%st_em%get_ptr()], const = .true.)
 
@@ -404,14 +411,12 @@ contains
     !! evaluate Schottky boundary current and its derivative w.r.t. density
     class(calc_schottky_bc), intent(inout) :: this
 
-    integer              :: i, ict, ci
-    integer, allocatable :: idx(:)
-    real                 :: E_normal, dens_val, n0b, J_t, dJ_t_ddens, delta_phi, j_bc
+    integer :: i, ict, ci
+    integer :: idx(this%par%g%idx_dim)
+    real    :: E_normal, dens_val, n0b, J_t, dJ_t_ddens, delta_phi, j_bc
 
-    ict = this%ict
-    ci  = this%ci
-
-    allocate(idx(this%par%g%idx_dim))
+    ict = this%bc%ict
+    ci  = this%bc%ci
 
     do i = 1, this%par%transport_vct(ict)%n
       idx = this%par%transport_vct(ict)%get_idx(i)
@@ -420,10 +425,10 @@ contains
       dens_val = this%dens%get(idx)
 
       ! equilibrium boundary density (with optional IFBL)
-      call schottky_n0b(this%par, ci, ict, E_normal, n0b, eps_s = this%eps_sc, delta_phi = delta_phi)
+      call schottky_n0b(this%par, ci, ict, E_normal, n0b, eps_sc = this%eps_sc(i), delta_phi = delta_phi)
 
       ! tunneling current and its derivative w.r.t. density
-      call schottky_tunneling(this%par, ci, ict, E_normal, dens_val, J_t, dJ_t_ddens, eps_s = this%eps_sc)
+      call schottky_tunneling(this%par, ci, ict, E_normal, dens_val, J_t, dJ_t_ddens, eps_sc = this%eps_sc(i))
 
       ! boundary current density: j_bc = v_th * exp(dphi) * dens - v_th * n0b - J_t
       j_bc = this%v_th * exp(delta_phi) * dens_val - this%v_th * n0b - J_t
