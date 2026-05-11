@@ -96,6 +96,8 @@ module semiconductor_m
       !! cricital concentration (alternative to altermatt-schenk)
     real, allocatable :: ii_dop_th(:)
       !! full ionization if doping > threshold
+    real              :: ii_ef_min = 0.0
+      !! minimum field strength for field-assisted ionization numerical stability (V/m)
 
   contains
     procedure :: init_dist    => semiconductor_init_dist

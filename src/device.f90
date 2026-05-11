@@ -180,7 +180,7 @@ contains
     call this%calc_rho%init(this%par, this%dens, this%ion, this%rho)
     allocate (this%calc_efield(this%par%g%dim))
     do idx_dir = 1, this%par%g%dim
-      call this%calc_efield(idx_dir)%init(this%par, this%pot, this%efield(idx_dir))
+      call this%calc_efield(idx_dir)%init(this%par, this%efield(idx_dir), this%pot)
     end do
 
     ! init calc_schottky_bc equations (per Schottky contact, per carrier)
