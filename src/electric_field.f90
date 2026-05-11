@@ -15,10 +15,10 @@ module electric_field_m
   implicit none
 
   private
-  public electric_field, electric_field_abs, calc_efield, calc_efield_abs
+  public electric_field, electric_field_abs, calc_electric_field, calc_electric_field_abs
 
   type, extends(variable) :: electric_field
-    !! directional electric field strength on vertices
+    !!  electric field component at vertices
 
     integer       :: dir
       !! direction
@@ -46,7 +46,7 @@ module electric_field_m
     procedure :: init => electric_field_abs_init
   end type
 
-  type, extends(equation) :: calc_efield
+  type, extends(equation) :: calc_electric_field
     !! calculate electric field component on vertices
 
     type(device_params), pointer :: par => null()
@@ -63,11 +63,11 @@ module electric_field_m
     real, allocatable :: work(:)
       !! pre-allocated work array for evaluation
   contains
-    procedure :: init => calc_efield_init
-    procedure :: eval => calc_efield_eval
+    procedure :: init => calc_electric_field_init
+    procedure :: eval => calc_electric_field_eval
   end type
 
-  type, extends(equation) :: calc_efield_abs
+  type, extends(equation) :: calc_electric_field_abs
     !! calculate electric field on vertices
 
     type(device_params), pointer :: par => null()
@@ -84,8 +84,8 @@ module electric_field_m
     ! d|E|/dE_dir per direction).
     type(jacobian_ptr), allocatable :: jaco_efield(:)
   contains
-    procedure :: init => calc_efield_abs_init
-    procedure :: eval => calc_efield_abs_eval
+    procedure :: init => calc_electric_field_abs_init
+    procedure :: eval => calc_electric_field_abs_eval
   end type
 contains
 
@@ -150,8 +150,8 @@ contains
     end select
   end subroutine
 
-  subroutine calc_efield_init(this, par, efield, pot)
-    class(calc_efield),           intent(out) :: this
+  subroutine calc_electric_field_init(this, par, efield, pot)
+    class(calc_electric_field),           intent(out) :: this
     type(device_params),  target, intent(in)  :: par
       !! device parameters
     type(electric_field),         intent(in)  :: efield
@@ -165,7 +165,7 @@ contains
     real                 :: dx, edge_len, dEFdPot, surf
     real,    allocatable :: p1(:), p2(:)
 
-    print "(A)", "calc_efield_init"
+    print "(A)", "calc_electric_field_init"
 
     ! init base
     call this%equation_init("calc_"//efield%name)
@@ -229,8 +229,8 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_efield_abs_init(this, par, efield, efield_abs)
-    class(calc_efield_abs),      intent(out) :: this
+  subroutine calc_electric_field_abs_init(this, par, efield, efield_abs)
+    class(calc_electric_field_abs),      intent(out) :: this
     type(device_params), target, intent(in)  :: par
       !! device parameters
     type(electric_field),        intent(in)  :: efield(:)
@@ -240,7 +240,7 @@ contains
 
     integer :: iprov, dir
 
-    print "(A)", "calc_efield_abs_init"
+    print "(A)", "calc_electric_field_abs_init"
 
     ! init base
     call this%equation_init("calc_"//efield_abs%name)
@@ -269,15 +269,15 @@ contains
     call this%init_final()
   end subroutine
 
-  subroutine calc_efield_eval(this)
-    class(calc_efield), intent(inout) :: this
+  subroutine calc_electric_field_eval(this)
+    class(calc_electric_field), intent(inout) :: this
 
     call this%jaco_pot%matr%mul_vec(this%pot%get(), this%work)
     call this%efield%set(this%work)
   end subroutine
 
-  subroutine calc_efield_abs_eval(this)
-    class(calc_efield_abs), intent(inout) :: this
+  subroutine calc_electric_field_abs_eval(this)
+    class(calc_electric_field_abs), intent(inout) :: this
 
     integer              :: i, dir
     integer, allocatable :: idx(:)

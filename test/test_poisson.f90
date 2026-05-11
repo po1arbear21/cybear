@@ -1,7 +1,7 @@
 module test_poisson_m
   use charge_density_m, only: charge_density
   use device_params_m,  only: device_params
-  use electric_field_m, only: calc_electric_field, calc_electric_field_component, electric_field, electric_field_component
+  use electric_field_m, only: calc_electric_field_abs, calc_electric_field, electric_field_abs, electric_field
   use esystem_m,        only: esystem
   use grid_m,           only: IDX_EDGE, IDX_VERTEX
   use grid_generator_m, only: DIR_NAME
@@ -60,10 +60,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(2)
 
-    type(calc_electric_field_component) :: calc_ef_dir(1)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(1)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(1)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(1)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx_bnd(2,1)
     real              :: atol, c(2), p(3,1), rtol, v(2)
@@ -80,20 +80,20 @@ contains
     do i = 1, 2
       call volt(i)%init("V_"//par%contacts(i)%name)
     end do
-    call ef%init(par)
+    call efield_abs%init(par)
 
     ! init electric field
-    call ef_dir(1)%init(par, 1)
-    call ef%init(par)
-    call calc_ef_dir(1)%init(par, ef_dir(1), pot)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield(1)%init(par, 1)
+    call efield_abs%init(par)
+    call calc_efield(1)%init(par, efield(1), pot)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
-    call sys%add_equation(calc_ef_dir(1))
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield(1))
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     do i = 1, 2
       call sys%provide(volt(i), input = .true.)
@@ -117,8 +117,8 @@ contains
     call ss%run(input = ss_input)
 
     ! evaluate electric field
-    call calc_ef_dir(1)%eval()
-    call calc_ef%eval()
+    call calc_efield(1)%eval()
+    call calc_efield_abs%eval()
 
     ! test potential
     call par%g%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
@@ -144,20 +144,20 @@ contains
     atol = norm(1e-6, "V/m")
     rtol = 1e-10
 
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - ef_dir(1)%get()) / sol), mask = abs(sol - ef_dir(1)%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - ef_dir(1)%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - efield(1)%get()) / sol), mask = abs(sol - efield(1)%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - efield(1)%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef_dir(1)%get(), rtol, atol, "poisson: 1D capacitor - electric field in "//DIR_NAME(1)//" direction")
+    call tc%assert_eq(sol, efield(1)%get(), rtol, atol, "poisson: 1D capacitor - electric field in "//DIR_NAME(1)//" direction")
 
     ! test absolute electric field
     sol = abs(c(1))
     atol = norm(1e-6, "V/m")
     rtol = 1e-10
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, atol, "poisson: 1D capacitor - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 1D capacitor - electric field")
 
   end subroutine
 
@@ -179,10 +179,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(2)
 
-    type(calc_electric_field_component) :: calc_ef_dir(1)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(1)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(1)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(1)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx1(1), idx2(1), idx_bnd(2,1)
     logical           :: status(2)
@@ -202,17 +202,17 @@ contains
     end do
 
     ! init electric field
-    call ef_dir(1)%init(par, 1)
-    call calc_ef_dir(1)%init(par, ef_dir(1), pot)
-    call ef%init(par)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield(1)%init(par, 1)
+    call calc_efield(1)%init(par, efield(1), pot)
+    call efield_abs%init(par)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
-    call sys%add_equation(calc_ef_dir(1))
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield(1))
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     do i = 1, 2
       call sys%provide(volt(i), input = .true.)
@@ -236,8 +236,8 @@ contains
     call ss%run(input = ss_input)
 
     ! evaluate electric field
-    call calc_ef_dir(1)%eval()
-    call calc_ef%eval()
+    call calc_efield(1)%eval()
+    call calc_efield_abs%eval()
 
     ! get point of permittivity change
     call par%g%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
@@ -291,20 +291,20 @@ contains
     atol = norm(1e-6, "V/m")
     rtol = 1e-11
 
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - ef_dir(1)%get()) / sol), mask = abs(sol - ef_dir(1)%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - ef_dir(1)%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - efield(1)%get()) / sol), mask = abs(sol - efield(1)%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - efield(1)%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef_dir(1)%get(), rtol, atol, "poisson: 1D capacitor with a shift in permittivity - electric field in "//DIR_NAME(1)//" direction")
+    call tc%assert_eq(sol, efield(1)%get(), rtol, atol, "poisson: 1D capacitor with a shift in permittivity - electric field in "//DIR_NAME(1)//" direction")
 
     ! test absolute electric field
     sol = abs(sol)
     atol = norm(1e-6, "V/m")
     rtol = 1e-11
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, atol, "poisson: 1D capacitor with a shift in permittivity - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 1D capacitor with a shift in permittivity - electric field")
 
   end subroutine
 
@@ -326,10 +326,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(2)
 
-    type(calc_electric_field_component) :: calc_ef_dir(1)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(1)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(1)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(1)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx(1), idx_bnd(2,1)
     real              :: atol, eps, len, p(3,1), rho0, rtol, v(2), vol, x(2)
@@ -348,17 +348,17 @@ contains
     end do
 
     ! init electric field
-    call ef_dir(1)%init(par, 1)
-    call calc_ef_dir(1)%init(par, ef_dir(1), pot)
-    call ef%init(par)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield(1)%init(par, 1)
+    call calc_efield(1)%init(par, efield(1), pot)
+    call efield_abs%init(par)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
-    call sys%add_equation(calc_ef_dir(1))
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield(1))
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     do i = 1, 2
       call sys%provide(volt(i), input = .true.)
@@ -397,8 +397,8 @@ contains
     call ss%run(input = ss_input)
 
     ! evaluate electric field
-    call calc_ef_dir(1)%eval()
-    call calc_ef%eval()
+    call calc_efield(1)%eval()
+    call calc_efield_abs%eval()
 
     ! test potential
     do i = 1, par%poisson(IDX_VERTEX, 0)%n
@@ -419,20 +419,20 @@ contains
     atol = norm(1e0, "V/m")
     rtol = 1e-2
 
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - ef_dir(1)%get()) / sol), mask = abs(sol - ef_dir(1)%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - ef_dir(1)%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. relative error: ", max(maxval(abs((sol - efield(1)%get()) / sol), mask = abs(sol - efield(1)%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(1)//" max. absolute error: ", denorm(maxval(abs((sol - efield(1)%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef_dir(1)%get(), rtol, atol, "poisson: 1D capacitor with sinusoidal charge - electric field in "//DIR_NAME(1)//" direction")
+    call tc%assert_eq(sol, efield(1)%get(), rtol, atol, "poisson: 1D capacitor with sinusoidal charge - electric field in "//DIR_NAME(1)//" direction")
 
     ! test absolute electric field
     sol = abs(sol)
     atol = norm(1e0, "V/m")
     rtol = 1e-2
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, norm(2e3, "V"), "poisson: 1D capacitor with sinusoidal charge - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, norm(2e3, "V"), "poisson: 1D capacitor with sinusoidal charge - electric field")
 
   end subroutine
 
@@ -453,10 +453,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(2)
 
-    type(calc_electric_field_component) :: calc_ef_dir(2)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(2)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(2)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(2)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx_bnd(2,2)
     real              :: atol, c(2), p(3,2), rtol, v(2)
@@ -476,20 +476,20 @@ contains
 
     ! init electric field
     do i = 1, 2
-      call ef_dir(i)%init(par, i)
-      call calc_ef_dir(i)%init(par, ef_dir(i), pot)
+      call efield(i)%init(par, i)
+      call calc_efield(i)%init(par, efield(i), pot)
     end do
-    call ef%init(par)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield_abs%init(par)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
     do i = 1, 2
-      call sys%add_equation(calc_ef_dir(i))
+      call sys%add_equation(calc_efield(i))
     end do
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     do i = 1, 2
       call sys%provide(volt(i), input = .true.)
@@ -514,9 +514,9 @@ contains
 
     ! evaluate electric field
     do i = 1, 2
-      call calc_ef_dir(i)%eval()
+      call calc_efield(i)%eval()
     end do
-    call calc_ef%eval()
+    call calc_efield_abs%eval()
 
     ! test potential
     call par%g%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
@@ -544,10 +544,10 @@ contains
     rtol = 1e-11
 
     do i = 1, 2
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - ef_dir(i)%get()) / sol2(i,:)), mask = abs(sol2(i,:) - ef_dir(i)%get()) > atol), 0.0)
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - ef_dir(i)%get()))), "V/m")
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - efield(i)%get()) / sol2(i,:)), mask = abs(sol2(i,:) - efield(i)%get()) > atol), 0.0)
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - efield(i)%get()))), "V/m")
 
-      call tc%assert_eq(sol2(i,:), ef_dir(i)%get(), rtol, atol, "poisson: 2D capacitor - electric field in "//DIR_NAME(i)//" direction")
+      call tc%assert_eq(sol2(i,:), efield(i)%get(), rtol, atol, "poisson: 2D capacitor - electric field in "//DIR_NAME(i)//" direction")
     end do
 
     ! test absolute electric field
@@ -555,10 +555,10 @@ contains
     atol = norm(1e-4, "V/m")
     rtol = 1e-11
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, atol, "poisson: 2D capacitor - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 2D capacitor - electric field")
 
   end subroutine
 
@@ -580,10 +580,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(1)
 
-    type(calc_electric_field_component) :: calc_ef_dir(2)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(2)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(2)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(2)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx(2), idx_bnd(2,2)
     real              :: atol, eps, len, p(3,2), rho0, rtol, v(1), x(2), y(2)
@@ -601,20 +601,20 @@ contains
 
     ! init electric field
     do i = 1, 2
-      call ef_dir(i)%init(par, i)
-      call calc_ef_dir(i)%init(par, ef_dir(i), pot)
+      call efield(i)%init(par, i)
+      call calc_efield(i)%init(par, efield(i), pot)
     end do
-    call ef%init(par)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield_abs%init(par)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
     do i = 1, 2
-      call sys%add_equation(calc_ef_dir(i))
+      call sys%add_equation(calc_efield(i))
     end do
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     call sys%provide(volt(1), input = .true.)
     call sys%init_final()
@@ -653,9 +653,9 @@ contains
 
     ! evaluate electric field
     do i = 1, 2
-      call calc_ef_dir(i)%eval()
+      call calc_efield(i)%eval()
     end do
-    call calc_ef%eval()
+    call calc_efield_abs%eval()
 
     ! test potential
     eps  = par%eps(IDX_EDGE, 1)%get(idx_bnd(1,:))
@@ -694,15 +694,15 @@ contains
     ! current implementation of electric field yields constant relative errors on boundaries, set solution on boundaries to simulated value
     do i = 1, par%poisson(IDX_VERTEX, 0)%n
       idx = par%poisson(IDX_VERTEX, 0)%get_idx(i)
-      if((idx(1) == idx_bnd(1,1)) .or. (idx(1) == idx_bnd(2,1))) sol2(1,i) = ef_dir(1)%get(idx)
-      if((idx(2) == idx_bnd(1,2)) .or. (idx(2) == idx_bnd(2,2))) sol2(2,i) = ef_dir(2)%get(idx)
+      if((idx(1) == idx_bnd(1,1)) .or. (idx(1) == idx_bnd(2,1))) sol2(1,i) = efield(1)%get(idx)
+      if((idx(2) == idx_bnd(1,2)) .or. (idx(2) == idx_bnd(2,2))) sol2(2,i) = efield(2)%get(idx)
     end do
 
     do i = 1, 2
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - ef_dir(i)%get()) / sol2(i,:)), mask = abs(sol2(i,:) - ef_dir(i)%get()) > atol), 0.0)
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - ef_dir(i)%get()))), "V/m")
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - efield(i)%get()) / sol2(i,:)), mask = abs(sol2(i,:) - efield(i)%get()) > atol), 0.0)
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - efield(i)%get()))), "V/m")
 
-      call tc%assert_eq(sol2(i,:), ef_dir(i)%get(), rtol, atol, "poisson: 2D device with polynomial charge - electric field in "//DIR_NAME(i)//" direction")
+      call tc%assert_eq(sol2(i,:), efield(i)%get(), rtol, atol, "poisson: 2D device with polynomial charge - electric field in "//DIR_NAME(i)//" direction")
     end do
 
     ! test absolute electric field
@@ -710,10 +710,10 @@ contains
     atol = norm(1e2, "V/m")
     rtol = 1e-2
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, atol, "poisson: 2D device with polynomial charge - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 2D device with polynomial charge - electric field")
 
   end subroutine
 
@@ -734,10 +734,10 @@ contains
     type(potential)      :: pot
     type(voltage)        :: volt(2)
 
-    type(calc_electric_field_component) :: calc_ef_dir(3)
-    type(calc_electric_field)           :: calc_ef
-    type(electric_field_component)      :: ef_dir(3)
-    type(electric_field)                :: ef
+    type(calc_electric_field) :: calc_efield(3)
+    type(calc_electric_field_abs)           :: calc_efield_abs
+    type(electric_field)      :: efield(3)
+    type(electric_field_abs)                :: efield_abs
 
     integer           :: i, idx_bnd(2,3)
     real              :: atol, c(2), p(3,3), rtol, v(2)
@@ -757,20 +757,20 @@ contains
 
     ! init electric field
     do i = 1, 3
-      call ef_dir(i)%init(par, i)
-      call calc_ef_dir(i)%init(par, ef_dir(i), pot)
+      call efield(i)%init(par, i)
+      call calc_efield(i)%init(par, efield(i), pot)
     end do
-    call ef%init(par)
-    call calc_ef%init(par, ef_dir, ef)
+    call efield_abs%init(par)
+    call calc_efield_abs%init(par, efield, efield_abs)
 
     ! init system
     call poiss%init(par, pot, rho, volt)
     call sys%init("poisson")
     call sys%add_equation(poiss)
     do i = 1, 3
-      call sys%add_equation(calc_ef_dir(i))
+      call sys%add_equation(calc_efield(i))
     end do
-    call sys%add_equation(calc_ef)
+    call sys%add_equation(calc_efield_abs)
     call sys%provide(rho)
     do i = 1, 2
       call sys%provide(volt(i), input = .true.)
@@ -795,9 +795,9 @@ contains
 
     ! evaluate electric field
     do i = 1, 3
-      call calc_ef_dir(i)%eval()
+      call calc_efield(i)%eval()
     end do
-    call calc_ef%eval()
+    call calc_efield_abs%eval()
 
     ! test potential
     call par%g%get_idx_bnd(IDX_VERTEX, 0, idx_bnd)
@@ -826,9 +826,9 @@ contains
     rtol = 1e-10
 
     do i = 1, 3
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - ef_dir(i)%get()) / sol2(i,:)), mask = abs(sol - sol2(i,:)) > atol), 0.0)
-      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - ef_dir(i)%get()))), "V/m")
-      call tc%assert_eq(sol2(i,:), ef_dir(i)%get(), rtol, atol, "poisson: 3D capacitor - electric field in "//DIR_NAME(i)//" direction")
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. relative error: ", max(maxval(abs((sol2(i,:) - efield(i)%get()) / sol2(i,:)), mask = abs(sol - sol2(i,:)) > atol), 0.0)
+      if(OUT) print "(A,ES25.16E3)", "electric field "//DIR_NAME(i)//" max. absolute error: ", denorm(maxval(abs((sol2(i,:) - efield(i)%get()))), "V/m")
+      call tc%assert_eq(sol2(i,:), efield(i)%get(), rtol, atol, "poisson: 3D capacitor - electric field in "//DIR_NAME(i)//" direction")
     end do
 
     ! test absolute electric field
@@ -836,10 +836,10 @@ contains
     atol = norm(1e-3, "V/m")
     rtol = 1e-10
 
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - ef%get()) / sol), mask = abs(sol - ef%get()) > atol), 0.0)
-    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - ef%get()))), "V/m")
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. relative error: ", max(maxval(abs((sol - efield_abs%get()) / sol), mask = abs(sol - efield_abs%get()) > atol), 0.0)
+    if(OUT) print "(A,ES25.16E3)", "total electric field max. absolute error: ", denorm(maxval(abs((sol - efield_abs%get()))), "V/m")
 
-    call tc%assert_eq(sol, ef%get(), rtol, atol, "poisson: 3D capacitor - electric field")
+    call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 3D capacitor - electric field")
 
   end subroutine
 
