@@ -228,7 +228,10 @@ contains
       do i = 1, par%ionvert(ci)%n
         idx1 = par%ionvert(ci)%get_idx(i)
         status = .true.
-        if (par%ict%get(idx1) > 0) status = this%par%contacts(par%ict%get(idx1))%type == CT_REALOHMIC
+        if (par%ict%get(idx1) > 0) then
+          status = this%par%contacts(par%ict%get(idx1))%type == CT_REALOHMIC .or. &
+                   this%par%contacts(par%ict%get(idx1))%type == CT_SCHOTTKY
+        end if
         if (status) call this%jaco_genrec%add(idx1, idx1, - par%tr_vol%get(idx1))
       end do
     end if
