@@ -141,7 +141,6 @@ module device_params_m
     procedure :: get_ct_surf
 
     procedure, private :: init_transport_params  => device_params_init_transport_params
-    procedure, private :: init_regions           => device_params_init_regions
     procedure, private :: init_grid              => device_params_init_grid
     procedure, private :: init_poisson           => device_params_init_poisson
     procedure, private :: init_transport         => device_params_init_transport
@@ -172,11 +171,9 @@ contains
 
     this%T = T
 
-    call this%init_transport_params(file)
-
-    gal_sid = -1
+    ! get galene parameters if necessary
     call file%get_section("galene", gal_sid, status = status)
-    m4_assert(status <= 0) ! at most one galene sections allowed
+    m4_assert(status <= 0) ! at most one galene section allowed
     this%gal = (status == 0)
     if (this%gal) then
       ! only galene, geometry, semiconductor, (incomplete ionization) and bulk mobility sections allowed
@@ -185,9 +182,6 @@ contains
       ! load galene file
       call file%get(gal_sid, "file", gal_filename)
       call this%gal_fl%init(gal_filename%s)
-
-      ! use xy tensor grid
-      this%gtype%s = "xy"
 
       ! get materials
       gblock => this%gal_fl%get_block("name(material)")
@@ -201,20 +195,10 @@ contains
       call file%get(gal_sid, "epsox", this%gal_epsox)
       call file%get(gal_sid, "epssi", this%gal_epssi)
       call file%get(gal_sid, "phims", this%gal_phims)
-    else
-      ! get grid type ("x", "xy", "xyz", "tr_xy", "tr_xyz")
-      call file%get("grid", "gtype", this%gtype)
-      select case (this%gtype%s)
-      case ("x", "xy", "xyz", "tr_xy", "tr_xyz")
-      case default
-        call program_error("Invalid grid type: "//this%gtype%s)
-      end select
-
-      ! get regions
-      call this%init_regions(file)
     end if
 
     ! init rest
+    call this%init_transport_params(file)
     call this%init_grid(file)
     call this%init_poisson()
     call this%init_transport()
@@ -374,84 +358,35 @@ contains
 
   end subroutine
 
-  subroutine device_params_init_regions(this, file)
-    class(device_params), target, intent(inout) :: this
-    type(input_file),             intent(in)    :: file
-
-    integer, allocatable :: sids(:)
-    integer              :: si, i, j
-
-    print "(A)", "init_regions"
-
-    ! initialize poisson regions
-    call file%get_sections("poisson", sids)
-    allocate (this%reg_poiss(size(sids)))
-    do si = 1, size(sids)
-      call this%reg_poiss(si)%init(file, sids(si), this%gtype)
-    end do
-
-    ! initialize transport regions
-    call file%get_sections("transport", sids)
-    allocate (this%reg_trans(size(sids)))
-    do si = 1, size(sids)
-      call this%reg_trans(si)%init(file, sids(si), this%gtype)
-    end do
-
-    ! initialize doping regions
-    call file%get_sections("doping", sids)
-    allocate (this%reg_dop(size(sids)))
-    do si = 1, size(sids)
-      call this%reg_dop(si)%init(file, sids(si), this%gtype)
-    end do
-
-    ! initialize mobility regions
-    call file%get_sections("mobility", sids)
-    allocate (this%reg_mob(size(sids)))
-    do si = 1, size(sids)
-      call this%reg_mob(si)%init(file, sids(si), this%gtype)
-    end do
-
-    ! initialize contact regions
-    call file%get_sections("contact", sids)
-    allocate (this%reg_ct(size(sids)))
-    do si = 1, size(sids)
-      call this%reg_ct(si)%init(file, sids(si), this%gtype)
-    end do
-
-    ! create region pointer array
-    allocate (this%reg(size(this%reg_poiss) + size(this%reg_trans) + size(this%reg_dop) + size(this%reg_ct)))
-    i = 0
-    do j = 1, size(this%reg_poiss)
-      i = i + 1
-      this%reg(i)%p => this%reg_poiss(j)
-    end do
-    do j = 1, size(this%reg_trans)
-      i = i + 1
-      this%reg(i)%p => this%reg_trans(j)
-    end do
-    do j = 1, size(this%reg_dop)
-      i = i + 1
-      this%reg(i)%p => this%reg_dop(j)
-    end do
-    do j = 1, size(this%reg_ct)
-      i = i + 1
-      this%reg(i)%p => this%reg_ct(j)
-    end do
-  end subroutine
-
   subroutine device_params_init_grid(this, file)
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer        :: dim, dir, ngptr
+    integer        :: dim, dir, ngptr, ri
     logical        :: load, status
     type(grid_ptr) :: gptr(3)
 
     print "(A)", "init_grid"
 
-    ! m4_ifdef({m4_triangle},,{
-    if ((this%gtype%s == "tr_xy") .or. (this%gtype%s == "tr_xyz")) call program_error("Triangle library not enabled")
-    ! })
+    if (this%gal) then
+      ! use xy tensor grid
+      this%gtype%s = "xy"
+    else
+      ! get grid type ("x", "xy", "xyz", "tr_xy", "tr_xyz")
+      call file%get("grid", "gtype", this%gtype)
+      select case (this%gtype%s)
+      case ("x", "xy", "xyz")
+      case ("tr_xy", "tr_xyz")
+        ! m4_ifdef({m4_triangle},,{
+        call program_error("Triangle library not enabled")
+        ! })
+      case default
+        call program_error("Invalid grid type: " // this%gtype%s)
+      end select
+
+      ! get regions
+      call init_regions()
+    end if
 
     ! grid dimension
     select case(this%gtype%s)
@@ -509,23 +444,93 @@ contains
       call this%tg%init("grid", gptr(1:ngptr))
       this%g => this%tg
     end if
+
+    ! init region grid tables
+    do ri = 1, size(this%reg)
+      call this%reg(ri)%p%init_grid_tables(this%g)
+    end do
+
+  contains
+
+    subroutine init_regions()
+
+      integer, allocatable :: sids(:)
+      integer              :: si, i, j
+
+      ! initialize poisson regions
+      call file%get_sections("poisson", sids)
+      allocate (this%reg_poiss(size(sids)))
+      do si = 1, size(sids)
+        call this%reg_poiss(si)%init(file, sids(si), this%gtype)
+      end do
+
+      ! initialize transport regions
+      call file%get_sections("transport", sids)
+      allocate (this%reg_trans(size(sids)))
+      do si = 1, size(sids)
+        call this%reg_trans(si)%init(file, sids(si), this%gtype)
+      end do
+
+      ! initialize doping regions
+      call file%get_sections("doping", sids)
+      allocate (this%reg_dop(size(sids)))
+      do si = 1, size(sids)
+        call this%reg_dop(si)%init(file, sids(si), this%gtype)
+      end do
+
+      ! initialize mobility regions
+      call file%get_sections("mobility", sids)
+      allocate (this%reg_mob(size(sids)))
+      do si = 1, size(sids)
+        call this%reg_mob(si)%init(file, sids(si), this%gtype)
+      end do
+
+      ! initialize contact regions
+      call file%get_sections("contact", sids)
+      allocate (this%reg_ct(size(sids)))
+      do si = 1, size(sids)
+        call this%reg_ct(si)%init(file, sids(si), this%gtype)
+      end do
+
+      ! create region pointer array
+      allocate (this%reg(size(this%reg_poiss) + size(this%reg_trans) + size(this%reg_dop) + size(this%reg_mob) + size(this%reg_ct)))
+      i = 0
+      do j = 1, size(this%reg_poiss)
+        i = i + 1
+        this%reg(i)%p => this%reg_poiss(j)
+      end do
+      do j = 1, size(this%reg_trans)
+        i = i + 1
+        this%reg(i)%p => this%reg_trans(j)
+      end do
+      do j = 1, size(this%reg_dop)
+        i = i + 1
+        this%reg(i)%p => this%reg_dop(j)
+      end do
+      do j = 1, size(this%reg_mob)
+        i = i + 1
+        this%reg(i)%p => this%reg_mob(j)
+      end do
+      do j = 1, size(this%reg_ct)
+        i = i + 1
+        this%reg(i)%p => this%reg_ct(j)
+      end do
+    end subroutine
   end subroutine
 
   subroutine device_params_init_poisson(this)
     class(device_params), intent(inout) :: this
 
-    integer                  :: dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
+    integer                  :: i, j, k, ri, idx_dim, idx_dir
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status
-    real                     :: mid(2), p(2,3), eps
+    real                     :: eps
     real,    allocatable     :: surf(:,:), vol(:)
-    type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
 
     print "(A)", "init_poisson"
 
     ! abbreviations
-    dim     = this%g%dim
     idx_dim = this%g%idx_dim
 
     ! allocate temp arrays
@@ -572,54 +577,13 @@ contains
         end if
       end do; end do
     else
-      i0 = 1
-      i1 = 1
       do ri = 1, size(this%reg_poiss)
-        select case (this%gtype%s)
-        case ("x", "xy", "xyz")
-          ! get bounds
-          do idx_dir = 1, idx_dim
-            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_poiss(ri)%xyz(idx_dir,1))
-            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_poiss(ri)%xyz(idx_dir,2)) - 1
-          end do
-
-          ! loop over cells in line-segment (x), rectangle (xy) or cuboid (xyz)
-          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-            ijk = [i, j, k]
-            idx = ijk(1:idx_dim)
-
-            ! enable poisson for cell and set permittivity
-            call this%poisson(IDX_CELL,0)%flags%set(idx, .true.)
-            call this%eps(IDX_CELL,0)%set(idx, this%reg_poiss(ri)%eps)
-          end do; end do; end do
-
-        case ("tr_xy", "tr_xyz")
-          ! get z bounds
-          if (dim == 3) then
-            i0(3) = bin_search(this%g1D(3)%x, this%reg_poiss(ri)%xyz(3,1))
-            i1(3) = bin_search(this%g1D(3)%x, this%reg_poiss(ri)%xyz(3,2)) - 1
-          end if
-
-          ! enable poisson in region
-          gtype_tmp = string("tr_xy")
-          do i = 1, this%gtr%ncell
-            ! check if triangle is in region using centroid
-            call this%gtr%get_cell([i], p)
-            mid(1) = (p(1,1) + p(1,2) + p(1,3)) / 3
-            mid(2) = (p(2,1) + p(2,2) + p(2,3)) / 3
-            if (.not. this%reg_poiss(ri)%point_test(gtype_tmp, mid)) cycle
-
-            ! loop over z direction
-            do k = i0(3), i1(3)
-              ijk(1:2) = [i, k]
-              idx      = ijk(1:idx_dim)
-
-              ! enable poisson for cell and set permittivity
-              call this%poisson(IDX_CELL,0)%flags%set(idx, .true.)
-              call this%eps(IDX_CELL,0)%set(idx, this%reg_poiss(ri)%eps)
-            end do
-          end do
-        end select
+        do i = 1, this%reg_poiss(ri)%cell_table%n
+          idx = this%reg_poiss(ri)%cell_table%get_idx(i)
+          ! enable poisson for cell and set permittivity
+          call this%poisson(IDX_CELL, 0)%flags%set(idx, .true.)
+          call this%eps(IDX_CELL, 0)%set(idx, this%reg_poiss(ri)%eps)
+        end do
       end do
     end if
     call this%poisson(IDX_CELL,0)%init_final()
@@ -671,18 +635,15 @@ contains
   subroutine device_params_init_transport(this)
     class(device_params), intent(inout) :: this
 
-    integer                  :: dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
+    integer                  :: i, j, k, ri, idx_dim, idx_dir
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status
-    real                     :: mid(2), p(2,3)
     real,    allocatable     :: surf(:,:), vol(:)
-    type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
 
     print "(A)", "init_transport"
 
     ! abbreviations
-    dim     = this%g%dim
     idx_dim = this%g%idx_dim
 
     ! allocate temp arrays
@@ -727,54 +688,13 @@ contains
         call this%transport(IDX_CELL,0)%flags%set(idx, .true.)
       end do; end do
     else
-      i0 = 1
-      i1 = 1
       do ri = 1, size(this%reg_trans)
-        select case (this%gtype%s)
-        case ("x", "xy", "xyz")
-          ! get bounds
-          do idx_dir = 1, idx_dim
-            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_trans(ri)%xyz(idx_dir,1))
-            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_trans(ri)%xyz(idx_dir,2)) - 1
-          end do
-
-          ! loop over cells in line-segment (x), rectangle (xy) or cuboid (xyz)
-          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-            ijk = [i, j, k]
-            idx = ijk(1:idx_dim)
-
-            ! enable transport for cell
-            call this%oxide(    IDX_CELL,0)%flags%set(idx, .false.)
-            call this%transport(IDX_CELL,0)%flags%set(idx, .true.)
-          end do; end do; end do
-
-        case ("tr_xy", "tr_xyz")
-          ! get z bounds
-          if (dim == 3) then
-            i0(3) = bin_search(this%g1D(3)%x, this%reg_trans(ri)%xyz(3,1))
-            i1(3) = bin_search(this%g1D(3)%x, this%reg_trans(ri)%xyz(3,2)) - 1
-          end if
-
-          ! enable transport in region
-          gtype_tmp = string("tr_xy")
-          do i = 1, this%gtr%ncell
-            ! check if triangle is in region using centroid
-            call this%gtr%get_cell([i], p)
-            mid(1) = (p(1,1) + p(1,2) + p(1,3)) / 3
-            mid(2) = (p(2,1) + p(2,2) + p(2,3)) / 3
-            if (.not. this%reg_trans(ri)%point_test(gtype_tmp, mid)) cycle
-
-            ! loop over z direction
-            do k = i0(3), i1(3)
-              ijk(1:2) = [i, k]
-              idx      = ijk(1:idx_dim)
-
-              ! enable transport for cell
-              call this%oxide(    IDX_CELL,0)%flags%set(idx, .false.)
-              call this%transport(IDX_CELL,0)%flags%set(idx, .true.)
-            end do
-          end do
-        end select
+        do i = 1, this%reg_trans(ri)%cell_table%n
+          idx = this%reg_trans(ri)%cell_table%get_idx(i)
+          ! enable transport for cell
+          call this%oxide(    IDX_CELL, 0)%flags%set(idx, .false.)
+          call this%transport(IDX_CELL, 0)%flags%set(idx, .true.)
+        end do
       end do
     end if
     call this%oxide(    IDX_CELL,0)%init_final()
@@ -821,11 +741,10 @@ contains
   subroutine device_params_init_contact_tables(this)
     class(device_params), intent(inout) :: this
 
-    integer                   :: dim, idx_dim, i, i0(3), i1(3), ict, ict0, idx_dir, ijk(3), j, k, k0, k1, kk, ri
+    integer                   :: idx_dim, i, ict, ict0, j, k, k0, k1, kk, ri
     integer                   :: nct, nv_poiss, nv_conti
     integer, allocatable      :: idx(:), idx1(:), gimat(:)
     logical                   :: status, stat1
-    real                      :: p(2)
     type(string)              :: name
     type(string), allocatable :: gmat(:)
     type(gal_block), pointer  :: gblock1, gblock2, gblock3
@@ -833,7 +752,6 @@ contains
     print "(A)", "init_contact_tables"
 
     ! abbreviations
-    dim     = this%g%dim
     idx_dim = this%g%idx_dim
 
     ! get all contact names and number of contacts (nct)
@@ -914,8 +832,6 @@ contains
         end do
       end do
     else
-      i0 = 1
-      i1 = 1
       do ri = 1, size(this%reg_ct)
         ! get contact name, index and type
         name = this%reg_ct(ri)%name
@@ -941,52 +857,16 @@ contains
           call program_error("contact "//name%s//" given multiple times with different types")
         end if
 
-        select case (this%gtype%s)
-        case("x", "xy", "xyz")
-          ! get bounds
-          do idx_dir = 1, idx_dim
-            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 1))
-            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_ct(ri)%xyz(idx_dir, 2))
-          end do
-
-          ! update vertex tables
-          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-            ijk  = [i, j, k]
-            idx  = ijk(1:idx_dim)
-            ict0 = this%ict%get(idx)
-            if ((ict0 /= 0) .and. (ict0 /= ict)) then
-              call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
-            end if
-            call this%ict%set(idx, ict)
-            call this%contacted(ict)%flags%set(idx, .true.)
-          end do; end do; end do
-
-        case ("tr_xy", "tr_xyz")
-          ! get z bounds
-          if (dim == 3) then
-            i0(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,1))
-            i1(3) = bin_search(this%g1D(3)%x, this%reg_ct(ri)%xyz(3,2))
+        do i = 1, this%reg_ct(ri)%vert_table%n
+          idx = this%reg_ct(ri)%vert_table%get_idx(i)
+          ! make sure that contact regions do not overlap and then set contact index for vertex
+          ict0 = this%ict%get(idx)
+          if ((ict0 /= 0) .and. (ict0 /= ict)) then
+            call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
           end if
-
-          ! loop over triangle grid vertices
-          do i = 1, this%gtr%nvert
-            ! test if vertex belongs to contact surface
-            call this%gtr%get_vertex([i], p)
-            if (.not. this%reg_ct(ri)%point_test(string("tr_xy"), p)) cycle
-
-            ! loop over z direction
-            do k = i0(3), i1(3)
-              ijk(1:2) = [i, k]
-              idx      = ijk(1:idx_dim)
-              ict0     = this%ict%get(idx)
-              if ((ict0 /= 0) .and. (ict0 /= ict)) then
-                call program_error("contacts "//this%contacts(ict)%name//" and "//this%contacts(ict0)%name//" are overlapping")
-              end if
-              call this%ict%set(idx, ict)
-              call this%contacted(ict)%flags%set(idx, .true.)
-            end do
-          end do
-        end select
+          call this%ict%set(idx, ict)
+          call this%contacted(ict)%flags%set(idx, .true.)
+        end do
       end do
     end if
 
@@ -1048,18 +928,16 @@ contains
     class(device_params), intent(inout) :: this
     type(input_file),     intent(in)    :: file
 
-    integer                  :: ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
+    integer                  :: ci, i, j, ri, idx_dim, idx_dir
     integer, allocatable     :: idx(:), idx2(:)
     logical                  :: status, load
-    real                     :: cdop, dop(2), p(2,3), mid(2), ii_E_dop, ni, eps
+    real                     :: cdop, dop(2), ii_E_dop, ni, eps
     real,    allocatable     :: surf(:,:), vol(:), tmp(:), ddop(:), tdop(:)
-    type(string)             :: gtype_tmp
     type(gal_block), pointer :: gblock
 
     print "(A)", "init_doping"
 
     ! abbreviations
-    dim     = this%g%dim
     idx_dim = this%g%idx_dim
 
     ! allocate temp arrays
@@ -1122,60 +1000,15 @@ contains
         end do
       end do
     else ! regions
-      i0   = 1
-      i1   = 1
       do ri = 1, size(this%reg_dop)
         dop = this%reg_dop(ri)%dop
-
-        ! set doping in cells
-        select case (this%gtype%s)
-        case ("x", "xy", "xyz")
-          ! get bounds
-          do idx_dir = 1, idx_dim
-            i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_dop(ri)%xyz(idx_dir, 1))
-            i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_dop(ri)%xyz(idx_dir, 2)) - 1
+        do i = 1, this%reg_dop(ri)%cell_table%n
+          idx = this%reg_dop(ri)%cell_table%get_idx(i)
+          ! set doping in cells
+          do ci = DOP_DCON, DOP_ACON
+            if (this%reg_dop(ri)%set_dop(ci)) call this%dop(IDX_CELL, 0, ci)%set(idx, dop(ci))
           end do
-
-          ! loop over cells in line-segment (x), rectangle (xy) or cuboid (xyz)
-          do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-            ijk = [i, j, k]
-            idx = ijk(1:idx_dim)
-
-            ! set doping in cells
-            do ci = DOP_DCON, DOP_ACON
-              if (this%reg_dop(ri)%set_dop(ci)) call this%dop(IDX_CELL,0,ci)%set(idx, dop(ci))
-            end do
-          end do; end do; end do
-
-        case ("tr_xy", "tr_xyz")
-          ! get z bounds
-          if (dim == 3) then
-            i0(3) = bin_search(this%g1D(3)%x, this%reg_dop(ri)%xyz(3,1))
-            i1(3) = bin_search(this%g1D(3)%x, this%reg_dop(ri)%xyz(3,2)) - 1
-          end if
-
-          ! loop over triangle cells
-          gtype_tmp = string("tr_xy")
-          do i = 1, this%gtr%ncell
-            ! check if triangle is in region using centroid
-            call this%gtr%get_cell([i], p)
-            mid(1) = (p(1,1) + p(1,2) + p(1,3)) / 3
-            mid(2) = (p(2,1) + p(2,2) + p(2,3)) / 3
-            if (.not. this%reg_dop(ri)%point_test(gtype_tmp, mid)) cycle
-
-            ! loop over z direction
-            do k = i0(3), i1(3)
-              ijk(1:2) = [i, k]
-              idx      = ijk(1:idx_dim)
-
-              ! set doping in cells
-              do ci = DOP_DCON, DOP_ACON
-                if (this%reg_dop(ri)%set_dop(ci)) call this%dop(IDX_CELL,0,ci)%set(idx, dop(ci))
-              end do
-            end do
-          end do
-
-        end select
+        end do
       end do
 
       ! set doping on vertices
@@ -1260,12 +1093,12 @@ contains
     class(device_params), intent(inout) :: this
     type(input_file),     intent(in)    :: file
 
-    integer              :: sid, ci, dim, i, i0(3), i1(3), idx_dim, idx_dir, ijk(3), j, k, ri
+    integer              :: sid, ci, i, j, ri, idx_dim, idx_dir
     integer, allocatable :: idx(:), idx2(:)
     logical              :: status
-    real                 :: dop(2), mid(2), mob0(2), p(2,3)
+    real                 :: dop(2), mob0(2)
     real,    allocatable :: alpha(:), mob_min(:), mob_max(:), N_ref(:), mob_const(:), surf(:,:)
-    type(string)         :: model, gtype_tmp
+    type(string)         :: model
 
     ! TODO: current functionality: the mandatory bulk mobility section sets the bulk zero-field mobility to a constant
     ! or according to the Caughey-Thomas model. These values are overwritten inside the mobility regions by a given
@@ -1281,7 +1114,6 @@ contains
     print "(A)", "init_mobility"
 
     ! abbreviations
-    dim     = this%g%dim
     idx_dim = this%g%idx_dim
 
     ! allocate temp arrays
@@ -1352,60 +1184,15 @@ contains
     end select
 
     ! additionally process mobility regions
-    i0   = 1
-    i1   = 1
     do ri = 1, size(this%reg_mob)
       mob0 = this%reg_mob(ri)%mob0
-
-      ! set mobility in cells
-      select case (this%gtype%s)
-      case ("x", "xy", "xyz")
-        ! get bounds
-        do idx_dir = 1, idx_dim
-          i0(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_mob(ri)%xyz(idx_dir, 1))
-          i1(idx_dir) = bin_search(this%g1D(idx_dir)%x, this%reg_mob(ri)%xyz(idx_dir, 2)) - 1
+      do i = 1, this%reg_mob(ri)%cell_table%n
+        idx = this%reg_mob(ri)%cell_table%get_idx(i)
+        ! overwrite mobility in cells
+        do ci = this%smc%ci0, this%smc%ci1
+          if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL, 0, ci)%set(idx, mob0(ci))
         end do
-
-        ! loop over cells in line-segment (x), rectangle (xy) or cuboid (xyz)
-        do k = i0(3), i1(3); do j = i0(2), i1(2); do i = i0(1), i1(1)
-          ijk = [i, j, k]
-          idx = ijk(1:idx_dim)
-
-          ! overwrite mobility in cells
-          do ci = this%smc%ci0, this%smc%ci1
-            if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
-          end do
-        end do; end do; end do
-
-      case ("tr_xy", "tr_xyz")
-        ! get z bounds
-        if (dim == 3) then
-          i0(3) = bin_search(this%g1D(3)%x, this%reg_mob(ri)%xyz(3,1))
-          i1(3) = bin_search(this%g1D(3)%x, this%reg_mob(ri)%xyz(3,2)) - 1
-        end if
-
-        ! loop over triangle cells
-        gtype_tmp = string("tr_xy")
-        do i = 1, this%gtr%ncell
-          ! check if triangle is in region using centroid
-          call this%gtr%get_cell([i], p)
-          mid(1) = (p(1,1) + p(1,2) + p(1,3)) / 3
-          mid(2) = (p(2,1) + p(2,2) + p(2,3)) / 3
-          if (.not. this%reg_mob(ri)%point_test(gtype_tmp, mid)) cycle
-
-          ! loop over z direction
-          do k = i0(3), i1(3)
-            ijk(1:2) = [i, k]
-            idx      = ijk(1:idx_dim)
-
-            ! overwrite mobility in cells
-            do ci = this%smc%ci0, this%smc%ci1
-              if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL,0,ci)%set(idx, mob0(ci))
-            end do
-          end do
-        end do
-
-      end select
+      end do
     end do
 
     ! set mobility on edges
