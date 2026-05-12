@@ -9,6 +9,7 @@ module grid_generator_m
   use grid_m,        only: grid, grid_ptr
   use grid1D_m,      only: grid1D
   use input_m,       only: input_file
+  use string_m,      only: string
   use tensor_grid_m, only: tensor_grid
   use triang_grid_m, only: triang_grid
   ! m4_ifdef({m4_triangle},{
@@ -29,6 +30,7 @@ module grid_generator_m
 
    ! parameters
   character(*), parameter :: DIR_NAME(3)  = [ "x", "y", "z"]
+  real,         parameter :: TOL          = 1e-10
 
   type refinement
     integer :: dir
@@ -67,10 +69,12 @@ contains
     integer,              intent(inout) :: ngptr
       !! number of already used gptr entries (gets increased by 1)
 
+    logical                       :: status
     real                          :: max_dx
     real,             allocatable :: x0(:), x(:)
     type(gal_block),  pointer     :: gblock
     type(refinement), allocatable :: ref(:)
+    type(string)                  :: unit
 
     ! load or generate axis
     if (load) then
@@ -90,8 +94,15 @@ contains
       x   = generate_axis(x0, max_dx, ref)
     end if
 
+    ! get output unit
+    call file%get("grid", DIR_NAME(dir)//"unit", unit, status = status)
+
     ! initialize grid
-    call g1D%init(DIR_NAME(dir), x)
+    if (status) then
+      call g1D%init(DIR_NAME(dir), x, unit = unit%s)
+    else
+      call g1D%init(DIR_NAME(dir), x)
+    end if
 
     ! update pointer list
     ngptr         =  ngptr + 1
@@ -155,7 +166,7 @@ contains
     do i = 1, size(sids)
       j = j + 1
       call tmp(j)%init(file, sids(i))
-      if (tmp(j)%dir /= dim) j = j - 1
+      if (tmp(j)%dir /= dim .or. abs(tmp(j)%x(1) - tmp(j)%x(2)) < TOL) j = j - 1
     end do
 
     x1 = tmp(1:j)%x(1)
@@ -194,8 +205,6 @@ contains
     real,             intent(in) :: dx
     type(refinement), intent(in) :: ref(:)
     real, allocatable            :: x(:)
-
-    real, parameter :: TOL = 1e-10
 
     real              :: xm
     real, allocatable :: xtmp(:), xx(:)
@@ -263,6 +272,7 @@ contains
       this%dir = dir
 
       if (size(tmp) /= 2) call program_error("coordinates must have size 2")
+      if (tmp(2) < tmp(1)) call program_error("refinement bounds must be ascending")
       this%x = tmp
 
       call file%get(sid, "d"//DIR_NAME(dir), tmp, status = status)

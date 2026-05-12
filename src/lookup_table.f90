@@ -2,17 +2,17 @@ m4_include(util/macro.f90.inc)
 
 module lookup_table_m
 
-  use, intrinsic :: iso_fortran_env, only: int32, int64, real128
-  use, intrinsic :: ieee_arithmetic, only: ieee_value, IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF, ieee_is_finite
+  use, intrinsic :: iso_fortran_env, only: int32, int64
 
   use bin_search_m,    only: bin_search, BS_LESS
-  use error_m,         only: assert_failed, program_error
-  use math_m,          only: linspace, expm1, log1p
-  use omp_lib,         only: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
+  use error_m,         only: program_error
+  use hash_m,          only: hash32
+  use math_m,          only: linspace
+  use omp_lib,         only: omp_get_thread_num, omp_get_max_threads
   use quad_m,          only: quad
   use qsort_m,         only: qsort
-  use hash_m,          only: hash32
-  use vector_m,        only: vector_int, vector_log, vector_real128
+  use util_m,          only: int2str
+  use vector_m,        only: vector_int, vector_log, vector_real
 
   implicit none
 
@@ -22,16 +22,15 @@ module lookup_table_m
   interface
     subroutine integrand(t, x, f, dfdt, dfdx)
       !! integrand
-      import real128
-      real(real128), intent(in)  :: t
+      real, intent(in)  :: t
         !! inner argument
-      real(real128), intent(in)  :: x(:)
+      real, intent(in)  :: x(:)
         !! parameters
-      real(real128), intent(out) :: f
+      real, intent(out) :: f
         !! output integrand
-      real(real128), intent(out) :: dfdt
+      real, intent(out) :: dfdt
         !! output derivative of integrand wrt t
-      real(real128), intent(out) :: dfdx(:)
+      real, intent(out) :: dfdx(:)
         !! output derivative of integrand wrt x
     end subroutine
   end interface
@@ -43,13 +42,13 @@ module lookup_table_m
     character(:), allocatable :: name
       !! name for loading and saving
 
-    real(real128), allocatable :: x(:)
+    real,    allocatable :: x(:)
       !! sample points
-    real(real128), allocatable :: q(:)
+    real,    allocatable :: q(:)
       !! function values at sample points
-    real(real128), allocatable :: d(:)
+    real,    allocatable :: d(:)
       !! function derivatives at sample points
-    logical,       allocatable :: l(:)
+    logical, allocatable :: l(:)
       !! logarithmic interpolation flags
   contains
     procedure :: init   => par_int_table_init
@@ -64,130 +63,87 @@ module lookup_table_m
     !! lookup table for definite integrals
     !! q(a,b) = integral_{a}^{b} f(x) dx
 
-    character(:), allocatable :: name
-      !! name for loading and saving
-
-    integer                    :: ng
+    integer              :: ng
       !! number of gauss-legendre nodes
-    real(real128), allocatable :: xg(:)
+    real,    allocatable :: xg(:)
       !! gauss-legendre nodes
-    real(real128), allocatable :: wg(:)
+    real,    allocatable :: wg(:)
       !! gauss-legendre weights
 
-    real(real128), allocatable :: p(:)
+    real,    allocatable :: p(:)
       !! parameters passed to integrand
 
-    real(real128), allocatable :: x(:)
+    real,    allocatable :: x(:)
       !! x nodes
-    real(real128), allocatable :: q(:)
+    real,    allocatable :: q(:)
       !! q(iq) = integral_{x(i1)}^{x(i2)} f(t) dt
-    integer,       allocatable :: i(:)
+    integer, allocatable :: i(:)
       !! indices of x interval midpoint (i(iq) = i3)
   contains
     procedure :: init => def_int_table_init
     procedure :: get  => def_int_table_get
-    procedure :: load => def_int_table_load
-    procedure :: save => def_int_table_save
 
     procedure, private :: gauss => def_int_table_gauss
   end type
 
-  real(real128), parameter :: xg1(1) = [            &
-    0.000000000000000000000000000000000000_real128  &
-  ]
-  real(real128), parameter :: wg1(1) = [            &
-    1.000000000000000000000000000000000000_real128  &
-  ]
-  real(real128), parameter :: xg2(2) = [            &
-   -0.577350269189625764509148780501957456_real128, &
-    0.577350269189625764509148780501957456_real128  &
-  ]
-  real(real128), parameter :: wg2(2) = [            &
-    1.000000000000000000000000000000000000_real128, &
-    1.000000000000000000000000000000000000_real128  &
-  ]
-  real(real128), parameter :: xg3(3) = [            &
-   -0.774596669241483377035853079956479922_real128, &
-    0.000000000000000000000000000000000000_real128, &
-    0.774596669241483377035853079956479922_real128  &
-  ]
-  real(real128), parameter :: wg3(3) = [            &
-    0.555555555555555555555555555555555556_real128, &
-    0.888888888888888888888888888888888889_real128, &
-    0.555555555555555555555555555555555556_real128  &
-  ]
-  real(real128), parameter :: xg4(4) = [            &
-   -0.861136311594052575223946488892809505_real128, &
-   -0.339981043584856264802665759103244687_real128, &
-    0.339981043584856264802665759103244687_real128, &
-    0.861136311594052575223946488892809505_real128  &
-  ]
-  real(real128), parameter :: wg4(4) = [            &
-    0.347854845137453857373063949221999407_real128, &
-    0.652145154862546142626936050778000593_real128, &
-    0.652145154862546142626936050778000593_real128, &
-    0.347854845137453857373063949221999407_real128  &
-  ]
-  real(real128), parameter :: xg5(5) = [            &
-   -0.906179845938663992797626878299392965_real128, &
-   -0.538469310105683091036314420700208805_real128, &
-    0.000000000000000000000000000000000000_real128, &
-    0.538469310105683091036314420700208805_real128, &
-    0.906179845938663992797626878299392965_real128  &
-  ]
-  real(real128), parameter :: wg5(5) = [            &
-    0.236926885056189087514264040719917363_real128, &
-    0.478628670499366468041291514835638193_real128, &
-    0.568888888888888888888888888888888889_real128, &
-    0.478628670499366468041291514835638193_real128, &
-    0.236926885056189087514264040719917363_real128  &
-  ]
+  ! Gauss-Legendre quadrature nodes and weights
+  real, parameter :: xg1(1) = [ 0.0000000000000000]
+  real, parameter :: wg1(1) = [ 2.0000000000000000]
+  real, parameter :: xg2(2) = [-0.5773502691896258, 0.5773502691896258 ]
+  real, parameter :: wg2(2) = [ 1.0000000000000000, 1.0000000000000000 ]
+  real, parameter :: xg3(3) = [-0.7745966692414834, 0.0000000000000000, 0.7745966692414834 ]
+  real, parameter :: wg3(3) = [ 0.5555555555555556, 0.8888888888888889, 0.5555555555555556 ]
+  real, parameter :: xg4(4) = [-0.8611363115940526,-0.3399810435848563, 0.3399810435848563, 0.8611363115940526 ]
+  real, parameter :: wg4(4) = [ 0.3478548451374539, 0.6521451548625461, 0.6521451548625461, 0.3478548451374539 ]
 
   integer, parameter :: QUAD_MIN_LVL = 10
-  integer, parameter :: QUAD_MAX_LVL = 20
+  integer, parameter :: QUAD_MAX_LVL = 22
 
 contains
 
-  subroutine par_int_table_init(this, dir, name, xmin, xmax, f, a, b, rtol, atol, xtol)
+  subroutine par_int_table_init(this, dir, name, xmin, xmax, f, bnd, rtol, atol, xtol, logging)
     class(par_int_table), intent(out) :: this
     character(*),         intent(in)  :: dir
       !! directory
     character(*),         intent(in)  :: name
       !! name for loading and saving
-    real(real128),        intent(in)  :: xmin
+    real,                 intent(in)  :: xmin
       !! minimal supported x
-    real(real128),        intent(in)  :: xmax
+    real,                 intent(in)  :: xmax
       !! maximal supported x
     procedure(integrand)              :: f
       !! integrand
-    real(real128),        intent(in)  :: a
-      !! lower integration boundary
-    real(real128),        intent(in)  :: b
-      !! upper integration boundary
-    real(real128),        intent(in)  :: rtol
+    real,                 intent(in)  :: bnd(:)
+      !! integration boundaries
+    real,                 intent(in)  :: rtol
       !! relative error tolerance
-    real(real128),        intent(in)  :: atol
+    real,                 intent(in)  :: atol
       !! absolute error tolerance
-    real(real128),        intent(in)  :: xtol
+    real,                 intent(in)  :: xtol
       !! minimum interval size for x
+    logical, optional,    intent(in)  :: logging
+      !! enable/disable logging (default false)
 
     integer, parameter :: MIN_LVL = 10
 
-    integer              :: lvl, max_lvl, i, i1, i2, ithread, n, n0, nthreads
+    integer                     :: lvl, max_lvl, i, i1, i2, ithread, n, n0, nthreads
     integer,        allocatable :: ns(:), nt(:)
     integer(int64), allocatable :: perm(:)
-    logical              :: status, l1
-    real(real128)        :: dx, x, q, d, q1, q2, e1, e2, sgn
-    type(vector_real128) :: gx, tx, gq, tq, gd, td
-    type(vector_log)     :: gl, tl
-    type(vector_int)     :: gs, ts
+    logical                     :: log_, status, l1
+    real                        :: dx, x, q, d, q1, q2, e1, e2, sgn
+    type(vector_real)           :: gx, tx, gq, tq, gd, td
+    type(vector_log)            :: gl, tl
+    type(vector_int)            :: gs, ts
 
     ! try to load from file
     this%name = name
-    call this%load(dir, xmin, xmax, a, b, rtol, atol, xtol, status)
+    call this%load(dir, xmin, xmax, bnd, rtol, atol, xtol, status)
     if (status) return
 
-    print "(2A)", "Generating table ", name
+    log_ = .false.
+    if (present(logging)) log_ = logging
+
+    if (log_) print "(2A)", "Generating table ", name
 
     max_lvl = max(ceiling(log((xmax - xmin) / xtol) / log(2.0)), MIN_LVL)
 
@@ -220,7 +176,7 @@ contains
       ns = 0
       nt = 0
 
-      print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
+      if (log_) print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
 
       !$omp parallel default(none) &
       !$omp private(i,i1,i2,ithread,l1,dx,x,q,d,q1,q2,e1,e2,sgn,tx,tq,td,tl,ts) &
@@ -258,7 +214,7 @@ contains
         ! logarithmic interpolation from existing data
         l1 = .false.
         if (gq%d(i1) * gq%d(i2) > 0) then
-          sgn = sign(1.0_real128, gq%d(i1))
+          sgn = sign(1.0, gq%d(i1))
 
           ! logarithmic interpolation
           q2 = sgn * sqrt(gq%d(i1) * gq%d(i2)) * exp(0.125 * dx * (gd%d(i1) / gq%d(i1) - gd%d(i2) / gq%d(i2)))
@@ -331,7 +287,7 @@ contains
       if (gs%n == 0) exit
     end do
 
-    if (gs%n > 0) print *, "Warning: some intervals are imprecise"
+    if (log_ .and. gs%n > 0) print *, "Warning: some intervals are imprecise"
 
     this%x = gx%to_array()
     this%q = gq%to_array()
@@ -346,24 +302,35 @@ contains
     this%l = this%l(perm)
 
     ! save
-    call this%save(dir, xmin, xmax, a, b, rtol, atol, xtol)
+    call this%save(dir, xmin, xmax, bnd, rtol, atol, xtol)
 
   contains
 
     subroutine gen(x, q, d)
-      real(real128), intent(in)  :: x
-      real(real128), intent(out) :: q
-      real(real128), intent(out) :: d
+      real, intent(in)  :: x
+      real, intent(out) :: q
+      real, intent(out) :: d
 
-      real(real128) :: p(1), dqda, dqdb, dqdp(1)
+      integer :: i
+      real    :: p(1), a, b, qi, dqida, dqidb, dqidp(1)
 
+      ! integrate by interval
       p(1) = x
-      if ((x > a) .and. (x < b)) then
-        call quad(f, a, b, p, q, dqda, dqdb, dqdp, x0=x, rtol=rtol, min_levels=QUAD_MIN_LVL, max_levels=QUAD_MAX_LVL)
-      else
-        call quad(f, a, b, p, q, dqda, dqdb, dqdp, rtol=rtol, min_levels=QUAD_MIN_LVL, max_levels=QUAD_MAX_LVL)
-      end if
-      d = dqdp(1)
+      q    = 0
+      d    = 0
+      do i = 1, size(bnd) - 1
+        a = bnd(i)
+        b = bnd(i + 1)
+
+        if ((x > a) .and. (x < b)) then
+          call quad(f, a, b, p, qi, dqida, dqidb, dqidp, x0=x, rtol=rtol/4, min_levels=QUAD_MIN_LVL, max_levels=QUAD_MAX_LVL)
+        else
+          call quad(f, a, b, p, qi, dqida, dqidb, dqidp, rtol=rtol/4, min_levels=QUAD_MIN_LVL, max_levels=QUAD_MAX_LVL)
+        end if
+
+        q = q + qi
+        d = d + dqidp(1)
+      end do
     end subroutine
 
   end subroutine
@@ -371,15 +338,15 @@ contains
   subroutine par_int_table_get(this, x, q, dqdx)
     !! get function value and derivative
     class(par_int_table), intent(in)  :: this
-    real(real128),        intent(in)  :: x
+    real,                 intent(in)  :: x
       !! argument
-    real(real128),        intent(out) :: q
+    real,                 intent(out) :: q
       !! output function value
-    real(real128),        intent(out) :: dqdx
+    real,                 intent(out) :: dqdx
       !! output derivative of q wrt x
 
-    integer       :: i
-    real(real128) :: x1, x2, dx, q1, d1, q2, d2, t, h00, h10, h01, h11, d00, d10, d01, d11
+    integer :: i
+    real    :: x1, x2, dx, q1, d1, q2, d2, t, h00, h10, h01, h11, d00, d10, d01, d11
 
     if ((x < this%x(1)) .or. (x > this%x(size(this%x)))) then
       print "(3ES25.16E3)", x, this%x(1), this%x(size(this%x))
@@ -415,7 +382,7 @@ contains
       q    =  h00 * log(abs(q1)) + h10 * dx * d1 / q1 + h01 * log(abs(q2)) + h11 * dx * d2 / q2
       dqdx = (d00 * log(abs(q1)) + d10 * dx * d1 / q1 + d01 * log(abs(q2)) + d11 * dx * d2 / q2) / dx
 
-      q    = sign(1.0_real128, q1) * exp(q)
+      q    = sign(1.0, q1) * exp(q)
       dqdx = q * dqdx
     else
       ! direct interpolation
@@ -427,19 +394,19 @@ contains
   subroutine par_int_table_inv(this, q, x, dxdq)
     !! get inverse of function (must be monotone)
     class(par_int_table), intent(in)  :: this
-    real(real128),        intent(in)  :: q
+    real,                 intent(in)  :: q
       !! function value
-    real(real128),        intent(out) :: x
+    real,                 intent(out) :: x
       !! output argument
-    real(real128),        intent(out) :: dxdq
+    real,                 intent(out) :: dxdq
       !! output derivative of x wrt q
 
-    real(real128), parameter :: ATOL   = 1e-30_real128
-    integer,       parameter :: MAX_IT = 10
+    real,    parameter :: ATOL   = 1e-15
+    integer, parameter :: MAX_IT = 10
 
-    integer       :: i, it
-    logical       :: l
-    real(real128) :: x1, x2, dx, q1, d1, q2, d2, t, tmin, tmax, told, res, dresdt, dt, err
+    integer :: i, it
+    logical :: l
+    real    :: x1, x2, dx, q1, d1, q2, d2, t, tmin, tmax, told, res, dresdt, dt, err
 
     if ((q < this%q(1)) .or. (q > this%q(size(this%x)))) then
       print "(A,ES25.16E3)", "q    = ", q
@@ -474,7 +441,7 @@ contains
     tmax = 1
 
     ! Newton iteration to get t
-    err = huge(1.0_real128)
+    err = huge(1.0)
     it  = 0
     do while (err > ATOL)
       it = it + 1
@@ -514,11 +481,11 @@ contains
   contains
 
     subroutine residual(t, res, dresdt)
-      real(real128), intent(in)  :: t
-      real(real128), intent(out) :: res
-      real(real128), intent(out) :: dresdt
+      real, intent(in)  :: t
+      real, intent(out) :: res
+      real, intent(out) :: dresdt
 
-      real(real128) :: h00, h10, h01, h11, d00, d10, d01, d11
+      real :: h00, h10, h01, h11, d00, d10, d01, d11
 
       h00 = (1 + 2 * t) * (1 - t)**2
       h10 = t * (1 - t)**2
@@ -552,16 +519,16 @@ contains
     class(par_int_table), intent(in) :: this
     character(*),         intent(in) :: fname
       !! filename
-    real(real128),        intent(in) :: x1
+    real,                 intent(in) :: x1
       !! lower bound
-    real(real128),        intent(in) :: x2
+    real,                 intent(in) :: x2
       !! upper bound
     integer,              intent(in) :: nsamples
       !! number of points
 
-    integer                    :: i, funit
-    real(real128)              :: q, dqdx
-    real(real128), allocatable :: x(:)
+    integer           :: i, funit
+    real              :: q, dqdx
+    real, allocatable :: x(:)
 
     x = linspace(x1, x2, nsamples)
 
@@ -573,37 +540,38 @@ contains
     close (funit)
   end subroutine
 
-  subroutine par_int_table_load(this, dir, xmin, xmax, a, b, rtol, atol, xtol, status)
+  subroutine par_int_table_load(this, dir, xmin, xmax, bnd, rtol, atol, xtol, status)
     !! load parametric integral table from file
     class(par_int_table), intent(inout) :: this
     character(*),         intent(in)    :: dir
       !! directory
-    real(real128),        intent(in)    :: xmin
+    real,                 intent(in)    :: xmin
       !! minimal supported x
-    real(real128),        intent(in)    :: xmax
+    real,                 intent(in)    :: xmax
       !! maximal supported x
-    real(real128),        intent(in)    :: a
+    real,                 intent(in)    :: bnd(:)
       !! lower integration boundary
-    real(real128),        intent(in)    :: b
-      !! upper integration boundary
-    real(real128),        intent(in)    :: rtol
+    real,                 intent(in)    :: rtol
       !! relative error tolerance
-    real(real128),        intent(in)    :: atol
+    real,                 intent(in)    :: atol
       !! absolute error tolerance
-    real(real128),        intent(in)    :: xtol
+    real,                 intent(in)    :: xtol
       !! minimum interval size for x
     logical,              intent(out)   :: status
       !! success (true) or fail (false)
 
-    character(512) :: fname
-    integer(int32) :: h
-    integer        :: funit, n
+    character(:), allocatable :: params
+    character(256)            :: fname
+    integer(int32)            :: h
+    integer                   :: n, funit
 
     status = .false.
 
     ! filename
-    write (fname, "(7ES41.32E3)") xmin, xmax, a, b, rtol, atol, xtol
-    h = hash32(fname) ! hash parameters to get unique name
+    n = 5 + size(bnd)
+    allocate (character(len = 41*n) :: params)
+    write (params, "("//int2str(n)//"ES24.16E3)") xmin, xmax, bnd, rtol, atol, xtol
+    h = hash32(params)
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     ! check if file exists
@@ -622,38 +590,38 @@ contains
     status = .true.
   end subroutine
 
-  subroutine par_int_table_save(this, dir, xmin, xmax, a, b, rtol, atol, xtol)
+  subroutine par_int_table_save(this, dir, xmin, xmax, bnd, rtol, atol, xtol)
     !! save parametric integral table to file
     class(par_int_table), intent(in) :: this
     character(*),         intent(in) :: dir
       !! directory
-    real(real128),        intent(in) :: xmin
+    real,                 intent(in) :: xmin
       !! minimal supported x
-    real(real128),        intent(in) :: xmax
+    real,                 intent(in) :: xmax
       !! maximal supported x
-    real(real128),        intent(in) :: a
-      !! lower integration boundary
-    real(real128),        intent(in) :: b
-      !! upper integration boundary
-    real(real128),        intent(in) :: rtol
+    real,                 intent(in) :: bnd(:)
+      !! integration bounds
+    real,                 intent(in) :: rtol
       !! relative error tolerance
-    real(real128),        intent(in) :: atol
+    real,                 intent(in) :: atol
       !! absolute error tolerance
-    real(real128),        intent(in) :: xtol
+    real,                 intent(in) :: xtol
       !! minimum interval size for x
 
-    character(512) :: fname
-    integer(int32) :: h
-    integer        :: funit, num_entries
+    character(:), allocatable :: params
+    character(256)            :: fname
+    integer(int32)            :: h
+    integer                   :: n, funit
 
     ! filename
-    num_entries = size(this%x)
-    write (fname, "(7ES41.32E3)") xmin, xmax, a, b, rtol, atol, xtol
-    h = hash32(fname)
+    n = 5 + size(bnd)
+    allocate (character(len = 41*n) :: params)
+    write (params, "("//int2str(n)//"ES24.16E3)") xmin, xmax, bnd, rtol, atol, xtol
+    h = hash32(params)
     write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
 
     open (newunit = funit, file = fname, status = "replace", action = "write", form = "unformatted")
-    write (funit) num_entries
+    write (funit) size(this%x)
     write (funit) this%x
     write (funit) this%q
     write (funit) this%d
@@ -661,40 +629,40 @@ contains
     close (funit)
   end subroutine
 
-  subroutine def_int_table_init(this, dir, name, xmin, xmax, ng, intg, p, rtol, atol, xtol)
+  subroutine def_int_table_init(this, xmin, xmax, ng, intg, p, rtol, atol, xtol, logging)
     class(def_int_table), intent(out) :: this
-    character(*),         intent(in)  :: dir
-      !! directory
-    character(*),         intent(in)  :: name
-      !! name for loading and saving
-    real(real128),        intent(in)  :: xmin
+    real,                 intent(in)  :: xmin
       !! minimal supported x
-    real(real128),        intent(in)  :: xmax
+    real,                 intent(in)  :: xmax
       !! maximal supported x
     integer,              intent(in)  :: ng
       !! number of gauss-legendre points for integration on lowest level
     procedure(integrand)              :: intg
       !! integrand
-    real(real128),        intent(in)  :: p(:)
+    real,                 intent(in)  :: p(:)
       !! parameters for integrand
-    real(real128),        intent(in)  :: rtol
+    real,                 intent(in)  :: rtol
       !! relative error tolerance
-    real(real128),        intent(in)  :: atol
+    real,                 intent(in)  :: atol
       !! absolute error tolerance
-    real(real128),        intent(in)  :: xtol
+    real,                 intent(in)  :: xtol
       !! minimum interval size for x
+    logical, optional,    intent(in)  :: logging
+      !! enable/disable logging (default false)
 
     integer, parameter :: MIN_LVL = 10
 
     integer              :: lvl, max_lvl, i, i1, i2, i3, iq, iq0, ithread, n, nx0, nq0, nthreads
     integer, allocatable :: ns(:), nt(:)
-    logical              :: status
-    real(real128)        :: dx, x, d1, d2, q, q1, q2, dqdp(size(p)), err
-    type(vector_real128) :: gx, tx, gq, tq
+    logical              :: log_
+    real                 :: dx, x, d1, d2, q, q1, q2, dqdp(size(p)), err
+    type(vector_real)    :: gx, tx, gq, tq
     type(vector_int)     :: gs, ts, gi
 
+    log_ = .false.
+    if (present(logging)) log_ = logging
+
     ! set members
-    this%name =  name
     this%ng   = ng
     this%p    =  p
 
@@ -712,18 +680,11 @@ contains
     case (4)
       this%xg = xg4
       this%wg = wg4
-    case (5)
-      this%xg = xg5
-      this%wg = wg5
     case default
-      call program_error("ng must be between 1 and 5")
+      call program_error("ng must be between 1 and 4")
     end select
 
-    ! try to load table from file
-    call this%load(dir, xmin, xmax, rtol, atol, xtol, status)
-    if (status) return
-
-    print "(2A)", "Generating table ", name
+    if(log_) print "(2A)", "Generating def_int_table"
 
     max_lvl = max(ceiling(log((xmax - xmin) / xtol) / log(2.0)), MIN_LVL)
 
@@ -750,7 +711,7 @@ contains
       ns  = 0
       nt  = 0
 
-      print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
+      if(log_) print "(I2,A,I2,A,I0)", lvl, " / ", max_lvl, ": ", n
 
       !$omp parallel default(none) &
       !$omp private(i,i1,i2,iq,ithread,dx,x,d1,d2,q,q1,q2,dqdp,err,tx,tq,ts) &
@@ -846,7 +807,7 @@ contains
       if (gs%n == 0) exit
     end do
 
-    if (gs%n > 0) print *, "Warning: some intervals are imprecise"
+    if (log_ .and. gs%n > 0) print *, "Warning: some intervals are imprecise"
 
     ! delete q values of upper levels
     call gs%resize(0)
@@ -905,32 +866,31 @@ contains
     this%x = gx%to_array()
     this%q = gq%to_array()
     this%i = gi%to_array()
-
-    ! save
-    call this%save(dir, xmin, xmax, rtol, atol, xtol)
   end subroutine
 
-  recursive subroutine def_int_table_get(this, intg, a, b, q, dqda, dqdb)
+  recursive subroutine def_int_table_get(this, intg, a, b, rtol, q, dqda, dqdb)
     !! get value of integral
     class(def_int_table), intent(in)  :: this
     procedure(integrand)              :: intg
       !! integrand
-    real(real128),        intent(in)  :: a
+    real,                 intent(in)  :: a
       !! lower integration bound
-    real(real128),        intent(in)  :: b
+    real,                 intent(in)  :: b
       !! upper integration bound
-    real(real128),        intent(out) :: q
+    real,                 intent(in)  :: rtol
+      !! relative error tolerance
+    real,                 intent(out) :: q
       !! output value of integral
-    real(real128),        intent(out) :: dqda
+    real,                 intent(out) :: dqda
       !! output derivative of q wrt a
-    real(real128),        intent(out) :: dqdb
+    real,                 intent(out) :: dqdb
       !! output derivative of q wrt b
 
-    integer       :: i1, i2, i3, j1, j2, j3, iq
-    real(real128) :: q1, dum
+    integer :: i1, i2, i3, j1, j2, j3, iq
+    real    :: q1, dum
 
     if (b < a) then
-      call this%get(intg, b, a, q, dqdb, dqda)
+      call this%get(intg, b, a, rtol, q, dqdb, dqda)
       q    = - q
       dqda = - dqda
       dqdb = - dqdb
@@ -989,6 +949,13 @@ contains
     do
       i3 = this%i(iq)
 
+      if (abs(this%q(iq)) < rtol * abs(q)) then
+        ! optimization: stop going further down as q will not be changed significantly within this sub-tree
+        q    = q + this%q(iq) * (this%x(i2) - a) / (this%x(i2) - this%x(i1)) ! approx. const. integrand
+        dqda =   - this%q(iq) / (this%x(i2) - this%x(i1))
+        exit
+      end if
+
       if (i3 == 0) then
         ! unsplit interval => use gauss-legendre
         call this%gauss(intg, a, this%x(i2), q1, dqda, dum)
@@ -1017,6 +984,13 @@ contains
     do
       i3 = this%i(iq)
 
+      if (abs(this%q(iq)) < rtol * abs(q)) then
+        ! optimization: stop going further down as q will not be changed significantly within this sub-tree
+        q    = q + this%q(iq) * (b - this%x(i1)) / (this%x(i2) - this%x(i1)) ! approx. const. integrand
+        dqdb =     this%q(iq) / (this%x(i2) - this%x(i1))
+        exit
+      end if
+
       if (i3 == 0) then
         ! unsplit interval => use gauss-legendre
         call this%gauss(intg, this%x(i1), b, q1, dum, dqdb)
@@ -1039,116 +1013,24 @@ contains
     end do
   end subroutine
 
-  subroutine def_int_table_load(this, dir, xmin, xmax, rtol, atol, xtol, status)
-    !! load definite integral table from file
-    class(def_int_table), intent(inout) :: this
-    character(*),         intent(in)    :: dir
-      !! directory
-    real(real128),        intent(in)    :: xmin
-      !! minimal supported x
-    real(real128),        intent(in)    :: xmax
-      !! maximal supported x
-    real(real128),        intent(in)    :: rtol
-      !! relative error tolerance
-    real(real128),        intent(in)    :: atol
-      !! absolute error tolerance
-    real(real128),        intent(in)    :: xtol
-      !! minimum interval size for x
-    logical,              intent(out)   :: status
-      !! success (true) or fail (false)
-
-    character(:), allocatable :: tmp
-    character(32)             :: fmt
-    character(256)            :: fname
-    integer                   :: n, h, funit, nx, nq, ni
-
-    status = .false.
-
-    ! filename
-    n = 5 + size(this%p)
-    write (fmt, "(A,I0,A)") "(", n, "ES41.32E3,I1)"
-    n = n * 41 + 1
-    allocate (character(len=n) :: tmp)
-    write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash32(tmp) ! hash parameters to get unique name
-    write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
-
-    ! check if file exists
-    inquire (file = fname, exist = status)
-    if (.not. status) return
-
-    ! load
-    open (newunit = funit, file = fname, status = "old", action = "read", form = "unformatted")
-    read (funit) nx
-    read (funit) nq
-    read (funit) ni
-    allocate (this%x(nx), this%q(nq), this%i(ni))
-    read (funit) this%x
-    read (funit) this%q
-    read (funit) this%i
-    close (funit)
-    status = .true.
-  end subroutine
-
-  subroutine def_int_table_save(this, dir, xmin, xmax, rtol, atol, xtol)
-    !! save definite integral table to file
-    class(def_int_table), intent(in) :: this
-    character(*),         intent(in) :: dir
-      !! directory
-    real(real128),        intent(in) :: xmin
-      !! minimal supported x
-    real(real128),        intent(in) :: xmax
-      !! maximal supported x
-    real(real128),        intent(in) :: rtol
-      !! relative error tolerance
-    real(real128),        intent(in) :: atol
-      !! absolute error tolerance
-    real(real128),        intent(in) :: xtol
-      !! minimum interval size for x
-
-    character(:), allocatable :: tmp
-    character(32)             :: fmt
-    character(256)            :: fname
-    integer                   :: n, h, funit
-
-    ! filename
-    n = 5 + size(this%p)
-    write (fmt, "(A,I0,A)") "(", n, "ES41.32E3,I1)"
-    n = n * 41 + 1
-    allocate (character(len=n) :: tmp)
-    write (tmp, fmt) xmin, xmax, rtol, atol, xtol, this%p, this%ng
-    h = hash32(tmp) ! hash parameters to get unique name
-    write (fname, "(4A,Z0.8,A)") dir, "/", this%name, "_", h, ".bin"
-
-    ! load
-    open (newunit = funit, file = fname, status = "replace", action = "write", form = "unformatted")
-    write (funit) size(this%x)
-    write (funit) size(this%q)
-    write (funit) size(this%i)
-    write (funit) this%x
-    write (funit) this%q
-    write (funit) this%i
-    close (funit)
-  end subroutine
-
   subroutine def_int_table_gauss(this, intg, a, b, q, dqda, dqdb)
     !! Gauss-Legendre quadrature
     class(def_int_table), intent(in)  :: this
     procedure(integrand)              :: intg
       !! integrand
-    real(real128),        intent(in)  :: a
+    real,                 intent(in)  :: a
       !! lower integration boundary
-    real(real128),        intent(in)  :: b
+    real,                 intent(in)  :: b
       !! upper integration boundary
-    real(real128),        intent(out) :: q
+    real,                 intent(out) :: q
       !! output value of integral
-    real(real128),        intent(out) :: dqda
+    real,                 intent(out) :: dqda
       !! output derivative of q wrt a
-    real(real128),        intent(out) :: dqdb
+    real,                 intent(out) :: dqdb
       !! output derivative of q wrt b
 
-    integer       :: i
-    real(real128) :: x, w, f, dfdx, dfdp(size(this%p))
+    integer :: i
+    real    :: x, w, f, dfdx, dfdp(size(this%p))
 
     q    = 0
     dqda = 0

@@ -1,12 +1,10 @@
 module continuity_m
 
-  use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY
+  use contact_m,         only: CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC
   use current_density_m, only: current_density
   use density_m,         only: density
   use device_params_m,   only: device_params
-  use error_m,           only: assert_failed, program_error
   use grid_m,            only: IDX_VERTEX, IDX_EDGE
-  use imref_m,           only: imref
   use jacobian_m,        only: jacobian, jacobian_ptr
   use ionization_m,      only: generation_recombination
   use res_equation_m,    only: res_equation
@@ -42,7 +40,7 @@ module continuity_m
       !! per-contact wrapper for schottky_bc(ict) on transport_vct(ict);
       !! initialized only for CT_SCHOTTKY contacts (others are unused defaults)
 
-    real, allocatable :: b(:)
+    real, allocatable :: b0(:)
       !! right-hand side
 
     type(dirichlet_stencil)                :: st_dir
@@ -124,11 +122,16 @@ contains
     ! per-contact stencil tables for dens / dens_t / cdens
     allocate(st_dens_ct(par%nct), st_dens_t_ct(par%nct), st_cdens_ct(par%nct))
     do ict = 1, par%nct
+      ! st_dens_ct: empty for Schottky (no jaco_dens at contact); dirichlet otherwise
       if (par%contacts(ict)%type == CT_SCHOTTKY) then
         st_dens_ct(ict)   = this%st_em%get_ptr()
-        st_dens_t_ct(ict) = this%st_dir%get_ptr()
       else
         st_dens_ct(ict)   = this%st_dir%get_ptr()
+      end if
+      ! st_dens_t_ct: dirichlet for Schottky/Realohmic (tr_vol or reserved); empty otherwise
+      if (par%contacts(ict)%type == CT_SCHOTTKY .or. par%contacts(ict)%type == CT_REALOHMIC) then
+        st_dens_t_ct(ict) = this%st_dir%get_ptr()
+      else
         st_dens_t_ct(ict) = this%st_em%get_ptr()
       end if
     end do
@@ -148,9 +151,9 @@ contains
       & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
       & const = .true., dtime = .true. )
     do idx_dir = 1, par%g%idx_dim
-      ! cdens at contact: Schottky has flux-divergence contribution; ohmic/gate have none.
+      ! cdens at contact: Schottky/Realohmic have flux-divergence contribution; ohmic/gate have none.
       do ict = 1, par%nct
-        if (par%contacts(ict)%type == CT_SCHOTTKY) then
+        if (par%contacts(ict)%type == CT_SCHOTTKY .or. par%contacts(ict)%type == CT_REALOHMIC) then
           st_cdens_ct(ict) = this%st_nn(idx_dir)%get_ptr()
         else
           st_cdens_ct(ict) = this%st_em%get_ptr()
@@ -197,11 +200,11 @@ contains
         surf = par%tr_surf(idx_dir)%get(idx)
 
         ict = par%ict%get(idx1)
-        if (ict == 0 .or. par%contacts(max(ict,1))%type == CT_SCHOTTKY) then
+        if (ict == 0 .or. par%contacts(max(ict,1))%type == CT_SCHOTTKY .or. par%contacts(max(ict,1))%type == CT_REALOHMIC) then
           call this%jaco_cdens(idx_dir)%p%add(idx1, idx,  surf)
         end if
         ict = par%ict%get(idx2)
-        if (ict == 0 .or. par%contacts(max(ict,1))%type == CT_SCHOTTKY) then
+        if (ict == 0 .or. par%contacts(max(ict,1))%type == CT_SCHOTTKY .or. par%contacts(max(ict,1))%type == CT_REALOHMIC) then
           call this%jaco_cdens(idx_dir)%p%add(idx2, idx, -surf)
         end if
       end do
@@ -224,7 +227,12 @@ contains
     if (par%smc%incomp_ion) then
       do i = 1, par%ionvert(ci)%n
         idx1 = par%ionvert(ci)%get_idx(i)
-        call this%jaco_genrec%add(idx1, idx1, - par%tr_vol%get(idx1))
+        status = .true.
+        if (par%ict%get(idx1) > 0) then
+          status = this%par%contacts(par%ict%get(idx1))%type == CT_REALOHMIC .or. &
+                   this%par%contacts(par%ict%get(idx1))%type == CT_SCHOTTKY
+        end if
+        if (status) call this%jaco_genrec%add(idx1, idx1, - par%tr_vol%get(idx1))
       end do
     end if
 
@@ -233,30 +241,39 @@ contains
       if (par%contacts(ict)%type /= CT_SCHOTTKY) cycle
       do i = 1, par%transport_vct(ict)%n
         idx1 = par%transport_vct(ict)%get_idx(i)
-        call this%jaco_schottky_bc(ict)%p%add(idx1, idx1, par%get_ct_surf(ict, idx1))
+        call this%jaco_schottky_bc(ict)%p%add(idx1, idx1, par%ct_surf%get(idx1))
       end do
     end do
 
-    ! boundary conditions: Dirichlet for ohmic/gate; b=0 (default) for Schottky
-    allocate (this%b(this%f%n), source = 0.0)
+    ! density time-derivative tr_vol contribution at Realohmic-contact vertices
+    do ict = 1, par%nct
+      if (par%contacts(ict)%type /= CT_REALOHMIC) cycle
+      do i = 1, par%transport_vct(ict)%n
+        idx1 = par%transport_vct(ict)%get_idx(i)
+        call this%jaco_dens_t%add(idx1, idx1, par%tr_vol%get(idx1))
+      end do
+    end do
+
+    ! boundary conditions: Dirichlet for ohmic/realohmic/gate; b=0 (default) for Schottky
+    allocate (this%b0(this%f%n), source = 0.0)
     j = par%transport_vct(0)%n
     do ict = 1, par%nct
       do i = 1, par%transport_vct(ict)%n
         j = j + 1
         idx1 = par%transport_vct(ict)%get_idx(i)
-
         if (par%contacts(ict)%type == CT_SCHOTTKY) then
-          ! Schottky: residual = jaco_dens_t*dens + jaco_cdens*cdens + jaco_schottky_bc*sbc;  b=0
+          ! Schottky: residual = jaco_dens_t*dens + jaco_cdens*cdens + jaco_schottky_bc*sbc; b=0
           cycle
         end if
 
-        ! Ohmic/Gate: F = 1.0 * dens(idx) - b(j)
-        call this%jaco_dens%add(idx1, idx1, 1.0)
-        if ((par%smc%dos == DOS_PARABOLIC) .and. (par%smc%dist == DIST_MAXWELL)) then
-          this%b(j) = sqrt(par%smc%edos(1) * par%smc%edos(2)) * exp(- CR_CHARGE(ci) * par%contacts(ict)%phims - 0.5 * par%smc%band_gap)
+        ! Ohmic / RealOhmic / Gate: calculate contact density via get_dist
+        call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
+        this%b0(j) = par%smc%edos(ci) * F
+        if (par%contacts(ict)%type == CT_REALOHMIC) then
+          call this%jaco_dens%add(idx1, idx1, par%ct_surf%get(idx1) * par%contacts(ict)%vrec)
+          this%b0(j) = this%b0(j) * par%ct_surf%get(idx1) * par%contacts(ict)%vrec
         else
-          call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
-          this%b(j) = par%smc%edos(ci) * F
+          call this%jaco_dens%add(idx1, idx1, 1.0)
         end if
       end do
     end do
@@ -273,6 +290,7 @@ contains
     real, allocatable :: tmp(:)
 
     allocate (tmp(this%f%n))
+
     call this%jaco_dens%matr%mul_vec(this%dens%get(), tmp)
 
     do idx_dir = 1, this%par%g%idx_dim
@@ -288,7 +306,7 @@ contains
       end do
     end if
 
-    call this%f%set(tmp - this%b)
+    call this%f%set(tmp - this%b0)
   end subroutine
 
 end module

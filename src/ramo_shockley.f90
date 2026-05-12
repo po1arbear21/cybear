@@ -203,7 +203,7 @@ contains
 
     ! create variable selectors
     allocate (this%cdens(par%g%idx_dim,2))
-    do ci = par%ci0, par%ci1
+    do ci = par%smc%ci0, par%smc%ci1
       do idx_dir = 1, par%g%idx_dim
         call this%cdens(idx_dir,ci)%init(cdens(idx_dir,ci), par%transport(IDX_EDGE, idx_dir))
       end do
@@ -224,7 +224,7 @@ contains
 
     ! init jacobians
     allocate (this%jaco_cdens(par%g%idx_dim,2))
-    do ci = par%ci0, par%ci1
+    do ci = par%smc%ci0, par%smc%ci1
       do idx_dir = 1, par%g%idx_dim
         this%jaco_cdens(idx_dir,ci)%p => this%init_jaco_f(this%depend(this%cdens(idx_dir,ci)), st = [this%st(idx_dir)%get_ptr()], const = .true.)
       end do
@@ -243,7 +243,7 @@ contains
         do ict = 1, par%nct
           d(ict,1) = par%curr_fact * par%tr_surf(idx_dir)%get(idx) * (ramo%x(ict)%get(idx2) - ramo%x(ict)%get(idx1))
         end do
-        do ci = par%ci0, par%ci1
+        do ci = par%smc%ci0, par%smc%ci1
           call this%jaco_cdens(idx_dir,ci)%p%add(dum, idx, CR_CHARGE(ci) * d)
         end do
       end do
@@ -270,7 +270,7 @@ contains
 
     ! calculate residuals
     call this%jaco_curr%matr%mul_vec(this%curr%get(), tmp)
-    do ci = this%par%ci0, this%par%ci1
+    do ci = this%par%smc%ci0, this%par%smc%ci1
       do idx_dir = 1, this%par%g%idx_dim
         call this%jaco_cdens(idx_dir,ci)%p%matr%mul_vec(this%cdens(idx_dir,ci)%get(), tmp, fact_y = 1.0)
       end do

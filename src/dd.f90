@@ -8,9 +8,10 @@ program dd
   ! use harmonic_balance_m, only: harmonic_balance
   use input_m,            only: input_file, input_section
   use input_src_m,        only: polygon_src, harmonic_src
+  use logging_m,          only: init_logging
   use math_m,             only: linspace, logspace, PI
   use normalization_m,    only: init_normconst, norm, denorm
-  use semiconductor_m,    only: CR_NAME
+  use semiconductor_m,    only: CR_NAME, DOP_NAME, RATE_NAME
   use small_signal_m,     only: small_signal
   use solver_base_m,      only: solver_real
   use solver_m,           only: default_solver_params, init_solver_real
@@ -24,16 +25,34 @@ program dd
 
   implicit none
 
-  logical          :: gummel_restart, gummel_once, gummel_enabled
-  real             :: temperature
-  type(input_file) :: runfile
+  integer                   :: ci, ict
+  logical                   :: gummel_restart, gummel_once, gummel_enabled
+  real                      :: temperature
+  type(input_file)          :: runfile
+  type(string), allocatable :: output_list(:)
 
   print "(A)", "Start simulation on " // get_hostname()
+  call init_logging(fmt = "%DD/%mm/%YY | %HH:%MM:%SS | %MEM GiB | %MSG", record_time = .true., record_mem = .true.)
 
   ! parse command line arguments
   call command_line()
 
-  ! ! solve
+  ! create list of variables for output in steady-state and transient simulations
+  output_list = [string("pot")]
+  if (dev%par%smc%incomp_ion .and. (dev%par%smc%ii_pf .or. dev%par%smc%ii_tun)) output_list = [output_list, string("electric_field_abs")]
+  output_list = [output_list, string("rho")]
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+    output_list = [output_list, string(CR_NAME(ci) // "dens")]
+    output_list = [output_list, string("eta_" // CR_NAME(ci))]
+    if (dev%par%smc%incomp_ion) output_list = [output_list, string("ion" // DOP_NAME(ci))]
+    if (dev%par%smc%incomp_ion) output_list = [output_list, string("genrec_" // RATE_NAME(ci))]
+  end do
+  do ict = 1, dev%par%nct
+    output_list = [output_list, string("V_" // dev%par%contacts(ict)%name)]
+    output_list = [output_list, string("I_" // dev%par%contacts(ict)%name)]
+  end do
+
+  ! solve
   call solve_steady_state()
   call solve_small_signal()
   call solve_transient()
@@ -179,9 +198,7 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(sj))
-      ss%msg = "Newton: "
-      call ss%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), &
-                         & string("ionA"), string("V_GAT"), string("I_DRN")], name%s // ".fbs")
+      call ss%init_output(output_list, name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
     end do
   end subroutine
@@ -189,7 +206,7 @@ contains
   subroutine solve_small_signal()
     integer              :: si, sj, Nf, i
     integer, allocatable :: sids(:)
-    logical              :: flog
+    logical              :: status, flog
     real                 :: f0, f1
     real,    allocatable :: f(:), V(:,:), t_inp(:), t(:)
     complex, allocatable :: s(:), result(:,:)
@@ -213,14 +230,17 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
+      call runfile%get(sids(si), "f", f, status = status) ! read f from input file or linked csv file if provided
+      if (.not. status) then
+        call runfile%get(sids(si), "f0", f0)
+        call runfile%get(sids(si), "f1", f1)
+        call runfile%get(sids(si), "Nf", Nf)
+        call runfile%get(sids(si), "flog", flog)
+        if (flog) then
+          f = logspace(f0, f1, Nf)
+        else
+          f = linspace(f0, f1, Nf)
+        end if
       end if
       s = 2 * PI * (0.0, 1.0) * f
 
@@ -235,7 +255,7 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
-      ss%msg = "Newton: "
+      call ss%init_output(output_list, name%s // ".fbs")
       call ss%run(input = input, t_input = t, gummel = gummel)
 
       ! run small-signal analysis for a single working point
@@ -253,14 +273,17 @@ contains
       call runfile%get(sids(si), "name", name)
 
       ! get frequencies
-      call runfile%get(sids(si), "f0", f0)
-      call runfile%get(sids(si), "f1", f1)
-      call runfile%get(sids(si), "Nf", Nf)
-      call runfile%get(sids(si), "flog", flog)
-      if (flog) then
-        f = logspace(f0, f1, Nf)
-      else
-        f = linspace(f0, f1, Nf)
+      call runfile%get(sids(si), "f", f, status = status) ! read f from input file or linked csv file if provided
+      if (.not. status) then
+        call runfile%get(sids(si), "f0", f0)
+        call runfile%get(sids(si), "f1", f1)
+        call runfile%get(sids(si), "Nf", Nf)
+        call runfile%get(sids(si), "flog", flog)
+        if (flog) then
+          f = logspace(f0, f1, Nf)
+        else
+          f = linspace(f0, f1, Nf)
+        end if
       end if
       s = 2 * PI * (0.0, 1.0) * f
 
@@ -275,10 +298,10 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(params)
-      ss%msg = "Newton: "
+      call ss%init_output(output_list, name%s // ".fbs")
 
       ! run small-signal analysis at each working point
-      allocate (result(size(t), Nf), source = (0.0,0.0))
+      allocate (result(size(t), size(f)), source = (0.0,0.0))
       do i = 1, size(t)
         print *, "steady-state step: ", i
         call ss%run(input = input, t_input = [t(i)], gummel = gummel)
@@ -334,17 +357,12 @@ contains
       ! solve steady-state
       call ss%init(dev%sys_full)
       call ss%set_params(runfile%sections%d(si_full_newton))
-      ss%msg = "Newton: "
       call ss%run(input = input, gummel = gummel)
 
       ! run transient simulation
       call trans%init(dev%sys_full)
       call trans%set_params(runfile%sections%d(si_transient))
-      trans%msg = "Transient: "
-      call trans%init_output([string("pot"), string("ndens"), string("pdens"), string("ionD"), string("ionA"), &
-        &                     string("V_GAT"), string("I_DRN"), string("I_GAT"), string("I_SRC"), string("I_BLK"), &
-        &                     string("ncdensx"), string("pcdensx"), string("ncdensy"), string("pcdensy") &
-        &                    ], name%s // ".fbs")
+      call trans%init_output(output_list, name%s // ".fbs")
       call system_clock(start, rate)
       call trans%run(ti, dt0=dt0, input=input, start_steady_state=.true.)
       call system_clock(end)
@@ -522,7 +540,7 @@ contains
 
     if (gummel_restart) then
       ! approximate imrefs
-      do ci = dev%par%ci0, dev%par%ci1
+      do ci = dev%par%smc%ci0, dev%par%smc%ci1
         call approx_imref(dev%par, dev%iref(ci), dev%volt)
       end do
 
@@ -531,10 +549,10 @@ contains
     end if
 
     call runfile%get_section("dd params", si)
-    do ci = dev%par%ci0, dev%par%ci1
+    do ci = dev%par%smc%ci0, dev%par%smc%ci1
+      call runfile%sections%d(si)%set("msg", string(CR_NAME(ci) // "DD: "))
       call ss_dd(ci)%init(dev%sys_dd(ci))
       call ss_dd(ci)%set_params(runfile%sections%d(si))
-      ss_dd(ci)%msg = CR_NAME(ci) // "DD: "
     end do
 
     ! get gummel params
@@ -556,11 +574,12 @@ contains
       error = err_pot
 
       ! solve dd model for electrons and holes
-      do ci = dev%par%ci0, dev%par%ci1
+      do ci = dev%par%smc%ci0, dev%par%smc%ci1
         iref0(:,ci) = dev%iref(ci)%get()
 
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
+        call dev%calc_eta_dens(ci)%eval()
         call dev%calc_iref(ci)%eval()
         err_iref(ci) = maxval(abs(dev%iref(ci)%get() - iref0(:,ci)))
         error = max(error, err_iref(ci))
@@ -568,7 +587,7 @@ contains
 
       ! log
       if (log) then
-        print "(A,I6,ES25.16E3)", "Gummel: ", it, denorm(error, "V")
+        print "(A,I4,A,ES25.16E3,A)", "Gummel: iteration ", it, ", absolute error ", denorm(error, "V"), " V"
       end if
     end do
 
@@ -581,7 +600,7 @@ contains
     !! solve non-linear poisson equation
 
     integer                         :: it, nx, min_it, max_it, si
-    logical                         :: status
+    logical                         :: log, status
     real                            :: err, res0, res1, damping, dx0, atol, dx_lim
     real,               allocatable :: x0(:), f(:), dx(:)
     type(block_real),   pointer     :: dfdx
@@ -604,6 +623,7 @@ contains
 
     ! get nlpe params
     call runfile%get_section("nlpe params", si)
+    call runfile%get(si, "log", log)
     call runfile%get(si, "atol", atol)
     call runfile%get(si, "dx_lim", dx_lim)
     call runfile%get(si, "min_it", min_it)
@@ -622,20 +642,21 @@ contains
     call init_solver_real(solver_name%s, solver_params, solver)
 
     ! newton iteration
+    if (log) print "(A)", "NLPE:   ITER            RMS(RESIDUAL)                  DAMPING            ABS_ERROR [V]"
     do while (((err > atol) .and. (it <= max_it)) .or. (it < min_it))
       it = it + 1
 
       ! evaluate system
       call dev%sys_nlpe%eval(f = f, df = dfdx)
-      res1 = dot_product(f, f)
-      write (*, "(A,I6,2ES25.16E3)", advance = "no") "NLPE: ", it, res1, damping
+      res1 = norm2(f) / sqrt(real(size(f)))
+      if (log) write (*, "(A,I6,2ES25.16E3)", advance = "no") "NLPE: ", it, res1, damping
 
       ! repeat step with 0.5*dx if residual gets larger
       if (res1 > res0) then
         it = it - 1
         damping = damping * 0.5
         call dev%sys_nlpe%set_x(x0 + damping * dx)
-        print *
+        if (log) print *
         cycle
       end if
 
@@ -658,7 +679,7 @@ contains
       ! update variables
       call dev%sys_nlpe%set_x(x0 + dx)
 
-      write (*, "(ES25.16E3)") denorm(err, "V")
+      if (log) write (*, "(ES25.16E3)") denorm(err, "V")
     end do
 
     call solver%destruct()

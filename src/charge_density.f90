@@ -101,22 +101,22 @@ contains
     this%rho  => rho
 
     ! provides charge_density
-    iprov = this%provide(rho, tab = par%transport_vct(0))
+    iprov = this%provide(rho, tab = par%transport(IDX_VERTEX,0))
 
     ! depends on electron/hole density
     allocate (idx(par%g%idx_dim))
-    do ci = par%ci0, par%ci1
-      idep = this%depend(dens(ci), tab = par%transport_vct(0))
+    do ci = par%smc%ci0, par%smc%ci1
+      idep = this%depend(dens(ci), tab = par%transport(IDX_VERTEX,0))
       jaco => this%init_jaco(iprov, idep, const = .true.)
-      do i = 1, par%transport_vct(0)%n
-        idx = par%transport_vct(0)%get_idx(i)
+      do i = 1, par%transport(IDX_VERTEX,0)%n
+        idx = par%transport(IDX_VERTEX,0)%get_idx(i)
         call jaco%add(idx, idx, CR_CHARGE(ci))
       end do
     end do
 
     ! depends on ionization concentration (only defined if corresponding carrier density is enabled)
     if (par%smc%incomp_ion) then
-      do ci = par%ci0, par%ci1
+      do ci = par%smc%ci0, par%smc%ci1
         idep = this%depend(ion(ci), tab = par%ionvert(ci))
         jaco => this%init_jaco(iprov, idep, const = .true.)
         do i = 1, par%ionvert(ci)%n
@@ -139,12 +139,12 @@ contains
 
     ! calculate charge density at each vertex in the transport region
     allocate (idx(this%par%g%idx_dim))
-    do i = 1, this%par%transport_vct(0)%n
-      idx = this%par%transport_vct(0)%get_idx(i)
+    do i = 1, this%par%transport(IDX_VERTEX,0)%n
+      idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! electron/hole density
       rho = 0
-      do ci = this%par%ci0, this%par%ci1
+      do ci = this%par%smc%ci0, this%par%smc%ci1
         rho = rho + CR_CHARGE(ci) * this%dens(ci)%get(idx)
       end do
 
@@ -155,9 +155,9 @@ contains
           ion = this%par%dop(IDX_VERTEX,0,ci)%get(idx)
 
           ! incomplete ionization
-          if (this%par%smc%incomp_ion .and. (ci >= this%par%ci0) .and. (ci <= this%par%ci1)) then
+          if (this%par%smc%incomp_ion .and. (ci >= this%par%smc%ci0) .and. (ci <= this%par%smc%ci1)) then
             if (this%par%ionvert(ci)%flags%get(idx)) then
-              ion = this%ion(ci)%get(idx) + this%par%dop(IDX_VERTEX, 0, ci)%get(idx)
+              ion = this%ion(ci)%get(idx)
             end if
           end if
 
