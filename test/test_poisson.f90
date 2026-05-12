@@ -74,6 +74,10 @@ contains
     call file%init("cap1D.ini")
     call par%init(file, T)
 
+    ! cap1D has no [transport] block; alias transport scope to poisson so
+    ! calc_electric_field has vertices/edges to operate over.
+    call alias_transport_to_poisson(par)
+
     ! init variables
     call pot%init(par)
     call rho%init(par)
@@ -193,6 +197,9 @@ contains
 
     call file%init("cap1DpermShift.ini")
     call par%init(file, T)
+
+    ! cap1DpermShift has no [transport] block; alias transport scope to poisson.
+    call alias_transport_to_poisson(par)
 
     ! init variables
     call pot%init(par)
@@ -466,6 +473,9 @@ contains
 
     call file%init("cap2D.ini")
     call par%init(file, T)
+
+    ! cap2D has no [transport] block; alias transport scope to poisson.
+    call alias_transport_to_poisson(par)
 
     ! init variables
     call pot%init(par)
@@ -748,6 +758,9 @@ contains
     call file%init("cap3D.ini")
     call par%init(file, T)
 
+    ! cap3D has no [transport] block; alias transport scope to poisson.
+    call alias_transport_to_poisson(par)
+
     ! init variables
     call pot%init(par)
     call rho%init(par)
@@ -841,6 +854,22 @@ contains
 
     call tc%assert_eq(sol, efield_abs%get(), rtol, atol, "poisson: 3D capacitor - electric field")
 
+  end subroutine
+
+  subroutine alias_transport_to_poisson(par)
+    !! Alias transport-scope tables/fields to their Poisson counterparts so
+    !! calc_electric_field can operate on the Poisson domain in fixtures that
+    !! have no [transport] block (the cap* devices). Mutates par in place.
+    type(device_params), intent(inout) :: par
+
+    integer :: idx_dir
+
+    par%transport(IDX_VERTEX, 0) = par%poisson(IDX_VERTEX, 0)
+    do idx_dir = 1, par%g%idx_dim
+      par%transport(IDX_EDGE, idx_dir) = par%poisson(IDX_EDGE, idx_dir)
+    end do
+    par%tr_surf = par%surf
+    par%tr_vol  = par%vol
   end subroutine
 
 end module
