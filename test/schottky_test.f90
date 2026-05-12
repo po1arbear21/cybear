@@ -6,7 +6,7 @@ program schottky_test
   use device_m,        only: device
   use normalization_m, only: init_normconst, denorm, norm
   use semiconductor_m, only: CR_ELEC, CR_HOLE, DOP_DCON, &
-    &                         DIST_MAXWELL, DIST_FERMI, DIST_FERMI_REG
+    &                         DIST_MAXWELL, DIST_FERMI
   use grid_m,          only: IDX_VERTEX
   use input_src_m,     only: polygon_src
   use steady_state_m,  only: steady_state
@@ -106,7 +106,7 @@ program schottky_test
 
   ! Step 1: Approximate initial conditions
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%ci0, dev%par%ci1
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -302,7 +302,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%ci0, dev%par%ci1
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -497,7 +497,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%ci0, dev%par%ci1
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -607,7 +607,7 @@ program schottky_test
   do ict = 1, dev%par%nct
     dev%volt(ict)%x = 0.0
   end do
-  do ci = dev%par%ci0, dev%par%ci1
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -688,7 +688,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%ci0, dev%par%ci1
+  do ci = dev%par%smc%ci0, dev%par%smc%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -728,7 +728,6 @@ program schottky_test
   select case (dev%par%smc%dist)
     case (DIST_MAXWELL);   print "(A)", "  Distribution: Maxwell-Boltzmann"
     case (DIST_FERMI);     print "(A)", "  Distribution: Fermi-Dirac"
-    case (DIST_FERMI_REG); print "(A)", "  Distribution: Fermi-Dirac (regularized)"
   end select
 
   block
@@ -856,9 +855,9 @@ contains
     real, parameter :: ATOL = 1e-6
     integer, parameter :: MAX_IT = 50
 
-    allocate(pot0(dev%pot%data%n), iref0(dev%iref(dev%par%ci0)%data%n, 2))
+    allocate(pot0(dev%pot%data%n), iref0(dev%iref(dev%par%smc%ci0)%data%n, 2))
 
-    do ci = dev%par%ci0, dev%par%ci1
+    do ci = dev%par%smc%ci0, dev%par%smc%ci1
       call ss_dd(ci)%init(dev%sys_dd(ci))
     end do
 
@@ -872,7 +871,7 @@ contains
       call solve_nlpe()
       err_pot = maxval(abs(dev%pot%get() - pot0))
 
-      do ci = dev%par%ci0, dev%par%ci1
+      do ci = dev%par%smc%ci0, dev%par%smc%ci1
         iref0(:, ci) = dev%iref(ci)%get()
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
@@ -881,7 +880,7 @@ contains
       end do
 
       err = err_pot
-      do ci = dev%par%ci0, dev%par%ci1
+      do ci = dev%par%smc%ci0, dev%par%smc%ci1
         err = max(err, err_iref(ci))
       end do
       print "(A,I3,A,ES10.3)", "    Gummel it ", it, ": err = ", denorm(err, 'V')

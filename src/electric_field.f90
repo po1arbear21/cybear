@@ -1,30 +1,27 @@
-m4_include(util/macro.f90.inc)
-
 module electric_field_m
 
   use device_params_m,  only: device_params
   use equation_m,       only: equation
-  use error_m,          only: assert_failed, program_error
+  use error_m,          only: program_error
   use grid_m,           only: IDX_VERTEX, IDX_EDGE
   use grid_data_m,      only: grid_data1_real, grid_data2_real, grid_data3_real
   use grid_generator_m, only: DIR_NAME
-  use jacobian_m,       only: jacobian
+  use jacobian_m,       only: jacobian, jacobian_ptr
   use potential_m,      only: potential
-  use stencil_m,        only: near_neighb_stencil
+  use stencil_m,        only: near_neighb_stencil, dirichlet_stencil
   use variable_m,       only: variable
   use vselector_m,      only: vselector
-  use normalization_m,  only: denorm
 
   implicit none
 
   private
-  public electric_field, calc_efield
+  public electric_field, electric_field_abs, calc_electric_field, calc_electric_field_abs
 
   type, extends(variable) :: electric_field
-    !! electric field component at vertices
+    !!  electric field component at vertices
 
-    integer :: dir
-      !! field component direction (1=x, 2=y, 3=z)
+    integer       :: dir
+      !! direction
 
     real, pointer :: x1(:)     => null()
       !! direct pointer to data for easy access (only used if idx_dim == 1)
@@ -36,30 +33,60 @@ module electric_field_m
     procedure :: init => electric_field_init
   end type
 
-  type, extends(equation) :: calc_efield
-    !! calculate electric field component from potential gradient using finite volume method
+  type, extends(variable) :: electric_field_abs
+    !! absolute electrical field strength
 
-    type(device_params), pointer :: par => null()
-      !! pointer to device parameters
-
-    type(vselector) :: pot
-      !! variable selector for potential in equation order
-    type(vselector) :: efield
-      !! variable selector for electric field in equation order
-
-    type(near_neighb_stencil) :: st_nn
-      !! near neighbor stencil for vertex-to-vertex connectivity
-
-    type(jacobian), pointer :: jaco_pot => null()
-      !! jacobian for potential dependency
-
-    real, allocatable :: work(:)
-      !! pre-allocated work array for evaluation (optimization: avoids repeated allocation)
+    real, pointer :: x1(:)     => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 1)
+    real, pointer :: x2(:,:)   => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 2)
+    real, pointer :: x3(:,:,:) => null()
+      !! direct pointer to data for easy access (only used if idx_dim == 3)
   contains
-    procedure :: init => calc_efield_init
-    procedure :: eval => calc_efield_eval
+    procedure :: init => electric_field_abs_init
   end type
 
+  type, extends(equation) :: calc_electric_field
+    !! calculate electric field component on vertices
+
+    type(device_params), pointer :: par => null()
+      !! device parameters
+    type(vselector)              :: efield
+      !! directional electric field
+    type(vselector)              :: pot
+      !! potential
+
+    type(near_neighb_stencil) :: st_nn
+
+    type(jacobian), pointer :: jaco_pot => null()
+
+    real, allocatable :: work(:)
+      !! pre-allocated work array for evaluation
+  contains
+    procedure :: init => calc_electric_field_init
+    procedure :: eval => calc_electric_field_eval
+  end type
+
+  type, extends(equation) :: calc_electric_field_abs
+    !! calculate electric field on vertices
+
+    type(device_params), pointer :: par => null()
+      !! device parameters
+    type(vselector), allocatable :: efield(:)
+      !! directional electric fields
+    type(vselector)              :: efield_abs
+      !! absolute electric field
+
+    type(dirichlet_stencil) :: st_dir
+
+    ! TODO: extend jacobian support so it can carry jacobians for the
+    ! magnitude as well as for individual directions (currently only
+    ! d|E|/dE_dir per direction).
+    type(jacobian_ptr), allocatable :: jaco_efield(:)
+  contains
+    procedure :: init => calc_electric_field_abs_init
+    procedure :: eval => calc_electric_field_abs_eval
+  end type
 contains
 
   subroutine electric_field_init(this, par, dir)
@@ -68,17 +95,17 @@ contains
     type(device_params),   intent(in)  :: par
       !! device parameters
     integer,               intent(in)  :: dir
-      !! field component direction (1=x, 2=y, 3=z)
+      !! direction
 
     type(grid_data1_real), pointer :: p1
     type(grid_data2_real), pointer :: p2
     type(grid_data3_real), pointer :: p3
 
-    ! init base variable
-    call this%variable_init("E"//DIR_NAME(dir), "V/cm", g = par%g, idx_type = IDX_VERTEX, idx_dir = 0)
+    ! init base
+    call this%variable_init("electric_field_"//DIR_NAME(dir), "V/m", g = par%g, idx_type = IDX_VERTEX, idx_dir=0)
     this%dir = dir
 
-    ! get pointer to data for direct access
+    ! get pointer to data
     select case (par%g%idx_dim)
     case (1)
       p1 => this%data%get_ptr1()
@@ -94,120 +121,191 @@ contains
     end select
   end subroutine
 
-  subroutine calc_efield_init(this, par, pot, efield)
-    !! initialize electric field calculation equation
-    !!
-    !! Sets up the Jacobian matrix with pre-computed geometric factors.
-    !! The Jacobian is constant (geometry-dependent only), so it is marked
-    !! as const=.true. for efficiency.
-    class(calc_efield),   intent(out)        :: this
-    type(device_params),  intent(in), target :: par
+  subroutine electric_field_abs_init(this, par)
+    !! initialize absolute electric field
+    class(electric_field_abs), intent(out) :: this
+    type(device_params),       intent(in)  :: par
       !! device parameters
-    type(potential),      intent(in), target :: pot
-      !! potential variable
-    type(electric_field), intent(in), target :: efield
+
+    type(grid_data1_real), pointer :: p1
+    type(grid_data2_real), pointer :: p2
+    type(grid_data3_real), pointer :: p3
+
+    ! init base
+    call this%variable_init("electric_field_abs", "V/m", g = par%g, idx_type = IDX_VERTEX, idx_dir=0)
+
+    ! get pointer to data
+    select case (par%g%idx_dim)
+    case (1)
+      p1 => this%data%get_ptr1()
+      this%x1 => p1%data
+    case (2)
+      p2 => this%data%get_ptr2()
+      this%x2 => p2%data
+    case (3)
+      p3 => this%data%get_ptr3()
+      this%x3 => p3%data
+    case default
+      call program_error("Maximal 3 dimensions allowed")
+    end select
+  end subroutine
+
+  subroutine calc_electric_field_init(this, par, efield, pot)
+    class(calc_electric_field),           intent(out) :: this
+    type(device_params),  target, intent(in)  :: par
+      !! device parameters
+    type(electric_field),         intent(in)  :: efield
       !! electric field component variable
+    type(potential),              intent(in)  :: pot
+      !! potential variable
 
-    integer :: iprov, ict, i, j, idx_dir, dir, max_neighb
-    real    :: geometric_factor, A_kl, L_kl, Omega_k
-    real    :: p_k(par%g%dim), p_l(par%g%dim)
-    integer, allocatable :: idx_k(:), idx_l(:), edge_idx(:)
-    logical :: status
+    integer              :: dim, dir, i, idx_dim, idx_dir, iprov
+    integer, allocatable :: idx(:), idx1(:), idx2(:)
+    logical              :: status
+    real                 :: dx, edge_len, dEFdPot, surf
+    real,    allocatable :: p1(:), p2(:)
 
-    print "(A)", "calc_efield_init for component "//DIR_NAME(efield%dir)
+    print "(A)", "calc_electric_field_init"
 
-    ! init base equation
-    call this%equation_init("calc_E"//DIR_NAME(efield%dir))
+    ! init base
+    call this%equation_init("calc_"//efield%name)
     this%par => par
 
-    ! init nearest-neighbor stencil for vertex-to-vertex connectivity
+    ! create variable selectors
+    call this%efield%init(efield, par%transport(IDX_VERTEX, 0))
+    call this%pot%init(pot, par%transport(IDX_VERTEX, 0))
+
+    ! init stencil
     call this%st_nn%init(par%g, IDX_VERTEX, 0, IDX_VERTEX, 0)
 
-    ! create variable selectors for equation order (interior + all contacts)
-    call this%pot%init(pot, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
-    call this%efield%init(efield, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    ! provide electric field
+    iprov = this%provide(efield, par%transport(IDX_VERTEX, 0))
 
-    ! provide electric field component at all vertices (interior + contacts)
-    iprov = this%provide(efield, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)])
+    ! depend on potential
+    this%jaco_pot => this%init_jaco(iprov, this%depend(pot, par%transport(IDX_VERTEX, 0)), st = [this%st_nn%get_ptr()], const = .true.)
 
-    ! depend on potential at all vertices with near-neighbor stencil
-    ! const=.true. because geometric factors are fixed
-    this%jaco_pot => this%init_jaco(iprov, &
-      & this%depend(pot, [(par%transport_vct(ict)%get_ptr(), ict = 0, par%nct)]), &
-      & st = [(this%st_nn%get_ptr(), ict = 0, par%nct)], const = .true.)
+    ! calculate jacobian
+    idx_dim = par%g%idx_dim
+    dir = efield%dir
+    dim = par%g%dim
+
+    allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim), p1(dim), p2(dim))
+
+    if ((this%par%gtype%s == "x") .or. (this%par%gtype%s == "xy") .or. (this%par%gtype%s == "xyz")) then
+      idx_dir = dir
+      ! loop over edges
+      do i = 1, this%par%transport(IDX_EDGE, dir)%n
+        idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
+
+        surf = this%par%tr_surf(idx_dir)%get(idx)
+        edge_len = this%par%g%get_len(idx, idx_dir)
+
+        ! get vertices and distance
+        call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
+        call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
+        call this%par%g%get_vertex(idx1, p1)
+        call this%par%g%get_vertex(idx2, p2)
+
+        dx = p2(dir) - p1(dir)
+
+        ! add values to jacobian
+        dEFdPot =  (surf * dx) / (2 * this%par%tr_vol%get(idx1) * edge_len)
+        call this%jaco_pot%add(idx1, idx1, dEFdPot)
+        call this%jaco_pot%add(idx1, idx2, -dEFdPot)
+
+        dEFdPot = (surf * dx) / (2 * this%par%tr_vol%get(idx2) * edge_len)
+        call this%jaco_pot%add(idx2, idx2, -dEFdPot)
+        call this%jaco_pot%add(idx2, idx1, dEFdPot)
+      end do
+    else
+      ! TODO: need to loop differently if dir does not match idx_dir
+      call program_error("electric field not implemented for triangular grids")
+    end if
 
     ! pre-allocate work array for evaluation
     allocate(this%work(this%efield%n))
 
-    ! Set up geometric factors in Jacobian
-    dir = efield%dir
-    allocate(idx_k(par%g%idx_dim), idx_l(par%g%idx_dim), edge_idx(par%g%idx_dim))
-
-    ! loop over all transport vertices (interior + contacts)
-    do ict = 0, par%nct
-      do i = 1, par%transport_vct(ict)%n
-        idx_k = par%transport_vct(ict)%get_idx(i)
-
-        ! get control volume at vertex k
-        Omega_k = par%tr_vol%get(idx_k)
-        if (Omega_k <= 0.0) cycle  ! skip if zero volume
-
-        ! get coordinates of vertex k
-        call par%g%get_vertex(idx_k, p_k)
-
-        ! loop over all edge directions
-        do idx_dir = 1, par%g%idx_dim
-          max_neighb = par%g%get_max_neighb(IDX_VERTEX, 0, IDX_EDGE, idx_dir)
-
-          ! loop over neighboring edges in this direction
-          do j = 1, max_neighb
-            ! get edge index
-            call par%g%get_neighb(IDX_VERTEX, 0, IDX_EDGE, idx_dir, idx_k, j, edge_idx, status)
-            if (.not. status) cycle
-
-            ! check if edge is in transport region
-            if (.not. par%transport(IDX_EDGE, idx_dir)%flags%get(edge_idx)) cycle
-
-            ! get the other vertex of this edge
-            call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, edge_idx, 1, idx_l, status)
-            if (all(idx_l == idx_k)) then
-              call par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, edge_idx, 2, idx_l, status)
-            end if
-
-            ! get edge properties (use transport surface)
-            A_kl = par%tr_surf(idx_dir)%get(edge_idx)
-            L_kl = par%g%get_len(edge_idx, idx_dir)
-
-            ! get coordinates of vertex l
-            call par%g%get_vertex(idx_l, p_l)
-
-            ! calculate geometric factor for finite volume E-field:
-            ! E_k,dir = -sum_l [A_kl * (r_l - r_k)_dir / (Omega_k * L_kl)] * (phi_l - phi_k)
-            ! Factor of 0.5 accounts for contribution from both sides of control volume
-            geometric_factor = -0.5 * A_kl * (p_l(dir) - p_k(dir)) / (Omega_k * L_kl)
-
-            ! accumulate Jacobian entries: dE_k/dphi_l and dE_k/dphi_k
-            call this%jaco_pot%add(idx_k, idx_l, geometric_factor)
-            call this%jaco_pot%add(idx_k, idx_k, -geometric_factor)
-          end do
-        end do
-      end do
-    end do
-
-    ! finish initialization (sets constant parts of Jacobian matrix)
+    ! finish initialization
     call this%init_final()
   end subroutine
 
-  subroutine calc_efield_eval(this)
-    !! evaluate electric field calculation equation
-    !!
-    !! Computes E = J * phi where J is the pre-computed Jacobian matrix
-    !! containing the geometric factors.
-    class(calc_efield), intent(inout) :: this
+  subroutine calc_electric_field_abs_init(this, par, efield, efield_abs)
+    class(calc_electric_field_abs),      intent(out) :: this
+    type(device_params), target, intent(in)  :: par
+      !! device parameters
+    type(electric_field),        intent(in)  :: efield(:)
+      !! electric field component variable
+    type(electric_field_abs),    intent(in)  :: efield_abs
+      !! electric field variable
 
-    ! matrix-vector multiply: E = J * phi
+    integer :: iprov, dir
+
+    print "(A)", "calc_electric_field_abs_init"
+
+    ! init base
+    call this%equation_init("calc_"//efield_abs%name)
+    this%par => par
+
+    ! init variable selectors
+    allocate (this%efield(par%g%dim))
+    call this%efield_abs%init(efield_abs, par%transport(IDX_VERTEX, 0))
+    do dir = 1, par%g%dim
+      call this%efield(dir)%init(efield(dir), par%transport(IDX_VERTEX, 0))
+    end do
+
+    ! init stencils
+    call this%st_dir%init(par%g)
+
+    ! provide electric field
+    iprov = this%provide(efield_abs, par%transport(IDX_VERTEX, 0))
+
+    ! depend on electric field components
+    allocate (this%jaco_efield(par%g%dim))
+    do dir = 1, par%g%dim
+      this%jaco_efield(dir)%p => this%init_jaco(iprov, this%depend(efield(dir), par%transport(IDX_VERTEX, 0)), st = [this%st_dir%get_ptr()])
+    end do
+
+    ! finish initialization
+    call this%init_final()
+  end subroutine
+
+  subroutine calc_electric_field_eval(this)
+    class(calc_electric_field), intent(inout) :: this
+
     call this%jaco_pot%matr%mul_vec(this%pot%get(), this%work)
     call this%efield%set(this%work)
+  end subroutine
+
+  subroutine calc_electric_field_abs_eval(this)
+    class(calc_electric_field_abs), intent(inout) :: this
+
+    integer              :: i, dir
+    integer, allocatable :: idx(:)
+    real                 :: fieldsum(1), efield(1)
+
+    allocate (idx(this%par%g%idx_dim))
+    do i = 1, this%par%transport(IDX_VERTEX, 0)%n
+      idx = this%par%transport(IDX_VERTEX, 0)%get_idx(i)
+
+      fieldsum(1) = 0.0
+      ! sum all directional field squares
+      do dir = 1, this%par%g%dim
+        fieldsum = fieldsum + this%efield(dir)%get(idx)**2
+      end do
+
+      ! add minimum for numeric stability
+      fieldsum = fieldsum + this%par%smc%ii_ef_min**2
+
+      ! get total field strength
+      fieldsum = sqrt(fieldsum)
+      call this%efield_abs%set(idx, fieldsum)
+
+      ! set jacobians
+      do dir = 1, this%par%g%dim
+        efield = this%efield(dir)%get(idx)
+        call this%jaco_efield(dir)%p%add(idx, idx, efield(1)/fieldsum(1))
+      end do
+    end do
   end subroutine
 
 end module

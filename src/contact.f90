@@ -10,17 +10,18 @@ module contact_m
   use high_precision_m
   use newton_m,        only: newton, newton_opt
   use normalization_m, only: norm, denorm
-  use semiconductor_m, only: CR_ELEC, CR_HOLE, CR_CHARGE, DOP_DCON, DOP_ACON, DOP_CHARGE, DOS_PARABOLIC, DIST_MAXWELL, semiconductor
+  use semiconductor_m, only: CR_ELEC, CR_HOLE, CR_CHARGE, DOP_DCON, DOP_ACON, semiconductor
 
   implicit none
 
   private
-  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, contact
+  public :: CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC, contact
 
   ! contact types
-  integer, parameter :: CT_OHMIC    = 1
-  integer, parameter :: CT_GATE     = 2
-  integer, parameter :: CT_SCHOTTKY = 3
+  integer, parameter :: CT_OHMIC     = 1
+  integer, parameter :: CT_GATE      = 2
+  integer, parameter :: CT_SCHOTTKY  = 3
+  integer, parameter :: CT_REALOHMIC = 4
 
   type contact
     !! device contact
@@ -28,7 +29,7 @@ module contact_m
     character(:), allocatable :: name
       !! contact name
     integer                   :: type
-      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY)
+      !! type of contact (CT_OHMIC, CT_GATE, CT_SCHOTTKY, CT_REALOHMIC)
     real                      :: phims
       !! metal-semiconductor workfunction difference
     real                      :: phi_b
@@ -46,6 +47,8 @@ module contact_m
       !! tunneling effective mass ratio for electrons (m*/m0)
     real                      :: m_tunnel_p = 1.0
       !! tunneling effective mass ratio for holes (m*/m0)
+    real                      :: vrec
+      !! metal-semiconductor recombination velocity (real ohmic contact)
   contains
     procedure :: set_phims_ohmic    => contact_set_phims_ohmic
     procedure :: set_phims_schottky => contact_set_phims_schottky
@@ -53,20 +56,20 @@ module contact_m
 
 contains
 
-  subroutine contact_set_phims_ohmic(this, ci0, ci1, dop, ii_E_dop, smc)
+  subroutine contact_set_phims_ohmic(this, smc, dop, ii_E_dop)
     !! set phims for ohmic contacts by assuming charge neutrality
-    class(contact),        intent(inout) :: this
-    integer,               intent(in)    :: ci0, ci1
-      !! lower/upper carrier index (CR_ELEC, CR_HOLE)
-    real,                  intent(in)    :: dop(2)
-      !! donor/acceptor concentration
-    real,                  intent(in)    :: ii_E_dop(2)
-      !! dopant energy level (for incomplete ionization)
-    type(semiconductor),   intent(in)    :: smc
+    class(contact),      intent(inout) :: this
+    type(semiconductor), intent(in)    :: smc
       !! semiconductor parameters
+    real,                intent(in)    :: dop(2)
+      !! donor/acceptor concentration
+    real, optional,      intent(in)    :: ii_E_dop(2)
+      !! dopant energy level (for incomplete ionization)
 
     real             :: dum(0), fmin, fmax, xmin, xmax, x0
     type(newton_opt) :: opt
+
+    m4_assert(present(ii_E_dop) .eqv. smc%incomp_ion)
 
     ! coarse search for bounds
     if (dop(1) > dop(2)) then
@@ -124,36 +127,35 @@ contains
       drho = 0.0
 
       ! densities
-      do ci = ci0, ci1
+      do ci = smc%ci0, smc%ci1
         ch = CR_CHARGE(ci)
-
-        if ((smc%dos == DOS_PARABOLIC) .and. (smc%dist == DIST_MAXWELL)) then
-          hrho = hrho + ch * sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * phims - 0.5 * smc%band_gap)
-          drho = drho -      sqrt(smc%edos(1) * smc%edos(2)) * exp(- ch * phims - 0.5 * smc%band_gap)
-        else
-          call smc%get_dist(ch * (smc%band_edge(ci) - phims), 0, F, dF)
-          hrho = hrho + ch * smc%edos(ci) *  F
-          drho = drho -      smc%edos(ci) * dF
-        end if
+        call smc%get_dist(ch * (smc%band_edge(ci) - phims), 0, F, dF)
+        hrho = hrho + ch * smc%edos(ci) *  F
+        drho = drho -      smc%edos(ci) * dF
       end do
 
       ! doping
       do ci = DOP_DCON, DOP_ACON
         ch = CR_CHARGE(ci)
-        if (smc%incomp_ion .and. (dop(ci) < smc%ii_dop_th(ci))) then
-          e = TwoSum(ii_E_dop(ci) + ch*smc%band_edge(ci), -ch*phims)
-          t = hp_to_real(e)
-          if (t > 300) then
-            fac = real_to_hp(0.0)
-          else
-            e   = exp(e)
-            fac = 1.0 / (1.0 + smc%ii_g(ci) * e)
-          end if
-          ion  = fac
-          dion = hp_to_real(fac * (1.0 - fac))
+        if (smc%incomp_ion) then
+          if (dop(ci) < smc%ii_dop_th(ci)) then
+            e = TwoSum(ii_E_dop(ci) + ch*smc%band_edge(ci), -ch*phims)
+            t = hp_to_real(e)
+            if (t > 300) then
+              fac = real_to_hp(0.0)
+            else
+              e   = exp(e)
+              fac = 1.0 / (1.0 + smc%ii_g(ci) * e)
+            end if
+            ion  = fac
+            dion = hp_to_real(fac * (1.0 - fac))
 
-          hrho = hrho - ch * dop(ci) * ion
-          drho = drho -      dop(ci) * dion
+            hrho = hrho - ch * dop(ci) * ion
+            drho = drho -      dop(ci) * dion
+          else
+            ! fully ionized
+            hrho = hrho - ch * dop(ci)
+          end if
         else
           ! fully ionized
           hrho = hrho - ch * dop(ci)

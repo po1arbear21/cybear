@@ -7,16 +7,17 @@ module current_integral_m
   use, intrinsic :: iso_fortran_env, only: real128
 
   use error_m, only: program_error
-  use math_m,  only: expm1
+  use math_m,  only: ber, log1p, expm1
   use quad_m,  only: quad
   use util_m,  only: int2str
 
   implicit none
 
   private
-  public :: CURRENT_INTEGRAL_DEBUG, current_integral_get
+  public :: current_integral_get
 
-  logical :: CURRENT_INTEGRAL_DEBUG = .false.
+  logical, public :: CURRENT_INTEGRAL_DEBUG   = .false.
+  logical, public :: CURRENT_INTEGRAL_PLOTRES = .false.
 
   interface
     subroutine distribution(eta, k, F, dFdeta)
@@ -65,10 +66,12 @@ module current_integral_m
   character(2), parameter :: CASENAME(7) = ["0A", "0B", "0C", "1a", "1b", "2a", "2b"]
   real,         parameter :: CASETOL = 1e-3
 
-  integer, parameter :: MIN_IT = 6
-  integer, parameter :: MAX_IT = 50
+  integer, parameter :: MIN_IT = 2
+  integer, parameter :: MAX_IT = 20
   real,    parameter :: RTOL   = 2e-14
-  real,    parameter :: ATOL   = 1e-16
+  real,    parameter :: ATOL   = 1e-24
+
+  real,    parameter :: EPS = epsilon(1.0)
 
 contains
 
@@ -92,10 +95,10 @@ contains
       !! output derivative of j wrt dpot
 
     integer :: cs, it
-    logical :: lfinite, rfinite
-    real    :: eta(2), detadn(2), deta, djdeta(2)
-    real    :: jj, jjmin, jjmax, jj_old, djj, err, dpot2
-    real    :: res, res_old, dresdjj, dresdeta(2), dresddpot
+    real    :: eta(2), detadn(2), deta, g, tmp(2)
+    real    :: jmin, jmax, t, tmin, tmax, told, dt, err
+    real    :: r, drdt, drdeta(2), drddpot, djdt, djdeta(2)
+    real    :: FL2, dFL2, epseta, depseta, sgn, A, dAdeta1, dAddpot, B, dBdeta1, C, dCdeta1, dCddpot
 
     ! flip edge direction if potential drop is negative
     if (dpot < 0) then
@@ -111,6 +114,7 @@ contains
     call inv_dist(n(1), eta(1), detadn(1))
     call inv_dist(n(2), eta(2), detadn(2))
     deta = eta(2) - eta(1)
+    sgn  = sign(1.0, deta)
 
     ! get case
     if (abs(dpot) > CASETOL) then
@@ -136,149 +140,192 @@ contains
     ! debug info
     if (CURRENT_INTEGRAL_DEBUG) then
       print *
-      print "(A,ES25.16E3)", "n1   = ", n(1)
-      print "(A,ES25.16E3)", "n2   = ", n(2)
-      print "(A,ES25.16E3)", "eta1 = ", eta(1)
-      print "(A,ES25.16E3)", "eta2 = ", eta(2)
-      print "(A,ES25.16E3)", "dpot = ", dpot
-      print "(A,ES25.16E3)", "deta = ", deta
-      print "(2A)",          "case ", CASENAME(cs)
+      print "(A,ES24.16E3)", "n1   = ", n(1)
+      print "(A,ES24.16E3)", "n2   = ", n(2)
+      print "(A,ES24.16E3)", "eta1 = ", eta(1)
+      print "(A,ES24.16E3)", "eta2 = ", eta(2)
+      print "(A,ES24.16E3)", "dpot = ", dpot
+      print "(A,ES24.16E3)", "deta = ", deta
+      print "(2A)",          "case = ", CASENAME(cs)
     end if
 
     ! calculate current based on case
     select case (cs)
     case (CASE0A, CASE0B, CASE0C) ! general case
-      ! range for jj (jj = j scaled by 1/dpot) by mean value theorem
-      jjmin = abs(1 - deta / dpot) * min(n(1), n(2))
-      jjmax = abs(1 - deta / dpot) * max(n(1), n(2))
-      if (deta > dpot) then
-        ! flip sign and order
-        jj    = jjmin
-        jjmin = - jjmax
-        jjmax = - jj
-      end if
+      ! initial range for j
+      select case (cs)
+      case (CASE0A)
+        call int_dist([eta(2) - dpot, eta(2)], -1, jmin, tmp)
+        jmin = dpot * (dpot - deta) / jmin
+        jmax = n(1) * (dpot - deta)
 
-      ! further reduce range if possible
-      if (cs == CASE0A) then
-        block
-          real :: I, dI(2)
-          call int_dist([eta(2) - dpot, eta(2)], -1, I, dI)
-          jjmin = max(jjmin, (dpot - deta) / I)
-        end block
-      elseif (cs == CASE0B) then
-        jjmax = min(jjmax, n(1))
-      elseif (cs == CASE0C) then
-        jjmin = max(jjmin, n(1))
-      end if
+      case (CASE0B)
+        jmin = n(1) * (dpot - deta)
+        jmax = min(n(1) * dpot, n(2) * (dpot - deta))
 
-      ! initial value: enhanced diffusion approximation
+      case (CASE0C)
+        jmin = max(n(1) * dpot, n(2) * (dpot - deta))
+        jmax = n(1) * (dpot - deta)
+      end select
+
+      ! initial guess for j: enhanced diffusion approximation
       if (abs(deta) < 1e-6) then
-        dpot2 = dpot / (n(1) * detadn(1))
+        g = n(1) * detadn(1)
       else
-        dpot2 = dpot * log(n(2) / n(1)) / deta
+        g = deta / log(n(2) / n(1))
       end if
-      jj = - n(1) / expm1(-dpot2) - n(2) / expm1(dpot2)
-      if ((jj < jjmin) .or. (jj > jjmax)) jj = 0.5 * (jjmin + jjmax)
+      j = (ber(-dpot / g) * n(1) - ber(dpot / g) * n(2)) * g
+
+      ! transform initial range and guess
+      if (deta > 0) then ! CASE0A, CASE0B
+        tmin = - log1p(-jmin / (dpot * n(1)))
+        if (jmax < dpot * n(1)) then
+          tmax = - log1p(-jmax / (dpot * n(1)))
+        else
+          tmax = 700.0
+        end if
+        if (j < dpot * n(1)) then
+          t = - log1p(- j / (dpot * n(1)))
+        else
+          t = 700.0
+        end if
+      else ! CASE0C
+        tmin = - log(jmax / (dpot * n(1)) - 1)
+        if (jmin > dpot * n(1)) then
+          tmax = - log(jmin / (dpot * n(1)) - 1)
+        else
+          tmax = 700.0
+        end if
+        if (j > dpot * n(1)) then
+          t = - log(j / (dpot * n(1)) - 1)
+        else
+          t = 700.0
+        end if
+      end if
+
+      ! adjust initial guess if not in range
+      if ((t < tmin) .or. (t > tmax)) t = 0.5 * (tmin + tmax)
+
+      ! get epseta such that F can be approximated by a linear function around eta(1) +/- epseta
+      call dist(eta(1), 2, FL2, dFL2)                 ! use second derivative to estimate error of first order Taylor
+      epseta  = 0.5 * sqrt(2 * EPS * n(1) / abs(FL2)) ! 0.5 is a safety factor
+      depseta = (1.0 / detadn(1) - n(1) * dFL2 / FL2) * EPS / (4 * epseta * abs(FL2))
+
+      ! get factors for analytical part of integration close to eta(1)
+      A        = detadn(1) / dpot**2 ! = 1 / (dpot**2 * dndeta(1))
+      dAdeta1  = - FL2 * (detadn(1) / dpot)**2
+      dAddpot  = - 2 * detadn(1) / dpot**3
+      B        = epseta / (detadn(1) * n(1))
+      dBdeta1  = (depseta / detadn(1) + epseta * (FL2 - 1 / (detadn(1)**2 * n(1)))) / n(1)
+      C        = sgn * epseta / dpot
+      dCdeta1  = sgn * depseta / dpot
+      dCddpot  = - sgn * epseta / dpot**2
 
       if (CURRENT_INTEGRAL_DEBUG) then
-        print "(A,ES25.16E3)", "jjmin = ", jjmin
-        print "(A,ES25.16E3)", "jjmax = ", jjmax
-        print "(A,ES25.16E3)", "jj    = ", jj
+        print "(A,ES24.16E3)", "tmin = ", tmin
+        print "(A,ES24.16E3)", "tmax = ", tmax
+        print "(A,ES24.16E3)", "t    = ", t
+      end if
+
+      if (CURRENT_INTEGRAL_PLOTRES) then
+        block
+          use math_m, only: linspace
+          integer, parameter :: NN = 101
+
+          integer           :: ii, funit
+          real, allocatable :: tt(:)
+
+          ! output residual over total range
+          tt = linspace(tmin, tmax, NN)
+          open (newunit = funit, file = "res.csv", status = "replace", action = "write")
+          do ii = 1, NN
+            call residual(tt(ii), r, drdt, drdeta, drddpot, j, djdt, djdeta, djddpot)
+            write (funit, "(2ES24.16E3)") tt(ii), r
+          end do
+          write (funit, *)
+
+          ! output initial guess
+          write (funit, "(A)") "% lt=0 mt=2 mc=4 ms=4"
+          call residual(t, r, drdt, drdeta, drddpot, j, djdt, djdeta, djddpot)
+          write (funit, "(2ES24.16E3)") t, r
+          close (funit)
+        end block
       end if
 
       ! Newton iteration
       err = huge(1.0)
       it  = 0
-      do while ((it < MIN_IT) .or. (err > RTOL * abs(jj) + ATOL / abs(dpot)))
+      do while (((it < MIN_IT) .or. (err > RTOL * abs(j) + ATOL)) .and. (tmin < tmax))
         it = it + 1
-        if (it > MAX_IT) call error("No convergence after " // int2str(MAX_IT) // " iterations")
-
-        ! evaluate residual and get Newton update
-        call residual(jj, res, dresdjj, dresdeta, dresddpot)
-
-        ! treat singularity of res at interval endpoints
-        if (.not. ieee_is_finite(res)) then
-          jj_old  = jj
-          res_old = res
-
-          jj = jjmin
-          call residual(jj, res, dresdjj, dresdeta, dresddpot)
-          lfinite = ieee_is_finite(res)
-
-          jj = jjmax
-          call residual(jj, res, dresdjj, dresdeta, dresddpot)
-          rfinite = ieee_is_finite(res)
-
-          if (lfinite .and. rfinite) then
-            ! reduce range (singularity inside of interval)
-            if (abs(jj - jjmin) < abs(jj - jjmax)) then
-              jjmin   = jj
-              lfinite = .false.
-            else
-              jjmax   = jj
-              rfinite = .false.
-            end if
-          end if
-          if (.not. lfinite .and. .not. rfinite) call error("residual not finite at both endpoints")
-
-          jj = jj_old
-          res = res_old
-          do while (.not. ieee_is_finite(res))
-            if (rfinite) then
-              jj = ieee_next_after(jj, huge(1.0))
-              jjmin = jj
-            else
-              jj = ieee_next_after(jj, -huge(1.0))
-              jjmax = jj
-            end if
-            call residual(jj, res, dresdjj, dresdeta, dresddpot)
-          end do
+        if (it > MAX_IT) then
+          print *
+          print "(A,ES24.16E3)", "n1   = ", n(1)
+          print "(A,ES24.16E3)", "n2   = ", n(2)
+          print "(A,ES24.16E3)", "eta1 = ", eta(1)
+          print "(A,ES24.16E3)", "eta2 = ", eta(2)
+          print "(A,ES24.16E3)", "dpot = ", dpot
+          print "(A,ES24.16E3)", "deta = ", deta
+          print "(2A)",          "case = ", CASENAME(cs)
+          call program_error("No convergence after " // int2str(MAX_IT) // " iterations")
         end if
 
+        ! evaluate residual and get Newton update
+        call residual(t, r, drdt, drdeta, drddpot, j, djdt, djdeta, djddpot)
+
         ! Newton update
-        djj = - res / dresdjj
-        err = abs(djj)
+        dt  = - r / drdt
+        err = abs(dt)
 
         ! update bounds (assume monotonic behaviour)
-        if (djj > 0) then
-          jjmin = jj
+        if (dt > 0) then
+          tmin = min(t, tmax)
         else
-          jjmax = jj
+          tmax = max(t, tmin)
         end if
 
         ! update solution
-        jj_old = jj
-        jj     = jj + djj
+        told = t
+        t    = t + dt
 
         ! bisection
-        if ((jj < jjmin) .or. (jj > jjmax) .or. ((jj_old == jjmin) .and. (jj == jjmax))) then
-          jj = 0.5 * (jjmin + jjmax)
-          err = min(err, jjmax - jjmin)
+        if ((t < tmin) .or. (t > tmax) .or. ((told == tmin) .and. (t == tmax))) then
           if (CURRENT_INTEGRAL_DEBUG) then
             print "(A)", "bisection"
-            print "(A,ES25.16E3)", "  jj_old = ", jj_old + djj
-            print "(A,ES25.16E3)", "  jj_new = ", jj
+            print "(A,ES24.16E3)", "  tmin = ", tmin
+            print "(A,ES24.16E3)", "  tmax = ", tmax
+            print "(A,ES24.16E3)", "  told = ", told
+            print "(A,ES24.16E3)", "  t    = ", t
+            print "(A,ES24.16E3)", "  tnew = ", 0.5 * (tmin + tmax)
           end if
+          t   = 0.5 * (tmin + tmax)
+          err = min(err, tmax - tmin)
         end if
 
+        ! update current error
+        err = abs(djdt) * err
+
         if (CURRENT_INTEGRAL_DEBUG) then
-          print "(I6,A,ES25.16E3,A,ES25.16E3,A,ES25.16E3)", it, ": jj = ", jj, "  +/-", err, "  ,", err / jj
+          print "(I6,A,ES24.16E3,A,ES24.16E3,A,ES24.16E3)", it, ": t = ", t, ", j = ", j, ", err/j = ", err / abs(j)
         end if
       end do
 
-      ! get current and derivatives with implicit differentiation
-      call residual(jj, res, dresdjj, dresdeta, dresddpot)
-      j       = dpot * jj
-      djdeta  =    - dpot * dresdeta  / dresdjj
-      djddpot = jj - dpot * dresddpot / dresdjj
+      ! get current + derivatives with implicit differentiation
+      call residual(t, r, drdt, drdeta, drddpot, j, djdt, djdeta, djddpot)
+      djdeta  = djdeta  - drdeta  * djdt / drdt
+      djddpot = djddpot - drddpot * djdt / drdt
+
     case (CASE1A)
       call case_1a(j, djdeta, djddpot)
+
     case (CASE1B)
       call case_1b(j, djdeta, djddpot)
+
     case (CASE2A)
       call case_2a(j, djdeta, djddpot)
+
     case (CASE2B)
       call case_2b(j, djdeta, djddpot)
+
     end select
 
     ! derivatives wrt densities
@@ -574,101 +621,73 @@ contains
       djddpot = tmp + (dpot - deta) * dtmpddpot
     end subroutine
 
-    subroutine residual(jj, res, dresdjj, dresdeta, dresddpot)
-      real, intent(in)  :: jj
-      real, intent(out) :: res
-      real, intent(out) :: dresdjj
-      real, intent(out) :: dresdeta(2)
-      real, intent(out) :: dresddpot
+    subroutine residual(t, r, drdt, drdeta, drddpot, j, djdt, djdeta, djddpot)
+      real, intent(in)  :: t
+      real, intent(out) :: r
+      real, intent(out) :: drdt
+      real, intent(out) :: drdeta(2)
+      real, intent(out) :: drddpot
+      real, intent(out) :: j
+      real, intent(out) :: djdt
+      real, intent(out) :: djdeta(2)
+      real, intent(out) :: djddpot
 
-      real :: dresdjj1(1)
+      real :: e, e1, p(2), drdp(2), L, dLdB, dLdt
 
-      ! integrate using tanh-sinh
-      call quad(integrand, eta(1), eta(2), [jj], res, dresdeta(1), dresdeta(2), dresdjj1, max_levels = 8)
-      dresdjj = dresdjj1(1)
+      ! transform: j = dpot * FL * (1 - sgn * exp(-t))
+      e = exp(-t)
+      if (sgn > 0) then ! CASE0A, CASE0B
+        e1 = - expm1(-t)
+      else ! CASE0C
+        e1 = e + 1
+      end if
+      j         = dpot * n(1) * e1
+      djdt      = dpot * n(1) * sgn * e
+      djdeta(1) = dpot * e1 / detadn(1)
+      djdeta(2) = 0
+      djddpot   = n(1) * e1
 
-      ! subtract delta potential
-      res       = res - dpot
-      dresddpot = -1
+      ! tanh-sinh quadrature, leave out part close to eta(1) (might have singularity)
+      p = [j, dpot]
+      call quad(integrand, eta(1) + sgn * epseta, eta(2), p, r, drdeta(1), drdeta(2), drdp, max_levels = 8)
+      drdt      = drdp(1) * djdt
+      drdeta(1) = drdeta(1) * (1 + sgn * depseta) + drdp(1) * djdeta(1)
+      drddpot   = drdp(2) + drdp(1) * djddpot
+
+      ! analytical integration for missing part (distribution function approximated by first order Taylor series)
+      if (t <= - log(B)) then
+        L = log1p(B / e)
+      else
+        L = t + log(e + B)
+      end if
+      dLdB      = 1 / (B + e)
+      dLdt      = B * dLdB
+      r         = r         + A * j * L + C
+      drdt      = drdt      + A * (djdt * L + j * dLdt)
+      drdeta(1) = drdeta(1) + (dAdeta1 * j + A * djdeta(1)) * L + A * j * dLdB * dBdeta1 + dCdeta1
+      drddpot   = drddpot   + (dAddpot * j + A * djddpot) * L + dCddpot
+
+      ! r = integral - 1 == 0
+      r = r - 1
     end subroutine
 
-    subroutine integrand(eta, jj, u, dudeta, dudjj)
+    subroutine integrand(eta, p, u, dudeta, dudp)
       real, intent(in)  :: eta
-      real, intent(in)  :: jj(:)
+      real, intent(in)  :: p(:)
       real, intent(out) :: u
       real, intent(out) :: dudeta
-      real, intent(out) :: dudjj(:)
+      real, intent(out) :: dudp(:)
 
-      real :: t
+      real :: q
 
       call dist(eta, 0, u, dudeta)
-      t        = u - jj(1)
-      u        = u / t
-      dudeta   = - (jj(1) / t) * (dudeta / t)
-      dudjj(1) = u / t
-    end subroutine
-
-    subroutine error(msg)
-      character(*), intent(in) :: msg
-
-      print "(A,ES25.16E3)", "n1        = ", n(1)
-      print "(A,ES25.16E3)", "n2        = ", n(2)
-      print "(A,ES25.16E3)", "eta1      = ", eta(1)
-      print "(A,ES25.16E3)", "eta2      = ", eta(2)
-      print "(A,ES25.16E3)", "dpot      = ", dpot
-      print "(A,ES25.16E3)", "jj        = ", jj
-      print "(2A)",          "case      = ", CASENAME(cs)
-
-      call program_error(msg)
+      q      = p(2) * u - p(1)
+      u      = u / q
+      dudeta = (1 - u * p(2)) / q * dudeta
+      dudp(1) = u / q
+      dudp(2) = - u**2
     end subroutine
 
   end subroutine
-
-  ! subroutine integrate_dist(dist, eta, k, I, dIdeta)
-  !   !! integral_eta1^eta2 dist(eta)^k deta
-  !   procedure(distribution) :: dist
-  !     !! cumulative distribution function
-  !   real,       intent(in)  :: eta(2)
-  !     !! integration bounds
-  !   integer,    intent(in)  :: k
-  !     !! exponent
-  !   real,       intent(out) :: I
-  !     !! output integral over dist^k
-  !   real,       intent(out) :: dIdeta(2)
-  !     !! output derivatives of I wrt eta
-
-  !   real :: dum(0), dum2(0)
-
-  !   if (k == 0) then
-  !     ! I = integral_eta1^eta2 deta = eta2 - eta1
-  !     I = eta(2) - eta(1)
-  !     dIdeta = [-1.0, 1.0]
-  !   else
-  !     ! integrate using tanh-sinh
-  !     call quad(dist_k, eta(1), eta(2), dum, I, dIdeta(1), dIdeta(2), dum2, max_levels = 8)
-  !   end if
-
-  ! contains
-
-  !   subroutine dist_k(eta, p, F, dFdeta, dFdp)
-  !     real, intent(in)  :: eta
-  !     real, intent(in)  :: p(:)
-  !     real, intent(out) :: F
-  !     real, intent(out) :: dFdeta
-  !     real, intent(out) :: dFdp(:)
-
-  !     m4_ignore(p)
-  !     m4_ignore(dFdp)
-
-  !     call dist(eta, 0, F, dFdeta)
-
-  !     if (k /= 1) then
-  !       dFdeta = k * F**(k-1) * dFdeta
-  !       F      = F**k
-  !     end if
-  !   end subroutine
-
-  ! end subroutine
-
 
 end module
