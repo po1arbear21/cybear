@@ -241,7 +241,7 @@ contains
       if (par%contacts(ict)%type /= CT_SCHOTTKY) cycle
       do i = 1, par%transport_vct(ict)%n
         idx1 = par%transport_vct(ict)%get_idx(i)
-        call this%jaco_schottky_bc(ict)%p%add(idx1, idx1, par%get_ct_surf(ict, idx1))
+        call this%jaco_schottky_bc(ict)%p%add(idx1, idx1, par%ct_surf%get(idx1))
       end do
     end do
 
