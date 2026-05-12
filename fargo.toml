@@ -47,5 +47,5 @@ runner = "slurm"
 partition = "fast"
 args = ""
 templates = [
-  { files = [ "devices/test/schottky_minimal.ini" ], action = "expand" }
+  { files = [ "test/devices/schottky1D.ini" ], action = "expand" }
 ]

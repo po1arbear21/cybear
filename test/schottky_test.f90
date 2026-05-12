@@ -46,7 +46,7 @@ program schottky_test
   ! Initialize
   ! ====================================================================
   call init_normconst(300.0)
-  call dev%init("schottky_minimal.ini", 300.0)
+  call dev%init("schottky1D.ini", 300.0)
 
   nx = size(dev%par%g1D(1)%x)
 

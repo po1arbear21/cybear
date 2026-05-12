@@ -1,4 +1,4 @@
-program test_galene
+program galene_test
 
   use galene_m
   use normalization_m, only: init_normconst, denorm
