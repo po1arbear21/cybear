@@ -135,10 +135,10 @@ contains
     allocate (this%cdens(this%par%g%idx_dim,2))
     allocate (this%mob(this%par%g%idx_dim,2))
     call this%pot%init(this%par)
-    if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+    if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
       call this%efield_abs%init(this%par)
     end if
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       call this%dens(ci)%init(this%par, ci)
       call this%ion(ci)%init(this%par, ci)
       call this%genrec(ci)%init(this%par, ci)
@@ -164,7 +164,7 @@ contains
     ! init Schottky boundary current variables (per contact, per carrier)
     ! must be initialized BEFORE continuity_init (passed as input)
     allocate (this%sbc(this%par%nct, 2))
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       do ict = 1, this%par%nct
         if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
           call this%sbc(ict, ci)%init(this%par, ict, ci)
@@ -174,23 +174,23 @@ contains
 
     ! init equations
     allocate (this%calc_cdens(this%par%g%idx_dim,2))
-    if (this%par%smc%mob_sat) allocate (this%calc_mob(this%par%g%idx_dim,2))
+    if (this%par%smc(this%par%smc_default)%mob_sat) allocate (this%calc_mob(this%par%g%idx_dim,2))
     call this%poiss%init(this%par, this%pot, this%rho, this%volt)
     call this%ramo%init(this%par, this%pot, this%rho, this%volt, this%poiss)
     call this%ramo_curr%init(this%par, this%ramo, this%cdens, this%volt, this%curr)
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       call this%contin(ci)%init(this%par, this%dens(ci), this%cdens(:,ci), this%genrec(ci), this%sbc(:,ci))
       call this%calc_eta_dens(ci)%init(this%par, this%dens(ci), this%eta(ci))
       call this%calc_iref(ci)%init(this%par, this%eta(ci), this%pot, this%iref(ci))
       call this%calc_eta_iref(ci)%init(this%par, this%pot, this%iref(ci), this%eta(ci))
       call this%calc_dens(ci)%init(this%par, this%eta(ci), this%dens(ci))
-      if (this%par%smc%incomp_ion) then
+      if (this%par%smc(this%par%smc_default)%incomp_ion) then
         call this%calc_ion(ci)%init(this%par, this%eta(ci), this%ion(ci))
         call this%calc_genrec(ci)%init(this%par, this%genrec(ci), this%eta(ci), this%ion(ci), this%efield_abs)
         call this%ion_contin(ci)%init(this%par, this%ion(ci), this%genrec(ci))
       end if
       do idx_dir = 1, this%par%g%idx_dim
-        if (this%par%smc%mob_sat) call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
+        if (this%par%smc(this%par%smc_default)%mob_sat) call this%calc_mob(idx_dir,ci)%init(this%par, this%iref(ci), this%mob(idx_dir,ci))
         call this%calc_cdens(idx_dir,ci)%init(this%par, this%pot, this%dens(ci), this%cdens(idx_dir,ci), this%mob(idx_dir,ci))
       end do
     end do
@@ -201,13 +201,13 @@ contains
     end do
 
     ! Initialize calc_efield_abs only when field-assisted ionization is enabled
-    if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+    if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
       call this%calc_efield_abs%init(this%par, this%efield, this%efield_abs)
     end if
 
     ! init calc_schottky_bc equations (per Schottky contact, per carrier)
     allocate (this%calc_sbc(this%par%nct, 2))
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       do ict = 1, this%par%nct
         if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
           call this%calc_sbc(ict, ci)%init(this%par, this%dens(ci), &
@@ -220,10 +220,10 @@ contains
     call this%sys_nlpe%init("non-linear poisson")
     call this%sys_nlpe%add_equation(this%poiss)
     call this%sys_nlpe%add_equation(this%calc_rho)
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       call this%sys_nlpe%add_equation(this%calc_eta_iref(ci))
       call this%sys_nlpe%add_equation(this%calc_dens(ci))
-      if (this%par%smc%incomp_ion) then
+      if (this%par%smc(this%par%smc_default)%incomp_ion) then
         call this%sys_nlpe%add_equation(this%calc_ion(ci))
       end if
       call this%sys_nlpe%provide(this%iref(ci), this%par%transport(IDX_VERTEX,0))
@@ -250,18 +250,18 @@ contains
     call this%sys_nlpe%g%output("nlpe")
 
     ! init drift-diffusion equation systems
-    allocate (this%sys_dd(this%par%smc%ci0:this%par%smc%ci1))
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    allocate (this%sys_dd(this%par%smc(this%par%smc_default)%ci0:this%par%smc(this%par%smc_default)%ci1))
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       call this%sys_dd(ci)%init(CR_NAME(ci)//" drift-diffusion")
       call this%sys_dd(ci)%add_equation(this%contin(ci))
-      if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+      if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
         call this%sys_dd(ci)%add_equation(this%calc_efield_abs)
       end if
       do idx_dir = 1, this%par%g%idx_dim
         call this%sys_dd(ci)%add_equation(this%calc_cdens(idx_dir,ci))
-        if (this%par%smc%mob_sat) call this%sys_dd(ci)%add_equation(this%calc_mob(idx_dir,ci))
+        if (this%par%smc(this%par%smc_default)%mob_sat) call this%sys_dd(ci)%add_equation(this%calc_mob(idx_dir,ci))
       end do
-      if (this%par%smc%incomp_ion) then
+      if (this%par%smc(this%par%smc_default)%incomp_ion) then
         call this%sys_dd(ci)%add_equation(this%calc_eta_iref(ci))
         call this%sys_dd(ci)%add_equation(this%ion_contin(ci))
         call this%sys_dd(ci)%add_equation(this%calc_genrec(ci))
@@ -301,16 +301,16 @@ contains
     call this%sys_full%init("full newton")
     call this%sys_full%add_equation(this%poiss)
     call this%sys_full%add_equation(this%calc_rho)
-    if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+    if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
       call this%sys_full%add_equation(this%calc_efield_abs)
     end if
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       call this%sys_full%add_equation(this%contin(ci))
       do idx_dir = 1, this%par%g%idx_dim
         call this%sys_full%add_equation(this%calc_cdens(idx_dir,ci))
-        if (this%par%smc%mob_sat) call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
+        if (this%par%smc(this%par%smc_default)%mob_sat) call this%sys_full%add_equation(this%calc_mob(idx_dir,ci))
       end do
-      if (this%par%smc%incomp_ion) then
+      if (this%par%smc(this%par%smc_default)%incomp_ion) then
         call this%sys_full%add_equation(this%ion_contin(ci))
         call this%sys_full%add_equation(this%calc_genrec(ci))
       end if
@@ -323,7 +323,7 @@ contains
       call this%sys_full%add_equation(this%calc_efield(dir))
     end do
     ! add per-Schottky-contact boundary equations
-    do ci = this%par%smc%ci0, this%par%smc%ci1
+    do ci = this%par%smc(this%par%smc_default)%ci0, this%par%smc(this%par%smc_default)%ci1
       do ict = 1, this%par%nct
         if (this%par%contacts(ict)%type == CT_SCHOTTKY) then
           call this%sys_full%add_equation(this%calc_sbc(ict, ci))

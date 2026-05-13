@@ -106,7 +106,7 @@ program schottky_test
 
   ! Step 1: Approximate initial conditions
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -169,7 +169,7 @@ program schottky_test
   V_bi     = denorm(dev%pot%get([nx]) - dev%pot%get([1]), 'V')
 
   ! Analytical: V_bi = phi_b - kT/q * ln(N_c / N_d)
-  V_bi_expected = phi_b_eV - V_T * log(denorm(dev%par%smc%edos(CR_ELEC), '1/cm^3') / N_d)
+  V_bi_expected = phi_b_eV - V_T * log(denorm(dev%par%smc(dev%par%smc_default)%edos(CR_ELEC), '1/cm^3') / N_d)
 
   print "(A,F10.6,A)", "  Built-in potential (pot at x=0):    ", &
     denorm(dev%pot%get([1]), 'V'), " V"
@@ -190,13 +190,13 @@ program schottky_test
   print "(A)", "  Carrier density at Schottky contact (ix=1):"
   n_contact = denorm(dev%dens(CR_ELEC)%get([1]), '1/cm^3')
   phi_b_eV = denorm(dev%par%contacts(1)%phi_b, 'eV')
-  n_expected = denorm(dev%par%smc%edos(CR_ELEC), '1/cm^3') * exp(-dev%par%contacts(1)%phi_b)
+  n_expected = denorm(dev%par%smc(dev%par%smc_default)%edos(CR_ELEC), '1/cm^3') * exp(-dev%par%contacts(1)%phi_b)
   print "(A,ES16.8)",   "    phi_b (stored, raw)   = ", dev%par%contacts(1)%phi_b
   print "(A,F12.6,A)",  "    phi_b (eV)            = ", phi_b_eV, " eV"
-  print "(A,ES16.8)",   "    edos_n (stored, raw)  = ", dev%par%smc%edos(CR_ELEC)
+  print "(A,ES16.8)",   "    edos_n (stored, raw)  = ", dev%par%smc(dev%par%smc_default)%edos(CR_ELEC)
   print "(A,ES16.8)",   "    exp(-phi_b)           = ", exp(-dev%par%contacts(1)%phi_b)
   print "(A,ES12.4,A)", "    n(0)      = ", n_contact,  " 1/cm^3"
-  print "(A,ES12.4,A)", "    Nc        = ", denorm(dev%par%smc%edos(CR_ELEC), '1/cm^3'), " 1/cm^3"
+  print "(A,ES12.4,A)", "    Nc        = ", denorm(dev%par%smc(dev%par%smc_default)%edos(CR_ELEC), '1/cm^3'), " 1/cm^3"
   print "(A,ES12.4,A)", "    n_expected = ", n_expected, " 1/cm^3  (Nc * exp(-phi_b/kT))"
   rel_err = abs(n_contact - n_expected) / n_expected * 100.0
   print "(A,F8.2,A)",   "    Error     = ", rel_err, " %"
@@ -302,7 +302,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -352,7 +352,7 @@ program schottky_test
   E_contact = dev%efield(1)%get([1])
   eps_sc = dev%calc_sbc(1, CR_ELEC)%eps_sc(1)
   delta_phi_sim = sqrt(abs(E_contact) / (4.0 * PI * eps_sc))
-  n_expected_ifbl = denorm(dev%par%smc%edos(CR_ELEC) &
+  n_expected_ifbl = denorm(dev%par%smc(dev%par%smc_default)%edos(CR_ELEC) &
     & * exp(-(dev%par%contacts(1)%phi_b - delta_phi_sim)), '1/cm^3')
 
   block
@@ -497,7 +497,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -515,7 +515,7 @@ program schottky_test
   ! Now read the self-consistent equilibrium state
   E_contact = dev%efield(1)%get([1])
   eps_sc = dev%calc_sbc(1, CR_ELEC)%eps_sc(1)
-  n_eq = dev%par%smc%edos(CR_ELEC) * exp(-dev%par%contacts(1)%phi_b)
+  n_eq = dev%par%smc(dev%par%smc_default)%edos(CR_ELEC) * exp(-dev%par%contacts(1)%phi_b)
 
   ! Check A: unit test — J_t = 0 at the self-consistent equilibrium (n_sim, E_sim).
   ! Detailed balance only holds at the converged (n, E) pair, so we pass the
@@ -607,7 +607,7 @@ program schottky_test
   do ict = 1, dev%par%nct
     dev%volt(ict)%x = 0.0
   end do
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -688,7 +688,7 @@ program schottky_test
   end do
 
   print "(A)", "  Step 1: Approximating initial conditions..."
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     call approx_imref(dev%par, dev%iref(ci), dev%volt)
   end do
   call approx_potential(dev%par, dev%pot, dev%iref)
@@ -725,7 +725,7 @@ program schottky_test
   print "(A)", " Test 9: get_inv_dist round-trip"
   print "(A)", "========================================"
   print "(A)", ""
-  select case (dev%par%smc%dist)
+  select case (dev%par%smc(dev%par%smc_default)%dist)
     case (DIST_MAXWELL);   print "(A)", "  Distribution: Maxwell-Boltzmann"
     case (DIST_FERMI);     print "(A)", "  Distribution: Fermi-Dirac"
   end select
@@ -744,15 +744,15 @@ program schottky_test
 
     do i = 1, n_rt
       ! forward: eta -> F (analytical for Maxwell, table for Fermi-Dirac)
-      if (dev%par%smc%dist == DIST_MAXWELL) then
+      if (dev%par%smc(dev%par%smc_default)%dist == DIST_MAXWELL) then
         F_fwd  = exp(etas(i))
         dFdeta = F_fwd
       else
-        call dev%par%smc%get_dist(etas(i), 0, F_fwd, dFdeta)
+        call dev%par%smc(dev%par%smc_default)%get_dist(etas(i), 0, F_fwd, dFdeta)
       end if
 
       ! inverse: F -> eta (this is what we're testing)
-      call dev%par%smc%get_inv_dist(F_fwd, eta_back, detadF)
+      call dev%par%smc(dev%par%smc_default)%get_inv_dist(F_fwd, eta_back, detadF)
 
       err_eta = abs(eta_back - etas(i))
       prod    = detadF * dFdeta   ! should be 1.0
@@ -855,9 +855,9 @@ contains
     real, parameter :: ATOL = 1e-6
     integer, parameter :: MAX_IT = 50
 
-    allocate(pot0(dev%pot%data%n), iref0(dev%iref(dev%par%smc%ci0)%data%n, 2))
+    allocate(pot0(dev%pot%data%n), iref0(dev%iref(dev%par%smc(dev%par%smc_default)%ci0)%data%n, 2))
 
-    do ci = dev%par%smc%ci0, dev%par%smc%ci1
+    do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
       call ss_dd(ci)%init(dev%sys_dd(ci))
     end do
 
@@ -871,7 +871,7 @@ contains
       call solve_nlpe()
       err_pot = maxval(abs(dev%pot%get() - pot0))
 
-      do ci = dev%par%smc%ci0, dev%par%smc%ci1
+      do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
         iref0(:, ci) = dev%iref(ci)%get()
         call ss_dd(ci)%run()
         call ss_dd(ci)%select(1)
@@ -880,7 +880,7 @@ contains
       end do
 
       err = err_pot
-      do ci = dev%par%smc%ci0, dev%par%smc%ci1
+      do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
         err = max(err, err_iref(ci))
       end do
       print "(A,I3,A,ES10.3)", "    Gummel it ", it, ": err = ", denorm(err, 'V')

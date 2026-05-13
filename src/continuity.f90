@@ -98,7 +98,7 @@ contains
     do idx_dir = 1, par%g%idx_dim
       call this%cdens(idx_dir)%init(cdens(idx_dir), par%transport(IDX_EDGE,idx_dir))
     end do
-    if (par%smc%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
+    if (par%smc(par%smc_default)%incomp_ion) call this%genrec%init(genrec, par%ionvert(ci))
 
     ! per-contact schottky_bc selectors (only allocated when device has Schottky contacts)
     if (any(par%contacts(1:par%nct)%type == CT_SCHOTTKY)) then
@@ -141,7 +141,7 @@ contains
     do idx_dir = 1, par%g%idx_dim
       icdens(idx_dir) = this%depend(this%cdens(idx_dir))
     end do
-    if (par%smc%incomp_ion) igenrec = this%depend(this%genrec)
+    if (par%smc(par%smc_default)%incomp_ion) igenrec = this%depend(this%genrec)
 
     ! init jacobians (all const after refactor; no per-iteration rebuilds)
     this%jaco_dens   => this%init_jaco_f(idens, &
@@ -163,7 +163,7 @@ contains
         & st = [this%st_nn(idx_dir)%get_ptr(), (st_cdens_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
     end do
-    if (par%smc%incomp_ion) then
+    if (par%smc(par%smc_default)%incomp_ion) then
       this%jaco_genrec => this%init_jaco_f(igenrec, &
         & st = [this%st_dir%get_ptr(), (st_dens_t_ct(ict), ict = 1, par%nct)], &
         & const = .true., dtime = .false.)
@@ -224,7 +224,7 @@ contains
     end do
 
     ! generation-recombination volume factor
-    if (par%smc%incomp_ion) then
+    if (par%smc(par%smc_default)%incomp_ion) then
       do i = 1, par%ionvert(ci)%n
         idx1 = par%ionvert(ci)%get_idx(i)
         status = .true.
@@ -267,8 +267,8 @@ contains
         end if
 
         ! Ohmic / RealOhmic / Gate: calculate contact density via get_dist
-        call par%smc%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc%band_edge(ci)), 0, F, dF)
-        this%b0(j) = par%smc%edos(ci) * F
+        call par%smc(par%smc_default)%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc(par%smc_default)%band_edge(ci)), 0, F, dF)
+        this%b0(j) = par%smc(par%smc_default)%edos(ci) * F
         if (par%contacts(ict)%type == CT_REALOHMIC) then
           call this%jaco_dens%add(idx1, idx1, par%ct_surf%get(idx1) * par%contacts(ict)%vrec)
           this%b0(j) = this%b0(j) * par%ct_surf%get(idx1) * par%contacts(ict)%vrec
@@ -297,7 +297,7 @@ contains
       call this%jaco_cdens(idx_dir)%p%matr%mul_vec(this%cdens(idx_dir)%get(), tmp, fact_y = 1.0)
     end do
 
-    if (this%par%smc%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
+    if (this%par%smc(this%par%smc_default)%incomp_ion) call this%jaco_genrec%matr%mul_vec(this%genrec%get(), tmp, fact_y = 1.0)
 
     if (allocated(this%jaco_schottky_bc)) then
       do ict = 1, this%par%nct

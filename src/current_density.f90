@@ -149,7 +149,7 @@ contains
     this%jaco_dens => this%init_jaco(iprov, this%depend(dens, par%transport(IDX_VERTEX, 0)), st = [this%st_nn%get_ptr()])
 
     ! depend on mobility
-    if (par%smc%mob_sat) this%jaco_mob => this%init_jaco(iprov, this%depend(mob, par%transport(IDX_EDGE, idx_dir)), st = [this%st_dir%get_ptr()])
+    if (par%smc(par%smc_default)%mob_sat) this%jaco_mob => this%init_jaco(iprov, this%depend(mob, par%transport(IDX_EDGE, idx_dir)), st = [this%st_dir%get_ptr()])
 
     ! finish initialization
     call this%init_final()
@@ -184,14 +184,14 @@ contains
       pot( 2) = this%pot%get( idx2)
       dens(1) = this%dens%get(idx1)
       dens(2) = this%dens%get(idx2)
-      if (this%par%smc%mob_sat) then
+      if (this%par%smc(this%par%smc_default)%mob_sat) then
         mob = this%mob%get(idx)
       else
         mob = this%par%mob0(IDX_EDGE, idx_dir, this%cdens%ci)%get(idx)
       end if
 
       ! get current along edge
-      call this%get_curr(this%par%smc, len, pot, dens, mob, j, djdpot, djddens, djdmob)
+      call this%get_curr(this%par%smc(this%par%smc_default), len, pot, dens, mob, j, djdpot, djddens, djdmob)
 
       ! set current density + derivatives
       call this%cdens%set(idx, j)
@@ -199,7 +199,7 @@ contains
       call this%jaco_pot%add( idx, idx2, djdpot(2))
       call this%jaco_dens%add(idx, idx1, djddens(1))
       call this%jaco_dens%add(idx, idx2, djddens(2))
-      if (this%par%smc%mob_sat) call this%jaco_mob%add(idx, idx, djdmob)
+      if (this%par%smc(this%par%smc_default)%mob_sat) call this%jaco_mob%add(idx, idx, djdmob)
     end do
     !$omp end parallel do
 
@@ -235,7 +235,7 @@ contains
     ! abbreviations
     ci   = this%cdens%ci
     ch   = CR_CHARGE(ci)
-    edos = this%par%smc%edos(ci)
+    edos = this%par%smc(this%par%smc_default)%edos(ci)
 
     ! normalize potential drop and density
     dpot = - ch * (pot(2) - pot(1))

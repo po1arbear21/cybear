@@ -33,6 +33,12 @@ module region_m
   end type
 
   type, extends(region) :: region_transport
+    type(string) :: material
+      !! material name (matches a [semiconductor].name); empty when set_material is .false.
+    logical      :: set_material = .false.
+      !! true if material= key was present in the [transport] section
+    integer      :: material_id
+      !! resolved index into device_params%mat(:); set by init_region_materials post-pass
   end type
 
   type, extends(region) :: region_doping
@@ -155,6 +161,11 @@ contains
     class is (region_poisson)
       ! get permittivity
       call file%get(sid, "eps", this%eps)
+
+    class is (region_transport)
+      ! optional material reference; resolution to material_id happens in
+      ! device_params%init_region_materials once the catalog is built.
+      call file%get(sid, "material", this%material, status = this%set_material)
 
     class is (region_doping)
       ! get ND, NA

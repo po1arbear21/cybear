@@ -41,8 +41,17 @@ module device_params_m
     real :: T
       !! temperature in K
 
-    type(semiconductor) :: smc
-      !! semiconductor charge carrier parameters
+    type(semiconductor), allocatable :: smc(:)
+      !! semiconductor charge carrier parameters, one entry per [semiconductor]
+      !! block. Single-material INIs allocate smc(1) only. Code paths that
+      !! consume globally-stored per-material params (dist, stab, etc.) read
+      !! from smc(smc_default).
+
+    type(map_string_int) :: smc_map
+      !! material index by name (built from smc(:)%name)
+    integer              :: smc_default = 1
+      !! default index into smc(:) used by transport regions without a material=
+      !! key and by code paths reading globally-stored params in v1.
 
     real :: curr_fact
       !! current factor for converting A/m² or A/m to A
@@ -139,8 +148,9 @@ module device_params_m
     procedure :: init     => device_params_init
     procedure :: destruct => device_params_destruct
 
-    procedure, private :: init_transport_params  => device_params_init_transport_params
-    procedure, private :: init_grid              => device_params_init_grid
+    procedure, private :: init_materials            => device_params_init_materials
+    procedure, private :: init_region_materials     => device_params_init_region_materials
+    procedure, private :: init_grid                 => device_params_init_grid
     procedure, private :: init_poisson           => device_params_init_poisson
     procedure, private :: init_transport         => device_params_init_transport
     procedure, private :: init_contact_tables    => device_params_init_contact_tables
@@ -197,8 +207,9 @@ contains
     end if
 
     ! init rest
-    call this%init_transport_params(file)
+    call this%init_materials(file)
     call this%init_grid(file)
+    call this%init_region_materials()
     call this%init_poisson()
     call this%init_transport()
     call this%init_contact_tables()
@@ -213,13 +224,13 @@ contains
     ! permittivity on cells and vertices
     call ctnr%save("perm_cell", this%eps(IDX_CELL, 0), unit = "eps0")
     call ctnr%save("perm_vert", this%eps(IDX_VERTEX, 0), unit = "eps0")
-    do ci = this%smc%ci0, this%smc%ci1
+    do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
       ! doping on cells
       call ctnr%save(DOP_NAME(ci)//"con_cell", this%dop(IDX_CELL, 0, ci), unit = "cm^-3")
       ! doping on vertices
       call ctnr%save(DOP_NAME(ci)//"con_vert", this%dop(IDX_VERTEX, 0, ci), unit = "cm^-3")
       ! dopant ionization energy on vertices
-      if (this%smc%incomp_ion) call ctnr%save(DOP_NAME(ci)//"conE_vert", this%ii_E_dop(ci), unit = "eV")
+      if (this%smc(this%smc_default)%incomp_ion) call ctnr%save(DOP_NAME(ci)//"conE_vert", this%ii_E_dop(ci), unit = "eV")
       do idx_dir = 1, this%g%idx_dim
         ! mobility and doping on edges
         call ctnr%save(CR_NAME(ci)//"mob"//DIR_NAME(idx_dir), this%mob0(IDX_EDGE, idx_dir, ci), unit = "cm^2/V/s")
@@ -234,126 +245,214 @@ contains
     class(device_params), intent(inout) :: this
 
     call this%contact_map%destruct()
+    call this%smc_map%destruct()
   end subroutine
 
-  subroutine device_params_init_transport_params(this, file)
+  subroutine device_params_init_materials(this, file)
+    !! Parse the material catalog. Reads [geometry] curr_fact once, then one or
+    !! more [semiconductor] blocks into smc(:), builds smc_map (name -> index),
+    !! enforces v1 uniformity for dist/stab/electrons/holes across blocks, and
+    !! reads [incomplete ionization] once into smc(smc_default). Lookup tables
+    !! for the distribution function are initialized on the default material
+    !! only; non-default materials' tables stay empty (per-material variants
+    !! are deferred; see docs/heterojunctions.md).
     class(device_params), target, intent(inout) :: this
     type(input_file),             intent(in)    :: file
 
-    integer      :: sid, stat
-    logical      :: elec, hole, status
-    type(string) :: dos, dist, tabledir, stab
+    integer, allocatable :: sids(:)
+    integer              :: i, sid, stat
+    logical              :: elec, hole, have_name, status
+    type(string)         :: name, tabledir, dos, dist, stab
 
     ! ============================================= device geometry factor =============================================
     call file%get_section("geometry", sid)
     call file%get(sid, "curr_fact", this%curr_fact)
 
     ! ============================================ semiconductor parameters ============================================
-    call file%get_section("semiconductor", sid)
+    call file%get_sections("semiconductor", sids)
+    if (size(sids) == 0) call program_error("no [semiconductor] section defined")
 
-    ! general parameters
-    call file%get(sid, "electrons", elec)
-    call file%get(sid, "holes",     hole)
-    this%smc%ci0 = CR_ELEC
-    this%smc%ci1 = CR_HOLE
-    if (.not. elec) this%smc%ci0 = CR_HOLE
-    if (.not. hole) this%smc%ci1 = CR_ELEC
-    call file%get(sid, "N_c0", this%smc%edos(CR_ELEC))
-    call file%get(sid, "N_v0", this%smc%edos(CR_HOLE))
-    this%smc%edos(:) = this%smc%edos(:) * this%T ** 1.5
-    call file%get(sid, "E_gap", this%smc%band_gap)
-    this%smc%band_edge(CR_ELEC) =   0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
-    this%smc%band_edge(CR_HOLE) = - 0.5 * this%smc%band_gap + 0.5 * log(this%smc%edos(CR_ELEC) / this%smc%edos(CR_HOLE))
+    allocate (this%smc(size(sids)))
 
-    ! density of states
-    call file%get(sid, "dos", dos, status)
-    if (.not. status) then
-      dos%s = "parabolic"
-      print "(A)", "Assume parabolic density of states"
-    end if
-    select case (dos%s)
-    case ("parabolic")
-      this%smc%dos = DOS_PARABOLIC
-    case ("parabolic_tail")
-      this%smc%dos = DOS_PARABOLIC_TAIL
-    case default
-      call program_error("unknown dos '" // dos%s // "'")
-    end select
-    if (this%smc%dos == DOS_PARABOLIC_TAIL) then
-      call file%get(sid, "dos_t0", this%smc%dos_params(1))
-    end if
-    call file%get(sid, "reg", this%smc%reg)
-    if (this%smc%reg) then
-      call file%get(sid, "reg_A",  this%smc%reg_params(1))
-      call file%get(sid, "reg_B",  this%smc%reg_params(2))
-    end if
+    do i = 1, size(sids)
+      ! resolve material name; required when more than one block is present
+      call file%get(sids(i), "name", name, status = have_name)
+      if (.not. have_name) then
+        if (size(sids) > 1) call program_error( &
+          "multiple [semiconductor] sections require every block to declare name=")
+        this%smc(i)%name%s = "default"
+      else
+        this%smc(i)%name = name
+      end if
 
-    ! distribution and stabilization method
-    call file%get(sid, "dist", dist, status)
-    if (.not. status) then
-      dist%s = "maxwell"
-      print "(A)", "Assume Maxwell-Boltzmann distribution density"
-    end if
-    select case (dist%s)
-    case ("maxwell")
-      this%smc%dist = DIST_MAXWELL
-    case ("fermi")
-      this%smc%dist = DIST_FERMI
-    case default
-      call program_error("unknown distribution density '" // dist%s // "'")
-    end select
-    call file%get(sid, "tabledir", tabledir)
-    call file%get(sid, "stab", stab)
-    select case (stab%s)
-    case ("SG")
-      this%smc%stab = STAB_SG
-    case ("ED")
-      this%smc%stab = STAB_ED
-    case ("EXACT")
-      this%smc%stab = STAB_EXACT
-    case default
-      call program_error("unknown stabilization scheme '" // stab%s // "'")
-    end select
-    call this%smc%init_dist(tabledir%s)
+      associate (smc => this%smc(i))
+        ! enabled carriers
+        call file%get(sids(i), "electrons", elec)
+        call file%get(sids(i), "holes",     hole)
+        smc%ci0 = CR_ELEC
+        smc%ci1 = CR_HOLE
+        if (.not. elec) smc%ci0 = CR_HOLE
+        if (.not. hole) smc%ci1 = CR_ELEC
+
+        ! band parameters
+        call file%get(sids(i), "N_c0", smc%edos(CR_ELEC))
+        call file%get(sids(i), "N_v0", smc%edos(CR_HOLE))
+        smc%edos(:) = smc%edos(:) * this%T ** 1.5
+        call file%get(sids(i), "E_gap", smc%band_gap)
+        smc%band_edge(CR_ELEC) =   0.5 * smc%band_gap + 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE))
+        smc%band_edge(CR_HOLE) = - 0.5 * smc%band_gap + 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE))
+
+        ! electron affinity (optional, default 0; supplies Anderson-rule Delta Ec across heterointerfaces)
+        call file%get(sids(i), "chi", smc%chi, status = status)
+        if (.not. status) smc%chi = 0.0
+
+        ! density of states
+        call file%get(sids(i), "dos", dos, status)
+        if (.not. status) then
+          dos%s = "parabolic"
+          print "(A)", "Assume parabolic density of states"
+        end if
+        select case (dos%s)
+        case ("parabolic")
+          smc%dos = DOS_PARABOLIC
+        case ("parabolic_tail")
+          smc%dos = DOS_PARABOLIC_TAIL
+        case default
+          call program_error("unknown dos '" // dos%s // "'")
+        end select
+        if (smc%dos == DOS_PARABOLIC_TAIL) then
+          call file%get(sids(i), "dos_t0", smc%dos_params(1))
+        end if
+        call file%get(sids(i), "reg", smc%reg)
+        if (smc%reg) then
+          call file%get(sids(i), "reg_A", smc%reg_params(1))
+          call file%get(sids(i), "reg_B", smc%reg_params(2))
+        end if
+
+        ! distribution
+        call file%get(sids(i), "dist", dist, status)
+        if (.not. status) then
+          dist%s = "maxwell"
+          print "(A)", "Assume Maxwell-Boltzmann distribution density"
+        end if
+        select case (dist%s)
+        case ("maxwell")
+          smc%dist = DIST_MAXWELL
+        case ("fermi")
+          smc%dist = DIST_FERMI
+        case default
+          call program_error("unknown distribution density '" // dist%s // "'")
+        end select
+
+        ! stabilization
+        call file%get(sids(i), "stab", stab)
+        select case (stab%s)
+        case ("SG")
+          smc%stab = STAB_SG
+        case ("ED")
+          smc%stab = STAB_ED
+        case ("EXACT")
+          smc%stab = STAB_EXACT
+        case default
+          call program_error("unknown stabilization scheme '" // stab%s // "'")
+        end select
+      end associate
+    end do
+
+    this%smc_default = 1
+
+    call this%smc_map%init()
+    do i = 1, size(this%smc)
+      call this%smc_map%set(this%smc(i)%name, i)
+    end do
+
+    ! v1 guard: globally-stored per-material params must match across blocks.
+    ! Code paths read dist/stab/electrons/holes from smc(smc_default); per-
+    ! material variants of these fields are deferred (see plan).
+    do i = 1, size(this%smc)
+      if (i == this%smc_default) cycle
+      if (this%smc(i)%dist /= this%smc(this%smc_default)%dist) call program_error( &
+        "material '" // this%smc(i)%name%s // &
+        & "': dist differs from default; per-material dist is deferred (v1)")
+      if (this%smc(i)%stab /= this%smc(this%smc_default)%stab) call program_error( &
+        "material '" // this%smc(i)%name%s // &
+        & "': stab differs from default; per-material stab is deferred (v1)")
+      if (this%smc(i)%ci0 /= this%smc(this%smc_default)%ci0 .or. &
+          this%smc(i)%ci1 /= this%smc(this%smc_default)%ci1) call program_error( &
+        "material '" // this%smc(i)%name%s // &
+        & "': electrons/holes differ from default; per-material carrier enables are deferred (v1)")
+    end do
+
+    ! lookup tables (initialized once on the default material; v1 uniformity
+    ! ensures one table set suffices)
+    call file%get(sids(this%smc_default), "tabledir", tabledir)
+    call this%smc(this%smc_default)%init_dist(tabledir%s)
 
     ! make sure parameters are valid
-    m4_assert(this%smc%ci0 <= this%smc%ci1)
+    m4_assert(this%smc(this%smc_default)%ci0 <= this%smc(this%smc_default)%ci1)
 
     ! ============================================= incomplete ionization ==============================================
+    ! Single section, writes to the default material; per-material incomplete
+    ! ionization is deferred (see plan).
     call file%get_section("incomplete ionization", sid, stat)
-    if (stat > 0) then
-      call program_error("multiple incomplete ionization sections found")
-    elseif (stat == -1) then
-      this%smc%incomp_ion = .false.
-    else
-      call file%get(sid, "incomp_ion",   this%smc%incomp_ion)
-    end if
-
-    if (this%smc%incomp_ion) then
-      call file%get(sid, "tau",       this%smc%ii_tau)
-      call file%get(sid, "E_dop0",    this%smc%ii_E_dop0)
-      call file%get(sid, "g",         this%smc%ii_g)
-      call file%get(sid, "N_crit",    this%smc%ii_N_crit)
-      call file%get(sid, "dop_th",    this%smc%ii_dop_th)
-      call file%get(sid, "pf",        this%smc%ii_pf)
-      if (this%smc%ii_pf) then
-        call file%get(sid, "ef_min",  this%smc%ii_ef_min)
-        call file%get(sid, "pf_a",    this%smc%ii_pf_a)
-      end if
-      call file%get(sid, "tun",       this%smc%ii_tun)
-      if (this%smc%ii_tun) then
-        call file%get(sid, "tau_tun", this%smc%ii_tau_tun)
-        call file%get(sid, "m_tun",   this%smc%ii_m_tun)
-        call file%get(sid, "ef_min",  this%smc%ii_ef_min)
+    associate (smc => this%smc(this%smc_default))
+      if (stat > 0) then
+        call program_error("multiple incomplete ionization sections found")
+      elseif (stat == -1) then
+        smc%incomp_ion = .false.
+      else
+        call file%get(sid, "incomp_ion",   smc%incomp_ion)
       end if
 
-      ! make sure parameters are valid
-      m4_assert(size(this%smc%ii_tau)    == 2)
-      m4_assert(size(this%smc%ii_E_dop0) == 2)
-      m4_assert(size(this%smc%ii_g)      == 2)
-      m4_assert(size(this%smc%ii_N_crit) == 2)
-      m4_assert(size(this%smc%ii_dop_th) == 2)
-    end if
+      if (smc%incomp_ion) then
+        call file%get(sid, "tau",       smc%ii_tau)
+        call file%get(sid, "E_dop0",    smc%ii_E_dop0)
+        call file%get(sid, "g",         smc%ii_g)
+        call file%get(sid, "N_crit",    smc%ii_N_crit)
+        call file%get(sid, "dop_th",    smc%ii_dop_th)
+        call file%get(sid, "pf",        smc%ii_pf)
+        if (smc%ii_pf) then
+          call file%get(sid, "ef_min",  smc%ii_ef_min)
+          call file%get(sid, "pf_a",    smc%ii_pf_a)
+        end if
+        call file%get(sid, "tun",       smc%ii_tun)
+        if (smc%ii_tun) then
+          call file%get(sid, "tau_tun", smc%ii_tau_tun)
+          call file%get(sid, "m_tun",   smc%ii_m_tun)
+          call file%get(sid, "ef_min",  smc%ii_ef_min)
+        end if
+
+        ! make sure parameters are valid
+        m4_assert(size(smc%ii_tau)    == 2)
+        m4_assert(size(smc%ii_E_dop0) == 2)
+        m4_assert(size(smc%ii_g)      == 2)
+        m4_assert(size(smc%ii_N_crit) == 2)
+        m4_assert(size(smc%ii_dop_th) == 2)
+      end if
+    end associate
+
+  end subroutine
+
+  subroutine device_params_init_region_materials(this)
+    !! Post-pass: resolve each transport region's material= reference to an
+    !! index into smc(:). Called after init_grid (which allocates reg_trans)
+    !! and after init_materials (which builds smc_map).
+    class(device_params), intent(inout) :: this
+
+    integer :: i
+    logical :: status
+
+    m4_assert(allocated(this%smc))
+
+    do i = 1, size(this%reg_trans)
+      if (.not. this%reg_trans(i)%set_material) then
+        this%reg_trans(i)%material_id = this%smc_default
+        cycle
+      end if
+      call this%smc_map%get(this%reg_trans(i)%material, this%reg_trans(i)%material_id, status = status)
+      if (.not. status) call program_error( &
+        "[transport]: unknown material '" // this%reg_trans(i)%material%s // "'")
+    end do
 
   end subroutine
 
@@ -1052,36 +1151,36 @@ contains
 
     ! doping grid tables
     allocate(this%dopvert(2))
-    if (this%smc%incomp_ion) allocate (this%ionvert(2))
+    if (this%smc(this%smc_default)%incomp_ion) allocate (this%ionvert(2))
     do ci = DOP_DCON, DOP_ACON
       call this%dopvert(ci)%init("dop"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
-      if (this%smc%incomp_ion) call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
+      if (this%smc(this%smc_default)%incomp_ion) call this%ionvert(ci)%init("ion"//DOP_NAME(ci)//"_v", this%g, IDX_VERTEX, 0)
       do i = 1, this%transport(IDX_VERTEX,0)%n
         idx = this%transport(IDX_VERTEX,0)%get_idx(i)
 
         dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
         if (dop(ci) > 0) then
           call this%dopvert(ci)%flags%set(idx, .true.)
-          if (this%smc%incomp_ion) then
-            if (dop(ci) < this%smc%ii_dop_th(ci)) call this%ionvert(ci)%flags%set(idx, .true.)
+          if (this%smc(this%smc_default)%incomp_ion) then
+            if (dop(ci) < this%smc(this%smc_default)%ii_dop_th(ci)) call this%ionvert(ci)%flags%set(idx, .true.)
           end if
         end if
       end do
       call this%dopvert(ci)%init_final()
-      if (this%smc%incomp_ion) call this%ionvert(ci)%init_final()
+      if (this%smc(this%smc_default)%incomp_ion) call this%ionvert(ci)%init_final()
     end do
 
     ! Pearson-Bardeen ionization model init
-    if (this%smc%incomp_ion) then
+    if (this%smc(this%smc_default)%incomp_ion) then
       call allocate_grid_data1_real(this%ii_E_dop, idx_dim, DOP_DCON, DOP_ACON)
       do ci = DOP_DCON, DOP_ACON
         call this%ii_E_dop(ci)%init(this%g, IDX_VERTEX, 0)
-        cdop = this%smc%ii_E_dop0(ci) / (this%smc%ii_N_crit(ci)**(1.0/3.0))
+        cdop = this%smc(this%smc_default)%ii_E_dop0(ci) / (this%smc(this%smc_default)%ii_N_crit(ci)**(1.0/3.0))
         do i = 1, this%transport(IDX_VERTEX,0)%n
           idx     = this%transport(IDX_VERTEX,0)%get_idx(i)
           dop(ci) = this%dop(IDX_VERTEX,0,ci)%get(idx)
 
-          ii_E_dop = this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0) !max(this%smc%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
+          ii_E_dop = this%smc(this%smc_default)%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0) !max(this%smc(this%smc_default)%ii_E_dop0(ci) - cdop * dop(ci)**(1.0/3.0), 0.0)
           call this%ii_E_dop(ci)%set(idx, ii_E_dop)
         end do
       end do
@@ -1119,8 +1218,8 @@ contains
     allocate (idx(idx_dim), idx2(idx_dim))
     allocate (surf(this%g%max_cell_nedge,idx_dim))
 
-    call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%smc%ci0], [4, this%g%idx_dim, this%smc%ci1])
-    do ci = this%smc%ci0, this%smc%ci1
+    call allocate_grid_data3_real(this%mob0, this%g%idx_dim, [1, 0, this%smc(this%smc_default)%ci0], [4, this%g%idx_dim, this%smc(this%smc_default)%ci1])
+    do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
       call this%mob0(IDX_CELL,0,ci)%init(this%g, IDX_CELL, 0)
       do idx_dir = 1, idx_dim
         call this%mob0(IDX_EDGE,idx_dir,ci)%init(this%g, IDX_EDGE, idx_dir)
@@ -1142,7 +1241,7 @@ contains
       m4_assert(size(mob_min) == 2)
       m4_assert(size(mob_max) == 2)
       m4_assert(size(N_ref)   == 2)
-      do ci = this%smc%ci0, this%smc%ci1
+      do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
         ! dopant-dependent mobility in cells
         do i = 1, this%transport(IDX_CELL,0)%n
           idx           = this%transport(IDX_CELL,0)%get_idx(i)
@@ -1155,7 +1254,7 @@ contains
     case ("constant")
       call file%get(sid, "mob0", mob_const)
       m4_assert(size(mob_const) == 2)
-      do ci = this%smc%ci0, this%smc%ci1
+      do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
         ! constant mobility in cells
         do i = 1, this%transport(IDX_CELL,0)%n
           idx = this%transport(IDX_CELL,0)%get_idx(i)
@@ -1171,13 +1270,13 @@ contains
     call file%get(sid, "saturation_model", model)
     select case (model%s)
     case ("Caughey-Thomas")
-      this%smc%mob_sat = .true.
-      call file%get(sid, "beta",  this%smc%beta)
-      call file%get(sid, "v_sat", this%smc%v_sat)
-      m4_assert(size(this%smc%beta)  == 2)
-      m4_assert(size(this%smc%v_sat) == 2)
+      this%smc(this%smc_default)%mob_sat = .true.
+      call file%get(sid, "beta",  this%smc(this%smc_default)%beta)
+      call file%get(sid, "v_sat", this%smc(this%smc_default)%v_sat)
+      m4_assert(size(this%smc(this%smc_default)%beta)  == 2)
+      m4_assert(size(this%smc(this%smc_default)%v_sat) == 2)
     case ("off")
-      this%smc%mob_sat = .false.
+      this%smc(this%smc_default)%mob_sat = .false.
     case default
       call program_error("unknown bulk velocity saturation model " // model%s)
     end select
@@ -1188,7 +1287,7 @@ contains
       do i = 1, this%reg_mob(ri)%cell_table%n
         idx = this%reg_mob(ri)%cell_table%get_idx(i)
         ! overwrite mobility in cells
-        do ci = this%smc%ci0, this%smc%ci1
+        do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
           if (this%reg_mob(ri)%set_mob(ci)) call this%mob0(IDX_CELL, 0, ci)%set(idx, mob0(ci))
         end do
       end do
@@ -1205,7 +1304,7 @@ contains
       do idx_dir = 1, idx_dim
         do j = 1, this%g%cell_nedge(idx_dir)
           call this%g%get_neighb(IDX_CELL, 0, IDX_EDGE, idx_dir, idx, j, idx2, status)
-          do ci = this%smc%ci0, this%smc%ci1
+          do ci = this%smc(this%smc_default)%ci0, this%smc(this%smc_default)%ci1
             mob0(ci) = this%mob0(IDX_CELL,0,ci)%get(idx)
             call this%mob0(IDX_EDGE,idx_dir,ci)%update(idx2, mob0(ci) * surf(j,idx_dir) / this%tr_surf(idx_dir)%get(idx2))
           end do
@@ -1226,7 +1325,7 @@ contains
     print "(A)", "init_contacts"
 
     allocate (idx(this%g%idx_dim), idx1(this%g%idx_dim), idx2(this%g%idx_dim))
-    if (this%smc%incomp_ion) allocate (ii_E_dop(2))
+    if (this%smc(this%smc_default)%incomp_ion) allocate (ii_E_dop(2))
 
     ! set phims for ohmic contacts
     do ict = 1, this%nct
@@ -1241,13 +1340,13 @@ contains
         ! calculate phims using charge neutrality
         dop(DOP_DCON) = this%dop(IDX_VERTEX, 0, DOP_DCON)%get(idx)
         dop(DOP_ACON) = this%dop(IDX_VERTEX, 0, DOP_ACON)%get(idx)
-        if (this%smc%incomp_ion) then
+        if (this%smc(this%smc_default)%incomp_ion) then
           ii_E_dop(DOP_DCON) = this%ii_E_dop(DOP_DCON)%get(idx)
           ii_E_dop(DOP_ACON) = this%ii_E_dop(DOP_ACON)%get(idx)
         end if
-        call this%contacts(ict)%set_phims_ohmic(this%smc, dop, ii_E_dop)
+        call this%contacts(ict)%set_phims_ohmic(this%smc(this%smc_default), dop, ii_E_dop)
       else if (this%contacts(ict)%type == CT_SCHOTTKY) then
-        call this%contacts(ict)%set_phims_schottky(this%smc)
+        call this%contacts(ict)%set_phims_schottky(this%smc(this%smc_default))
       end if
     end do
 

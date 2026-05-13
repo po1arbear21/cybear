@@ -159,7 +159,7 @@ contains
     iprov = this%provide(ion, par%ionvert(ion%ci))
 
     ! depends on eta if incomplete ionization is enabled
-    if (par%smc%incomp_ion) then
+    if (par%smc(par%smc_default)%incomp_ion) then
       this%jaco_eta => this%init_jaco(iprov, this%depend(eta, par%ionvert(ion%ci)), const = .false.)
     end if
 
@@ -178,7 +178,7 @@ contains
     allocate (idx(this%par%g%idx_dim))
 
     ci   = this%ion%ci
-    ii_g = this%par%smc%ii_g(ci) ! degeneracy factor (2 or 4)
+    ii_g = this%par%smc(this%par%smc_default)%ii_g(ci) ! degeneracy factor (2 or 4)
 
     do i = 1, this%par%ionvert(ci)%n
       idx = this%par%ionvert(ci)%get_idx(i)
@@ -208,7 +208,7 @@ contains
     integer              :: ci, i
     integer, allocatable :: idx(:)
 
-    if (.not. par%smc%incomp_ion) call program_error("use only if incomplete ionization is turned on")
+    if (.not. par%smc(par%smc_default)%incomp_ion) call program_error("use only if incomplete ionization is turned on")
 
     ci = ion%ci
 
@@ -293,7 +293,7 @@ contains
     ! dependencies
     this%jaco_eta => this%init_jaco(iprov, this%depend(eta, par%ionvert(ci)), const = .false.)
     this%jaco_ion => this%init_jaco(iprov, this%depend(ion, par%ionvert(ci)), const = .false.)
-    if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+    if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
       this%jaco_efield_abs => this%init_jaco(iprov, this%depend(efield_abs, par%ionvert(ci)), const = .false.)
     end if
 
@@ -311,8 +311,8 @@ contains
     real                 :: prefac, dprefacdeta, dprefacdef, WKB, genrec, dgenrecdeta, dgenrecdef, dgenrecdion
 
     ci   = this%genrec%ci
-    ii_g = this%par%smc%ii_g(ci) ! degeneracy factor (2 or 4)
-    a    = this%par%smc%ii_pf_a
+    ii_g = this%par%smc(this%par%smc_default)%ii_g(ci) ! degeneracy factor (2 or 4)
+    a    = this%par%smc(this%par%smc_default)%ii_pf_a
 
     allocate (idx(this%par%g%idx_dim))
     do i = 1, this%par%ionvert(ci)%n
@@ -322,7 +322,7 @@ contains
       Edop = this%par%ii_E_dop(ci)%get(idx) ! E_C - E_D or E_A - E_V
       eta  = this%eta%get(idx)
       ion  = this%ion%get(idx)
-      if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) then
+      if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) then
         ef   = this%efield_abs%get(idx)
         eps  = this%par%eps(IDX_VERTEX,0)%get(idx)
       end if
@@ -330,7 +330,7 @@ contains
       ! Poole-Frenkel barrier lowering if Edop > 0
       dE = 0.0
       ddEdef = 0.0
-      if (this%par%smc%ii_pf .and. Edop > 0.0) then
+      if (this%par%smc(this%par%smc_default)%ii_pf .and. Edop > 0.0) then
         dE0 = sqrt(ef / (PI * eps))
         ddE0def = 0.5 / sqrt(PI * eps * ef)
         ! dE = min(dE0, Edop) with a differentiable "softmin" function
@@ -340,12 +340,12 @@ contains
       end if
 
       ! calculate distribution function F(eta+dE) and G = exp(-eta-dE)*F(eta+dE) and derivatives
-      if ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_MAXWELL)) then
+      if ((this%par%smc(this%par%smc_default)%dos == DOS_PARABOLIC) .and. (this%par%smc(this%par%smc_default)%dist == DIST_MAXWELL)) then
         F    = exp(eta+dE)
         dF   = F
         G  = 1.0
         dG = 0.0
-      elseif ((this%par%smc%dos == DOS_PARABOLIC) .and. (this%par%smc%dist == DIST_FERMI)) then
+      elseif ((this%par%smc(this%par%smc_default)%dos == DOS_PARABOLIC) .and. (this%par%smc(this%par%smc_default)%dist == DIST_FERMI)) then
         ! use non-regularized functions in ionization calculation
         F  =  fd1h(eta+dE) / gamma(1.5)
         dF = fdm1h(eta+dE) / gamma(0.5)
@@ -363,17 +363,17 @@ contains
       end if
 
       ! SRH prefactor with or without Poole-Frenkel effect
-      prefac = (exp(-Edop+dE)*G + ii_g*F) / this%par%smc%ii_tau(ci)
-      dprefacdeta = (exp(-Edop+dE)*dG + ii_g*dF) / this%par%smc%ii_tau(ci)
-      dprefacdef = (exp(-Edop+dE)*G + exp(-Edop+dE)*dG + ii_g*dF) * ddEdef / this%par%smc%ii_tau(ci)
+      prefac = (exp(-Edop+dE)*G + ii_g*F) / this%par%smc(this%par%smc_default)%ii_tau(ci)
+      dprefacdeta = (exp(-Edop+dE)*dG + ii_g*dF) / this%par%smc(this%par%smc_default)%ii_tau(ci)
+      dprefacdef = (exp(-Edop+dE)*G + exp(-Edop+dE)*dG + ii_g*dF) * ddEdef / this%par%smc(this%par%smc_default)%ii_tau(ci)
 
       ! add tunneling terms if Edop > 0
-      if (this%par%smc%ii_tun .and. Edop > 0.0) then
+      if (this%par%smc(this%par%smc_default)%ii_tun .and. Edop > 0.0) then
         ! WKB transparency factor for a triangular barrier
-        WKB = 4.0/3.0 * sqrt(2*this%par%smc%ii_m_tun(ci)) * Edop**1.5
-        prefac = prefac + exp(-WKB/ef) / this%par%smc%ii_tau_tun(ci) * (1 + (ii_g-1)/(1+exp(-eta-Edop)))
-        dprefacdeta = dprefacdeta + exp(-WKB/ef) / this%par%smc%ii_tau_tun(ci) * (ii_g-1) / (exp(eta+Edop) + 2 + exp(-eta-Edop))
-        dprefacdef = dprefacdef + WKB/ef**2 * exp(-WKB/ef) / this%par%smc%ii_tau_tun(ci) * (1 + (ii_g-1)/(1+exp(-eta-Edop)))
+        WKB = 4.0/3.0 * sqrt(2*this%par%smc(this%par%smc_default)%ii_m_tun(ci)) * Edop**1.5
+        prefac = prefac + exp(-WKB/ef) / this%par%smc(this%par%smc_default)%ii_tau_tun(ci) * (1 + (ii_g-1)/(1+exp(-eta-Edop)))
+        dprefacdeta = dprefacdeta + exp(-WKB/ef) / this%par%smc(this%par%smc_default)%ii_tau_tun(ci) * (ii_g-1) / (exp(eta+Edop) + 2 + exp(-eta-Edop))
+        dprefacdef = dprefacdef + WKB/ef**2 * exp(-WKB/ef) / this%par%smc(this%par%smc_default)%ii_tau_tun(ci) * (1 + (ii_g-1)/(1+exp(-eta-Edop)))
       end if
 
       ! total rate G-R
@@ -386,7 +386,7 @@ contains
       call this%genrec%set(idx, genrec)
       call this%jaco_eta%add(idx, idx, dgenrecdeta)
       call this%jaco_ion%add(idx, idx, dgenrecdion)
-      if (this%par%smc%ii_pf .or. this%par%smc%ii_tun) call this%jaco_efield_abs%add(idx, idx, dgenrecdef)
+      if (this%par%smc(this%par%smc_default)%ii_pf .or. this%par%smc(this%par%smc_default)%ii_tun) call this%jaco_efield_abs%add(idx, idx, dgenrecdef)
     end do
   end subroutine
 

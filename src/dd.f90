@@ -39,13 +39,13 @@ program dd
 
   ! create list of variables for output in steady-state and transient simulations
   output_list = [string("pot")]
-  if (dev%par%smc%incomp_ion .and. (dev%par%smc%ii_pf .or. dev%par%smc%ii_tun)) output_list = [output_list, string("electric_field_abs")]
+  if (dev%par%smc(dev%par%smc_default)%incomp_ion .and. (dev%par%smc(dev%par%smc_default)%ii_pf .or. dev%par%smc(dev%par%smc_default)%ii_tun)) output_list = [output_list, string("electric_field_abs")]
   output_list = [output_list, string("rho")]
-  do ci = dev%par%smc%ci0, dev%par%smc%ci1
+  do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
     output_list = [output_list, string(CR_NAME(ci) // "dens")]
     output_list = [output_list, string("eta_" // CR_NAME(ci))]
-    if (dev%par%smc%incomp_ion) output_list = [output_list, string("ion" // DOP_NAME(ci))]
-    if (dev%par%smc%incomp_ion) output_list = [output_list, string("genrec_" // RATE_NAME(ci))]
+    if (dev%par%smc(dev%par%smc_default)%incomp_ion) output_list = [output_list, string("ion" // DOP_NAME(ci))]
+    if (dev%par%smc(dev%par%smc_default)%incomp_ion) output_list = [output_list, string("genrec_" // RATE_NAME(ci))]
   end do
   do ict = 1, dev%par%nct
     output_list = [output_list, string("V_" // dev%par%contacts(ict)%name)]
@@ -540,7 +540,7 @@ contains
 
     if (gummel_restart) then
       ! approximate imrefs
-      do ci = dev%par%smc%ci0, dev%par%smc%ci1
+      do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
         call approx_imref(dev%par, dev%iref(ci), dev%volt)
       end do
 
@@ -549,7 +549,7 @@ contains
     end if
 
     call runfile%get_section("dd params", si)
-    do ci = dev%par%smc%ci0, dev%par%smc%ci1
+    do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
       call runfile%sections%d(si)%set("msg", string(CR_NAME(ci) // "DD: "))
       call ss_dd(ci)%init(dev%sys_dd(ci))
       call ss_dd(ci)%set_params(runfile%sections%d(si))
@@ -574,7 +574,7 @@ contains
       error = err_pot
 
       ! solve dd model for electrons and holes
-      do ci = dev%par%smc%ci0, dev%par%smc%ci1
+      do ci = dev%par%smc(dev%par%smc_default)%ci0, dev%par%smc(dev%par%smc_default)%ci1
         iref0(:,ci) = dev%iref(ci)%get()
 
         call ss_dd(ci)%run()

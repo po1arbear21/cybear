@@ -128,7 +128,7 @@ contains
       A_richardson = par%contacts(ict)%A_richardson_p
     end if
 
-    v_th = A_richardson * norm(par%T, "K")**2 / par%smc%edos(ci)
+    v_th = A_richardson * norm(par%T, "K")**2 / par%smc(par%smc_default)%edos(ci)
   end function schottky_velocity
 
 
@@ -175,14 +175,14 @@ contains
     if (ci == CR_ELEC) then
       phi_b = par%contacts(ict)%phi_b
     else
-      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+      phi_b = par%smc(par%smc_default)%band_gap - par%contacts(ict)%phi_b
     end if
 
     call ifbl_delta_phi(par%contacts(ict)%ifbl, E_normal, eps_sc, dphi)
     dphi = min(dphi, phi_b)
     phi_b_eff = phi_b - dphi
 
-    n0b = par%smc%edos(ci) * exp(-phi_b_eff)
+    n0b = par%smc(par%smc_default)%edos(ci) * exp(-phi_b_eff)
 
     if (present(delta_phi)) delta_phi = dphi
 
@@ -226,14 +226,14 @@ contains
       phi_b = par%contacts(ict)%phi_b
       m_tunnel = par%contacts(ict)%m_tunnel_n
     else
-      phi_b = par%smc%band_gap - par%contacts(ict)%phi_b
+      phi_b = par%smc(par%smc_default)%band_gap - par%contacts(ict)%phi_b
       m_tunnel = par%contacts(ict)%m_tunnel_p
     end if
 
     prefactor = m_tunnel / (2.0 * PI**2)
 
     ! compute eta from density via inverse distribution function
-    call par%smc%get_inv_dist(dens / par%smc%edos(ci), eta, detadF)
+    call par%smc(par%smc_default)%get_inv_dist(dens / par%smc(par%smc_default)%edos(ci), eta, detadF)
 
     ! quasi-Fermi level relative to metal Fermi level (unmodified phi_b:
     ! eta_m = V_n/kT represents the Fermi level splitting, independent of IFBL)
@@ -255,7 +255,7 @@ contains
 
     ! derivative dJ_t/d(dens) via chain rule:
     ! dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(eta) * d(eta)/d(dens)
-    dJ_t_ddens = -prefactor * dIdp(4) * detadF / par%smc%edos(ci)
+    dJ_t_ddens = -prefactor * dIdp(4) * detadF / par%smc(par%smc_default)%edos(ci)
   end subroutine schottky_tunneling
 
 

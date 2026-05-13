@@ -294,7 +294,7 @@ contains
       end do
 
       ! add minimum for numeric stability
-      fieldsum = fieldsum + this%par%smc%ii_ef_min**2
+      fieldsum = fieldsum + this%par%smc(this%par%smc_default)%ii_ef_min**2
 
       ! get total field strength
       fieldsum = sqrt(fieldsum)

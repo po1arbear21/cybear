@@ -118,16 +118,16 @@ contains
       ! get doping and imrefs
       dop(DOP_DCON) = par%dop(IDX_VERTEX,0,DOP_DCON)%get(idx)
       dop(DOP_ACON) = par%dop(IDX_VERTEX,0,DOP_ACON)%get(idx)
-      do ci = par%smc%ci0, par%smc%ci1
+      do ci = par%smc(par%smc_default)%ci0, par%smc(par%smc_default)%ci1
         ireff(ci) = iref(ci)%get(idx)
       end do
       dop_eff = dop(DOP_DCON) - dop(DOP_ACON)
 
       ! estimate potential
-      if ((par%smc%ci0 == CR_ELEC) .and. (par%smc%ci1 == CR_HOLE)) then
+      if ((par%smc(par%smc_default)%ci0 == CR_ELEC) .and. (par%smc(par%smc_default)%ci1 == CR_HOLE)) then
         p = 0
         if (dop_eff /= 0) then
-          L = 0.5 * par%smc%band_gap + log(abs(dop_eff) / sqrt(par%smc%edos(1) * par%smc%edos(2)))
+          L = 0.5 * par%smc(par%smc_default)%band_gap + log(abs(dop_eff) / sqrt(par%smc(par%smc_default)%edos(1) * par%smc(par%smc_default)%edos(2)))
           if (L < 9) then
             p = asinh(0.5 * exp(L))
           else
@@ -135,15 +135,15 @@ contains
           end if
         end if
         call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + sign(p, dop_eff))
-      elseif (par%smc%ci0 == CR_ELEC) then
+      elseif (par%smc(par%smc_default)%ci0 == CR_ELEC) then
         if (dop(DOP_DCON) > 0) then
-          call pot%set(idx, ireff(CR_ELEC) + 0.5 * par%smc%band_gap + log(dop(DOP_DCON) / sqrt(par%smc%edos(CR_ELEC) * par%smc%edos(CR_HOLE))))
+          call pot%set(idx, ireff(CR_ELEC) + 0.5 * par%smc(par%smc_default)%band_gap + log(dop(DOP_DCON) / sqrt(par%smc(par%smc_default)%edos(CR_ELEC) * par%smc(par%smc_default)%edos(CR_HOLE))))
         else
           call pot%set(idx, ireff(CR_ELEC))
         end if
-      elseif (par%smc%ci0 == CR_HOLE) then
+      elseif (par%smc(par%smc_default)%ci0 == CR_HOLE) then
         if (dop(DOP_ACON) > 0) then
-          call pot%set(idx, ireff(CR_HOLE) + 0.5 * par%smc%band_gap - log(dop(DOP_ACON) / sqrt(par%smc%edos(CR_ELEC) * par%smc%edos(CR_HOLE))))
+          call pot%set(idx, ireff(CR_HOLE) + 0.5 * par%smc(par%smc_default)%band_gap - log(dop(DOP_ACON) / sqrt(par%smc(par%smc_default)%edos(CR_ELEC) * par%smc(par%smc_default)%edos(CR_HOLE))))
         else
           call pot%set(idx, ireff(CR_HOLE))
         end if

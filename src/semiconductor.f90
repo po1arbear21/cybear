@@ -8,6 +8,7 @@ module semiconductor_m
   use error_m,        only: assert_failed, program_error
   use fukushima_m,    only: fermi_dirac_integral, ifd1h
   use math_m,         only: expm1
+  use string_m,       only: string
   use util_m,         only: int2str
 
   implicit none
@@ -39,6 +40,10 @@ module semiconductor_m
     !! exact (numerical) solution of integral equation (thermodynamically consistent)
 
   type semiconductor
+    type(string) :: name
+      !! material name (matches [semiconductor].name; set to "default" for an
+      !! anonymous single-block INI)
+
     integer :: ci0, ci1
       !! enabled carrier index range (maximal: CR_ELEC..CR_HOLE)
 
@@ -48,6 +53,9 @@ module semiconductor_m
       !! band gap
     real :: band_edge(2)
       !! conduction/valence band edge
+    real :: chi = 0.0
+      !! electron affinity (vacuum level - conduction band edge), eV. Purely relative
+      !! in single-material mode; supplies the Anderson-rule offset across heterointerfaces.
 
     integer                  :: dos
       !! density of states (DOS_PARABOLIC or DOS_PARABOLIC_TAIL)

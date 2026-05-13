@@ -215,9 +215,9 @@ contains
 
       ! calculate eta
       dens = this%dens%get(idx)
-      call this%par%smc%get_inv_dist(dens / this%par%smc%edos(this%eta%ci), eta, detadF)
+      call this%par%smc(this%par%smc_default)%get_inv_dist(dens / this%par%smc(this%par%smc_default)%edos(this%eta%ci), eta, detadF)
       call this%eta%set(idx, eta)
-      call this%jaco_dens%add(idx, idx, detadF / this%par%smc%edos(this%eta%ci))
+      call this%jaco_dens%add(idx, idx, detadF / this%par%smc(this%par%smc_default)%edos(this%eta%ci))
     end do
     !$omp end parallel do
   end subroutine
@@ -283,7 +283,7 @@ contains
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! calculate imref
-      call this%iref%set(idx, this%pot%get(idx) - this%par%smc%band_edge(ci) + ch * this%eta%get(idx))
+      call this%iref%set(idx, this%pot%get(idx) - this%par%smc(this%par%smc_default)%band_edge(ci) + ch * this%eta%get(idx))
     end do
   end subroutine
 
@@ -348,7 +348,7 @@ contains
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! calculate eta from imref and potential
-      call this%eta%set(idx, -ch * (this%pot%get(idx) - this%iref%get(idx) - this%par%smc%band_edge(ci)))
+      call this%eta%set(idx, -ch * (this%pot%get(idx) - this%iref%get(idx) - this%par%smc(this%par%smc_default)%band_edge(ci)))
     end do
   end subroutine
 
@@ -396,9 +396,9 @@ contains
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
       ! calculate density
-      call this%par%smc%get_dist(this%eta%get(idx), 0, F, dFdeta)
-      call this%dens%set(idx, this%par%smc%edos(this%eta%ci) * F)
-      call this%jaco_eta%add(idx, idx, this%par%smc%edos(this%eta%ci) * dFdeta)
+      call this%par%smc(this%par%smc_default)%get_dist(this%eta%get(idx), 0, F, dFdeta)
+      call this%dens%set(idx, this%par%smc(this%par%smc_default)%edos(this%eta%ci) * F)
+      call this%jaco_eta%add(idx, idx, this%par%smc(this%par%smc_default)%edos(this%eta%ci) * dFdeta)
     end do
     !$omp end parallel do
   end subroutine
