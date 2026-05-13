@@ -49,3 +49,18 @@ args = ""
 templates = [
   { files = [ "test/devices/schottky1D.ini" ], action = "expand" }
 ]
+
+
+[material_test]
+mode = "debug"
+target = "material_test"
+sources = ["lib/fortran-basic/src", "test"]
+args = ""
+templates = [
+  { files = [
+      "test/devices/two_material_parse.ini",
+      "test/devices/two_material_missing_name.ini",
+      "test/devices/two_material_uniformity.ini",
+      "test/devices/two_material_unknown.ini"
+  ], action = "expand" }
+]
