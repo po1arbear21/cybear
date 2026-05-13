@@ -302,9 +302,11 @@ contains
         smc%band_edge(CR_ELEC) =   0.5 * smc%band_gap + 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE))
         smc%band_edge(CR_HOLE) = - 0.5 * smc%band_gap + 0.5 * log(smc%edos(CR_ELEC) / smc%edos(CR_HOLE))
 
-        ! electron affinity (optional, default 0; supplies Anderson-rule Delta Ec across heterointerfaces)
-        call file%get(sids(i), "chi", smc%chi, status = status)
-        if (.not. status) smc%chi = 0.0
+        ! CB-edge offset on the user's chosen reference scale (optional, default 0).
+        ! ΔEc at a heterojunction edge is computed as dEc(mat1) - dEc(mat2);
+        ! the choice of zero is a user convention per INI.
+        call file%get(sids(i), "Ec_offset", smc%dEc, status = status)
+        if (.not. status) smc%dEc = 0.0
 
         ! density of states
         call file%get(sids(i), "dos", dos, status)

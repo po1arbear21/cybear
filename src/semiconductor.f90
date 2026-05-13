@@ -53,9 +53,11 @@ module semiconductor_m
       !! band gap
     real :: band_edge(2)
       !! conduction/valence band edge
-    real :: chi = 0.0
-      !! electron affinity (vacuum level - conduction band edge), eV. Purely relative
-      !! in single-material mode; supplies the Anderson-rule offset across heterointerfaces.
+    real :: dEc = 0.0
+      !! CB-edge offset on the user's chosen reference scale, eV. The simulator
+      !! only consumes differences (dEc(mat1) - dEc(mat2) at each heterojunction
+      !! edge), so the choice of zero is a user convention per INI. Single-material
+      !! INIs leave this at the default 0.0; no offset is ever evaluated.
 
     integer                  :: dos
       !! density of states (DOS_PARABOLIC or DOS_PARABOLIC_TAIL)

@@ -47,8 +47,8 @@ program material_test
   call expect_int(size(dev%par%smc), 2,              "size(smc) == 2",                n_pass, n_fail)
   call expect_str(dev%par%smc(1)%name%s, "Si",       "smc(1).name == Si",             n_pass, n_fail)
   call expect_str(dev%par%smc(2)%name%s, "SiGe",     "smc(2).name == SiGe",           n_pass, n_fail)
-  call expect_real(denorm(dev%par%smc(1)%chi, "eV"), 4.05, 1e-4, "smc(1).chi == 4.05 eV",         n_pass, n_fail)
-  call expect_real(denorm(dev%par%smc(2)%chi, "eV"), 4.10, 1e-4, "smc(2).chi == 4.10 eV",         n_pass, n_fail)
+  call expect_real(denorm(dev%par%smc(1)%dEc, "eV"),  0.00, 1e-4, "smc(1).dEc == 0.00 eV",        n_pass, n_fail)
+  call expect_real(denorm(dev%par%smc(2)%dEc, "eV"), -0.05, 1e-4, "smc(2).dEc == -0.05 eV",       n_pass, n_fail)
   call expect_int(dev%par%smc_default, 1,            "smc_default == 1",              n_pass, n_fail)
 
   ! smc_map resolves names to indices

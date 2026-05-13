@@ -19,8 +19,8 @@ contract; the parser will enforce it.
 
 A heterojunction is a junction between two materials with different band
 structures. Cybear represents this by allowing band-structure parameters
-(conduction-band edge `Ec`, valence-band edge `Ev`, bandgap `Eg`, electron
-affinity `chi`, density-of-states `Nc`/`Nv`) to vary spatially across the device.
+(conduction-band edge `Ec`, valence-band edge `Ev`, bandgap `Eg`, CB-edge
+offset `dEc`, density-of-states `Nc`/`Nv`) to vary spatially across the device.
 
 Targets enabled by this feature:
 
@@ -32,19 +32,28 @@ Targets enabled by this feature:
 Single-material devices (the entire pre-heterojunction test suite) remain
 fully supported and produce bit-identical output.
 
-## Physical convention: Anderson rule
+## Band offset convention
 
-The conduction-band offset at an interface between materials 1 and 2 is
+Each `[semiconductor]` block declares a CB-edge offset `Ec_offset` (stored on
+`type semiconductor` as `dEc`) on a user-chosen reference scale. The simulator
+only ever consumes **differences**:
 
-    Delta Ec = chi_1 - chi_2
+    Delta Ec = dEc(material_1) - dEc(material_2)
 
-where `chi` is the electron affinity (vacuum level minus conduction-band edge).
-The valence-band offset follows from `Delta Ev = Delta Ec - Delta Eg`.
+The choice of zero is a per-INI user convention. The reference can be any
+material's CB edge, vacuum level, or just `0` on whichever material the user
+calls reference. Three writers of the same heterojunction stack can pick three
+different zeros and obtain bit-identical simulation results.
 
-This is the Anderson "electron-affinity rule." It is exact in the absence of
-interface dipoles, fixed interface charge, or Bardeen-style Fermi-level pinning.
-Cybear assumes Anderson is sufficient for the v1 target devices. See
-**Assumptions** and **Deferred** below for the cases where it is not.
+The valence-band offset is derived: `Delta Ev = Delta Ec - Delta Eg`. There is
+no separate user input for VB offset; materials characterized primarily by VB
+offset are converted by the user before being written into the INI.
+
+This convention does **not** apply the Anderson electron-affinity rule.
+`Ec_offset` is meant to carry experimentally measured or DFT-computed band
+offsets directly. Anderson's rule is rarely accurate in practice (it ignores
+interface dipoles, strain, charge transfer, and Bardeen pinning); the direct-
+offset convention sidesteps it.
 
 ## Mesh representation
 
@@ -57,7 +66,7 @@ Band-structure quantities are stored **per vertex** on the simulation mesh:
 | Effective DOS `Nc(v)`        | `device_params%edos_v(1)`      | `grid_data_real`, vertex      |
 | Effective DOS `Nv(v)`        | `device_params%edos_v(2)`      | `grid_data_real`, vertex      |
 | Bandgap `Eg(v)`              | `device_params%band_gap_v`     | `grid_data_real`, vertex      |
-| Electron affinity `chi(v)`   | `device_params%chi_v`          | `grid_data_real`, vertex      |
+| CB-edge offset `dEc(v)`      | `device_params%dEc_v`          | `grid_data_real`, vertex      |
 
 Vertex storage matches the existing consumer pattern: density, quasi-Fermi
 level, and contact boundary conditions are all evaluated at vertices, and the
@@ -66,7 +75,7 @@ adjacent-vertex band-edge values. There is therefore no separate per-edge
 band-edge field.
 
 A single vertex on a material interface holds **one** (`Ec`, `Ev`, `Nc`, `Nv`,
-`chi`) tuple, taken from the vertex's owning region per the existing
+`dEc`) tuple, taken from the vertex's owning region per the existing
 region-loop convention (see `init_doping` in `device_params.f90` for the
 template). The discontinuity is realized across the *adjacent edge*, not at
 the interface vertex itself. **Mesh refinement near interfaces is the user's
@@ -92,11 +101,11 @@ one block is present:
 
 ```ini
 [semiconductor]
-name  = Si
-E_gap = 1.12        ! eV
-chi   = 4.05        ! eV
-N_c0  = 2.86e19     ! cm^-3 at 300 K (scaled by T**1.5 internally)
-N_v0  = 3.10e19     ! cm^-3 at 300 K
+name      = Si
+E_gap     = 1.12        ! eV
+Ec_offset = 0.0         ! eV    (this material is the reference)
+N_c0      = 2.86e19     ! cm^-3 at 300 K (scaled by T**1.5 internally)
+N_v0      = 3.10e19     ! cm^-3 at 300 K
 electrons = true    ! read once from mat_default; controls ci0/ci1 globally
 holes     = true
 dos   = parabolic   ! uniformity-checked across blocks (v1)
@@ -114,11 +123,11 @@ alpha_n   = 0.91
 alpha_p   = 0.81
 
 [semiconductor]
-name  = SiGe20
-E_gap = 0.97
-chi   = 4.10
-N_c0  = ...
-N_v0  = ...
+name      = SiGe20
+E_gap     = 0.97
+Ec_offset = -0.05       ! eV    (50 meV below Si CB; illustrative)
+N_c0      = ...
+N_v0      = ...
 ```
 
 ### Transport regions
@@ -147,9 +156,9 @@ material = SiGe20
 | N `[semiconductor]` blocks, all with `name =` | Multi-material mode. First block becomes `mat_default`. Transport regions without `material =` resolve to default; with `material =` resolve via `mat_map`. |
 | N `[semiconductor]` blocks, ≥1 missing `name =` | **Hard-error:** `multiple [semiconductor] sections require every block to declare name=` |
 
-`chi` defaults to `0.0` when absent (purely relative in single-material mode; no
-ΔΧ is ever evaluated). For heterojunction simulations, `chi` should be supplied
-explicitly on every block.
+`Ec_offset` defaults to `0.0` when absent (single-material INIs never evaluate
+any ΔEc). For heterojunction simulations, `Ec_offset` should be supplied
+explicitly on every block on a consistent user-chosen reference scale.
 
 ## Discretization
 
@@ -180,9 +189,12 @@ vertex-local:
 
 ## Assumptions (v1)
 
-1. **Anderson rule with no interface dipole.** `Delta Ec = chi_1 - chi_2`
-   exactly. No spontaneous-polarization corrections, no fixed interface
-   charge, no Bardeen-style pinning.
+1. **Static band offsets, no interface dipole.** `Delta Ec` follows directly
+   from each material's user-declared `Ec_offset` value. No spontaneous-
+   polarization corrections, no fixed interface charge, no Bardeen-style
+   pinning. Users wanting to model these effects must fold them into the
+   `Ec_offset` values themselves (e.g., shift one material's offset by the
+   measured dipole contribution).
 2. **Per-vertex band edges are well-defined at the interface.** Each
    interface vertex inherits one material's parameters; the discontinuity is
    carried by the adjacent edge.
@@ -280,8 +292,8 @@ A device is considered correctly heterojunction-modeled when:
 2. **Synthetic uniform Ec.** Setting both regions to the same material
    produces fluxes identical to the single-material baseline.
 3. **Si / SiGe equilibrium test (`devices/het/si_sige.ini`).** At V=0:
-   - `Ec(x)` shows a step `Delta Ec ~= chi_Si - chi_SiGe20` at the
-     interface vertex.
+   - `Ec(x)` shows a step `Delta Ec = Ec_offset(Si) - Ec_offset(SiGe20)` at
+     the interface vertex (i.e. the user-declared band-offset values).
    - The quasi-Fermi level is flat across the device (max deviation
      < 1e-6 eV).
    - Integrated electron density matches the analytical N+/N step
@@ -294,7 +306,8 @@ A device is considered correctly heterojunction-modeled when:
 
 ## References
 
-- S. M. Sze, *Physics of Semiconductor Devices*, ch. 1 (Anderson rule).
+- S. M. Sze, *Physics of Semiconductor Devices*, ch. 1 (heterojunction band
+  alignment; Anderson rule and its limitations).
 - S. Selberherr, *Analysis and Simulation of Semiconductor Devices*,
   §4.3 (Scharfetter-Gummel with position-dependent band edges).
 - Z. Yu, R. W. Dutton, "SEDAN III - A Generalized Electronic Material
