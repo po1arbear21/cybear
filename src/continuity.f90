@@ -266,9 +266,12 @@ contains
           cycle
         end if
 
-        ! Ohmic / RealOhmic / Gate: calculate contact density via get_dist
-        call par%smc(par%smc_default)%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%smc(par%smc_default)%band_edge(ci)), 0, F, dF)
-        this%b0(j) = par%smc(par%smc_default)%edos(ci) * F
+        ! Ohmic / RealOhmic / Gate: calculate contact density via get_dist using the
+        ! contact-vertex's local band edge and edos (collapses to smc_default when
+        ! the contact sits on the default material, which is the v1 invariant for
+        ! contacts associated with mat_default).
+        call par%smc(par%smc_default)%get_dist(- CR_CHARGE(ci) * (par%contacts(ict)%phims - par%band_edge_v(ci)%get(idx1)), 0, F, dF)
+        this%b0(j) = par%edos_v(ci)%get(idx1) * F
         if (par%contacts(ict)%type == CT_REALOHMIC) then
           call this%jaco_dens%add(idx1, idx1, par%ct_surf%get(idx1) * par%contacts(ict)%vrec)
           this%b0(j) = this%b0(j) * par%ct_surf%get(idx1) * par%contacts(ict)%vrec

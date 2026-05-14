@@ -107,7 +107,7 @@ contains
 
 
     integer               :: i, ci
-    real                  :: ireff(2), dop(2), dop_eff, L, p
+    real                  :: ireff(2), dop(2), dop_eff, L, p, Eg_v, Nc_v, Nv_v
     integer, allocatable  :: idx(:)
 
     ! loop over uncontacted transport vertices
@@ -123,11 +123,16 @@ contains
       end do
       dop_eff = dop(DOP_DCON) - dop(DOP_ACON)
 
+      ! per-vertex band-structure params (consistent with heterojunction layout)
+      Eg_v = par%band_gap_v%get(idx)
+      Nc_v = par%edos_v(CR_ELEC)%get(idx)
+      Nv_v = par%edos_v(CR_HOLE)%get(idx)
+
       ! estimate potential
       if ((par%smc(par%smc_default)%ci0 == CR_ELEC) .and. (par%smc(par%smc_default)%ci1 == CR_HOLE)) then
         p = 0
         if (dop_eff /= 0) then
-          L = 0.5 * par%smc(par%smc_default)%band_gap + log(abs(dop_eff) / sqrt(par%smc(par%smc_default)%edos(1) * par%smc(par%smc_default)%edos(2)))
+          L = 0.5 * Eg_v + log(abs(dop_eff) / sqrt(Nc_v * Nv_v))
           if (L < 9) then
             p = asinh(0.5 * exp(L))
           else
@@ -137,13 +142,13 @@ contains
         call pot%set(idx, 0.5 * (ireff(CR_ELEC) + ireff(CR_HOLE)) + sign(p, dop_eff))
       elseif (par%smc(par%smc_default)%ci0 == CR_ELEC) then
         if (dop(DOP_DCON) > 0) then
-          call pot%set(idx, ireff(CR_ELEC) + 0.5 * par%smc(par%smc_default)%band_gap + log(dop(DOP_DCON) / sqrt(par%smc(par%smc_default)%edos(CR_ELEC) * par%smc(par%smc_default)%edos(CR_HOLE))))
+          call pot%set(idx, ireff(CR_ELEC) + 0.5 * Eg_v + log(dop(DOP_DCON) / sqrt(Nc_v * Nv_v)))
         else
           call pot%set(idx, ireff(CR_ELEC))
         end if
       elseif (par%smc(par%smc_default)%ci0 == CR_HOLE) then
         if (dop(DOP_ACON) > 0) then
-          call pot%set(idx, ireff(CR_HOLE) + 0.5 * par%smc(par%smc_default)%band_gap - log(dop(DOP_ACON) / sqrt(par%smc(par%smc_default)%edos(CR_ELEC) * par%smc(par%smc_default)%edos(CR_HOLE))))
+          call pot%set(idx, ireff(CR_HOLE) + 0.5 * Eg_v - log(dop(DOP_ACON) / sqrt(Nc_v * Nv_v)))
         else
           call pot%set(idx, ireff(CR_HOLE))
         end if

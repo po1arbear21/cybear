@@ -75,6 +75,15 @@ module device_params_m
     class(grid_data_real), allocatable :: ct_surf
       !! contact area for real ohmic contact vertices
 
+    class(grid_data_real), allocatable :: band_edge_v(:)
+      !! per-vertex conduction (CR_ELEC) and valence (CR_HOLE) band edges
+    class(grid_data_real), allocatable :: edos_v(:)
+      !! per-vertex effective density of states (carrier-indexed)
+    class(grid_data_real), allocatable :: band_gap_v
+      !! per-vertex bandgap
+    class(grid_data_real), allocatable :: dEc_v
+      !! per-vertex CB-edge offset (diagnostic; physics consumes band_edge_v)
+
     type(grid_table),      allocatable :: poisson(:,:)
       !! poisson grid tables (idx_type, idx_dir)
     type(grid_table),      allocatable :: oxide(:,:)
@@ -155,6 +164,7 @@ module device_params_m
     procedure, private :: init_transport         => device_params_init_transport
     procedure, private :: init_contact_tables    => device_params_init_contact_tables
     procedure, private :: init_doping            => device_params_init_doping
+    procedure, private :: init_band_edges        => device_params_init_band_edges
     procedure, private :: init_mobility          => device_params_init_mobility
     procedure, private :: init_contacts          => device_params_init_contacts
   end type
@@ -214,6 +224,7 @@ contains
     call this%init_transport()
     call this%init_contact_tables()
     call this%init_doping(file)
+    call this%init_band_edges()
     call this%init_mobility(file)
     call this%init_contacts()
 
@@ -1187,6 +1198,58 @@ contains
         end do
       end do
     end if
+  end subroutine
+
+  subroutine device_params_init_band_edges(this)
+    !! Allocate per-vertex band-structure fields and fill from each transport
+    !! region's resolved material. At an interface vertex shared by two regions
+    !! with different materials, the later region in reg_trans(:) wins (matches
+    !! the existing region-loop convention used by init_doping for cells).
+    !! The Ec/Ev discontinuity is realized across the adjacent edge.
+    class(device_params), target, intent(inout) :: this
+
+    integer                      :: ci, ri, i, idx_dim
+    integer, allocatable         :: idx(:)
+    type(semiconductor), pointer :: smc_p
+
+    print "(A)", "init_band_edges"
+
+    idx_dim = this%g%idx_dim
+    allocate (idx(idx_dim))
+
+    ! Allocate over the full [CR_ELEC, CR_HOLE] carrier range (matching the
+    ! fixed size of semiconductor%edos(2) and semiconductor%band_edge(2)), so
+    ! consumers can read either index regardless of which carriers are enabled.
+    call allocate_grid_data1_real(this%band_edge_v, idx_dim, CR_ELEC, CR_HOLE)
+    call allocate_grid_data1_real(this%edos_v,      idx_dim, CR_ELEC, CR_HOLE)
+    call allocate_grid_data0_real(this%band_gap_v,  idx_dim)
+    call allocate_grid_data0_real(this%dEc_v,       idx_dim)
+
+    do ci = CR_ELEC, CR_HOLE
+      call this%band_edge_v(ci)%init(this%g, IDX_VERTEX, 0)
+      call this%edos_v(ci)%init(     this%g, IDX_VERTEX, 0)
+    end do
+    call this%band_gap_v%init(this%g, IDX_VERTEX, 0)
+    call this%dEc_v%init(     this%g, IDX_VERTEX, 0)
+
+    ! fill from each transport region's resolved material. The per-material
+    ! Ec_offset (smc%dEc) is folded into both band edges so the SG flux's
+    ! (be(2)-be(1)) term includes the user-specified CB offset on top of the
+    ! intrinsic-level shift implied by Eg/Nc/Nv. In single-material mode
+    ! smc%dEc defaults to 0, so band_edge_v collapses to smc%band_edge and
+    ! the legacy bit-identical regression holds.
+    do ri = 1, size(this%reg_trans)
+      smc_p => this%smc(this%reg_trans(ri)%material_id)
+      do i = 1, this%reg_trans(ri)%vert_table%n
+        idx = this%reg_trans(ri)%vert_table%get_idx(i)
+        do ci = CR_ELEC, CR_HOLE
+          call this%band_edge_v(ci)%set(idx, smc_p%band_edge(ci) + smc_p%dEc)
+          call this%edos_v(ci)%set(     idx, smc_p%edos(ci))
+        end do
+        call this%band_gap_v%set(idx, smc_p%band_gap)
+        call this%dEc_v%set(     idx, smc_p%dEc)
+      end do
+    end do
   end subroutine
 
   subroutine device_params_init_mobility(this, file)

@@ -206,18 +206,19 @@ contains
 
     integer              :: i
     integer, allocatable :: idx(:)
-    real                 :: dens, eta, detadF
+    real                 :: dens, eta, detadF, edos_loc
 
     allocate (idx(this%par%g%idx_dim))
-    !$omp parallel do default(none) schedule(dynamic) private(i,idx,dens,eta,detadF) shared(this)
+    !$omp parallel do default(none) schedule(dynamic) private(i,idx,dens,eta,detadF,edos_loc) shared(this)
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! calculate eta
-      dens = this%dens%get(idx)
-      call this%par%smc(this%par%smc_default)%get_inv_dist(dens / this%par%smc(this%par%smc_default)%edos(this%eta%ci), eta, detadF)
+      ! calculate eta with per-vertex edos so n = dens/edos is consistent across heterojunctions
+      dens     = this%dens%get(idx)
+      edos_loc = this%par%edos_v(this%eta%ci)%get(idx)
+      call this%par%smc(this%par%smc_default)%get_inv_dist(dens / edos_loc, eta, detadF)
       call this%eta%set(idx, eta)
-      call this%jaco_dens%add(idx, idx, detadF / this%par%smc(this%par%smc_default)%edos(this%eta%ci))
+      call this%jaco_dens%add(idx, idx, detadF / edos_loc)
     end do
     !$omp end parallel do
   end subroutine
@@ -282,8 +283,8 @@ contains
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! calculate imref
-      call this%iref%set(idx, this%pot%get(idx) - this%par%smc(this%par%smc_default)%band_edge(ci) + ch * this%eta%get(idx))
+      ! calculate imref using per-vertex band edge
+      call this%iref%set(idx, this%pot%get(idx) - this%par%band_edge_v(ci)%get(idx) + ch * this%eta%get(idx))
     end do
   end subroutine
 
@@ -347,8 +348,8 @@ contains
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! calculate eta from imref and potential
-      call this%eta%set(idx, -ch * (this%pot%get(idx) - this%iref%get(idx) - this%par%smc(this%par%smc_default)%band_edge(ci)))
+      ! calculate eta from imref and potential using per-vertex band edge
+      call this%eta%set(idx, -ch * (this%pot%get(idx) - this%iref%get(idx) - this%par%band_edge_v(ci)%get(idx)))
     end do
   end subroutine
 
@@ -387,18 +388,19 @@ contains
     class(calc_density), intent(inout) :: this
 
     integer              :: i
-    real                 :: F, dFdeta
+    real                 :: F, dFdeta, edos_loc
     integer, allocatable :: idx(:)
 
     allocate (idx(this%par%g%idx_dim))
-    !$omp parallel do default(none) schedule(dynamic) private(i,idx,F,dFdeta) shared(this)
+    !$omp parallel do default(none) schedule(dynamic) private(i,idx,F,dFdeta,edos_loc) shared(this)
     do i = 1, this%par%transport(IDX_VERTEX,0)%n
       idx = this%par%transport(IDX_VERTEX,0)%get_idx(i)
 
-      ! calculate density
+      ! calculate density with per-vertex edos
+      edos_loc = this%par%edos_v(this%eta%ci)%get(idx)
       call this%par%smc(this%par%smc_default)%get_dist(this%eta%get(idx), 0, F, dFdeta)
-      call this%dens%set(idx, this%par%smc(this%par%smc_default)%edos(this%eta%ci) * F)
-      call this%jaco_eta%add(idx, idx, this%par%smc(this%par%smc_default)%edos(this%eta%ci) * dFdeta)
+      call this%dens%set(idx, edos_loc * F)
+      call this%jaco_eta%add(idx, idx, edos_loc * dFdeta)
     end do
     !$omp end parallel do
   end subroutine

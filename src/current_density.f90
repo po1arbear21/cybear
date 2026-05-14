@@ -159,31 +159,36 @@ contains
     !! evaluate drift-diffusion equation
     class(calc_current_density), intent(inout) :: this
 
-    integer               :: i, idx_dir, idx_dim, start, end, rate
-    real                  :: pot(2), dens(2), j, djdpot(2), djddens(2), djdmob, len, mob
+    integer               :: i, idx_dir, idx_dim, start, end, rate, ci
+    real                  :: pot(2), dens(2), be(2), edos_e(2), j, djdpot(2), djddens(2), djdmob, len, mob
     integer, allocatable  :: idx(:), idx1(:), idx2(:)
     logical               :: status
 
     idx_dim = this%par%g%idx_dim
     idx_dir = this%cdens%idx_dir
+    ci      = this%cdens%ci
     allocate (idx(idx_dim), idx1(idx_dim), idx2(idx_dim))
     call system_clock(start, rate)
 
     ! loop over transport edges in parallel
     !$omp parallel do default(none) schedule(dynamic) &
-    !$omp private(i,pot,dens,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
-    !$omp shared(this,idx_dir,idx_dim)
+    !$omp private(i,pot,dens,be,edos_e,j,djdpot,djddens,djdmob,len,mob,idx,idx1,idx2,status) &
+    !$omp shared(this,idx_dir,idx_dim,ci)
     do i = 1, this%par%transport(IDX_EDGE, idx_dir)%n
       idx = this%par%transport(IDX_EDGE, idx_dir)%get_idx(i)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 1, idx1, status)
       call this%par%g%get_neighb(IDX_EDGE, idx_dir, IDX_VERTEX, 0, idx, 2, idx2, status)
 
       ! parameters
-      len     = this%par%g%get_len(idx, idx_dir)
-      pot( 1) = this%pot%get( idx1)
-      pot( 2) = this%pot%get( idx2)
-      dens(1) = this%dens%get(idx1)
-      dens(2) = this%dens%get(idx2)
+      len       = this%par%g%get_len(idx, idx_dir)
+      pot(   1) = this%pot%get(idx1)
+      pot(   2) = this%pot%get(idx2)
+      dens(  1) = this%dens%get(idx1)
+      dens(  2) = this%dens%get(idx2)
+      be(    1) = this%par%band_edge_v(ci)%get(idx1)
+      be(    2) = this%par%band_edge_v(ci)%get(idx2)
+      edos_e(1) = this%par%edos_v(     ci)%get(idx1)
+      edos_e(2) = this%par%edos_v(     ci)%get(idx2)
       if (this%par%smc(this%par%smc_default)%mob_sat) then
         mob = this%mob%get(idx)
       else
@@ -191,7 +196,7 @@ contains
       end if
 
       ! get current along edge
-      call this%get_curr(this%par%smc(this%par%smc_default), len, pot, dens, mob, j, djdpot, djddens, djdmob)
+      call this%get_curr(this%par%smc(this%par%smc_default), len, pot, dens, be, edos_e, mob, j, djdpot, djddens, djdmob)
 
       ! set current density + derivatives
       call this%cdens%set(idx, j)
@@ -207,17 +212,26 @@ contains
     time = time + real(end-start)/real(rate)
   end subroutine
 
-  subroutine calc_current_density_get_curr(this, smc, len, pot, dens, mob, j, djdpot, djddens, djdmob)
-    !! get current along edge
+  subroutine calc_current_density_get_curr(this, smc, len, pot, dens, be, edos_e, mob, j, djdpot, djddens, djdmob)
+    !! get current along edge. The Scharfetter-Gummel argument uses the per-vertex
+    !! band edge values be(:) so that the conduction/valence-band step at a
+    !! heterojunction edge contributes to the drift term. The density is
+    !! normalized per-vertex by edos_e(:) so n = dens/edos collapses to the
+    !! single-material expression when both endpoints share the same material.
+    !! Reference: Selberherr §4.3 / Yu & Dutton.
     class(calc_current_density), intent(in)  :: this
     type(semiconductor),         intent(in)  :: smc
-      !! semiconductor material
+      !! semiconductor material (used for dist function, stabilization method; global per v1)
     real,                        intent(in)  :: len
       !! edge length
     real,                        intent(in)  :: pot(2)
       !! potential at edge endpoints
     real,                        intent(in)  :: dens(2)
       !! density at edge endpoints
+    real,                        intent(in)  :: be(2)
+      !! band edge at edge endpoints (Ec for electrons, Ev for holes)
+    real,                        intent(in)  :: edos_e(2)
+      !! effective DOS at edge endpoints
     real,                        intent(in)  :: mob
       !! mobility
     real,                        intent(out) :: j
@@ -230,16 +244,26 @@ contains
       !! output derivatives of j wrt mob
 
     integer :: ci
-    real    :: ch, dpot, edos, n(2), djdn(2), djddpot
+    real    :: ch, dpot, edos_avg, n(2), djdn(2), djddpot
 
     ! abbreviations
-    ci   = this%cdens%ci
-    ch   = CR_CHARGE(ci)
-    edos = this%par%smc(this%par%smc_default)%edos(ci)
+    ci       = this%cdens%ci
+    ch       = CR_CHARGE(ci)
 
-    ! normalize potential drop and density
-    dpot = - ch * (pot(2) - pot(1))
-    n    = dens / edos
+    ! normalize potential drop and density. The band-edge term must carry the
+    ! per-carrier sign `ch`: the SG zero condition is Δln(n) = dpot, and from
+    ! the simulator's imref convention (iref = pot - be + ch·eta, with
+    ! eta = ln(dens/edos)) at flat quasi-Fermi level Δln(n) = -ch·(Δpot - Δbe).
+    ! For electrons this gives Δpot - Δbe; for holes, Δbe - Δpot. The (be(2) -
+    ! be(1)) term collapses to zero when the two endpoints share the same
+    ! material, recovering the single-material expression bit-identically.
+    dpot = - ch * ((pot(2) - pot(1)) - (be(2) - be(1)))
+    n(1) = dens(1) / edos_e(1)
+    n(2) = dens(2) / edos_e(2)
+    ! geometric mean of edos for denormalization — better paired with the
+    ! per-vertex n normalization than arithmetic mean (both reduce to edos
+    ! in the single-material limit).
+    edos_avg = sqrt(edos_e(1) * edos_e(2))
 
     if (smc%dist == DIST_MAXWELL .and. (.not. smc%reg)) then
       ! non-degenerate case: always use Scharfetter-Gummel
@@ -264,11 +288,13 @@ contains
       end if
     end if
 
-    ! denormalize
-    j       = j * mob * edos / len
-    djdpot  = ch * [1.0, -1.0] * djddpot * mob * edos / len
-    djddens = djdn * mob / len
-    djdmob  = j / mob
+    ! denormalize. edos_avg is the natural choice for the homogeneous limit:
+    ! edos_e(1)=edos_e(2)=edos => edos_avg=edos and djddens stays edos-free.
+    j         = j * mob * edos_avg / len
+    djdpot    = ch * [1.0, -1.0] * djddpot * mob * edos_avg / len
+    djddens(1) = djdn(1) * mob * edos_avg / (edos_e(1) * len)
+    djddens(2) = djdn(2) * mob * edos_avg / (edos_e(2) * len)
+    djdmob    = j / mob
   contains
 
     subroutine dist(eta, k, F, dFdeta)

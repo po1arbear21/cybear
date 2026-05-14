@@ -64,3 +64,15 @@ templates = [
       "test/devices/two_material_unknown.ini"
   ], action = "expand" }
 ]
+
+
+[het_test]
+mode    = "debug"
+target  = "het_test"
+sources = ["lib/fortran-basic/src", "test"]
+runner  = "slurm"
+partition = "fast"
+args    = ""
+templates = [
+  { files = [ "devices/het/si_sige.ini" ], action = "expand" }
+]

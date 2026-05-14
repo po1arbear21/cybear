@@ -282,6 +282,45 @@ Cybear's quantum-confinement support (subband structure in nanowires and
 2D systems) is orthogonal to this feature. A combined heterojunction +
 quantum-confinement workflow is not validated.
 
+## Equilibrium current floor
+
+A heterojunction equilibrium simulation in cybear does **not** reach the
+machine-precision zero (~1e-30 A) that single-material runs achieve. The
+realistic floor is ~1e-20 to 1e-21 A. The cause is structural to the
+discretization, not a bug:
+
+- In single-material bulk at equilibrium, every interior edge has
+  `dpot = 0` and `n(1) = n(2)` to bit-precision (Newton converges all
+  bulk values to identical floats). The SG kernel returns
+  `Bern(0)·n − Bern(0)·n = n − n = 0` exactly, and continuity propagates
+  this through all edges.
+- At a Si/SiGe interface edge, `dpot ≠ 0` (carries the `Δbe` term) and
+  `n(1) ≠ n(2)` (different per-vertex `Nc` normalization). The SG kernel
+  evaluates `Bern(-dpot)·n(1) − Bern(dpot)·n(2)`, which is *algebraically*
+  zero at flat quasi-Fermi but has a floating-point cancellation residual
+  of order `eps · |Bern·n| ≈ 1e-14` in normalized units (1e-20 to 1e-21 A
+  after denormalization). Continuity then propagates this residual to all
+  edges in the chain, giving the same magnitude at the contacts.
+
+Eliminating this floor requires the discretization used by Sentaurus
+Device, Sesame, and similar TCAD tools — **the quasi-Fermi potential is a
+primary Newton variable** rather than a derived quantity. With
+`iref_e(contact) = V_applied` enforced as a Dirichlet BC at the metal
+contacts, every vertex stores its `iref` as a literal float. At V=0
+equilibrium, Newton drives `iref(v) = 0` identically across the device,
+and the Sesame-form SG flux
+
+    J_n ∝ M(ψ_n(2), ψ_n(1)) · [exp(EFn(2)) − exp(EFn(1))]
+
+vanishes exactly because `exp(0) − exp(0) = 0` in floats. Cybear's current
+Newton system uses `(pot, dens)` as primary variables; switching to
+`(pot, iref)` is a substantial refactor and is **not** in v1 scope.
+
+For the v1 implementation, the per-vertex band-edge fields and SG
+modification are correct (verified by detailed balance derivation); the
+1e-21 A floor is the FP precision limit of the dens-based SG kernel at a
+non-zero `dpot` interface edge.
+
 ## Validation
 
 A device is considered correctly heterojunction-modeled when:
