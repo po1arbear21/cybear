@@ -25,9 +25,22 @@ not 1e-30 as is sometimes assumed. The 7-order gap between heterojunction
 (~1e-21) and single-material (~1e-28) is **structural to the dens-as-
 primary-variable formulation**, not a missing physics term.
 
+**Jacobian independently verified.** The analytical `sys_full` Jacobian at
+the converged Si/SiGe equilibrium state has been checked against
+finite-difference / Taylor-slope / JVP+Richardson references via the
+`het_jacobian_test` driver (six probe directions: interface pot, interface
+ndens, bulk pot, three random seeds). Taylor-remainder slope is `2.00`
+throughout; in the `v_dens_int` direction `R1(h)` is flat at the FP noise
+floor across the entire sweep — the strongest possible "J = FD"
+outcome. Combined with the Bratu fixture (20/20 verified discrimination
+of known-wrong Jacobians), this rules out a Jacobian bug as the source of
+the floor. See *Jacobian independently verified* below.
+
 Closing the gap requires switching to **iref as a primary Newton
-variable** (Slotboom-form, as in Sentaurus / Sesame). That's a multi-day
-refactor across ~6 files and all the equation-system glue.
+variable** (Slotboom-form, as in Sentaurus / Sesame) — that refactor is
+deferred, not blocking. `1e-21 A` is 14 orders below femtoamps, so no
+present cybear application is bottlenecked by it. Revisit only if a
+future use case demands sub-`1e-21` equilibrium currents.
 
 ---
 
@@ -224,6 +237,63 @@ don't admit.
 
 ---
 
+## Jacobian independently verified
+
+The FP-floor argument above is load-bearing only if Newton actually
+converges to `F(x) ≈ 0` within machine epsilon. If the analytical
+Jacobian disagreed with the true Jacobian of the residual, Newton would
+stall early at a residual floor set by that inconsistency — and the
+terminal-current "floor" would actually be a Jacobian bug, not FP
+arithmetic. To distinguish, `het_jacobian_test` (target wired in
+`fargo.toml`) runs the converged `sys_full` Jacobian through two
+threshold-free reference checks:
+
+- **Taylor remainder slope.** `R₁(h) = ‖F(x+hv) − F(x) − hJv‖`. For
+  correct `J`, `R₁ ∼ h²`; for wrong `J`, `R₁ ∼ h`. Threshold-free —
+  only the *shape* of the curve is interpreted.
+- **JVP + Richardson.** `‖Jv − (4·g(h/2) − g(h))/3‖` where `g(h) =
+  (F(x+hv) − F(x−hv))/(2h)`. Compares the analytical `Jv` against an
+  `O(h⁴)`-accurate centered FD reference of `F` along `v`.
+
+Six probe directions are exercised: pot at heterojunction interface
+vertices; ndens at the same; pot in the Si bulk far from any interface;
+three independent random vectors. Result (at converged equilibrium with
+`‖F(x*)‖ = 2.6e-14`):
+
+| Probe | Taylor slope | JVP+Richardson err |
+|---|---|---|
+| `v_pot_int`  (interface pot)   | 2.00 (large-h half)             | `1.33e-10` |
+| `v_dens_int` (interface ndens) | flat at FP floor `~1e-14`       | `7.99e-12` |
+| `v_bulk`     (Si bulk pot)     | 2.00 throughout                 | `9.34e-11` |
+| `v_rand` × 3 (seeds 31337/271828/161803) | 2.00 throughout (all 3) | `1.18e-9` / `2.64e-10` / `7.39e-10` |
+
+The `v_dens_int` case is the strongest possible "J = FD" outcome: `hJv`
+matches `F(x+hv) − F(x)` to machine precision across the entire `h`
+sweep — there is no residual left for a slope to be fit to. The slope
+test is paired with a "max R₁ below `1e-10`" criterion to recognize
+this regime as PASS rather than the false-FAIL it would be if only the
+fitted slope were checked.
+
+The validators themselves are verified on the Bratu fixture
+(`test/jacobian_validation_test.f90`): 20/20 expected verdicts across
+{correct, scaled-by-1.5, dropped-diagonal, transposed off-diagonal,
+1e-9 noise} × {finite-difference, complex-step, Taylor-slope,
+JVP+Richardson}. The discriminator gap between correct and any
+structural defect is `~10` orders of magnitude (Taylor slope `2.00 →
+1.00`; JVP err `7e-12 → 6e-1`), so the `het_test`'s slope-2 result is
+not something the validator can produce on a wrong Jacobian.
+
+**Conclusion:** the analytical Jacobian for `sys_full` at the
+converged Si/SiGe equilibrium is correct, including the band-edge
+contribution in `current_density.f90:260`. The `1e-21 A` floor is
+genuinely the FP cancellation residual of the `(pot, dens)`
+formulation — not a hidden Jacobian bug and not a Newton-convergence
+artifact. The iref refactor below is therefore confirmed as the *only*
+path to lower the floor, *and* confirmed as optional for any current
+device application.
+
+---
+
 ## What actually closes the gap (the v2 work)
 
 From [Sesame docs][sesame] and [Sentaurus User Guide][sentaurus]:
@@ -245,20 +315,30 @@ then carries that exact zero to every edge.
 
 Cybear's current Newton system holds `(pot, dens, currents, V_*)`. To
 adopt the Sesame/Sentaurus form, swap `dens` for `iref` (per carrier)
-and rewrite the system. **The refactor scope is smaller than it
-initially appears because the iref-form infrastructure already exists
-in the equation framework.** In `src/device.f90`:
+and rewrite the system. **No existing equation system has iref as a
+Newton primary today** — earlier drafts of this doc implied otherwise
+based on `calc_eta_iref` appearing in `sys_nlpe`/`sys_dd`, but that
+equation consumes iref + pot to produce eta; it doesn't *solve* for
+iref. The actual state in `src/device.f90`:
 
 ```
-sys_nlpe:  add_equation(calc_eta_iref)   ! eta = f(pot, iref, be)  -- already iref-primary
-sys_dd:    add_equation(calc_eta_iref)   ! same (with incomp_ion)  -- already iref-primary
-sys_full:  add_equation(calc_eta_dens)   ! eta = ln(dens/edos)     -- dens-primary; this is what produces the floor
+sys_nlpe:  Newton primary = pot           (Poisson is the res_equation)
+           iref is provide()-d externally — line 229
+           eta and dens are derived from (pot, iref) via
+             calc_eta_iref → calc_dens
+sys_dd:    Newton primary = ndens         (continuity is the res_equation)
+           pot, iref are provide()-d externally — lines 279–280
+sys_full:  Newton primary = pot, ndens, currents, V_*
+           ndens drives continuity; eta = calc_eta_dens(ndens);
+           iref = calc_iref(pot, eta) [derived]
 ```
 
-The `calc_eta_iref` and `calc_chemical_pot_imref` equation classes in
-`src/imref.f90` are wired and exercised by `sys_nlpe` and `sys_dd`.
-Adapting `sys_full` to use the same form (so the final Newton step
-runs in iref-primary) is the actual refactor:
+The variable infrastructure (`type, extends(variable) :: imref` in
+`src/imref.f90:35`, with full grid_data storage and Jacobian chain
+plumbing) and the helper equations (`calc_eta_iref`,
+`calc_chemical_pot_imref`, `calc_dens`) all exist. The piece that
+doesn't exist is any `res_equation` whose main_var is `iref`. That's
+the actual refactor:
 
 | File | What changes |
 |---|---|
@@ -326,6 +406,14 @@ The Phase B + C.1 + D-min work lives on branch `heterojunction-v2`:
   the dEc step exactly equals user-spec 0.020 eV. Includes a per-edge
   SG-flux diagnostic that prints the max-|J| edge index and `j_norm`
   value — useful for debugging the floor if you push this work further.
+
+- **Jacobian validation harness**: `src/jacobian_validator.f90` +
+  `src/esystem_problem.f90` + `test/het_jacobian_test.f90` +
+  `test/jacobian_validation_test.f90` (Bratu proof). Run via `fargo run
+  het_jacobian_test` or `fargo run jacobian_validation_test`. Use these
+  if you ever extend the heterojunction term and want to verify the
+  Jacobian chain rule survived — slope-2 in `R₁(h) = ‖F(x+hv) − F(x) −
+  hJv‖` is the load-bearing check.
 
 - **Design doc**: `docs/heterojunctions.md`. The "Equilibrium current
   floor" section (added this session) summarizes the structural argument
@@ -403,6 +491,14 @@ different results.
   postprocessing**. The 1e-21 result is honest physics within the
   discretization. Hiding it would just defer the realization that v2
   needs the refactor.
+
+- **If you suspect the floor has moved**, re-run `het_jacobian_test`
+  before chasing a Jacobian bug. A correct Jacobian gives Taylor slope
+  `2.00` cleanly; a regressed Jacobian flips the slope to `~1.00` and
+  the JVP+Richardson error climbs by `8+` orders of magnitude. That's
+  the fastest discriminator between "FP-floor moved because we changed
+  scaling somewhere" and "a real bug entered the heterojunction code
+  path".
 
 [sesame]: https://sesame.readthedocs.io/en/latest/physics/discretization.html
 [sentaurus]: https://www.synopsys.com/manufacturing/tcad/device-simulation/sentaurus-device.html

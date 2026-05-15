@@ -1,6 +1,6 @@
 [defaults]
 sources   = ["lib/fortran-basic/src"]
-libraries = ["BLAS95", "LAPACK95", "MPFR", "MUMPS", "ZLIB"]
+libraries = ["BLAS95", "LAPACK95", "MPFR", "ZLIB"]
 
 
 [debug]
@@ -76,3 +76,22 @@ args    = ""
 templates = [
   { files = [ "devices/het/si_sige.ini" ], action = "expand" }
 ]
+
+
+[het_jacobian_test]
+mode    = "debug"
+target  = "het_jacobian_test"
+sources = ["lib/fortran-basic/src", "test"]
+runner  = "slurm"
+partition = "fast"
+args    = ""
+templates = [
+  { files = [ "devices/het/si_sige.ini" ], action = "expand" }
+]
+
+
+[jacobian_validation_test]
+mode    = "debug"
+target  = "jacobian_validation_test"
+sources = ["lib/fortran-basic/src", "test"]
+args    = ""
