@@ -117,18 +117,43 @@ Heterojunction interface edge:
 - `n(1)` and `n(2)` differ structurally (different Nc).
 - `dpot ≠ 0` (the band-edge step survives the cancellation).
 - `Bern(-dpot)·n(1) − Bern(dpot)·n(2)` is the subtraction of two finite
-  O(10)-magnitude products that are *algebraically equal at equilibrium*
-  but **cannot be bit-identical** because they're computed from different
-  operands. The IEEE-FP residual is `≈ eps × |Bern·n| ≈ 1e-14` in
-  normalized units.
-- Newton enforces `∇·J = 0` everywhere, so this 1e-14 propagates to
-  every edge in the chain. Contact current ≈ 1e-14 × denormalization
-  factor ≈ 1e-20 to 1e-21 A.
+  products (each ≈ 3×10⁻³ normalized / ~250 nA physical at the Si/SiGe
+  interface) that are *algebraically equal at equilibrium* but
+  **cannot be bit-identical** because they're computed from different
+  operands. The absolute IEEE-FP residual is ≈ `10·eps·|Bern·n|` ≈
+  `5×10⁻¹⁷` normalized — the `10×` over single-eps comes from compounded
+  roundoff through `ber()`'s piecewise-polynomial evaluation, the `B·n`
+  multiplications, and the final subtraction. The corresponding
+  *relative* cancellation residual is ≈ `1.7×10⁻¹⁴`.
+- Newton enforces `∇·J = 0` everywhere, so this residual propagates to
+  every edge in the chain. Contact current ≈ `5×10⁻¹⁷` × denormalization
+  factor ≈ `4×10⁻²¹ A`.
 
-I verified this empirically via the per-edge diagnostic in `het_test.f90`:
-the max-|J| edge sits *inside* the Si bulk (around index 65 or 265 on
-the 301-vertex grid), with `j_norm ≈ 5×10⁻¹⁷` — exactly the residual the
-interface edge contributes, propagated via continuity.
+### Empirical verification
+
+A per-edge diagnostic in `get_curr` printing `B(-dpot)·n(1)`, `B(dpot)·n(2)`,
+and the imref-flat residual `log(n(2)/n(1)) − dpot` at heterojunction
+edges confirms each part of the mechanism:
+
+- `B(-dpot)·n(1)` and `B(dpot)·n(2)` agree to 7+ significant digits
+  (e.g. both equal `3.2558996×10⁻³` at the Si/SiGe interface), with the
+  cancellation residual sitting at the `eps·|B·n|` floor described
+  above. No "missing term" — the kernel is algebraically exact at flat
+  imref.
+- `log(n(2)/n(1)) − dpot` stabilizes at `~10⁻¹⁵` at the interface edge.
+  This is the *algebraic identity* the SG kernel relies on for `j = 0`,
+  and Newton converges it to **machine precision** regardless of the
+  `atol` setting — confirming Newton tolerance is not the bottleneck.
+- Decoupled tests (`ΔEc = 0` with `ΔNc ≠ 0`, and `ΔNc = 0` with
+  `ΔEc ≠ 0`) both produce FP-precision floors in the `10⁻¹⁹` to
+  `10⁻²⁰` A range — neither collapses to bit-zero. The cancellation is
+  intrinsic to the per-vertex `n = dens/edos` normalization at any
+  non-uniform edge, not to any specific source of non-uniformity.
+
+The max-|J| edge sits *inside* the Si bulk (around index 65 or 265 on
+the 301-vertex grid) rather than at the interface itself, with
+`j_norm ≈ 5×10⁻¹⁷` — exactly the residual the interface edge
+contributes, propagated via continuity.
 
 ### Why various rewrites don't help
 
