@@ -120,14 +120,14 @@ Heterojunction interface edge:
   products (each ≈ 3×10⁻³ normalized / ~250 nA physical at the Si/SiGe
   interface) that are *algebraically equal at equilibrium* but
   **cannot be bit-identical** because they're computed from different
-  operands. The absolute IEEE-FP residual is ≈ `10·eps·|Bern·n|` ≈
-  `5×10⁻¹⁷` normalized — the `10×` over single-eps comes from compounded
-  roundoff through `ber()`'s piecewise-polynomial evaluation, the `B·n`
-  multiplications, and the final subtraction. The corresponding
-  *relative* cancellation residual is ≈ `1.7×10⁻¹⁴`.
+  operands. The absolute IEEE-FP residual is bounded by
+  `~eps_dbl·|Bern·n|` ≈ `7×10⁻¹⁹` normalized, with the measured value
+  varying between `~10⁻¹⁹` and `~10⁻¹⁸` depending on the specific
+  rounding paths each Newton iteration takes.
 - Newton enforces `∇·J = 0` everywhere, so this residual propagates to
-  every edge in the chain. Contact current ≈ `5×10⁻¹⁷` × denormalization
-  factor ≈ `4×10⁻²¹ A`.
+  every edge in the chain. Contact current after denormalization sits
+  in the `~10⁻¹⁹` to `~10⁻²¹ A` range, with both magnitude and sign
+  varying across grid sizes as FP rounding paths shift.
 
 ### Empirical verification
 
@@ -135,11 +135,10 @@ A per-edge diagnostic in `get_curr` printing `B(-dpot)·n(1)`, `B(dpot)·n(2)`,
 and the imref-flat residual `log(n(2)/n(1)) − dpot` at heterojunction
 edges confirms each part of the mechanism:
 
-- `B(-dpot)·n(1)` and `B(dpot)·n(2)` agree to 7+ significant digits
-  (e.g. both equal `3.2558996×10⁻³` at the Si/SiGe interface), with the
-  cancellation residual sitting at the `eps·|B·n|` floor described
-  above. No "missing term" — the kernel is algebraically exact at flat
-  imref.
+- `B(-dpot)·n(1)` and `B(dpot)·n(2)` agree to 14–15 significant digits
+  (e.g. both `3.25589959120636×10⁻³` at the Si/SiGe interface), with
+  the cancellation residual sitting at the `eps_dbl·|B·n|` floor. No
+  "missing term" — the kernel is algebraically exact at flat imref.
 - `log(n(2)/n(1)) − dpot` stabilizes at `~10⁻¹⁵` at the interface edge.
   This is the *algebraic identity* the SG kernel relies on for `j = 0`,
   and Newton converges it to **machine precision** regardless of the
@@ -150,10 +149,60 @@ edges confirms each part of the mechanism:
   intrinsic to the per-vertex `n = dens/edos` normalization at any
   non-uniform edge, not to any specific source of non-uniformity.
 
-The max-|J| edge sits *inside* the Si bulk (around index 65 or 265 on
-the 301-vertex grid) rather than at the interface itself, with
-`j_norm ≈ 5×10⁻¹⁷` — exactly the residual the interface edge
-contributes, propagated via continuity.
+### Grid-spacing scaling
+
+The kernel-level cancellation `j_norm` scales linearly with `1/Δx`,
+matching the FP-precision prediction that the residual is invariant in
+*normalized* units but enters the per-edge denormalization as a `1/len`
+factor:
+
+| `dx` (nm) | `j_norm` (kernel, normalized) | ratio vs predicted `1/Δx` |
+|---|---|---|
+| 2.0 | `2.53×10⁻¹⁷` | baseline |
+| 1.0 | `5.06×10⁻¹⁷` | 2.00× (predicted 2×) |
+| 0.5 | `1.09×10⁻¹⁶` | 4.31× (predicted 4×) |
+
+Contact-current magnitude does *not* scale cleanly — sign flips and
+factor-100× swings occur — because the contact-current path involves
+Newton-residual norm tolerance and Ramo–Shockley integration, each
+adding its own rounding paths. The kernel scaling is the load-bearing
+prediction; the contact current behaves as bounded random-sign FP noise
+in the `10⁻¹⁹–10⁻²¹` range.
+
+### Three-precision SG cancellation test
+
+The strongest single confirmation of the FP-floor theory comes from
+recomputing the same SG flux in three precision regimes (all in one
+diagnostic pass, no separate runs needed):
+
+| Test | Kernel arithmetic | Inputs | Cancellation residual |
+|---|---|---|---|
+| `diff_d` | double | double (cybear's actual state) | `~5×10⁻¹⁹` |
+| `diff_q` | quad (`real128`) | double cast to quad | `~5×10⁻¹⁹` |
+| `diff_qi` | quad | quad, reconstructed to satisfy `iref = 0` exactly in quad | **`0` or `~4×10⁻³⁷`** |
+
+`diff_d ≈ diff_q` proves the kernel arithmetic is already at the
+input-precision floor — promoting only the kernel to quad does not
+help. `diff_qi` drops by 19 orders of magnitude when the *inputs*
+themselves are made consistent at quad precision, with several
+iterations printing literally `0.0000000000000000000000000000000000E+000`
+— bit-exact zero. This is the cleanest possible demonstration that
+the implementation is correct: the SG kernel returns exact zero when
+given inputs at sufficient precision to make the underlying Bernoulli
+identity bit-exact, and the `~10⁻¹⁹` residual in production is solely
+the cost of storing `(pot, dens)` as IEEE doubles.
+
+### Why finishing with Gummel-only doesn't help
+
+A natural hopeful guess: maybe the `sys_dd` Gummel iteration (which
+uses `calc_eta_iref` and treats `iref` as a provided variable) already
+delivers the iref-form floor, and we just need to skip the final
+`sys_full` Newton refinement. **Measured: false.** Stopping at Gummel
+gives `j_norm ≈ 1.4×10⁻¹⁶` (vs `5×10⁻¹⁷` for full Newton at the same
+`Δx`) — Gummel's fixed-point convergence is *looser* than Newton's
+quadratic convergence, so its converged `(pot, dens)` state has more
+residual. Both Gummel and Newton produce double-precision `(pot, dens)`,
+both feed the same SG kernel, both hit the same input-precision floor.
 
 ### Why various rewrites don't help
 
@@ -196,28 +245,44 @@ then carries that exact zero to every edge.
 
 Cybear's current Newton system holds `(pot, dens, currents, V_*)`. To
 adopt the Sesame/Sentaurus form, swap `dens` for `iref` (per carrier)
-and rewrite the system. Concretely the refactor touches at least:
+and rewrite the system. **The refactor scope is smaller than it
+initially appears because the iref-form infrastructure already exists
+in the equation framework.** In `src/device.f90`:
+
+```
+sys_nlpe:  add_equation(calc_eta_iref)   ! eta = f(pot, iref, be)  -- already iref-primary
+sys_dd:    add_equation(calc_eta_iref)   ! same (with incomp_ion)  -- already iref-primary
+sys_full:  add_equation(calc_eta_dens)   ! eta = ln(dens/edos)     -- dens-primary; this is what produces the floor
+```
+
+The `calc_eta_iref` and `calc_chemical_pot_imref` equation classes in
+`src/imref.f90` are wired and exercised by `sys_nlpe` and `sys_dd`.
+Adapting `sys_full` to use the same form (so the final Newton step
+runs in iref-primary) is the actual refactor:
 
 | File | What changes |
 |---|---|
-| `src/device.f90` | Newton variable wiring; replace `ndens`/`pdens` with `n_iref`/`p_iref` in `sys_full` |
-| `src/device_params.f90` | Output dataset includes iref; perhaps drop derived-dens caching |
-| `src/dd.f90` | BC: `iref(contact) = V_applied` (currently `dens(contact)` is the Dirichlet BC) |
-| `src/imref.f90` | The relation flips direction — dens becomes derived from `(pot, iref)`; current calc-imref equation removed or repurposed |
-| `src/current_density.f90` | SG kernel rewritten in Sesame form using `iref` inputs; Jacobian re-derived |
-| `src/continuity.f90` | Equation residual expressed in `iref` not `dens` |
-| `src/contact.f90` | Ohmic contact BC rewritten in terms of iref |
-| `src/schottky.f90` | Schottky BC rewritten (thermionic emission in terms of iref) |
-| `src/approx.f90` | Initial guess in (pot, iref) space |
-| `src/charge_density.f90` | Computes ρ from `dens = edos·exp(eta(pot, iref))` |
-| `test/schottky_test.f90`, `test/het_test.f90` | Output variable changes |
-| `lib/fortran-basic/.../equation/*` | Possibly the system-builder glue if it assumes specific variable structure |
+| `src/device.f90` | In `sys_full` setup: swap `calc_eta_dens` → `calc_eta_iref`, swap `calc_iref` (derived) → `calc_dens` (derived). ~4 lines. |
+| `src/continuity.f90` | Continuity residual `∂n/∂t + ∇·J = 0` rewritten with `n = edos·exp(...)` derived from `iref`. Jacobian re-derived in `(pot, iref)` space. |
+| `src/contact.f90` | Ohmic BC: `iref(contact) = V_applied` (Dirichlet) instead of `dens(contact) = ...` |
+| `src/approx.f90` | Initial-guess routines seed `iref` directly instead of `dens` |
+| `src/current_density.f90` | SG kernel rewritten in Sesame form `j ∝ M(ψ) · [exp(iref(2)) − exp(iref(1))]`; Jacobian re-derived |
+| `src/schottky.f90` | Thermionic BC rewritten in iref terms (Schottky devices only) |
+| `test/het_test.f90` | Output schema if it asserts on `ndens` directly |
 
-Estimated effort: 3–5 focused days of work + validation against the
+Estimated effort: **2–4 focused days of work** + validation against the
 existing pn-diode / MOSFET / nanowire / Schottky / material regression
-suite (all of which currently depend on `(pot, dens)` being primary).
+suite (all of which currently end with `sys_full` and would now end in
+iref-form). The infrastructure that's *not* in this list — `imref.f90`,
+`device_params.f90`, the system-builder glue, output writers,
+`charge_density.f90` — either already supports iref or doesn't care
+which form is primary because it only consumes derived quantities.
+
 Worth doing for v2 — heterojunctions, perovskite VFETs, and 2D-material
-stacks are all going to demand the same equilibrium-current property.
+stacks are all going to demand the same equilibrium-current property,
+and dens-primary has no compensating advantage that justifies keeping
+it. Most likely path is to **delete dens-primary entirely** rather than
+add a runtime toggle.
 
 ---
 
