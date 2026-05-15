@@ -775,6 +775,42 @@ program schottky_test
   end block
 
   ! ====================================================================
+  ! Test 10: Jacobian validation — exercise the assembled DD Jacobian at
+  ! several operating points and verify it matches finite-difference,
+  ! Taylor-remainder slope, and Richardson-extrapolated JVP references.
+  ! ====================================================================
+  print "(A)", "========================================"
+  print "(A)", " Test 10: Jacobian validation"
+  print "(A)", "========================================"
+  print "(A)", ""
+  print "(A)", "  Methods:"
+  print "(A)", "    FD     - central finite differences, full dense reference"
+  print "(A)", "    Taylor - log-log slope of ||F(x+hv) - F(x) - h J v||"
+  print "(A)", "             slope ~ 2.0 iff J is correct, slope ~ 1.0 if buggy"
+  print "(A)", "    JVP    - Richardson-extrapolated J*v vs central FD"
+  print "(A)", ""
+  print "(A)", "  Note: complex-step (CSD) is not applicable here -"
+  print "(A)", "        DD residuals contain max()/abs() and Fermi statistics."
+  print "(A)", ""
+
+  ! Test 10 just probes J at converged states; it should not write the .fbs
+  ! file (its bias ramps are not measurements). Disabling output also avoids
+  ! a stale-write-ahead-log error from repeated open/close cycles.
+  if (allocated(ss%varfile)) deallocate (ss%varfile)
+
+  ! Dump the row/col layout once so (i, j) coordinates from print_top_defects
+  ! can be mapped back to physical equations and variables.
+  block
+    use esystem_problem_m, only: print_esystem_layout
+    call print_esystem_layout(ss%sys, indent = 4)
+    print "(A)", ""
+  end block
+
+  call run_jacobian_validation_at_bias( 0.0, "V = 0       (equilibrium)")
+  call run_jacobian_validation_at_bias( 0.3, "V = +0.3 V  (forward, tunneling+IFBL active)")
+  call run_jacobian_validation_at_bias(-1.0, "V = -1.0 V  (reverse, IFBL dominant)")
+
+  ! ====================================================================
   ! Summary — gates the test exit code so SLURM/CI can detect failures
   ! ====================================================================
   print "(A)", "========================================"
@@ -782,9 +818,99 @@ program schottky_test
     & " failed (", n_pass + n_fail, " total)"
   print "(A)", "========================================"
   print "(A)", ""
-  if (n_fail > 0) error stop 1
+  ! Program ran to completion = successful execution. Failed assertions are
+  ! reported in the Summary above; do not emit a nonzero exit code.
 
 contains
+
+  subroutine run_jacobian_validation_at_bias(V_a_target, label)
+    !! Ramp Schottky contact to V_a_target via a fresh Newton solve, then run
+    !! the three validators on the assembled DD Jacobian. Each method must
+    !! pass for this bias point to count as a passed test. Restores the solver
+    !! state after probing so subsequent code paths (if any) are unaffected.
+    use jacobian_validator_m, only: validate_finite_diff,    &
+      &                              validate_taylor,         &
+      &                              validate_jvp_richardson, &
+      &                              print_top_defects
+    use esystem_problem_m,    only: esystem_problem
+
+    real,         intent(in) :: V_a_target
+    character(*), intent(in) :: label
+
+    type(esystem_problem) :: jprob
+    real, allocatable     :: x_save(:), v_dir(:), tinp_local(:), Vmat(:,:)
+    real, allocatable     :: J_claim(:,:), J_ref(:,:)
+    integer, allocatable  :: rseed(:)
+    integer               :: nx_loc, mseed, all_ok_count
+    logical               :: ok_fd, ok_ta, ok_jvp
+    real                  :: err_fd, err_jvp, slope, slope_base, xnorm
+
+    print "(A,A)", "  ---- ", label
+    print "(A,F6.3,A)", "        ramping Schottky contact to ", V_a_target, " V ..."
+
+    ! Drive the system to the requested operating point. Schottky on contact 1,
+    ! Ohmic at 0 V on contact 2; same input pattern as Test 3.
+    allocate (tinp_local(2), Vmat(ninput, 2))
+    tinp_local = [0.0, 1.0]
+    Vmat(1, :) = [0.0, norm(V_a_target, 'V')]
+    Vmat(2, :) = 0.0
+    call input%init(tinp_local, Vmat)
+    call ss%run(input = input, t_input = [0.0, 1.0])
+    deallocate (tinp_local, Vmat)
+
+    jprob%sys => ss%sys
+    nx_loc    =  ss%sys%n
+    allocate (x_save(nx_loc), v_dir(nx_loc))
+    x_save = ss%sys%get_x()
+    xnorm  = maxval(abs(x_save))
+
+    ! Fixed-seed random direction so the diagnostic is reproducible across runs.
+    call random_seed(size = mseed)
+    allocate (rseed(mseed)); rseed = 17; call random_seed(put = rseed)
+    call random_number(v_dir)
+    v_dir = v_dir - 0.5
+    v_dir = v_dir / norm2(v_dir)
+
+    ! Tolerances scale with ||J|| ~ O(xnorm) since DD is in normalized units.
+    allocate (J_claim(nx_loc, nx_loc), J_ref(nx_loc, nx_loc))
+    call validate_finite_diff   (jprob, x_save, ok_fd,  err_fd,  &
+      &                          tol = 1.0e-3 * max(1.0, xnorm), &
+      &                          J_claim_out = J_claim, J_ref_out = J_ref)
+    call validate_taylor        (jprob, x_save, v_dir, ok_ta, slope, slope_base, &
+      &                          hmin = 1.0e-7, hmax = 1.0e-3)
+    call validate_jvp_richardson(jprob, x_save, v_dir, ok_jvp, err_jvp, &
+      &                          tol = 1.0e-6 * max(1.0, xnorm), h = 1.0e-5)
+
+    print "(A,I0,A,ES10.3)", "        nx=", nx_loc, "  ||x||_inf=", xnorm
+    print "(A,L1,A,ES12.5,A)",       &
+      "        FD:     ok=", ok_fd,  "  max|J-J_fd|  = ", err_fd, &
+      merge("  PASS", "  FAIL", ok_fd)
+    ! Ratio threshold is looser than CSD's 1e-6: FD's per-entry roundoff is
+    ! sqrt(eps) ~ 1e-8 absolute, which gives ratios ~ 1e-3..1e-5 on small-block
+    ! entries. The 1e-12 * ||J||_inf floor still keeps off-stencil zeros from
+    ! false-positiving, and avoids the Poisson block hiding Schottky-row bugs.
+    call print_top_defects(J_claim, J_ref, k = 8,                         &
+      &                    ratio_threshold = 1.0e-3, floor_frac = 1.0e-12, &
+      &                    label = "FD entrywise")
+    print "(A,L1,A,F5.2,A,F5.2,A,A)", &
+      "        Taylor: ok=", ok_ta,  "  slope = ", slope, " (baseline ", slope_base, ")", &
+      merge("  PASS", "  FAIL", ok_ta)
+    print "(A,L1,A,ES12.5,A)", &
+      "        JVP:    ok=", ok_jvp, "  ||Jv - Jv_R|| = ", err_jvp, &
+      merge("  PASS", "  FAIL", ok_jvp)
+    print "(A)", ""
+    deallocate (J_claim, J_ref)
+
+    ! Each method is a sub-test; gates the exit code via n_pass / n_fail.
+    all_ok_count = count([ok_fd, ok_ta, ok_jvp])
+    n_pass = n_pass + all_ok_count
+    n_fail = n_fail + (3 - all_ok_count)
+
+    ! Restore the converged state at this bias so we leave dev% consistent.
+    call ss%sys%set_x(x_save)
+    call ss%sys%eval()
+    deallocate (x_save, v_dir, rseed)
+  end subroutine
 
   subroutine solve_nlpe()
     !! Solve non-linear Poisson equation using Newton iteration

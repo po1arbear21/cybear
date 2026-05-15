@@ -1,6 +1,6 @@
 [defaults]
 sources   = ["lib/fortran-basic/src"]
-libraries = ["BLAS95", "LAPACK95", "MPFR", "MUMPS", "ZLIB"]
+libraries = ["BLAS95", "LAPACK95", "MPFR", "ZLIB"]
 
 
 [debug]
@@ -42,7 +42,7 @@ templates = [
 [schottky_test]
 mode = "debug"
 target = "schottky_test"
-sources = ["lib/fortran-basic/src", "test"]
+sources = ["lib/fortran-basic/src", "src", "test"]
 runner = "slurm"
 partition = "fast"
 args = ""
@@ -64,3 +64,11 @@ templates = [
       "test/devices/two_material_unknown.ini"
   ], action = "expand" }
 ]
+
+
+[jacobian_validation_test]
+mode = "debug"
+target = "jacobian_validation_test"
+sources = ["lib/fortran-basic/src", "src", "test"]
+args = ""
+templates = []
