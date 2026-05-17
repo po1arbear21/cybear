@@ -132,31 +132,45 @@ contains
   end function schottky_velocity
 
 
-  pure subroutine ifbl_delta_phi(ifbl, E_normal, eps_sc, dphi)
+  pure subroutine ifbl_delta_phi(ifbl, E_normal, eps_sc, dphi, ddphi_dE)
     !! Image-force barrier lowering at a Schottky contact.
     !!   dphi = sqrt(|E_normal| / (4 pi eps_sc))
     !! Returns 0 when IFBL is disabled or |E_normal| is below a numerical floor
     !! (avoids a singular sqrt at zero field). All quantities normalized.
+    !!
+    !! Optional ddphi_dE returns the RAW (unclamped) derivative of dphi
+    !! w.r.t. E_normal. Callers that clamp dphi against phi_b must apply
+    !! the clamp condition to ddphi_dE themselves (set to 0 when clamped).
 
     logical, intent(in)  :: ifbl
     real,    intent(in)  :: E_normal, eps_sc
     real,    intent(out) :: dphi
+    real,    intent(out), optional :: ddphi_dE
 
     real, parameter :: E_TOL = 1.0e-10
 
     if (ifbl .and. abs(E_normal) > E_TOL) then
       dphi = sqrt(abs(E_normal) / (4.0 * PI * eps_sc))
+      if (present(ddphi_dE)) ddphi_dE = sign(1.0, E_normal) / (8.0 * PI * eps_sc * dphi)
     else
       dphi = 0.0
+      if (present(ddphi_dE)) ddphi_dE = 0.0
     end if
   end subroutine ifbl_delta_phi
 
 
-  subroutine schottky_n0b(par, ci, ict, E_normal, n0b, eps_sc, delta_phi)
+  subroutine schottky_n0b(par, ci, ict, E_normal, n0b, eps_sc, delta_phi, &
+    &                     ddelta_phi_dE, dn0b_dE)
     !! Calculate equilibrium boundary density at Schottky barrier.
     !!
     !! n0b = N_c exp(-phi_b_eff / kT),  phi_b_eff = max(phi_b - dphi, 0)
     !! where dphi is the IFBL barrier lowering (zero when IFBL is disabled).
+    !!
+    !! Optional ddelta_phi_dE returns the CLAMP-AWARE derivative of the
+    !! returned delta_phi w.r.t. E_normal: equal to ddphi_raw/dE when IFBL is
+    !! active and the raw image-force dphi has not exceeded phi_b; zero
+    !! otherwise (clamp active, IFBL off, or |E| below E_TOL).
+    !! Optional dn0b_dE = n0b * ddelta_phi_dE (already normalized).
 
     type(device_params), intent(in) :: par
     integer, intent(in) :: ci, ict
@@ -169,8 +183,12 @@ contains
       !! Clamping keeps n0b and the v_th*exp(delta_phi) prefactor in eval consistent,
       !! so detailed balance holds even when |E| is large enough that the raw
       !! image-force formula would exceed phi_b.
+    real, optional, intent(out) :: ddelta_phi_dE
+    real, optional, intent(out) :: dn0b_dE
 
-    real :: phi_b, phi_b_eff, dphi
+    real    :: phi_b, phi_b_eff, dphi_raw, dphi_clamped, ddphi_raw_dE
+    real    :: ddphi_clamped_dE
+    logical :: ifbl_active
 
     if (ci == CR_ELEC) then
       phi_b = par%contacts(ict)%phi_b
@@ -178,18 +196,29 @@ contains
       phi_b = par%smc(par%smc_default)%band_gap - par%contacts(ict)%phi_b
     end if
 
-    call ifbl_delta_phi(par%contacts(ict)%ifbl, E_normal, eps_sc, dphi)
-    dphi = min(dphi, phi_b)
-    phi_b_eff = phi_b - dphi
+    ifbl_active = par%contacts(ict)%ifbl
+    call ifbl_delta_phi(ifbl_active, E_normal, eps_sc, dphi_raw, ddphi_raw_dE)
+    dphi_clamped = min(dphi_raw, phi_b)
+    phi_b_eff    = phi_b - dphi_clamped
 
     n0b = par%smc(par%smc_default)%edos(ci) * exp(-phi_b_eff)
 
-    if (present(delta_phi)) delta_phi = dphi
+    ! Clamp-aware derivative: nonzero only when IFBL is active AND the
+    ! image-force formula has not been clamped against phi_b.
+    if (ifbl_active .and. dphi_raw < phi_b) then
+      ddphi_clamped_dE = ddphi_raw_dE
+    else
+      ddphi_clamped_dE = 0.0
+    end if
+
+    if (present(delta_phi))     delta_phi     = dphi_clamped
+    if (present(ddelta_phi_dE)) ddelta_phi_dE = ddphi_clamped_dE
+    if (present(dn0b_dE))       dn0b_dE       = n0b * ddphi_clamped_dE
 
   end subroutine schottky_n0b
 
 
-  subroutine schottky_tunneling(par, ci, ict, E_normal, dens, J_t, dJ_t_ddens, eps_sc)
+  subroutine schottky_tunneling(par, ci, ict, E_normal, dens, J_t, dJ_t_ddens, eps_sc, dJ_t_dE)
     !! Calculate sub-barrier tunneling current via Tsu-Esaki integral.
     !!
     !! J_t = (m* / 2 pi^2) * integral_0^{phi_b} T(E) * supply(E) dE
@@ -201,6 +230,13 @@ contains
     !! same integrand with m_tunnel_p and phi_b_hole = band_gap - phi_b;
     !! this symmetric form has not yet been benchmarked against an
     !! independent hole-tunneling reference.
+    !!
+    !! Optional dJ_t_dE: clamp-aware derivative w.r.t. E_normal.
+    !!   dI/dE = dIdp(2) + (dIdp(1) + dIdb) * d(phi_b_eff)/dE
+    !!   d(phi_b_eff)/dE = -ddelta_phi_dE
+    !! The clamped branch (phi_b_eff = 0) gives dIdp(2) integrated over an
+    !! empty range, which evaluates to 0 -- so the formula is correct in
+    !! both branches without an explicit if-test.
 
     type(device_params), intent(in) :: par
     integer, intent(in) :: ict, ci
@@ -209,15 +245,19 @@ contains
     real, intent(out) :: dJ_t_ddens
     real, intent(in) :: eps_sc
       !! normalized semiconductor permittivity (used only when IFBL is enabled)
+    real, intent(out), optional :: dJ_t_dE
 
-    real :: phi_b, m_tunnel, eta, eta_m, detadF, dphi
+    real :: phi_b, phi_b_eff, m_tunnel, eta, eta_m, detadF, dphi_raw, ddphi_raw_dE
+    real :: ddelta_phi_dE, dphi_eff_dE
     real :: params(4), integral, dIda, dIdb, dIdp(4), err
     real :: prefactor
     integer :: ncalls
+    logical :: ifbl_active
 
     if (.not. par%contacts(ict)%tunneling .or. dens <= 0.0) then
       J_t = 0.0
       dJ_t_ddens = 0.0
+      if (present(dJ_t_dE)) dJ_t_dE = 0.0
       return
     end if
 
@@ -239,15 +279,17 @@ contains
     ! eta_m = V_n/kT represents the Fermi level splitting, independent of IFBL)
     eta_m = eta + phi_b
 
-    ! apply IFBL to phi_b for WKB barrier shape and integration bounds
-    call ifbl_delta_phi(par%contacts(ict)%ifbl, E_normal, eps_sc, dphi)
-    phi_b = max(phi_b - dphi, 0.0)
+    ! apply IFBL to phi_b for WKB barrier shape and integration bounds.
+    ! Capture ddphi_raw_dE for the clamp-aware dJ_t/dE_normal chain.
+    ifbl_active = par%contacts(ict)%ifbl
+    call ifbl_delta_phi(ifbl_active, E_normal, eps_sc, dphi_raw, ddphi_raw_dE)
+    phi_b_eff = max(phi_b - dphi_raw, 0.0)
 
-    ! integration parameters: [phi_b, |E|, m*, eta_m]
-    params = [phi_b, E_normal, m_tunnel, eta_m]
+    ! integration parameters: [phi_b_eff, |E|, m*, eta_m]
+    params = [phi_b_eff, E_normal, m_tunnel, eta_m]
 
-    ! integrate from 0 to phi_b (tunneling regime only)
-    call quad(tsu_esaki_integrand, 0.0, phi_b, params, integral, &
+    ! integrate from 0 to phi_b_eff (tunneling regime only)
+    call quad(tsu_esaki_integrand, 0.0, phi_b_eff, params, integral, &
               dIda, dIdb, dIdp, rtol=1.0e-6, err=err, ncalls=ncalls)
 
     ! current density (negative = injection into semiconductor)
@@ -256,6 +298,19 @@ contains
     ! derivative dJ_t/d(dens) via chain rule:
     ! dJ/d(dens) = dJ/d(eta_m) * d(eta_m)/d(eta) * d(eta)/d(dens)
     dJ_t_ddens = -prefactor * dIdp(4) * detadF / par%smc(par%smc_default)%edos(ci)
+
+    ! derivative dJ_t/d(E_normal): direct via WKB transmission (params(2)),
+    ! plus indirect via the effective barrier through both the integrand
+    ! (dIdp(1)) and the upper integration limit (dIdb).
+    if (present(dJ_t_dE)) then
+      if (ifbl_active .and. dphi_raw < phi_b) then
+        ddelta_phi_dE = ddphi_raw_dE
+      else
+        ddelta_phi_dE = 0.0
+      end if
+      dphi_eff_dE = -ddelta_phi_dE
+      dJ_t_dE = -prefactor * (dIdp(2) + (dIdp(1) + dIdb) * dphi_eff_dE)
+    end if
   end subroutine schottky_tunneling
 
 
@@ -398,22 +453,28 @@ contains
     this%jaco_dens => this%init_jaco(iprov, idep_dens, &
       & st = [this%st_dir%get_ptr()], const = .false.)
 
-    ! depend on E-field for evaluation order; lagged (empty stencil = no Jacobian entries)
+    ! depend on E-field; non-const dirichlet entry filled in eval with djbc/dE.
+    ! The pot -> efield_normal chain is handled by the efield equation; here we
+    ! only register the local sensitivity of schottky_bc to efield_normal at
+    ! the same contact vertex.
     idep_efield = this%depend(efield(this%normal_dir), par%transport_vct(ict))
     this%jaco_efield => this%init_jaco(iprov, idep_efield, &
-      & st = [this%st_em%get_ptr()], const = .true.)
+      & st = [this%st_dir%get_ptr()], const = .false.)
 
     call this%init_final()
   end subroutine
 
 
   subroutine calc_schottky_bc_eval(this)
-    !! evaluate Schottky boundary current and its derivative w.r.t. density
+    !! evaluate Schottky boundary current and its derivatives w.r.t. density
+    !! and E_normal. The efield-side derivative closes the chain that the
+    !! eval graph then propagates back to pot via the efield equation.
     class(calc_schottky_bc), intent(inout) :: this
 
     integer :: i, ict, ci
     integer :: idx(this%par%g%idx_dim)
-    real    :: E_normal, dens_val, n0b, J_t, dJ_t_ddens, delta_phi, j_bc
+    real    :: E_normal, dens_val, n0b, J_t, dJ_t_ddens, dJ_t_dE
+    real    :: delta_phi, ddelta_phi_dE, dn0b_dE, j_bc, djbc_dE
 
     ict = this%bc%ict
     ci  = this%bc%ci
@@ -424,11 +485,17 @@ contains
       E_normal = this%efield_normal%get(idx)
       dens_val = this%dens%get(idx)
 
-      ! equilibrium boundary density (with optional IFBL)
-      call schottky_n0b(this%par, ci, ict, E_normal, n0b, eps_sc = this%eps_sc(i), delta_phi = delta_phi)
+      ! equilibrium boundary density and its E-derivative (with optional IFBL)
+      call schottky_n0b(this%par, ci, ict, E_normal, n0b,                       &
+        &               eps_sc        = this%eps_sc(i),                         &
+        &               delta_phi     = delta_phi,                              &
+        &               ddelta_phi_dE = ddelta_phi_dE,                          &
+        &               dn0b_dE       = dn0b_dE)
 
-      ! tunneling current and its derivative w.r.t. density
-      call schottky_tunneling(this%par, ci, ict, E_normal, dens_val, J_t, dJ_t_ddens, eps_sc = this%eps_sc(i))
+      ! tunneling current and its derivatives w.r.t. density and E_normal
+      call schottky_tunneling(this%par, ci, ict, E_normal, dens_val,            &
+        &                     J_t, dJ_t_ddens, eps_sc = this%eps_sc(i),         &
+        &                     dJ_t_dE = dJ_t_dE)
 
       ! boundary current density: j_bc = v_th * exp(dphi) * dens - v_th * n0b - J_t
       j_bc = this%v_th * exp(delta_phi) * dens_val - this%v_th * n0b - J_t
@@ -436,6 +503,13 @@ contains
 
       ! diagonal Jacobian entry: dj_bc/d(dens) = v_th * exp(dphi) - dJ_t/d(dens)
       call this%jaco_dens%add(idx, idx, this%v_th * exp(delta_phi) - dJ_t_ddens)
+
+      ! dj_bc/d(E_normal): chain through delta_phi (in both the v_th prefactor
+      ! and in n0b) plus the direct tunneling-current contribution.
+      djbc_dE = this%v_th * exp(delta_phi) * dens_val * ddelta_phi_dE          &
+        &     - this%v_th * dn0b_dE                                            &
+        &     - dJ_t_dE
+      call this%jaco_efield%add(idx, idx, djbc_dE)
     end do
   end subroutine
 

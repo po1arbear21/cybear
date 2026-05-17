@@ -71,7 +71,7 @@ module jacobian_validator_m
 
 contains
 
-  subroutine validate_finite_diff(prob, x, ok, max_err, tol, h, J_claim_out, J_ref_out)
+  subroutine validate_finite_diff(prob, x, ok, max_err, tol, h, h_vec, positive_mask, J_claim_out, J_ref_out)
     !! Central finite differences as numerical reference.
     !!
     !! Optional out-args expose the claimed and FD-reference Jacobians so the
@@ -79,25 +79,60 @@ contains
     !! FD reference carries a per-entry roundoff floor of ~sqrt(eps), which
     !! is far coarser than CSD -- so for ratio-based localization on FD,
     !! choose ratio_threshold accordingly (typically 1e-3..1e-4, not 1e-6).
+    !!
+    !! Step-size resolution (precedence): h_vec(j) > h > default.
+    !!   - h_vec(:): per-column step; required for mixed-scale systems where a
+    !!     single global step is too large for tiny variables and too small for
+    !!     large ones (e.g. cybear DD: dens at depleted Schottky O(1e-14) vs
+    !!     pot O(10)).
+    !!   - h scalar override: same h for every column.
+    !!   - default: sqrt(eps) * (1 + ||x||_inf); fine for uniformly-scaled
+    !!     problems, broken for mixed-scale ones.
+    !!
+    !! positive_mask(:) optional: when .true. for column j, switch to the
+    !! second-order forward stencil  ( -3 F(x) + 4 F(x+h) - F(x+2h) ) / (2h)
+    !! whenever x(j) - h(j) would cross zero. For positive-only variables
+    !! (carrier densities, concentrations) this avoids the catastrophic
+    !! branch on x <= 0 in the residual (e.g. the schottky_tunneling
+    !! early-return path) while keeping O(h^2) accuracy.
+    !!
+    !! On return, the routine restores the underlying eval state to x (calls
+    !! eval_real(x, ...) once after the FD loop). Callers can rely on the
+    !! problem being at baseline x after this routine returns.
     class(jacobian_problem), intent(in)            :: prob
     real,                    intent(in)            :: x(:)
     logical,                 intent(out)           :: ok
     real,                    intent(out)           :: max_err
     real,                    intent(in),  optional :: tol
     real,                    intent(in),  optional :: h
+    real,                    intent(in),  optional :: h_vec(:)
+    logical,                 intent(in),  optional :: positive_mask(:)
     real,                    intent(out), optional :: J_claim_out(:,:)
     real,                    intent(out), optional :: J_ref_out(:,:)
 
-    real, allocatable :: J_claim(:,:), J_fd(:,:), xp(:), xm(:), fp(:), fm(:)
+    real, allocatable :: J_claim(:,:), J_fd(:,:), xp(:), xm(:), x2(:), fp(:), fm(:), f2(:)
+    real, allocatable :: hcol(:), f0(:)
+    logical, allocatable :: posmask(:)
     real    :: hloc, tolloc
     integer :: n, j
+    logical :: use_forward
 
     n = size(x)
-    if (present(h)) then
-      hloc = h
+    allocate (hcol(n), posmask(n))
+    if (present(h_vec)) then
+      hcol = h_vec
     else
-      ! optimum for central FD on real64: trades O(h^2) truncation against eps/h roundoff
-      hloc = sqrt(epsilon(1.0)) * (1.0 + maxval(abs(x)))
+      if (present(h)) then
+        hloc = h
+      else
+        hloc = sqrt(epsilon(1.0)) * (1.0 + maxval(abs(x)))
+      end if
+      hcol = hloc
+    end if
+    if (present(positive_mask)) then
+      posmask = positive_mask
+    else
+      posmask = .false.
     end if
     if (present(tol)) then
       tolloc = tol
@@ -106,17 +141,33 @@ contains
     end if
 
     allocate (J_claim(n,n), J_fd(n,n))
-    allocate (xp(n), xm(n), fp(n), fm(n))
+    allocate (xp(n), xm(n), x2(n), fp(n), fm(n), f2(n), f0(n))
 
     call prob%eval_jac(x, J_claim)
+    call prob%eval_real(x, f0)
 
     do j = 1, n
-      xp = x; xp(j) = xp(j) + hloc
-      xm = x; xm(j) = xm(j) - hloc
-      call prob%eval_real(xp, fp)
-      call prob%eval_real(xm, fm)
-      J_fd(:,j) = (fp - fm) / (2.0 * hloc)
+      ! Switch to second-order forward stencil for positive-only variables
+      ! whose backward step would cross zero. The 3-point forward formula
+      ! (-3f0 + 4f+ - f++)/(2h) preserves O(h^2) accuracy.
+      use_forward = posmask(j) .and. (x(j) - hcol(j) <= 0.0)
+      if (use_forward) then
+        xp = x; xp(j) = xp(j) +       hcol(j)
+        x2 = x; x2(j) = x2(j) + 2.0 * hcol(j)
+        call prob%eval_real(xp, fp)
+        call prob%eval_real(x2, f2)
+        J_fd(:,j) = (-3.0 * f0 + 4.0 * fp - f2) / (2.0 * hcol(j))
+      else
+        xp = x; xp(j) = xp(j) + hcol(j)
+        xm = x; xm(j) = xm(j) - hcol(j)
+        call prob%eval_real(xp, fp)
+        call prob%eval_real(xm, fm)
+        J_fd(:,j) = (fp - fm) / (2.0 * hcol(j))
+      end if
     end do
+
+    ! Restore state to x so downstream code sees a clean baseline.
+    call prob%eval_real(x, fp)
 
     max_err = maxval(abs(J_claim - J_fd))
     ok      = max_err <= tolloc
@@ -230,6 +281,9 @@ contains
     slope_baseline = log_log_slope(hs, R0)
 
     ok = (slope >= stol) .and. (slope_baseline >= 0.9)
+
+    ! Restore state to x so downstream probes see a clean baseline.
+    call prob%eval_real(x, fh)
   end subroutine
 
   subroutine validate_jvp_richardson(prob, x, v, ok, err, tol, h)
@@ -282,6 +336,9 @@ contains
 
     err = norm2(Jv - Jv_ref)
     ok  = err <= tolloc
+
+    ! Restore state to x so downstream probes see a clean baseline.
+    call prob%eval_real(x, fp1)
   end subroutine
 
   subroutine print_top_defects(J_claim, J_ref, unit, k, ratio_threshold, floor_frac, label)

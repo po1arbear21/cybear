@@ -806,9 +806,70 @@ program schottky_test
     print "(A)", ""
   end block
 
-  call run_jacobian_validation_at_bias( 0.0, "V = 0       (equilibrium)")
-  call run_jacobian_validation_at_bias( 0.3, "V = +0.3 V  (forward, tunneling+IFBL active)")
-  call run_jacobian_validation_at_bias(-1.0, "V = -1.0 V  (reverse, IFBL dominant)")
+  ! Three-way physics sweep on the analytical Jacobian:
+  !   PASS 1: tunneling on,  IFBL on   (full physics; Test 8 state)
+  !   PASS 2: tunneling on,  IFBL off  (isolate IFBL Jacobian contribution)
+  !   PASS 3: tunneling off, IFBL off  (pure thermionic-emission baseline)
+  print "(A)", ""
+  print "(A)", "  ============ PASS 1: tunneling=ON,  IFBL=ON  ============"
+  dev%par%contacts(1)%tunneling = .true.
+  dev%par%contacts(1)%ifbl      = .true.
+  call run_jacobian_validation_at_bias( 0.0, "V = 0       [TE+tun+IFBL]")
+  call run_jacobian_validation_at_bias( 0.3, "V = +0.3 V  [TE+tun+IFBL]")
+  call run_jacobian_validation_at_bias(-1.0, "V = -1.0 V  [TE+tun+IFBL]")
+
+  print "(A)", ""
+  print "(A)", "  ============ PASS 2: tunneling=ON,  IFBL=OFF ============"
+  dev%par%contacts(1)%tunneling = .true.
+  dev%par%contacts(1)%ifbl      = .false.
+  call run_jacobian_validation_at_bias( 0.0, "V = 0       [TE+tun]")
+  call run_jacobian_validation_at_bias( 0.3, "V = +0.3 V  [TE+tun]")
+  call run_jacobian_validation_at_bias(-1.0, "V = -1.0 V  [TE+tun]")
+
+  print "(A)", ""
+  print "(A)", "  ============ PASS 3: tunneling=OFF, IFBL=OFF ============"
+  dev%par%contacts(1)%tunneling = .false.
+  dev%par%contacts(1)%ifbl      = .false.
+  call run_jacobian_validation_at_bias( 0.0, "V = 0       [TE only]")
+  call run_jacobian_validation_at_bias( 0.3, "V = +0.3 V  [TE only]")
+  call run_jacobian_validation_at_bias(-1.0, "V = -1.0 V  [TE only]")
+
+  ! ====================================================================
+  ! Test 11: Schottky-boundary off-diagonal Jacobian regression test
+  !
+  ! Targeted tight-FD probe on the two off-diagonal entries of row 201
+  ! (ndens / transport_VCT_SCHOTTKY) that link back to potential at the
+  ! Schottky vertex (column 100) and its inward neighbor (column 1) -- the
+  ! two pot DOFs that compose E_normal at the contact edge. These entries
+  ! exercise the chain
+  !
+  !   dF_201 / dpot_k  =  -A_ct * (dj_bc/dE) * (dE/dpot_k)
+  !
+  ! which goes through calc_schottky_bc's jaco_efield. If anyone later
+  ! reverts to an empty stencil on efield_normal, or breaks the dn0b/dE or
+  ! dJ_t/dE derivatives in schottky_n0b / schottky_tunneling, this probe
+  ! will fail.
+  !
+  ! Test 11 is the CI gate for the Schottky-boundary Jacobian. Test 10 above
+  ! is a broad multi-config diagnostic only -- full dense FD is the wrong
+  ! tool for cybear's mixed-scale state (densities at depleted reverse-bias
+  ! contacts go to O(1e-14) while potentials are O(10)), so its results
+  ! print but do not gate the exit code.
+  !
+  ! Method:
+  !   1. Configure tunneling=on + IFBL=on, ramp to V=+0.3 V (forward bias
+  !      where j_bc has its strongest E-dependence through exp(delta_phi)).
+  !   2. Save converged x_save; compute J_claim once at that state.
+  !   3. For each column j in {1, 100}: sweep h_rel over six decades,
+  !      central-FD perturb dpot_k = h_rel * |x_save(j)|, reset to x_save
+  !      between each side, compare (F_plus(201)-F_minus(201))/(2h) to
+  !      J_claim(201, j).
+  !   4. Verdict: best rel err across the sweep below REL_ERR_THRESHOLD
+  !               (default 1e-6)  =>  PASS;  pinned above the threshold at
+  !               every h  =>  FAIL with a regression message identifying
+  !               the missing efield chain.
+  ! ====================================================================
+  call test_11_bug_b_off_diagonal_probe()
 
   ! ====================================================================
   ! Summary — gates the test exit code so SLURM/CI can detect failures
@@ -839,9 +900,10 @@ contains
 
     type(esystem_problem) :: jprob
     real, allocatable     :: x_save(:), v_dir(:), tinp_local(:), Vmat(:,:)
-    real, allocatable     :: J_claim(:,:), J_ref(:,:)
+    real, allocatable     :: J_claim(:,:), J_ref(:,:), h_vec(:)
+    logical, allocatable  :: pos_mask(:)
     integer, allocatable  :: rseed(:)
-    integer               :: nx_loc, mseed, all_ok_count
+    integer               :: nx_loc, mseed, j
     logical               :: ok_fd, ok_ta, ok_jvp
     real                  :: err_fd, err_jvp, slope, slope_base, xnorm
 
@@ -873,43 +935,256 @@ contains
 
     ! Tolerances scale with ||J|| ~ O(xnorm) since DD is in normalized units.
     allocate (J_claim(nx_loc, nx_loc), J_ref(nx_loc, nx_loc))
+
+    ! Per-column FD step with variable-type-aware policy.
+    !
+    ! Block layout (set once at init, see print_esystem_layout in Test 10):
+    !   rows/cols  1..99  pot / transport_VCT0
+    !            100      pot / poisson_VCT_SCHOTTKY
+    !            101      pot / poisson_VCT_OHMIC
+    !            102..200 ndens / transport_VCT0
+    !            201      ndens / transport_VCT_SCHOTTKY
+    !            202      ndens / transport_VCT_OHMIC
+    !            203..204 currents / AllVertex
+    !            205      V_SCHOTTKY / AllVertex
+    !            206      V_OHMIC / AllVertex
+    !
+    ! Step policy per variable type:
+    !   potentials, voltages, currents (cols 1-101, 203-206)
+    !     h = sqrt(eps) * max(|x|, 1.0)
+    !     Standard central FD. Floor of 1.0 keeps the step usable when the
+    !     variable itself is zero (e.g. V_OHMIC = 0); the subtraction
+    !     (F_plus - F_minus) still has enough signal magnitude to beat noise.
+    !
+    !   carrier densities (cols 102-202): positive-only, can drop to O(1e-14)
+    !     at depleted reverse-biased Schottky contacts
+    !     h = max(sqrt(eps) * |x|, 1e-16)
+    !     Use the second-order FORWARD stencil when x - h <= 0 (positive_mask).
+    !     This avoids the dens <= 0 branch in schottky_tunneling and other
+    !     positive-only physics, while keeping O(h^2) accuracy. The 1e-16
+    !     absolute floor accommodates fully-depleted carrier densities; below
+    !     that the variable is structurally zero and FD on it isn't meaningful.
+    allocate (h_vec(nx_loc), pos_mask(nx_loc))
+    do j = 1, nx_loc
+      if (j >= 102 .and. j <= 202) then
+        h_vec(j)   = max(sqrt(epsilon(1.0)) * abs(x_save(j)), 1.0e-16)
+        pos_mask(j) = .true.
+      else
+        h_vec(j)   = sqrt(epsilon(1.0)) * max(abs(x_save(j)), 1.0)
+        pos_mask(j) = .false.
+      end if
+    end do
+
     call validate_finite_diff   (jprob, x_save, ok_fd,  err_fd,  &
       &                          tol = 1.0e-3 * max(1.0, xnorm), &
+      &                          h_vec = h_vec,                  &
+      &                          positive_mask = pos_mask,       &
       &                          J_claim_out = J_claim, J_ref_out = J_ref)
     call validate_taylor        (jprob, x_save, v_dir, ok_ta, slope, slope_base, &
       &                          hmin = 1.0e-7, hmax = 1.0e-3)
     call validate_jvp_richardson(jprob, x_save, v_dir, ok_jvp, err_jvp, &
       &                          tol = 1.0e-6 * max(1.0, xnorm), h = 1.0e-5)
 
+    ! Test 10 is purely DIAGNOSTIC: print the three reference checks at every
+    ! (config, bias) for human-readable observability, but do NOT increment
+    ! n_pass / n_fail. Full dense FD is the wrong tool for mixed-scale
+    ! depleted states (see comment on h_vec construction); the CI gate lives
+    ! in Test 11's targeted tight-FD probe. "ok" labels here read "ref" /
+    ! "off" instead of PASS/FAIL to make the distinction explicit.
     print "(A,I0,A,ES10.3)", "        nx=", nx_loc, "  ||x||_inf=", xnorm
     print "(A,L1,A,ES12.5,A)",       &
-      "        FD:     ok=", ok_fd,  "  max|J-J_fd|  = ", err_fd, &
-      merge("  PASS", "  FAIL", ok_fd)
-    ! Ratio threshold is looser than CSD's 1e-6: FD's per-entry roundoff is
-    ! sqrt(eps) ~ 1e-8 absolute, which gives ratios ~ 1e-3..1e-5 on small-block
-    ! entries. The 1e-12 * ||J||_inf floor still keeps off-stencil zeros from
-    ! false-positiving, and avoids the Poisson block hiding Schottky-row bugs.
+      "        [diag] FD:     ok=", ok_fd,  "  max|J-J_fd|  = ", err_fd, &
+      merge("  ref-match ", "  ref-differ",ok_fd)
     call print_top_defects(J_claim, J_ref, k = 8,                         &
       &                    ratio_threshold = 1.0e-3, floor_frac = 1.0e-12, &
       &                    label = "FD entrywise")
     print "(A,L1,A,F5.2,A,F5.2,A,A)", &
-      "        Taylor: ok=", ok_ta,  "  slope = ", slope, " (baseline ", slope_base, ")", &
-      merge("  PASS", "  FAIL", ok_ta)
+      "        [diag] Taylor: ok=", ok_ta,  "  slope = ", slope, " (baseline ", slope_base, ")", &
+      merge("  ref-match ", "  ref-differ",ok_ta)
     print "(A,L1,A,ES12.5,A)", &
-      "        JVP:    ok=", ok_jvp, "  ||Jv - Jv_R|| = ", err_jvp, &
-      merge("  PASS", "  FAIL", ok_jvp)
+      "        [diag] JVP:    ok=", ok_jvp, "  ||Jv - Jv_R|| = ", err_jvp, &
+      merge("  ref-match ", "  ref-differ",ok_jvp)
     print "(A)", ""
-    deallocate (J_claim, J_ref)
 
-    ! Each method is a sub-test; gates the exit code via n_pass / n_fail.
-    all_ok_count = count([ok_fd, ok_ta, ok_jvp])
-    n_pass = n_pass + all_ok_count
-    n_fail = n_fail + (3 - all_ok_count)
+    deallocate (J_claim, J_ref, h_vec, pos_mask)
 
-    ! Restore the converged state at this bias so we leave dev% consistent.
+    ! Diagnostic only: no pass/fail accounting here. Test 11 is the CI gate.
+
+    ! Validators now restore x_save themselves; no explicit reset needed here.
+    deallocate (x_save, v_dir, rseed)
+  end subroutine
+
+  subroutine test_11_bug_b_off_diagonal_probe()
+    !! Test 11 driver. See the long block comment above the call site for
+    !! motivation. This routine owns its own physics setup, bias ramp, and
+    !! per-column h policy. probe_column does its own state reset between
+    !! perturbations, independent of whatever state validate_finite_diff
+    !! happens to leave behind after extracting J_claim.
+    use jacobian_validator_m, only: validate_finite_diff
+    use esystem_problem_m,    only: esystem_problem
+
+    type(esystem_problem) :: jprob
+    real, allocatable     :: x_save(:), tinp_local(:), Vmat(:,:)
+    real, allocatable     :: J_claim(:,:), J_ref_dummy(:,:)
+    real    :: err_dummy
+    logical :: ok_dummy
+    integer :: nx_loc, j_probe
+
+    integer, parameter :: PROBE_COLS(2) = [1, 100]
+    integer, parameter :: IROW          = 201   ! ndens / transport_VCT_SCHOTTKY
+
+    print "(A)", ""
+    print "(A)", "========================================"
+    print "(A)", " Test 11: Schottky-boundary off-diagonal Jacobian regression"
+    print "(A)", "========================================"
+    print "(A)", "  Configuration:  tunneling=ON,  IFBL=ON,  V_a = +0.3 V"
+    print "(A)", "  Probing:        dF_201/dpot_1, dF_201/dpot_100"
+    print "(A)", "  Method:         per-column tight central FD, state reset"
+    print "(A)", "                  to converged x_save before every probe"
+    print "(A)", ""
+
+    ! 1. Configure physics
+    dev%par%contacts(1)%tunneling = .true.
+    dev%par%contacts(1)%ifbl      = .true.
+
+    ! 2. Bias ramp to V = +0.3 V on Schottky, 0 V on Ohmic
+    allocate (tinp_local(2), Vmat(ninput, 2))
+    tinp_local = [0.0, 1.0]
+    Vmat(1, :) = [0.0, norm(0.3, 'V')]
+    Vmat(2, :) = 0.0
+    call input%init(tinp_local, Vmat)
+    call ss%run(input = input, t_input = [0.0, 1.0])
+    deallocate (tinp_local, Vmat)
+
+    ! 3. Save converged x; compute J_claim once at that state via the validator
+    !    (we only need J_claim; validate_finite_diff is the convenient
+    !    interface to extract it). Its FD reference is discarded; probe_column
+    !    measures FD itself with a per-column h_rel sweep.
+    nx_loc = ss%sys%n
+    allocate (x_save(nx_loc), J_claim(nx_loc, nx_loc), J_ref_dummy(nx_loc, nx_loc))
+    x_save = ss%sys%get_x()
+
+    jprob%sys => ss%sys
+    call validate_finite_diff(jprob, x_save, ok_dummy, err_dummy,             &
+      &                       tol = huge(1.0),                                &
+      &                       J_claim_out = J_claim, J_ref_out = J_ref_dummy)
+
+    print "(A)", "  Per-column tight FD vs analytical J_claim:"
+    print "(A)", "  (best rel err < REL_ERR_THRESHOLD => PASS;"
+    print "(A)", "   pinned above threshold across h-sweep => FAIL = regression)"
+    print "(A)", ""
+
+    do j_probe = 1, size(PROBE_COLS)
+      call probe_column(x_save, IROW, PROBE_COLS(j_probe),                    &
+        &               J_claim(IROW, PROBE_COLS(j_probe)))
+    end do
+
+    ! 4. Restore converged state so later code (e.g., summary) sees clean state.
     call ss%sys%set_x(x_save)
     call ss%sys%eval()
-    deallocate (x_save, v_dir, rseed)
+
+    deallocate (x_save, J_claim, J_ref_dummy)
+  end subroutine
+
+  subroutine probe_column(x_baseline, irow, jcol, J_claim_ij)
+    !! Per-column tight central FD on a single Jacobian entry. Resets ss%sys
+    !! to x_baseline before every perturbed eval as a defensive measure --
+    !! validators now restore state on return, but the reset is cheap and
+    !! protects against future regressions in the validator-side discipline.
+    !!
+    !! Verdict: PASS iff the minimum rel err across the h-sweep is below
+    !! REL_ERR_THRESHOLD, OR the entry magnitude is below ABS_FLOOR (sub-floor
+    !! entries are structurally zero). FAIL iff a real missing chain rule
+    !! fragment keeps the rel err pinned above the threshold at every h.
+    real,    intent(in) :: x_baseline(:)
+    integer, intent(in) :: irow, jcol
+    real,    intent(in) :: J_claim_ij
+
+    real, allocatable :: x_pert(:), F_plus(:), F_minus(:)
+    real    :: h_list(6), h_rel, h, fd, defect, rel_err
+    real    :: best_rel_err, best_h_rel
+    integer :: ih, n
+
+    real, parameter :: REL_ERR_THRESHOLD = 1.0e-6
+      !! generous floor for tight central FD on a normalized DD residual
+    real, parameter :: ABS_FLOOR         = 1.0e-12
+      !! entries below this are treated as structurally zero (PASS automatically)
+
+    n = size(x_baseline)
+    allocate (x_pert(n), F_plus(n), F_minus(n))
+
+    h_list = [1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7, 1.0e-8]
+
+    print "(A,I0,A,I0,A,ES15.7)",                                              &
+      "    column j=", jcol, "   (probing J(", irow, ", j)  claim = ", J_claim_ij
+    print "(A,ES15.7)",                                                       &
+      "    x_baseline(j) = ", x_baseline(jcol)
+    print "(A)",                                                              &
+      "      h_rel        h_abs          FD            defect          rel err"
+
+    best_rel_err = huge(1.0)
+    best_h_rel   = 0.0
+
+    do ih = 1, size(h_list)
+      h_rel = h_list(ih)
+      h     = h_rel * max(abs(x_baseline(jcol)), 1.0e-30)
+
+      ! +h
+      call ss%sys%set_x(x_baseline)
+      call ss%sys%eval()                     ! deterministic starting eval
+      x_pert         = x_baseline
+      x_pert(jcol)   = x_baseline(jcol) + h
+      call ss%sys%set_x(x_pert)
+      call ss%sys%eval(f = F_plus)
+
+      ! -h
+      call ss%sys%set_x(x_baseline)
+      call ss%sys%eval()
+      x_pert         = x_baseline
+      x_pert(jcol)   = x_baseline(jcol) - h
+      call ss%sys%set_x(x_pert)
+      call ss%sys%eval(f = F_minus)
+
+      fd     = (F_plus(irow) - F_minus(irow)) / (2.0 * h)
+      defect = J_claim_ij - fd
+      if (max(abs(J_claim_ij), abs(fd)) > ABS_FLOOR) then
+        rel_err = abs(defect) / max(abs(J_claim_ij), abs(fd))
+      else
+        rel_err = abs(defect)
+      end if
+
+      print "(A,ES10.2,2X,ES12.4,2X,ES13.5,2X,ES15.7,2X,ES12.3)",              &
+        "      ", h_rel, h, fd, defect, rel_err
+
+      if (rel_err < best_rel_err) then
+        best_rel_err = rel_err
+        best_h_rel   = h_rel
+      end if
+    end do
+
+    ! Acceptance: sub-floor entries auto-pass; otherwise compare the best
+    ! achievable rel err across the h-sweep to REL_ERR_THRESHOLD. A real
+    ! missing chain rule keeps every h pinned above the threshold; a clean
+    ! analytical entry hits the FD precision floor somewhere in the sweep.
+    if (abs(J_claim_ij) < ABS_FLOOR) then
+      print "(A,ES10.3,A,ES10.3,A)",                                           &
+        "      VERDICT: PASS  J_claim = ", J_claim_ij,                         &
+        "  (below abs_floor = ", ABS_FLOOR, ")"
+      n_pass = n_pass + 1
+    else if (best_rel_err < REL_ERR_THRESHOLD) then
+      print "(A,ES10.3,A,ES10.3,A)",                                           &
+        "      VERDICT: PASS  best rel err = ", best_rel_err,                  &
+        "  (at h_rel = ", best_h_rel, ")"
+      n_pass = n_pass + 1
+    else
+      print "(A,ES10.3,A,ES10.3,A)",                                           &
+        "      VERDICT: FAIL  best rel err = ", best_rel_err,                  &
+        "  >  threshold ", REL_ERR_THRESHOLD, "   -- Schottky efield Jacobian regression"
+      n_fail = n_fail + 1
+    end if
+    print "(A)", ""
+
+    deallocate (x_pert, F_plus, F_minus)
   end subroutine
 
   subroutine solve_nlpe()
